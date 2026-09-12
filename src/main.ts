@@ -1,5 +1,11 @@
 import { Engine } from './core/Engine';
 
-window.addEventListener('DOMContentLoaded', () => {
-  new Engine('webgl-container');
-});
+function init() {
+  (window as any).__ENGINE__ = new Engine('webgl-container');
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

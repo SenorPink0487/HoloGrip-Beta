@@ -7,7 +7,10 @@ export class PerfOverlay {
   private latencyEl: HTMLElement | null = null;
   private computeEl: HTMLElement | null = null;
   private backendEl: HTMLElement | null = null;
-  private isVisible = false;
+  private statusDotEl: HTMLElement | null = null;
+  private popoverEl: HTMLElement | null = null;
+  private isVisible = true;
+  private isDetailsOpen = false;
 
   private frameCount = 0;
   private lastTime = performance.now();
@@ -26,23 +29,30 @@ export class PerfOverlay {
   private initDOM(): void {
     this.element = document.createElement('div');
     this.element.id = 'perf-overlay';
-    this.element.className = 'hud-panel hud-perf-hud';
+    this.element.className = 'hud-interactive';
     this.element.innerHTML = `
-      <div class="perf-row">
-        <span class="perf-label">FPS</span>
-        <span class="perf-value perf-fps" id="perf-fps-val">--</span>
+      <div class="perf-pill-capsule" id="perf-pill-toggle" title="点击查看性能详情 (P)">
+        <span class="perf-status-dot" id="perf-status-dot"></span>
+        <div class="perf-pill-item">
+          <span class="perf-pill-label">帧率</span>
+          <span class="perf-pill-val perf-fps" id="perf-fps-val">60</span>
+          <span class="perf-pill-unit">FPS</span>
+        </div>
+        <div class="perf-pill-divider"></div>
+        <div class="perf-pill-item">
+          <span class="perf-pill-label">延迟</span>
+          <span class="perf-pill-val" id="perf-latency-val">16.6 ms</span>
+        </div>
       </div>
-      <div class="perf-row">
-        <span class="perf-label">渲染延迟</span>
-        <span class="perf-value" id="perf-latency-val">-- ms</span>
-      </div>
-      <div class="perf-row">
-        <span class="perf-label">多核算力耗时</span>
-        <span class="perf-value perf-compute" id="perf-compute-val">-- ms</span>
-      </div>
-      <div class="perf-row perf-sub-row">
-        <span class="perf-label">计算后端</span>
-        <span class="perf-value" id="perf-backend-val">--</span>
+      <div class="perf-details-popover" id="perf-details-popover">
+        <div class="perf-detail-row">
+          <span class="perf-detail-label">多核算力耗时</span>
+          <span class="perf-detail-val perf-compute" id="perf-compute-val">-- ms</span>
+        </div>
+        <div class="perf-detail-row">
+          <span class="perf-detail-label">计算后端</span>
+          <span class="perf-detail-val" id="perf-backend-val">--</span>
+        </div>
       </div>
     `;
 
@@ -52,6 +62,14 @@ export class PerfOverlay {
     this.latencyEl = this.element.querySelector('#perf-latency-val');
     this.computeEl = this.element.querySelector('#perf-compute-val');
     this.backendEl = this.element.querySelector('#perf-backend-val');
+    this.statusDotEl = this.element.querySelector('#perf-status-dot');
+    this.popoverEl = this.element.querySelector('#perf-details-popover');
+
+    const toggleBtn = this.element.querySelector('#perf-pill-toggle');
+    toggleBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleDetails();
+    });
 
     if (this.backendEl) {
       const isTauri = this.platform.info.isTauri;
@@ -67,11 +85,22 @@ export class PerfOverlay {
         this.toggle();
       }
     });
+
+    document.addEventListener('click', (e) => {
+      if (this.isDetailsOpen && !this.element.contains(e.target as Node)) {
+        this.toggleDetails(false);
+      }
+    });
+  }
+
+  public toggleDetails(open?: boolean): void {
+    this.isDetailsOpen = open !== undefined ? open : !this.isDetailsOpen;
+    this.popoverEl?.classList.toggle('open', this.isDetailsOpen);
   }
 
   public toggle(visible?: boolean): boolean {
     this.isVisible = visible !== undefined ? visible : !this.isVisible;
-    this.element.classList.toggle('visible', this.isVisible);
+    this.element.classList.toggle('hidden', !this.isVisible);
     return this.isVisible;
   }
 
@@ -90,15 +119,21 @@ export class PerfOverlay {
       this.frameCount = 0;
       this.lastTime = now;
 
+      let color = '#34c759';
+      if (this.fps < 30) {
+        color = '#ff453a';
+      } else if (this.fps < 55) {
+        color = '#ff9f0a';
+      }
+
       if (this.fpsEl) {
         this.fpsEl.textContent = `${this.fps}`;
-        if (this.fps >= 55) {
-          this.fpsEl.style.color = '#34c759';
-        } else if (this.fps >= 30) {
-          this.fpsEl.style.color = '#ff9f0a';
-        } else {
-          this.fpsEl.style.color = '#ff453a';
-        }
+        this.fpsEl.style.color = color;
+      }
+
+      if (this.statusDotEl) {
+        this.statusDotEl.style.background = color;
+        this.statusDotEl.style.boxShadow = `0 0 8px ${color}`;
       }
 
       if (this.latencyEl) {

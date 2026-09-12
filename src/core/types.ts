@@ -43,7 +43,10 @@ export type ExperimentCategory =
   | 'fluids'
   | 'chaos'
   | 'electromagnetism'
-  | 'thermodynamics';
+  | 'thermodynamics'
+  | 'physics'
+  | 'math'
+  | 'chemistry';
 
 export interface ExperimentMetadata {
   id: string;

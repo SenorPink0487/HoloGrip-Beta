@@ -35,23 +35,28 @@ export class ExperimentDrawer {
     this.element.innerHTML = `
       <div class="drawer-header">
         <div class="drawer-title-row">
-          <span class="drawer-icon">🔬</span>
-          <span class="drawer-title">实验矩阵目录 (Matrix Catalog)</span>
-          <button class="drawer-close-btn" id="drawer-close-btn">✕</button>
+          <span class="drawer-title">实验库</span>
+          <button class="drawer-close-btn" id="drawer-close-btn" title="关闭 (ESC)">✕</button>
         </div>
         <div class="drawer-search-row">
-          <input type="text" id="drawer-search-input" placeholder="搜索实验名称、物理公式或标签..." />
+          <div class="search-input-wrapper">
+            <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="drawer-search-input" placeholder="搜索实验..." />
+          </div>
         </div>
         <div class="drawer-category-tabs" id="drawer-category-tabs">
-          <button class="category-chip active" data-cat="all">全部实验</button>
+          <button class="category-chip active" data-cat="all">全部</button>
           ${CATEGORIES.map(
-            (c) => `<button class="category-chip" data-cat="${c.id}">${c.icon} ${c.name}</button>`
+            (c) => `<button class="category-chip" data-cat="${c.id}">${c.name}</button>`
           ).join('')}
         </div>
       </div>
       <div class="drawer-list" id="drawer-list"></div>
       <div class="drawer-footer">
-        <span>支持几十万行代码模块化热拔插与异步按需加载</span>
+        <span class="drawer-shortcut-hint">按 E 或 ESC 切换</span>
       </div>
     `;
 
@@ -134,8 +139,8 @@ export class ExperimentDrawer {
     if (experiments.length === 0) {
       this.listEl.innerHTML = `
         <div class="drawer-empty-state">
-          <p>未找到匹配的虚拟实验</p>
-          <span>可尝试其他搜索关键词或物理学科分类</span>
+          <p>暂无可用虚拟实验</p>
+          <span>物理与数学实验模块正在升级重构中，敬请期待</span>
         </div>
       `;
       return;

@@ -53,13 +53,19 @@ export class Engine {
   private currentHoveredTarget: 'hologram' | 'beaker' | null = null;
 
   public clock = new THREE.Clock();
+  private lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  private startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  private lastCrosshairCheck = 0;
   public experimentParams = new Map<string, any>();
   private currentContext: ExperimentContext;
   private currentSwitchRequestId = 0;
-  private currentExperimentId = 'quantum-wave';
+  private currentExperimentId: string | null = null;
   private isContextLost = false;
 
   constructor(containerId = 'webgl-container') {
+    if (typeof window !== 'undefined') {
+      (window as any).__ENGINE__ = this;
+    }
     this.container = document.getElementById(containerId) || document.body;
 
     this.initRenderer();
@@ -85,13 +91,17 @@ export class Engine {
       alpha: false,
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Limit pixel ratio to 1.5 on high-DPI displays to eliminate fillrate starvation
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.92;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
 
     this.container.appendChild(this.renderer.domElement);
   }
@@ -130,18 +140,27 @@ export class Engine {
     );
   }
 
+  public isPostProcessingActive = false;
+
   private initPostProcessing(): void {
-    const size = new THREE.Vector2(window.innerWidth, window.innerHeight);
+    const width = window.innerWidth;
+    const height = window.innerHeight;
     this.composer = new EffectComposer(this.renderer);
 
     const renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(renderPass);
 
-    this.bloomPass = new UnrealBloomPass(size, 0.28, 0.32, 0.91);
+    // Half-resolution bloom resolution to prevent 4K fragment shading bottlenecks
+    const bloomSize = new THREE.Vector2(Math.max(256, Math.floor(width * 0.5)), Math.max(256, Math.floor(height * 0.5)));
+    this.bloomPass = new UnrealBloomPass(bloomSize, 0.28, 0.32, 0.91);
     this.composer.addPass(this.bloomPass);
 
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);
+  }
+
+  public setPostProcessing(enabled: boolean): void {
+    this.isPostProcessingActive = enabled;
   }
 
   private initComputeAndWorkers(): void {
@@ -251,17 +270,26 @@ export class Engine {
       this.spatialWindowObject.rotation.set(-tiltDown, angleY, 0);
     } else {
       const lerpSpeed = Math.min(1.0, delta * 7.0);
-      this.spatialWindowObject.position.x = THREE.MathUtils.lerp(this.spatialWindowObject.position.x, targetX, lerpSpeed);
-      this.spatialWindowObject.position.y = THREE.MathUtils.lerp(this.spatialWindowObject.position.y, targetY, lerpSpeed);
-      this.spatialWindowObject.position.z = THREE.MathUtils.lerp(this.spatialWindowObject.position.z, targetZ, lerpSpeed);
+      const pos = this.spatialWindowObject.position;
+      const rot = this.spatialWindowObject.rotation;
+
+      if (Math.hypot(pos.x - targetX, pos.y - targetY, pos.z - targetZ) > 1e-4) {
+        pos.x = THREE.MathUtils.lerp(pos.x, targetX, lerpSpeed);
+        pos.y = THREE.MathUtils.lerp(pos.y, targetY, lerpSpeed);
+        pos.z = THREE.MathUtils.lerp(pos.z, targetZ, lerpSpeed);
+      }
 
       // Handle angular wrap-around for smooth rotation
-      let diffY = angleY - this.spatialWindowObject.rotation.y;
+      let diffY = angleY - rot.y;
       while (diffY < -Math.PI) diffY += Math.PI * 2;
       while (diffY > Math.PI) diffY -= Math.PI * 2;
-      this.spatialWindowObject.rotation.y += diffY * lerpSpeed;
-      this.spatialWindowObject.rotation.x = THREE.MathUtils.lerp(this.spatialWindowObject.rotation.x, -tiltDown, lerpSpeed);
-      this.spatialWindowObject.rotation.z = 0;
+      if (Math.abs(diffY) > 1e-4) {
+        rot.y += diffY * lerpSpeed;
+      }
+      if (Math.abs(-tiltDown - rot.x) > 1e-4) {
+        rot.x = THREE.MathUtils.lerp(rot.x, -tiltDown, lerpSpeed);
+      }
+      rot.z = 0;
     }
   }
 
@@ -363,6 +391,9 @@ export class Engine {
 
       this.currentExperimentId = id;
       this.hud.setActiveExperiment(experiment, this.currentContext);
+      if (this.renderer?.shadowMap?.enabled) {
+        this.renderer.shadowMap.needsUpdate = true;
+      }
     } catch (err) {
       console.error('[Engine] Failed to switch experiment:', err);
     } finally {
@@ -377,7 +408,10 @@ export class Engine {
   }
 
   private async initDefaultExperiment(): Promise<void> {
-    await this.switchExperiment('quantum-wave');
+    const all = ExperimentRegistry.getInstance().getAll();
+    if (all.length > 0) {
+      await this.switchExperiment(all[0].id);
+    }
   }
 
   private getInteractiveTargetAt(screenPos: THREE.Vector2): 'hologram' | 'beaker' | null {
@@ -461,20 +495,32 @@ export class Engine {
     this.camera.updateProjectionMatrix();
 
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 
-    this.composer.setSize(width, height);
-    this.bloomPass.resolution.set(width, height);
+    if (this.composer && this.bloomPass) {
+      this.composer.setSize(width, height);
+      this.bloomPass.resolution.set(Math.max(256, Math.floor(width * 0.5)), Math.max(256, Math.floor(height * 0.5)));
+    }
 
     if (this.css3dRenderer) {
       this.css3dRenderer.setSize(width, height);
     }
+
+    if (this.renderer.shadowMap.enabled) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
   }
 
-  private checkCrosshairIntersection(): void {
+  private checkCrosshairIntersection(now: number): void {
     if (!this.crosshair || (this.visionModal && this.visionModal.visible)) {
       return;
     }
+
+    // Throttle raycasting to every 50ms (~20Hz) to prevent main-thread scene traversal spikes
+    if (now - this.lastCrosshairCheck < 50) {
+      return;
+    }
+    this.lastCrosshairCheck = now;
 
     const targetType = this.getInteractiveTargetAt(this.centerScreen);
     const hovered = targetType !== null;
@@ -497,15 +543,18 @@ export class Engine {
       return;
     }
 
-    const delta = this.clock.getDelta();
-    const elapsed = this.clock.getElapsedTime();
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const delta = Math.min(0.1, (now - this.lastFrameTime) / 1000);
+    this.lastFrameTime = now;
+    const elapsed = (now - this.startTime) / 1000;
 
     if (this.inputManager) {
       this.inputManager.update(delta);
     }
 
-    // Continuously update spatial window orientation and elevation to smoothly face camera in 3D
-    if (this.spatialWindowObject && this.visionModal && this.visionModal.visible) {
+    // Continuously update spatial window orientation and elevation only when modal is visible
+    const isModalOpen = Boolean(this.visionModal && this.visionModal.visible);
+    if (this.spatialWindowObject && isModalOpen) {
       this.updateSpatialWindowTransform(delta, false);
     }
 
@@ -525,23 +574,29 @@ export class Engine {
       this.chemistryEngine.update(delta);
     }
 
-    if (this.beaker) {
+    // Only update beaker mesh and reaction effects when beaker is actually visible on table
+    if (this.beaker && this.beaker.isVisible()) {
       this.beaker.update(delta);
-    }
-
-    if (this.reactionEffects && this.chemistryEngine) {
-      this.reactionEffects.update(delta, this.chemistryEngine.state);
+      if (this.reactionEffects && this.chemistryEngine) {
+        this.reactionEffects.update(delta, this.chemistryEngine.state);
+      }
     }
 
     if (this.hud) {
       this.hud.update(delta);
     }
 
-    this.checkCrosshairIntersection();
+    this.checkCrosshairIntersection(now);
 
-    this.composer.render();
+    // Render using ultra-fast native pipeline (100+ FPS) or optional downsampled bloom composer
+    if (this.isPostProcessingActive && this.composer) {
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
 
-    if (this.css3dRenderer && this.css3dScene) {
+    // Only render CSS3D scene when spatial window is open/visible
+    if (this.css3dRenderer && this.css3dScene && isModalOpen && this.spatialWindowObject?.visible) {
       this.css3dRenderer.render(this.css3dScene, this.camera);
     }
   }

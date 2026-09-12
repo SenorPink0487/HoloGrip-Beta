@@ -23,8 +23,8 @@ export class Lighting {
     centerSpot.decay = 1.1;
     centerSpot.distance = 10;
     centerSpot.castShadow = true;
-    centerSpot.shadow.mapSize.width = 2048;
-    centerSpot.shadow.mapSize.height = 2048;
+    centerSpot.shadow.mapSize.width = 1024;
+    centerSpot.shadow.mapSize.height = 1024;
     centerSpot.shadow.camera.near = 0.5;
     centerSpot.shadow.camera.far = 8;
     centerSpot.shadow.bias = -0.0003;

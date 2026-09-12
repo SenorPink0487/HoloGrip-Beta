@@ -15,35 +15,18 @@ export interface CategoryInfo {
 
 export const CATEGORIES: CategoryInfo[] = [
   {
-    id: 'quantum',
-    name: '量子物理学',
+    id: 'physics',
+    name: '前沿物理',
     icon: '⚛️',
-    description: '波包演化、双缝干涉、态叠加与薛定谔波动方程模拟',
+    description: '经典天体力学、非线性动力系统与波动场论空间模拟',
   },
   {
-    id: 'astrophysics',
-    name: '天体物理与引力',
-    icon: '🪐',
-    description: '三体混沌轨道、N体万有引力与多核多粒子吸积模拟',
-  },
-  {
-    id: 'chaos',
-    name: '非线性混沌力学',
-    icon: '🦋',
-    description: '洛伦兹奇怪吸引子、相空间极限环与蝴蝶效应敏感性',
-  },
-  {
-    id: 'optics',
-    name: '光学与光子学',
-    icon: '🎯',
-    description: '激光夫琅禾费衍射、艾里斑图样与波动干涉条纹',
+    id: 'math',
+    name: '空间数学',
+    icon: '📐',
+    description: '微分流形、四维几何与高维拓扑动力系统',
   },
 ];
-
-import { metadata as quantumMeta } from './catalog/quantum/quantum-wave/meta.ts';
-import { metadata as nbodyMeta } from './catalog/astrophysics/nbody-gravity/meta.ts';
-import { metadata as lorenzMeta } from './catalog/chaos/lorenz-attractor/meta.ts';
-import { metadata as opticsMeta } from './catalog/optics/laser-diffraction/meta.ts';
 
 export class ExperimentRegistry {
   private static instance: ExperimentRegistry;
@@ -110,22 +93,7 @@ export class ExperimentRegistry {
   }
 
   private registerFallbackExperiments(): void {
-    this.register({
-      metadata: quantumMeta,
-      loader: () => import('./catalog/quantum/quantum-wave/index.ts') as Promise<ExperimentModule>,
-    });
-    this.register({
-      metadata: nbodyMeta,
-      loader: () => import('./catalog/astrophysics/nbody-gravity/index.ts') as Promise<ExperimentModule>,
-    });
-    this.register({
-      metadata: lorenzMeta,
-      loader: () => import('./catalog/chaos/lorenz-attractor/index.ts') as Promise<ExperimentModule>,
-    });
-    this.register({
-      metadata: opticsMeta,
-      loader: () => import('./catalog/optics/laser-diffraction/index.ts') as Promise<ExperimentModule>,
-    });
+    // No fallback experiments registered when all catalog experiments are cleared
   }
 
   public register(entry: ExperimentRegistryEntry): void {

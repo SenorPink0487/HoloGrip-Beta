@@ -1,6 +1,6 @@
 export interface DisciplineCallbacks {
   onSelectChemistry: () => void;
-  onSelectPhysics: (experimentId?: string) => void;
+  onSelectPhysics: () => void;
   onSelectMath: () => void;
 }
 
@@ -62,16 +62,17 @@ export class DisciplineSelector {
             </div>
             <h3 class="card-title">前沿物理与空间场论</h3>
             <p class="card-desc">
-              量子态波包色散扩散、经典三体引力摄动、洛伦兹非线性混沌吸引子与光学菲涅尔双缝干涉衍射交互。
+              经典天体力学引力摄动、非线性动力系统相空间演化与波动光学干涉衍射场交互模拟。
             </p>
-            <div class="physics-quick-links">
-              <button class="phys-quick-btn" data-exp="quantum-wave">量子波包</button>
-              <button class="phys-quick-btn" data-exp="nbody-gravity">三体引力</button>
-              <button class="phys-quick-btn" data-exp="lorenz-attractor">混沌吸引子</button>
-              <button class="phys-quick-btn" data-exp="laser-diffraction">激光衍射</button>
+            <div class="card-meta-line">
+              <span>天体力学</span>
+              <span class="meta-dot">·</span>
+              <span>混沌动力学</span>
+              <span class="meta-dot">·</span>
+              <span>波动光学</span>
             </div>
             <button class="vision-card-action-btn" id="btn-open-physics">
-              <span>进入物理实验</span>
+              <span>进入物理板块</span>
               <span class="btn-arrow">→</span>
             </button>
           </div>
@@ -97,9 +98,9 @@ export class DisciplineSelector {
               <span class="meta-dot">·</span>
               <span>动力系统</span>
             </div>
-            <button class="vision-card-action-btn disabled-btn" id="btn-open-math">
-              <span>概念探索预览</span>
-              <span class="btn-arrow">↗</span>
+            <button class="vision-card-action-btn" id="btn-open-math">
+              <span>进入数学板块</span>
+              <span class="btn-arrow">→</span>
             </button>
           </div>
         </div>
@@ -120,25 +121,23 @@ export class DisciplineSelector {
       this.callbacks.onSelectChemistry();
     });
 
-    // Open Physics default
+    // Open Physics
     this.element.querySelector('#btn-open-physics')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.callbacks.onSelectPhysics();
     });
 
-    // Quick physics buttons
-    const quickBtns = this.element.querySelectorAll('.phys-quick-btn');
-    quickBtns.forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const expId = (btn as HTMLElement).dataset.exp;
-        this.callbacks.onSelectPhysics(expId);
-      });
+    this.element.querySelector('#card-discipline-phys')?.addEventListener('click', () => {
+      this.callbacks.onSelectPhysics();
     });
 
-    // Math preview
+    // Open Math
     this.element.querySelector('#btn-open-math')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.callbacks.onSelectMath();
+    });
+
+    this.element.querySelector('#card-discipline-math')?.addEventListener('click', () => {
       this.callbacks.onSelectMath();
     });
   }

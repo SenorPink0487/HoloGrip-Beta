@@ -8,7 +8,8 @@ export class ParameterPanel {
 
   constructor(
     private container: HTMLElement = document.body,
-    private onParamChangeCallback?: (id: string, value: any) => void
+    private onParamChangeCallback?: (id: string, value: any) => void,
+    private onToggleDrawer?: () => void
   ) {
     this.initDOM();
   }
@@ -19,14 +20,24 @@ export class ParameterPanel {
     this.element.className = 'hud-interactive hud-panel';
     this.element.innerHTML = `
       <div class="panel-header" id="param-panel-header">
-        <div class="panel-title-group">
+        <div class="panel-title-group" id="param-title-group" title="参数控制">
           <span class="panel-title" id="param-panel-title">参数控制</span>
         </div>
-        <button class="panel-collapse-btn" id="param-panel-toggle" title="收起 / 展开">
-          <svg class="sf-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
+        <div class="panel-actions">
+          <button class="panel-icon-btn" id="param-drawer-btn" title="选择实验 (E)">
+            <svg class="sf-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+            </svg>
+          </button>
+          <button class="panel-collapse-btn" id="param-panel-toggle" title="收起 / 展开">
+            <svg class="sf-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="panel-equation" id="param-panel-equation"></div>
       <div class="panel-content" id="param-panel-content">
@@ -38,6 +49,12 @@ export class ParameterPanel {
 
     this.headerEl = this.element.querySelector('#param-panel-title')!;
     this.contentEl = this.element.querySelector('#param-panel-content')!;
+
+    const drawerBtn = this.element.querySelector('#param-drawer-btn');
+    drawerBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onToggleDrawer?.();
+    });
 
     const toggleBtn = this.element.querySelector('#param-panel-toggle')!;
     toggleBtn.addEventListener('click', (e) => {

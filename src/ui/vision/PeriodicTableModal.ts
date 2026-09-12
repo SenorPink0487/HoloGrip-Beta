@@ -173,13 +173,16 @@ export class PeriodicTableModal {
 
   private engine: ChemistryEngine;
   private onBackToDisciplines: () => void;
+  private onViewBeaker?: () => void;
 
   constructor(
     engine: ChemistryEngine,
-    onBackToDisciplines: () => void
+    onBackToDisciplines: () => void,
+    onViewBeaker?: () => void
   ) {
     this.engine = engine;
     this.onBackToDisciplines = onBackToDisciplines;
+    this.onViewBeaker = onViewBeaker;
     this.selectedElement = PeriodicTableModal.ELEMENTS.find((e) => e.symbol === 'Na') || PeriodicTableModal.ELEMENTS[0];
     this.createUI();
   }
@@ -193,23 +196,33 @@ export class PeriodicTableModal {
         <div class="top-controls-left">
           <button class="vision-back-btn" id="btn-back-disciplines">
             <span class="back-icon">←</span>
-            <span>板块导航</span>
+            <span>学科大厅</span>
           </button>
           <div class="periodic-title-pill">
-            <span class="pill-text">元素周期律交互矩阵</span>
+            <span class="pill-text">元素周期表</span>
           </div>
+          ${
+            this.onViewBeaker
+              ? `
+          <button class="vision-back-btn vision-view-beaker-btn" id="btn-quick-beaker">
+            <span>烧杯监控</span>
+            <span class="back-icon">→</span>
+          </button>
+          `
+              : ''
+          }
         </div>
 
         <div class="periodic-filter-bar" id="category-filter-bar">
-          <button class="category-tab active" data-cat="all">全部元素 (118)</button>
+          <button class="category-tab active" data-cat="all">全部 (118)</button>
           <button class="category-tab cat-alkali" data-cat="alkali-metal">碱金属</button>
           <button class="category-tab cat-alkaline" data-cat="alkaline-earth">碱土金属</button>
           <button class="category-tab cat-trans" data-cat="transition-metal">过渡金属</button>
           <button class="category-tab cat-post" data-cat="post-transition">后过渡金属</button>
           <button class="category-tab cat-metalloid" data-cat="metalloid">类金属</button>
-          <button class="category-tab cat-nonmetal" data-cat="reactive-nonmetal">非金属/卤素</button>
+          <button class="category-tab cat-nonmetal" data-cat="reactive-nonmetal">非金属</button>
           <button class="category-tab cat-noble" data-cat="noble-gas">稀有气体</button>
-          <button class="category-tab cat-lanth" data-cat="lanthanide">镧系/锕系</button>
+          <button class="category-tab cat-lanth" data-cat="lanthanide">镧/锕系</button>
         </div>
       </div>
 
@@ -526,6 +539,11 @@ export class PeriodicTableModal {
     // Back button
     this.element.querySelector('#btn-back-disciplines')?.addEventListener('click', () => {
       this.onBackToDisciplines();
+    });
+
+    // Quick switch to beaker button
+    this.element.querySelector('#btn-quick-beaker')?.addEventListener('click', () => {
+      this.onViewBeaker?.();
     });
 
     // Category filter tabs
