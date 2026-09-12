@@ -20,18 +20,18 @@ export class ExperimentStatusCard {
       <div class="status-card-header">
         <div class="status-card-title-group">
           <span class="status-live-indicator"></span>
-          <span class="status-card-title">烧杯微观实时监控</span>
+          <span class="status-card-title">烧杯监控</span>
         </div>
         <div class="status-quick-actions">
-          <button class="status-action-btn" id="btn-add-water" title="注入 50mL 去离子水">
+          <button class="status-action-btn" id="btn-add-water" title="加水 50mL">
             <span class="action-glyph">+</span>
             <span>加水 50mL</span>
           </button>
-          <button class="status-action-btn" id="btn-stir" title="玻璃棒均匀搅拌">
+          <button class="status-action-btn" id="btn-stir" title="搅拌">
             <span class="action-glyph">↺</span>
             <span>搅拌</span>
           </button>
-          <button class="status-action-btn btn-danger" id="btn-clean-beaker" title="清空并洗净烧杯">
+          <button class="status-action-btn" id="btn-clean-beaker" title="清空">
             <span class="action-glyph">✕</span>
             <span>清空</span>
           </button>
@@ -78,31 +78,31 @@ export class ExperimentStatusCard {
       <!-- Microscopic Ions Section -->
       <div class="status-section">
         <div class="section-title">
-          <span>微观解离离子群 (Ions in Solution)</span>
+          <span>溶液离子</span>
         </div>
         <div class="ions-chips-container" id="ions-container">
-          <span class="ion-chip neutral">H₂O</span>
+          <span class="ion-chip neutral">纯水 (H₂O)</span>
         </div>
       </div>
 
       <!-- Precipitates & Solids Section -->
       <div class="status-section" id="section-precipitates">
         <div class="section-title">
-          <span>沉淀与固相产物 (Precipitates & Solids)</span>
+          <span>沉淀与固相</span>
         </div>
         <div class="precip-chips-container" id="precip-container">
-          <span class="empty-hint">当前无难溶沉淀析出</span>
+          <span class="empty-hint">无沉淀生成</span>
         </div>
       </div>
 
       <!-- Balanced Chemical Equations Section -->
       <div class="status-section reaction-section">
         <div class="section-title">
-          <span>平衡化学反应式与机理解析 (Reaction Logs)</span>
+          <span>反应记录</span>
         </div>
         <div class="reactions-log-list" id="reactions-list">
           <div class="reaction-item empty">
-            <div class="eq-hint">在元素周期表中选择元素试剂，注入桌上烧杯开始化学实验</div>
+            <div class="eq-hint">等待反应发生</div>
           </div>
         </div>
       </div>
@@ -139,7 +139,7 @@ export class ExperimentStatusCard {
       volEl.textContent = Math.round(state.volume).toString();
       const pct = Math.min(100, (state.volume / state.maxVolume) * 100);
       volFill.style.width = `${pct}%`;
-      volFill.style.background = pct > 90 ? 'linear-gradient(90deg, #ff9f0a, #ff453a)' : 'linear-gradient(90deg, #0a84ff, #5ac8fa)';
+      volFill.style.background = 'rgba(255, 255, 255, 0.7)';
     }
 
     // 2. Temperature

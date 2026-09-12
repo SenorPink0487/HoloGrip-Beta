@@ -967,78 +967,57 @@
       transform: scaleY(1.4);
     }
 
-    /* Vision Window Header - Apple Translucent Capsule Nav */
+    /* Vision Window Header - Apple Translucent Capsule Bar */
     .vision-window-header {
-      height: 52px;
-      padding: 0 20px;
+      height: 48px;
+      padding: 0 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       background: rgba(255, 255, 255, 0.04);
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       user-select: none;
+      position: relative;
     }
 
-    .header-left, .header-right {
+    .header-left {
       display: flex;
       align-items: center;
-      gap: 12px;
+      min-width: 68px;
     }
 
-    .vision-window-badge {
+    .header-center {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .header-right {
       display: flex;
       align-items: center;
-      gap: 7px;
-      font-size: 13.5px;
-      font-weight: 600;
-      letter-spacing: -0.1px;
-      color: rgba(255, 255, 255, 0.95);
-    }
-
-    .vision-glyph {
-      font-size: 15px;
-      color: #ffffff;
-    }
-
-    .vision-nav-pills {
-      display: flex;
-      gap: 3px;
-      background: rgba(255, 255, 255, 0.06);
-      padding: 3px;
-      border-radius: 980px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .nav-pill {
-      background: transparent;
-      border: none;
-      color: #86868b;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 5px 14px;
-      border-radius: 980px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .nav-pill:hover {
-      color: #ffffff;
-    }
-
-    .nav-pill.active {
-      background: rgba(255, 255, 255, 0.18);
-      color: #ffffff;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      justify-content: flex-end;
+      gap: 10px;
+      min-width: 68px;
     }
 
     .vision-drag-indicator {
-      width: 32px;
+      width: 36px;
       height: 4px;
       border-radius: 2px;
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    .vision-window-btn.btn-back {
+      font-size: 18px;
+      font-weight: 300;
+      line-height: 1;
+      padding-bottom: 2px;
+    }
+
+    .vision-window-btn.hidden {
+      display: none !important;
     }
 
     .vision-window-btn {
@@ -1079,15 +1058,18 @@
     }
 
     /* ========================================================== */
-    /* Discipline Selector Styling */
+    /* Discipline Selector Styling - Apple Vision Pro Pure Tiles */
     /* ========================================================== */
     .vision-discipline-container {
       display: flex;
       flex-direction: column;
-      gap: 24px;
-      height: 100%;
+      align-items: center;
       justify-content: center;
-      padding: 20px 40px;
+      height: 100%;
+      min-height: 480px;
+      gap: 36px;
+      padding: 24px 48px;
+      user-select: none;
     }
 
     .discipline-hero-header {
@@ -1095,156 +1077,116 @@
     }
 
     .hero-title {
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 600;
       letter-spacing: -0.4px;
-      color: #ffffff;
-      margin-bottom: 6px;
-    }
-
-    .hero-subtitle {
-      font-size: 13px;
-      color: #86868b;
-      max-width: 600px;
-      margin: 0 auto;
-      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.95);
+      margin: 0;
     }
 
     .discipline-cards-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-      max-width: 1140px;
-      margin: 0 auto;
+      gap: 24px;
+      max-width: 880px;
       width: 100%;
     }
 
     .discipline-card {
       position: relative;
-      border-radius: 22px;
+      border-radius: 28px;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-top: 1px solid rgba(255, 255, 255, 0.2);
-      padding: 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 44px 24px 38px;
       cursor: pointer;
       transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
       overflow: hidden;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
+      outline: none;
     }
 
-    .discipline-card:hover {
-      transform: translateY(-4px);
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.22);
-      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.32);
+    .discipline-card:hover, .discipline-card:focus-visible {
+      transform: translateY(-6px) scale(1.02);
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.25);
+      border-top-color: rgba(255, 255, 255, 0.45);
+      box-shadow: 0 24px 50px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(255, 255, 255, 0.15);
     }
 
-    .card-glass-content {
+    .discipline-card:active {
+      transform: scale(0.98);
+      transition-duration: 0.1s;
+    }
+
+    .card-icon-wrapper {
+      width: 68px;
+      height: 68px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
       display: flex;
-      flex-direction: column;
-      height: 100%;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 22px;
+      position: relative;
+      z-index: 1;
+      color: rgba(255, 255, 255, 0.9);
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), background 0.28s, color 0.28s, border-color 0.28s;
     }
 
-    .card-icon-banner {
-      margin-bottom: 12px;
+    .discipline-card:hover .card-icon-wrapper,
+    .discipline-card:focus-visible .card-icon-wrapper {
+      transform: scale(1.08);
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.26);
+      color: #ffffff;
     }
 
     .vision-card-svg {
-      width: 30px;
-      height: 30px;
-      color: rgba(255, 255, 255, 0.9);
+      width: 32px;
+      height: 32px;
       display: block;
     }
 
+    .card-text-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      position: relative;
+      z-index: 1;
+    }
+
     .card-title {
-      font-size: 16px;
+      font-size: 20px;
       font-weight: 600;
       color: #ffffff;
-      margin-bottom: 8px;
       letter-spacing: -0.2px;
+      margin: 0;
     }
 
-    .card-desc {
-      font-size: 12px;
-      color: #86868b;
-      line-height: 1.6;
-      margin-bottom: 14px;
-      flex: 1;
+    .card-sub {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.48);
+      margin: 0;
+      font-weight: 400;
+      letter-spacing: -0.1px;
     }
 
-    .card-meta-line {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.45);
-      margin-bottom: 18px;
-    }
-
-    .meta-dot {
-      color: rgba(255, 255, 255, 0.25);
-    }
-
-    .physics-quick-links {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-bottom: 18px;
-    }
-
-    .phys-quick-btn {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 11px;
-      font-weight: 500;
-      padding: 6px 8px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .phys-quick-btn:hover {
-      background: rgba(255, 255, 255, 0.15);
-      color: #ffffff;
-      border-color: rgba(255, 255, 255, 0.25);
-    }
-
-    .vision-card-action-btn {
-      width: 100%;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      color: #ffffff;
-      padding: 10px 16px;
-      border-radius: 12px;
-      font-size: 12.5px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      transition: all 0.2s ease;
-    }
-
-    .vision-card-action-btn:hover {
-      background: rgba(255, 255, 255, 0.16);
-      border-color: rgba(255, 255, 255, 0.28);
-    }
-
-    .vision-card-action-btn.disabled-btn {
-      opacity: 0.4;
-      cursor: default;
-    }
-
-    /* Sector Entrance Pages (Physics & Math) */
+    /* Sector Entrance Pages (Physics & Math) - Apple Vision Pro Empty State */
     .vision-sector-page {
       display: flex;
       flex-direction: column;
-      gap: 16px;
       height: 100%;
       min-height: 0;
+      justify-content: center;
+      align-items: center;
     }
 
     .sector-display-container {
@@ -1253,757 +1195,370 @@
       align-items: center;
       justify-content: center;
       padding: 20px 40px;
+      width: 100%;
     }
 
-    .sector-glass-hero {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-top: 1px solid rgba(255, 255, 255, 0.22);
-      border-radius: 24px;
-      padding: 36px 40px;
-      max-width: 780px;
-      width: 100%;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-      text-align: center;
+    .vision-empty-state {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 16px;
-    }
-
-    .sector-hero-badge {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--apple-blue);
-      background: rgba(10, 132, 255, 0.12);
-      border: 1px solid rgba(10, 132, 255, 0.25);
-      padding: 4px 14px;
-      border-radius: 980px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .sector-hero-title {
-      font-size: 24px;
-      font-weight: 700;
-      color: #ffffff;
-      letter-spacing: -0.3px;
-    }
-
-    .sector-hero-desc {
-      font-size: 13.5px;
-      color: #a1a1a6;
-      line-height: 1.6;
-      max-width: 620px;
-    }
-
-    .sector-status-box {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
-      padding: 14px 20px;
-      display: flex;
-      align-items: center;
+      justify-content: center;
+      text-align: center;
       gap: 14px;
-      width: 100%;
-      text-align: left;
+      padding: 40px;
+      user-select: none;
     }
 
-    .sector-status-dot {
-      width: 10px;
-      height: 10px;
+    .empty-state-icon {
+      width: 68px;
+      height: 68px;
       border-radius: 50%;
-      background: #0a84ff;
-      box-shadow: 0 0 10px #0a84ff;
-      flex-shrink: 0;
-      animation: pulse-dot 2s infinite ease-in-out;
-    }
-
-    .sector-status-dot.math-dot {
-      background: #bf5af2;
-      box-shadow: 0 0 10px #bf5af2;
-    }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 0.6; transform: scale(0.9); }
-      50% { opacity: 1; transform: scale(1.15); }
-    }
-
-    .sector-status-text {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-size: 12px;
-    }
-
-    .sector-status-text strong {
-      color: #ffffff;
-      font-size: 13px;
-    }
-
-    .sector-status-text span {
-      color: #86868b;
-      line-height: 1.5;
-    }
-
-    .sector-features-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      width: 100%;
-      margin-top: 8px;
-    }
-
-    .sector-feature-item {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 14px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
       align-items: center;
-      text-align: center;
-      gap: 6px;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.85);
+      margin-bottom: 6px;
     }
 
-    .feature-icon {
+    .vision-empty-svg {
+      width: 32px;
+      height: 32px;
+      display: block;
+    }
+
+    .empty-state-title {
       font-size: 22px;
-    }
-
-    .feature-title {
-      font-size: 12.5px;
       font-weight: 600;
+      letter-spacing: -0.3px;
       color: #ffffff;
+      margin: 0;
     }
 
-    .feature-desc {
-      font-size: 11px;
-      color: #86868b;
-      line-height: 1.4;
+    .empty-state-subtitle {
+      font-size: 13.5px;
+      color: rgba(255, 255, 255, 0.45);
+      margin: 0;
+      font-weight: 400;
     }
 
     /* ========================================================== */
-    /* Periodic Table Matrix Styling (Apple Educational Style) */
+    /* Periodic Table Matrix Styling (Apple Vision Pro Pure Minimalist) */
     /* ========================================================== */
     .vision-periodic-container {
+      position: relative;
       display: flex;
-      flex-direction: column;
-      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
       height: 100%;
-    }
-
-    .periodic-top-controls {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .top-controls-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .vision-back-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.9);
-      padding: 5px 12px;
-      border-radius: 980px;
-      font-size: 11px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      transition: all 0.2s;
-    }
-
-    .vision-back-btn:hover {
-      background: rgba(255, 255, 255, 0.16);
-      color: #ffffff;
-    }
-
-    .vision-view-beaker-btn {
-      background: rgba(10, 132, 255, 0.15);
-      border-color: rgba(10, 132, 255, 0.3);
-      color: #ffffff;
-    }
-
-    .vision-view-beaker-btn:hover {
-      background: rgba(10, 132, 255, 0.28);
-    }
-
-    .periodic-title-pill {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 5px 12px;
-      border-radius: 980px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #ffffff;
-    }
-
-    .periodic-filter-bar {
-      display: flex;
-      gap: 4px;
-      overflow-x: auto;
-    }
-
-    .category-tab {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #86868b;
-      font-size: 10.5px;
-      font-weight: 500;
-      padding: 4px 10px;
-      border-radius: 980px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: all 0.2s;
-    }
-
-    .category-tab:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .category-tab.active {
-      background: rgba(255, 255, 255, 0.18);
-      border-color: rgba(255, 255, 255, 0.28);
-      color: #ffffff;
-    }
-
-    .periodic-layout-split {
-      display: grid;
-      grid-template-columns: 1fr 340px;
-      gap: 14px;
-      flex: 1;
       min-height: 0;
-    }
-
-    .periodic-grid-wrapper {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      overflow-x: auto;
-      overflow-y: auto;
-      padding-right: 4px;
+      user-select: none;
     }
 
     .periodic-grid {
       display: grid;
-      grid-template-columns: repeat(18, minmax(32px, 1fr));
-      grid-template-rows: repeat(7, 36px);
-      gap: 3px;
-      min-width: 620px;
+      grid-template-columns: repeat(18, minmax(0, 1fr));
+      grid-template-rows: repeat(5, 82px);
+      gap: 8px;
+      width: 100%;
+      max-width: 1160px;
     }
 
-    .lanth-act-separator {
-      display: flex;
-      justify-content: space-between;
-      padding: 1px 6px;
-      font-size: 9px;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.4);
-    }
-
-    .lanth-act-grid {
-      display: grid;
-      grid-template-columns: repeat(15, minmax(32px, 1fr));
-      grid-template-rows: repeat(2, 32px);
-      gap: 3px;
-      margin-left: calc(2 * (32px + 3px));
-      min-width: 530px;
-    }
-
+    /* Element Cell Cards */
     .element-cell {
-      border-radius: 6px;
+      position: relative;
+      border-radius: 12px;
       background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 2px 3px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      padding: 6px 8px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      align-items: center;
       cursor: pointer;
-      transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
-      position: relative;
-      user-select: none;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .element-cell:hover {
-      transform: scale(1.08);
+      transform: scale(1.08) translateY(-2px);
       z-index: 10;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-      border-color: rgba(255, 255, 255, 0.4);
-      background: rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
     }
 
     .element-cell.selected {
       border-color: var(--apple-blue) !important;
-      box-shadow: 0 0 0 2px var(--apple-blue), 0 4px 16px rgba(0, 0, 0, 0.4);
-      background: rgba(255, 255, 255, 0.2) !important;
-      transform: scale(1.08);
+      background: rgba(10, 132, 255, 0.18) !important;
+      box-shadow: 0 0 0 2px var(--apple-blue);
+      transform: scale(1.08) translateY(-2px);
       z-index: 12;
     }
 
     .elem-num {
-      font-size: 7px;
+      align-self: flex-start;
+      font-size: 10px;
       font-weight: 500;
-      color: rgba(255, 255, 255, 0.5);
+      color: rgba(255, 255, 255, 0.4);
       line-height: 1;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace;
     }
 
     .elem-sym {
-      font-size: 11.5px;
-      font-weight: 600;
-      color: #ffffff;
-      line-height: 1.1;
-      text-align: center;
-    }
-
-    .elem-name {
-      font-size: 8px;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.85);
-      text-align: center;
-      line-height: 1;
-    }
-
-    .elem-mass {
-      font-size: 6px;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace;
-      color: rgba(255, 255, 255, 0.45);
-      text-align: right;
-      line-height: 1;
-    }
-
-    /* Refined Apple Pastel Category Tints */
-    .cat-alkali-metal { background: rgba(255, 69, 58, 0.14); border-color: rgba(255, 69, 58, 0.25); }
-    .cat-alkaline-earth { background: rgba(255, 159, 10, 0.14); border-color: rgba(255, 159, 10, 0.25); }
-    .cat-transition-metal { background: rgba(10, 132, 255, 0.14); border-color: rgba(10, 132, 255, 0.25); }
-    .cat-post-transition { background: rgba(52, 199, 89, 0.14); border-color: rgba(52, 199, 89, 0.25); }
-    .cat-metalloid { background: rgba(100, 210, 255, 0.14); border-color: rgba(100, 210, 255, 0.25); }
-    .cat-reactive-nonmetal { background: rgba(255, 55, 95, 0.14); border-color: rgba(255, 55, 95, 0.25); }
-    .cat-noble-gas { background: rgba(191, 90, 242, 0.14); border-color: rgba(191, 90, 242, 0.25); }
-    .cat-lanthanide, .cat-actinide { background: rgba(142, 142, 147, 0.14); border-color: rgba(142, 142, 147, 0.25); }
-
-    /* Element Drawer (Inspector Right) */
-    .element-drawer {
-      display: flex;
-      flex-direction: column;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 18px;
-      overflow-y: auto;
-      padding: 14px;
-    }
-
-    .drawer-inner-card {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .elem-showcase-header {
-      border-radius: 14px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.05);
-    }
-
-    .showcase-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .showcase-num {
-      font-size: 11px;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.6);
-    }
-
-    .showcase-category-badge {
-      font-size: 9.5px;
-      font-weight: 500;
-      background: rgba(255, 255, 255, 0.12);
-      padding: 2px 7px;
-      border-radius: 6px;
-      color: #ffffff;
-    }
-
-    .showcase-main-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .showcase-symbol {
-      font-size: 34px;
+      font-size: 22px;
       font-weight: 700;
       color: #ffffff;
       line-height: 1;
+      letter-spacing: -0.4px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      margin-top: -4px;
     }
 
-    .showcase-name-col {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-    }
-
-    .showcase-cn-name {
-      font-size: 17px;
-      font-weight: 600;
-      color: #ffffff;
-    }
-
-    .showcase-en-name {
-      font-size: 11px;
-      color: #86868b;
-    }
-
-    .showcase-mass {
-      font-size: 10px;
-      color: rgba(255, 255, 255, 0.6);
-    }
-
-    .showcase-props-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-top: 4px;
-      padding-top: 6px;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .prop-item {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-    }
-
-    .p-label {
-      font-size: 8.5px;
-      color: #86868b;
-    }
-
-    .p-val {
-      font-size: 10px;
+    .elem-name {
+      font-size: 11.5px;
       font-weight: 500;
-      color: rgba(255, 255, 255, 0.9);
+      color: rgba(255, 255, 255, 0.85);
+      line-height: 1;
     }
 
-    .reagents-section-header {
+    /* Pure Monochrome Apple Vision Pro Cells */
+    .cat-alkali-metal,
+    .cat-alkaline-earth,
+    .cat-transition-metal,
+    .cat-post-transition,
+    .cat-metalloid,
+    .cat-reactive-nonmetal,
+    .cat-noble-gas,
+    .cat-lanthanide,
+    .cat-actinide {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    /* ========================================================== */
+    /* Apple Vision Pro Floating Contextual Popover (Modal Glass) */
+    /* ========================================================== */
+    .element-popover-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .element-popover-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .element-popover-card {
+      width: 380px;
+      max-width: 90%;
+      background: rgba(28, 28, 32, 0.9);
+      backdrop-filter: blur(40px) saturate(190%);
+      -webkit-backdrop-filter: blur(40px) saturate(190%);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      animation: apple-popover-spring 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes apple-popover-spring {
+      0% { opacity: 0; transform: scale(0.94) translateY(8px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .popover-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .popover-title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .popover-sym {
+      font-size: 32px;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1;
+      letter-spacing: -0.5px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    }
+
+    .popover-title-text {
       display: flex;
       flex-direction: column;
       gap: 2px;
     }
 
-    .r-title {
-      font-size: 12px;
+    .popover-names {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+
+    .popover-cn {
+      font-size: 18px;
       font-weight: 600;
       color: #ffffff;
     }
 
-    .r-subtitle {
-      font-size: 9.5px;
+    .popover-en {
+      font-size: 12px;
       color: #86868b;
     }
 
-    .reagents-cards-list {
+    .popover-meta {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      gap: 5px;
     }
 
-    .reagent-item-card {
-      position: relative;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      padding: 10px;
+    .popover-close-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.75);
+      cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: center;
+      font-size: 12px;
       transition: all 0.2s;
     }
 
-    .reagent-item-card:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.16);
+    .popover-close-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: #ffffff;
     }
 
-    .reagent-color-strip {
-      width: 4px;
-      height: 38px;
-      border-radius: 2px;
-    }
-
-    .reagent-info-col {
-      flex: 1;
+    .popover-reagents-list {
       display: flex;
       flex-direction: column;
-      gap: 2px;
-      min-width: 0;
-    }
-
-    .reagent-top-row {
-      display: flex;
-      align-items: center;
       gap: 6px;
     }
 
-    .reagent-formula {
-      font-size: 12px;
-      font-weight: 600;
-      color: #ffffff;
-    }
-
-    .reagent-name {
-      font-size: 11px;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.85);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .reagent-hazard-badge {
-      font-size: 8px;
-      font-weight: 600;
-      background: rgba(255, 69, 58, 0.2);
-      border: 1px solid rgba(255, 69, 58, 0.35);
-      color: #ff453a;
-      padding: 1px 4px;
-      border-radius: 3px;
-    }
-
-    .reagent-desc {
-      font-size: 9.5px;
-      color: #86868b;
-      line-height: 1.3;
-    }
-
-    .reagent-amount-selector {
+    .popover-reagent-row {
       display: flex;
       align-items: center;
-      gap: 6px;
-      margin-top: 5px;
-      padding-top: 5px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
-      flex-wrap: wrap;
-    }
-
-    .amount-label {
-      font-size: 9px;
-      color: #86868b;
-      font-weight: 500;
-    }
-
-    .amount-stepper {
-      display: flex;
-      align-items: center;
-      background: rgba(0, 0, 0, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
-      overflow: hidden;
-    }
-
-    .amount-step-btn {
-      background: transparent;
-      border: none;
-      color: rgba(255, 255, 255, 0.8);
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 600;
-      transition: background 0.15s;
-    }
-
-    .amount-step-btn:hover {
-      background: rgba(255, 255, 255, 0.14);
-      color: #ffffff;
-    }
-
-    .amount-display-val {
-      padding: 0 5px;
-      font-size: 9.5px;
-      font-weight: 600;
-      color: #ffffff;
-      min-width: 40px;
-      text-align: center;
-    }
-
-    .amount-presets {
-      display: flex;
-      gap: 3px;
-    }
-
-    .amount-preset-chip {
-      background: rgba(255, 255, 255, 0.05);
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #86868b;
-      font-size: 9px;
-      font-weight: 500;
-      padding: 2px 6px;
-      border-radius: 4px;
+      border-radius: 12px;
+      padding: 10px 14px;
+      color: #ffffff;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      text-align: left;
     }
 
-    .amount-preset-chip:hover {
+    .popover-reagent-row:hover {
       background: rgba(255, 255, 255, 0.12);
-      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: scale(1.01);
     }
 
-    .amount-preset-chip.active {
-      background: rgba(255, 255, 255, 0.2);
-      border-color: rgba(255, 255, 255, 0.3);
-      color: #ffffff;
-    }
-
-    .reagent-action-col {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .add-to-beaker-btn {
-      background: var(--apple-blue);
-      border: none;
-      color: #ffffff;
-      padding: 6px 12px;
-      border-radius: 980px;
-      font-size: 10.5px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      transition: all 0.18s;
-      white-space: nowrap;
-    }
-
-    .add-to-beaker-btn:hover {
-      background: #0071e3;
-      transform: scale(1.03);
-    }
-
-    .add-to-beaker-btn.btn-added-flash {
-      background: #34c759 !important;
-      box-shadow: 0 0 14px rgba(52, 199, 89, 0.4) !important;
+    .popover-reagent-row.row-added {
+      background: rgba(255, 255, 255, 0.18) !important;
+      border-color: rgba(255, 255, 255, 0.35) !important;
       color: #ffffff !important;
     }
 
-    .add-amt {
-      font-size: 9px;
-      opacity: 0.85;
+    .reagent-row-name {
+      font-size: 13px;
+      font-weight: 500;
     }
 
-    .precip-badge.solid {
-      background: rgba(255, 159, 10, 0.2);
-      color: #ff9f0a;
+    .reagent-row-action {
+      font-size: 11px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.1);
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
-    .no-specific-reagents {
-      text-align: center;
-      padding: 16px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px dashed rgba(255, 255, 255, 0.1);
-      border-radius: 10px;
+    .popover-element-meta {
       display: flex;
       flex-direction: column;
-      align-items: center;
       gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 12px 14px;
     }
 
-    .no-r-text {
-      font-size: 11px;
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .meta-label {
       color: #86868b;
     }
 
-    .add-custom-sample-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      color: rgba(255, 255, 255, 0.9);
-      padding: 6px 12px;
+    .meta-value {
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    /* Apple Dynamic Island Toast */
+    .vision-hud-toast {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 30, 35, 0.92);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       border-radius: 980px;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.2s;
+      padding: 6px 16px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+      z-index: 120;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
     }
 
-    .add-custom-sample-btn:hover {
-      background: rgba(255, 255, 255, 0.15);
-      color: #ffffff;
+    .vision-hud-toast.hidden {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-10px);
+      visibility: hidden;
     }
 
-    .quick-indicators-belt {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .belt-label {
-      font-size: 9.5px;
-      color: #86868b;
+    .toast-text {
+      font-size: 12px;
       font-weight: 500;
-    }
-
-    .belt-buttons {
-      display: flex;
-      gap: 6px;
-    }
-
-    .indicator-btn {
-      flex: 1;
-      padding: 6px 8px;
-      border-radius: 8px;
-      font-size: 10.5px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .btn-phenolphthalein {
-      background: rgba(255, 45, 85, 0.12);
-      border: 1px solid rgba(255, 45, 85, 0.25);
-      color: #ff375f;
-    }
-
-    .btn-phenolphthalein:hover {
-      background: rgba(255, 45, 85, 0.22);
       color: #ffffff;
     }
 
-    .btn-litmus {
-      background: rgba(175, 82, 222, 0.12);
-      border: 1px solid rgba(175, 82, 222, 0.25);
-      color: #bf5af2;
-    }
 
-    .btn-litmus:hover {
-      background: rgba(175, 82, 222, 0.22);
-      color: #ffffff;
-    }
 
     /* ========================================================== */
     /* Vision Status Card (Apple Health / Dashboard Style) */
@@ -2040,11 +1595,11 @@
     }
 
     .status-live-indicator {
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
-      background: #34c759;
-      box-shadow: 0 0 6px rgba(52, 199, 89, 0.6);
+      background: rgba(255, 255, 255, 0.85);
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
     }
 
     .status-card-title {
@@ -2082,13 +1637,8 @@
 
     .status-action-btn:hover {
       background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.24);
       color: #ffffff;
-    }
-
-    .status-action-btn.btn-danger:hover {
-      background: rgba(255, 69, 58, 0.25);
-      border-color: #ff453a;
-      color: #ff453a;
     }
 
     .status-metrics-row {
@@ -2132,21 +1682,15 @@
     }
 
     .metric-badge-tag {
-      font-size: 9px;
-      font-weight: 600;
-      padding: 1px 6px;
-      border-radius: 4px;
+      font-size: 9.5px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 6px;
       width: fit-content;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.85);
     }
-
-    .metric-badge-tag.normal { background: rgba(52, 199, 89, 0.15); color: #34c759; }
-    .metric-badge-tag.warning { background: rgba(255, 159, 10, 0.15); color: #ff9f0a; }
-    .metric-badge-tag.danger { background: rgba(255, 69, 58, 0.2); color: #ff453a; }
-    .metric-badge-tag.acid-strong { background: rgba(255, 69, 58, 0.25); color: #ff453a; }
-    .metric-badge-tag.acid-weak { background: rgba(255, 159, 10, 0.2); color: #ff9f0a; }
-    .metric-badge-tag.neutral { background: rgba(52, 199, 89, 0.2); color: #34c759; }
-    .metric-badge-tag.base-weak { background: rgba(10, 132, 255, 0.2); color: #0a84ff; }
-    .metric-badge-tag.base-strong { background: rgba(191, 90, 242, 0.25); color: #bf5af2; }
 
     .metric-progress-bar {
       width: 100%;
@@ -2160,25 +1704,26 @@
     .metric-progress-fill {
       height: 100%;
       transition: width 0.3s ease;
+      background: rgba(255, 255, 255, 0.7);
     }
 
     .ph-gradient-bar {
       position: relative;
       width: 100%;
-      height: 5px;
-      border-radius: 3px;
-      background: linear-gradient(90deg, #ff453a 0%, #ff9f0a 25%, #34c759 50%, #0a84ff 75%, #bf5af2 100%);
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.12);
       margin-top: 4px;
     }
 
     .ph-marker {
       position: absolute;
       top: -3px;
-      width: 5px;
-      height: 11px;
+      width: 4px;
+      height: 10px;
       border-radius: 2px;
       background: #ffffff;
-      box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
       transform: translateX(-50%);
       transition: left 0.3s ease;
     }

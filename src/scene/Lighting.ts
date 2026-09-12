@@ -7,11 +7,11 @@ export class Lighting {
 
   private setupLights(): void {
     // 1. Soft neutral ambient light
-    const ambientLight = new THREE.AmbientLight(0xd5e0ec, 0.45);
+    const ambientLight = new THREE.AmbientLight(0xdce6f2, 0.58);
     this.scene.add(ambientLight);
 
-    // 2. Hemisphere light (crisp white ceiling bounce, deep slate ground bounce)
-    const hemiLight = new THREE.HemisphereLight(0xf2f7ff, 0x303844, 0.42);
+    // 2. Hemisphere light (crisp sky downlight, luminous white floor-to-ceiling bounce)
+    const hemiLight = new THREE.HemisphereLight(0xf5f8ff, 0x9fb2c6, 0.62);
     hemiLight.position.set(0, 5, 0);
     this.scene.add(hemiLight);
 
@@ -51,5 +51,12 @@ export class Lighting {
       pLight.position.set(x, 4.2, z);
       this.scene.add(pLight);
     }
+
+    // 6. Rear Architectural Wall Fill Light (ensures elegant pure white wash on rear portal)
+    const rearFill = new THREE.DirectionalLight(0xf2f7ff, 0.48);
+    rearFill.position.set(0, 3.8, 1.5);
+    rearFill.target.position.set(0, 2.0, 8.2);
+    this.scene.add(rearFill);
+    this.scene.add(rearFill.target);
   }
 }

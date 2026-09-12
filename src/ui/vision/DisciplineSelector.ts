@@ -17,91 +17,54 @@ export class DisciplineSelector {
 
     this.element.innerHTML = `
       <div class="discipline-hero-header">
-        <h2 class="hero-title">学科大厅</h2>
-        <p class="hero-subtitle">沉浸式空间科学探索 · 跨越微观化学分子、经典前沿物理与空间流形几何</p>
+        <h2 class="hero-title">学科</h2>
       </div>
 
       <div class="discipline-cards-grid">
         <!-- 1. Chemistry Card -->
-        <div class="discipline-card chemistry-card" id="card-discipline-chem">
-          <div class="card-glass-content">
-            <div class="card-icon-banner">
-              <svg class="vision-card-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10 2v7.31L4.62 18.5A2 2 0 0 0 6.34 22h11.32a2 2 0 0 0 1.72-3.5L14 9.31V2"/>
-                <path d="M8.5 2h7"/>
-                <path d="M7 16h10"/>
-              </svg>
-            </div>
-            <h3 class="card-title">现代化学与分子动力学</h3>
-            <p class="card-desc">
-              标准 118 元素周期律矩阵交互，模拟真实水溶液离子电离平衡、难溶沉淀沉降与金属酸碱剧烈反应。
-            </p>
-            <div class="card-meta-line">
-              <span>118 元素矩阵</span>
-              <span class="meta-dot">·</span>
-              <span>3D 真实烧杯</span>
-              <span class="meta-dot">·</span>
-              <span>离子动力学</span>
-            </div>
-            <button class="vision-card-action-btn" id="btn-open-chemistry">
-              <span>进入化学周期表</span>
-              <span class="btn-arrow">→</span>
-            </button>
+        <div class="discipline-card chemistry-card" id="card-discipline-chem" role="button" tabindex="0" title="化学">
+          <div class="card-icon-wrapper">
+            <svg class="vision-card-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 2v7.31L4.62 18.5A2 2 0 0 0 6.34 22h11.32a2 2 0 0 0 1.72-3.5L14 9.31V2"/>
+              <path d="M8.5 2h7"/>
+              <circle cx="10" cy="17" r="1" fill="currentColor"/>
+              <circle cx="14" cy="15" r="1" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="card-text-group">
+            <h3 class="card-title">化学</h3>
+            <p class="card-sub">元素与反应</p>
           </div>
         </div>
 
         <!-- 2. Physics Card -->
-        <div class="discipline-card physics-card" id="card-discipline-phys">
-          <div class="card-glass-content">
-            <div class="card-icon-banner">
-              <svg class="vision-card-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="2.5"/>
-                <ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(30 12 12)"/>
-                <ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-30 12 12)"/>
-              </svg>
-            </div>
-            <h3 class="card-title">前沿物理与空间场论</h3>
-            <p class="card-desc">
-              经典天体力学引力摄动、非线性动力系统相空间演化与波动光学干涉衍射场交互模拟。
-            </p>
-            <div class="card-meta-line">
-              <span>天体力学</span>
-              <span class="meta-dot">·</span>
-              <span>混沌动力学</span>
-              <span class="meta-dot">·</span>
-              <span>波动光学</span>
-            </div>
-            <button class="vision-card-action-btn" id="btn-open-physics">
-              <span>进入物理板块</span>
-              <span class="btn-arrow">→</span>
-            </button>
+        <div class="discipline-card physics-card" id="card-discipline-phys" role="button" tabindex="0" title="物理">
+          <div class="card-icon-wrapper">
+            <svg class="vision-card-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+              <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(30 12 12)"/>
+              <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-30 12 12)"/>
+            </svg>
+          </div>
+          <div class="card-text-group">
+            <h3 class="card-title">物理</h3>
+            <p class="card-sub">力学与场论</p>
           </div>
         </div>
 
         <!-- 3. Math Card -->
-        <div class="discipline-card math-card" id="card-discipline-math">
-          <div class="card-glass-content">
-            <div class="card-icon-banner">
-              <svg class="vision-card-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="12 2 2 22 22 22"/>
-                <circle cx="12" cy="15" r="3"/>
-              </svg>
-            </div>
-            <h3 class="card-title">流形几何与动力系统</h3>
-            <p class="card-desc">
-              直观呈现黎曼曲面高斯曲率、四维超立方体旋转投影、分形复变函数共形映射与非欧拓扑空间结构。
-            </p>
-            <div class="card-meta-line">
-              <span>微分流形</span>
-              <span class="meta-dot">·</span>
-              <span>四维超立方</span>
-              <span class="meta-dot">·</span>
-              <span>动力系统</span>
-            </div>
-            <button class="vision-card-action-btn" id="btn-open-math">
-              <span>进入数学板块</span>
-              <span class="btn-arrow">→</span>
-            </button>
+        <div class="discipline-card math-card" id="card-discipline-math" role="button" tabindex="0" title="数学">
+          <div class="card-icon-wrapper">
+            <svg class="vision-card-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/>
+              <line x1="12" y1="22" x2="12" y2="15.5"/>
+              <polyline points="22 8.5 12 15.5 2 8.5"/>
+              <polyline points="2 15.5 12 8.5 22 15.5"/>
+            </svg>
+          </div>
+          <div class="card-text-group">
+            <h3 class="card-title">数学</h3>
+            <p class="card-sub">几何与流形</p>
           </div>
         </div>
       </div>
@@ -111,34 +74,34 @@ export class DisciplineSelector {
   }
 
   private bindEvents(): void {
-    // Open Chemistry
-    this.element.querySelector('#btn-open-chemistry')?.addEventListener('click', (e) => {
-      e.stopPropagation();
+    const chemCard = this.element.querySelector('#card-discipline-chem');
+    chemCard?.addEventListener('click', () => {
       this.callbacks.onSelectChemistry();
     });
-
-    this.element.querySelector('#card-discipline-chem')?.addEventListener('click', () => {
-      this.callbacks.onSelectChemistry();
+    chemCard?.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+        this.callbacks.onSelectChemistry();
+      }
     });
 
-    // Open Physics
-    this.element.querySelector('#btn-open-physics')?.addEventListener('click', (e) => {
-      e.stopPropagation();
+    const physCard = this.element.querySelector('#card-discipline-phys');
+    physCard?.addEventListener('click', () => {
       this.callbacks.onSelectPhysics();
     });
-
-    this.element.querySelector('#card-discipline-phys')?.addEventListener('click', () => {
-      this.callbacks.onSelectPhysics();
+    physCard?.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+        this.callbacks.onSelectPhysics();
+      }
     });
 
-    // Open Math
-    this.element.querySelector('#btn-open-math')?.addEventListener('click', (e) => {
-      e.stopPropagation();
+    const mathCard = this.element.querySelector('#card-discipline-math');
+    mathCard?.addEventListener('click', () => {
       this.callbacks.onSelectMath();
     });
-
-    this.element.querySelector('#card-discipline-math')?.addEventListener('click', () => {
-      this.callbacks.onSelectMath();
+    mathCard?.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+        this.callbacks.onSelectMath();
+      }
     });
   }
 }

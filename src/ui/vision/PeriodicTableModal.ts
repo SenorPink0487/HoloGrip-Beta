@@ -25,9 +25,6 @@ export interface PeriodicElement {
 
 export class PeriodicTableModal {
   public element: HTMLElement;
-  private selectedElement: PeriodicElement;
-  private activeCategoryFilter = 'all';
-  private reagentAmounts = new Map<string, number>();
 
   public static readonly ELEMENTS: PeriodicElement[] = [
     // Period 1
@@ -171,9 +168,67 @@ export class PeriodicTableModal {
     { number: 118, symbol: 'Og', name: '鿫', enName: 'Oganesson', mass: 294, period: 7, group: 18, category: 'noble-gas', electronConfig: '[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁶', oxidationStates: '0', reagentIds: [] },
   ];
 
+  /**
+   * Layout configuration mapping atomic numbers of common elements to their 18-column x 5-row periodic positions.
+   * Maintains exact chemical group (column) and periodic group alignment:
+   * - Col 1: Alkali Metals (H, Li, Na, K)
+   * - Col 2: Alkaline Earth Metals (Be, Mg, Ca, Ba)
+   * - Col 7: Mn
+   * - Col 8: Fe
+   * - Col 11: Coinage Metals (Cu, Ag)
+   * - Col 12: Zn
+   * - Col 13: Boron & Aluminium (B, Al)
+   * - Col 14: Carbon Group (C, Si)
+   * - Col 15: Nitrogen Group (N, P)
+   * - Col 16: Chalcogens (O, S)
+   * - Col 17: Halogens (F, Cl, Br, I)
+   * - Col 18: Noble Gases (He, Ne, Ar)
+   */
+  public static readonly COMMON_ELEMENT_LAYOUT: Record<number, { row: number; col: number }> = {
+    // Period 1
+    1: { row: 1, col: 1 },    // H
+    2: { row: 1, col: 18 },   // He
+
+    // Period 2
+    3: { row: 2, col: 1 },    // Li
+    4: { row: 2, col: 2 },    // Be
+    5: { row: 2, col: 13 },   // B
+    6: { row: 2, col: 14 },   // C
+    7: { row: 2, col: 15 },   // N
+    8: { row: 2, col: 16 },   // O
+    9: { row: 2, col: 17 },   // F
+    10: { row: 2, col: 18 },  // Ne
+
+    // Period 3
+    11: { row: 3, col: 1 },   // Na
+    12: { row: 3, col: 2 },   // Mg
+    13: { row: 3, col: 13 },  // Al
+    14: { row: 3, col: 14 },  // Si
+    15: { row: 3, col: 15 },  // P
+    16: { row: 3, col: 16 },  // S
+    17: { row: 3, col: 17 },  // Cl
+    18: { row: 3, col: 18 },  // Ar
+
+    // Period 4
+    19: { row: 4, col: 1 },   // K
+    20: { row: 4, col: 2 },   // Ca
+    25: { row: 4, col: 7 },   // Mn
+    26: { row: 4, col: 8 },   // Fe
+    29: { row: 4, col: 11 },  // Cu
+    30: { row: 4, col: 12 },  // Zn
+    35: { row: 4, col: 17 },  // Br
+
+    // Period 5 & 6 (Common Lab Elements aligned vertically with their chemical family)
+    56: { row: 5, col: 2 },   // Ba (Alkaline Earth: Be -> Mg -> Ca -> Ba)
+    47: { row: 5, col: 11 },  // Ag (Coinage Metals: Cu -> Ag)
+    53: { row: 5, col: 17 },  // I  (Halogens: F -> Cl -> Br -> I)
+  };
+
   private engine: ChemistryEngine;
   private onBackToDisciplines: () => void;
   private onViewBeaker?: () => void;
+  private selectedElement: PeriodicElement;
+  private toastTimeout: number | null = null;
 
   constructor(
     engine: ChemistryEngine,
@@ -192,322 +247,185 @@ export class PeriodicTableModal {
     this.element.className = 'vision-periodic-container';
 
     this.element.innerHTML = `
-      <div class="periodic-top-controls">
-        <div class="top-controls-left">
-          <button class="vision-back-btn" id="btn-back-disciplines">
-            <span class="back-icon">←</span>
-            <span>学科大厅</span>
-          </button>
-          <div class="periodic-title-pill">
-            <span class="pill-text">元素周期表</span>
-          </div>
-          ${
-            this.onViewBeaker
-              ? `
-          <button class="vision-back-btn vision-view-beaker-btn" id="btn-quick-beaker">
-            <span>烧杯监控</span>
-            <span class="back-icon">→</span>
-          </button>
-          `
-              : ''
-          }
-        </div>
+      <!-- Pure Minimalist Periodic Grid (Common Elements Only) -->
+      <div class="periodic-grid" id="periodic-elements-grid"></div>
 
-        <div class="periodic-filter-bar" id="category-filter-bar">
-          <button class="category-tab active" data-cat="all">全部 (118)</button>
-          <button class="category-tab cat-alkali" data-cat="alkali-metal">碱金属</button>
-          <button class="category-tab cat-alkaline" data-cat="alkaline-earth">碱土金属</button>
-          <button class="category-tab cat-trans" data-cat="transition-metal">过渡金属</button>
-          <button class="category-tab cat-post" data-cat="post-transition">后过渡金属</button>
-          <button class="category-tab cat-metalloid" data-cat="metalloid">类金属</button>
-          <button class="category-tab cat-nonmetal" data-cat="reactive-nonmetal">非金属</button>
-          <button class="category-tab cat-noble" data-cat="noble-gas">稀有气体</button>
-          <button class="category-tab cat-lanth" data-cat="lanthanide">镧/锕系</button>
-        </div>
+      <!-- Apple Contextual Popover Card -->
+      <div class="element-popover-overlay hidden" id="element-popover-overlay">
+        <div class="element-popover-card" id="element-popover-card"></div>
       </div>
 
-      <!-- Main Layout: Periodic Grid on Left, Element Detail & Reagent Drawer on Right -->
-      <div class="periodic-layout-split">
-        <!-- Periodic Table Grid -->
-        <div class="periodic-grid-wrapper">
-          <div class="periodic-grid" id="periodic-elements-grid"></div>
-
-          <!-- Bottom Separated Lanthanides and Actinides -->
-          <div class="lanth-act-separator">
-            <span class="lanth-label">镧系元素 (57-71)</span>
-            <span class="act-label">锕系元素 (89-103)</span>
-          </div>
-          <div class="lanth-act-grid" id="lanth-act-grid"></div>
-        </div>
-
-        <!-- Right Side: Element Detail & Reagents Drawer -->
-        <div class="element-drawer" id="element-drawer">
-          <!-- Will be rendered dynamically -->
-        </div>
+      <!-- Apple Minimalist Toast -->
+      <div class="vision-hud-toast hidden" id="vision-hud-toast">
+        <span class="toast-text" id="toast-text"></span>
       </div>
     `;
 
     this.renderGrid();
-    this.renderElementDrawer();
     this.bindEvents();
   }
 
   private renderGrid(): void {
     const mainGrid = this.element.querySelector('#periodic-elements-grid') as HTMLElement;
-    const lanthActGrid = this.element.querySelector('#lanth-act-grid') as HTMLElement;
-
-    if (!mainGrid || !lanthActGrid) return;
+    if (!mainGrid) return;
 
     mainGrid.innerHTML = '';
-    lanthActGrid.innerHTML = '';
 
-    // Render 118 elements
-    for (const elem of PeriodicTableModal.ELEMENTS) {
-      const isLanthAct = elem.period >= 8;
+    // Render 28 common elements with exact periodic group and period alignment
+    for (const [numStr, pos] of Object.entries(PeriodicTableModal.COMMON_ELEMENT_LAYOUT)) {
+      const num = parseInt(numStr, 10);
+      const elem = PeriodicTableModal.ELEMENTS.find((e) => e.number === num);
+      if (!elem) continue;
+
       const card = document.createElement('div');
-      card.className = `element-cell cat-${elem.category} ${elem.number === this.selectedElement.number ? 'selected' : ''}`;
+      card.className = `element-cell cat-${elem.category}`;
       card.dataset.num = elem.number.toString();
-      card.dataset.cat = elem.category;
-
-      if (!isLanthAct) {
-        card.style.gridColumn = elem.group.toString();
-        card.style.gridRow = elem.period.toString();
-        mainGrid.appendChild(card);
-      } else {
-        const subRow = elem.period === 8 ? 1 : 2;
-        const subCol = elem.group - 2; // Col 1 to 15
-        card.style.gridRow = subRow.toString();
-        card.style.gridColumn = subCol.toString();
-        lanthActGrid.appendChild(card);
-      }
+      card.style.gridRow = pos.row.toString();
+      card.style.gridColumn = pos.col.toString();
 
       card.innerHTML = `
         <span class="elem-num">${elem.number}</span>
         <span class="elem-sym">${elem.symbol}</span>
         <span class="elem-name">${elem.name}</span>
-        <span class="elem-mass">${elem.mass.toFixed(elem.mass > 100 ? 1 : 2)}</span>
       `;
 
-      card.addEventListener('click', () => {
-        this.selectElement(elem);
+      card.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openElementPopover(elem);
       });
+
+      mainGrid.appendChild(card);
     }
   }
 
   public selectElement(elem: PeriodicElement): void {
-    this.selectedElement = elem;
-
-    // Update cell highlights
-    const allCells = this.element.querySelectorAll('.element-cell');
-    allCells.forEach((c) => {
-      if ((c as HTMLElement).dataset.num === elem.number.toString()) {
-        c.classList.add('selected');
-      } else {
-        c.classList.remove('selected');
-      }
-    });
-
-    this.renderElementDrawer();
+    this.openElementPopover(elem);
   }
 
-  private renderElementDrawer(): void {
-    const drawer = this.element.querySelector('#element-drawer');
-    if (!drawer) return;
+  public openElementPopover(elem: PeriodicElement): void {
+    this.selectedElement = elem;
+    const overlay = this.element.querySelector('#element-popover-overlay') as HTMLElement;
+    const card = this.element.querySelector('#element-popover-card') as HTMLElement;
+    if (!overlay || !card) return;
 
-    const elem = this.selectedElement;
+    // Highlight selected cell
+    this.element.querySelectorAll('.element-cell').forEach((c) => {
+      const isSelected = (c as HTMLElement).dataset.num === elem.number.toString();
+      c.classList.toggle('selected', isSelected);
+    });
+
     const reagents = elem.reagentIds.map((id) => ChemistryEngine.REAGENTS[id]).filter(Boolean);
 
-    drawer.innerHTML = `
-      <div class="drawer-inner-card">
-        <!-- Giant Element Showcase -->
-        <div class="elem-showcase-header cat-${elem.category}">
-          <div class="showcase-top">
-            <span class="showcase-num">No. ${elem.number}</span>
-            <span class="showcase-category-badge">${this.getCategoryLabel(elem.category)}</span>
-          </div>
-          <div class="showcase-main-row">
-            <span class="showcase-symbol">${elem.symbol}</span>
-            <div class="showcase-name-col">
-              <span class="showcase-cn-name">${elem.name}</span>
-              <span class="showcase-en-name">${elem.enName}</span>
-              <span class="showcase-mass">${elem.mass} u</span>
+    card.innerHTML = `
+      <div class="popover-header">
+        <div class="popover-title-row">
+          <span class="popover-sym">${elem.symbol}</span>
+          <div class="popover-title-text">
+            <div class="popover-names">
+              <span class="popover-cn">${elem.name}</span>
+              <span class="popover-en">${elem.enName}</span>
             </div>
-          </div>
-          <div class="showcase-props-grid">
-            <div class="prop-item">
-              <span class="p-label">外层电子排布</span>
-              <span class="p-val font-mono">${elem.electronConfig}</span>
-            </div>
-            <div class="prop-item">
-              <span class="p-label">常见化合价态</span>
-              <span class="p-val font-mono">${elem.oxidationStates}</span>
+            <div class="popover-meta">
+              <span>No. ${elem.number}</span>
+              <span>·</span>
+              <span>${this.getCategoryLabel(elem.category)}</span>
             </div>
           </div>
         </div>
-
-        <!-- Reagents Section -->
-        <div class="drawer-reagents-section">
-          <div class="reagents-section-header">
-            <span class="r-title">实验室常见试剂与化合物 (${reagents.length})</span>
-            <span class="r-subtitle">可直接添加至桌上烧杯反应</span>
-          </div>
-
-          <div class="reagents-cards-list">
-            ${
-              reagents.length > 0
-                ? reagents.map((r) => this.renderReagentCard(r)).join('')
-                : `
-                <div class="no-specific-reagents">
-                  <div class="no-r-text">该元素暂无预装离子标样试剂</div>
-                  <button class="add-custom-sample-btn" id="btn-add-pure-sample">
-                    <span>注入高纯标样 (${elem.name}) 50mL</span>
-                  </button>
-                </div>
-                `
-            }
-          </div>
-
-          <!-- Quick Indicators Toolbelt -->
-          <div class="quick-indicators-belt">
-            <span class="belt-label">滴加酸碱指示剂：</span>
-            <div class="belt-buttons">
-              <button class="indicator-btn btn-phenolphthalein" id="quick-add-phenolphthalein">
-                <span>酚酞指示剂 (5滴)</span>
-              </button>
-              <button class="indicator-btn btn-litmus" id="quick-add-litmus">
-                <span>石蕊指示剂 (5滴)</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <button class="popover-close-btn" id="btn-popover-close" title="关闭 (ESC)">✕</button>
       </div>
+
+      ${
+        reagents.length > 0
+          ? `
+          <div class="popover-reagents-list">
+            ${reagents
+              .map((r) => {
+                const isSolid = r.state === 'solid';
+                return `
+                <button class="popover-reagent-row" data-reagent-id="${r.id}">
+                  <span class="reagent-row-name">${r.name}</span>
+                  <span class="reagent-row-action">${isSolid ? '投入' : '注入'} ${r.defaultAmount}${r.unit}</span>
+                </button>
+              `;
+              })
+              .join('')}
+          </div>
+          `
+          : `
+          <div class="popover-element-meta">
+            <div class="meta-row">
+              <span class="meta-label">外层电子</span>
+              <span class="meta-value font-mono">${elem.electronConfig}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">常见化合价</span>
+              <span class="meta-value font-mono">${elem.oxidationStates}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">原子量</span>
+              <span class="meta-value font-mono">${elem.mass} u</span>
+            </div>
+          </div>
+          `
+      }
     `;
 
-    // Bind reagent buttons, stepper and presets inside drawer
+    // Bind reagent buttons
     reagents.forEach((r) => {
-      const isSolid = r.state === 'solid';
-      const minVal = isSolid ? 1 : 5;
-      const maxVal = isSolid ? 5 : 100;
-      const stepVal = isSolid ? 1 : 5;
-
-      const updateAmountDisplay = (newVal: number) => {
-        const clamped = Math.max(minVal, Math.min(maxVal, newVal));
-        this.reagentAmounts.set(r.id, clamped);
-
-        const valEl = drawer.querySelector(`#amount-val-${r.id}`);
-        if (valEl) valEl.textContent = `${clamped} ${r.unit}`;
-
-        const btnAmtEl = drawer.querySelector(`#btn-amt-label-${r.id}`);
-        if (btnAmtEl) btnAmtEl.textContent = `${clamped} ${r.unit}`;
-
-        // Toggle active preset
-        drawer.querySelectorAll(`.amount-preset-chip[data-id="${r.id}"]`).forEach((chip) => {
-          const chipVal = Number((chip as HTMLElement).dataset.val);
-          chip.classList.toggle('active', chipVal === clamped);
-        });
-      };
-
-      // Minus button
-      drawer.querySelector(`.btn-minus[data-id="${r.id}"]`)?.addEventListener('click', (e) => {
+      const btn = card.querySelector(`.popover-reagent-row[data-reagent-id="${r.id}"]`);
+      btn?.addEventListener('click', (e) => {
         e.stopPropagation();
-        const cur = this.reagentAmounts.get(r.id) ?? r.defaultAmount;
-        updateAmountDisplay(cur - stepVal);
-      });
+        this.engine.addReagent(r.id, r.defaultAmount);
 
-      // Plus button
-      drawer.querySelector(`.btn-plus[data-id="${r.id}"]`)?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const cur = this.reagentAmounts.get(r.id) ?? r.defaultAmount;
-        updateAmountDisplay(cur + stepVal);
-      });
+        btn.classList.add('row-added');
+        const actionSpan = btn.querySelector('.reagent-row-action');
+        const origText = actionSpan?.textContent || '';
+        if (actionSpan) actionSpan.textContent = '✓ 已加入';
 
-      // Presets
-      drawer.querySelectorAll(`.amount-preset-chip[data-id="${r.id}"]`).forEach((chip) => {
-        chip.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const targetVal = Number((chip as HTMLElement).dataset.val);
-          updateAmountDisplay(targetVal);
-        });
-      });
-
-      // Add to beaker button
-      const btn = drawer.querySelector(`#btn-add-reagent-${r.id}`);
-      btn?.addEventListener('click', () => {
-        const chosenAmt = this.reagentAmounts.get(r.id) ?? r.defaultAmount;
-        this.engine.addReagent(r.id, chosenAmt);
-
-        // Tactile animation
-        btn.classList.add('btn-added-flash');
-        const iconSpan = btn.querySelector('.add-icon');
-        const originalText = iconSpan?.textContent;
-        if (iconSpan) iconSpan.textContent = '✓ 已加入';
+        this.showToast(`已加入 ${r.name}`);
 
         setTimeout(() => {
-          btn.classList.remove('btn-added-flash');
-          if (iconSpan && originalText) iconSpan.textContent = originalText;
-        }, 650);
+          btn.classList.remove('row-added');
+          if (actionSpan) actionSpan.textContent = origText;
+        }, 800);
       });
     });
 
-    // Custom sample
-    drawer.querySelector('#btn-add-pure-sample')?.addEventListener('click', () => {
-      this.engine.addReagent('H2O', 50);
+    // Close button
+    card.querySelector('#btn-popover-close')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeElementPopover();
     });
 
-    // Quick indicators
-    drawer.querySelector('#quick-add-phenolphthalein')?.addEventListener('click', () => {
-      this.engine.addReagent('phenolphthalein');
-    });
+    overlay.classList.remove('hidden');
+  }
 
-    drawer.querySelector('#quick-add-litmus')?.addEventListener('click', () => {
-      this.engine.addReagent('litmus');
+  public closeElementPopover(): void {
+    const overlay = this.element.querySelector('#element-popover-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+    this.element.querySelectorAll('.element-cell').forEach((c) => {
+      c.classList.remove('selected');
     });
   }
 
-  private renderReagentCard(r: ChemicalReagent): string {
-    const isSolid = r.state === 'solid';
-    const currentAmount = this.reagentAmounts.get(r.id) ?? r.defaultAmount;
-    const hexStr = `#${r.color.toString(16).padStart(6, '0')}`;
-    const presets = isSolid ? [1, 2, 3] : [10, 25, 50];
+  public showToast(message: string): void {
+    const toast = this.element.querySelector('#vision-hud-toast') as HTMLElement;
+    const textEl = this.element.querySelector('#toast-text') as HTMLElement;
+    if (!toast || !textEl) return;
 
-    return `
-      <div class="reagent-item-card" data-reagent-id="${r.id}">
-        <div class="reagent-color-strip" style="background-color: ${hexStr};"></div>
-        <div class="reagent-info-col">
-          <div class="reagent-top-row">
-            <span class="reagent-formula font-mono">${r.formula}</span>
-            <span class="reagent-name">${r.name}</span>
-            ${r.hazard ? `<span class="reagent-hazard-badge">${r.hazard}</span>` : ''}
-          </div>
-          <div class="reagent-desc">${r.description}</div>
+    textEl.textContent = message;
+    toast.classList.remove('hidden');
 
-          <!-- Quantity / Volume Stepper & Presets -->
-          <div class="reagent-amount-selector">
-            <span class="amount-label">规格用量：</span>
-            <div class="amount-stepper">
-              <button class="amount-step-btn btn-minus" data-id="${r.id}" title="减少用量">－</button>
-              <span class="amount-display-val font-mono" id="amount-val-${r.id}">${currentAmount} ${r.unit}</span>
-              <button class="amount-step-btn btn-plus" data-id="${r.id}" title="增加用量">＋</button>
-            </div>
-            <div class="amount-presets">
-              ${presets
-                .map(
-                  (p) =>
-                    `<button class="amount-preset-chip ${p === currentAmount ? 'active' : ''}" data-id="${r.id}" data-val="${p}">${p}${r.unit}</button>`
-                )
-                .join('')}
-            </div>
-          </div>
-        </div>
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
+    }
 
-        <div class="reagent-action-col">
-          <button class="add-to-beaker-btn" id="btn-add-reagent-${r.id}" title="倒入桌上烧杯">
-            <span class="add-icon">${isSolid ? '投入烧杯' : '注入烧杯'}</span>
-            <span class="add-amt" id="btn-amt-label-${r.id}">${currentAmount} ${r.unit}</span>
-          </button>
-        </div>
-      </div>
-    `;
+    this.toastTimeout = window.setTimeout(() => {
+      toast.classList.add('hidden');
+    }, 2200);
   }
 
   private getCategoryLabel(cat: PeriodicElement['category']): string {
@@ -523,55 +441,33 @@ export class PeriodicTableModal {
       case 'metalloid':
         return '类金属';
       case 'reactive-nonmetal':
-        return '活泼非金属';
+        return '非金属';
       case 'noble-gas':
         return '稀有气体';
       case 'lanthanide':
-        return '镧系金属';
+        return '镧系';
       case 'actinide':
-        return '锕系金属';
+        return '锕系';
       default:
-        return '化学元素';
+        return '元素';
     }
   }
 
   private bindEvents(): void {
-    // Back button
-    this.element.querySelector('#btn-back-disciplines')?.addEventListener('click', () => {
-      this.onBackToDisciplines();
+    // Overlay backdrop click dismisses popover
+    const overlay = this.element.querySelector('#element-popover-overlay');
+    overlay?.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        this.closeElementPopover();
+      }
     });
 
-    // Quick switch to beaker button
-    this.element.querySelector('#btn-quick-beaker')?.addEventListener('click', () => {
-      this.onViewBeaker?.();
-    });
-
-    // Category filter tabs
-    const tabs = this.element.querySelectorAll('.category-tab');
-    tabs.forEach((tab) => {
-      tab.addEventListener('click', () => {
-        tabs.forEach((t) => t.classList.remove('active'));
-        tab.classList.add('active');
-        const cat = (tab as HTMLElement).dataset.cat || 'all';
-        this.filterCategory(cat);
-      });
-    });
-  }
-
-  private filterCategory(category: string): void {
-    this.activeCategoryFilter = category;
-    const cells = this.element.querySelectorAll('.element-cell');
-    cells.forEach((cell) => {
-      const el = cell as HTMLElement;
-      if (category === 'all' || el.dataset.cat === category) {
-        el.style.opacity = '1.0';
-        el.style.pointerEvents = 'auto';
-        el.style.filter = 'none';
-      } else {
-        el.style.opacity = '0.22';
-        el.style.pointerEvents = 'none';
-        el.style.filter = 'grayscale(80%)';
+    // Global escape key to dismiss popover
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape') {
+        this.closeElementPopover();
       }
     });
   }
 }
+
