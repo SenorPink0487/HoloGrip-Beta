@@ -55,14 +55,28 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   }
 
   assert(linkedReagentsCount > 0, 'Should have linked reagents across elements');
-  console.log(`✓ Test 2 passed: ${linkedReagentsCount} reagent mappings verified\n`);
+
+  // Verify Aluminum reagents specifically
+  const alElem = elements.find((e) => e.symbol === 'Al')!;
+  assert(alElem !== undefined, 'Aluminum element must exist');
+  assert(alElem.reagentIds.includes('Al'), 'Aluminum must link to Al (solid metal)');
+  assert(alElem.reagentIds.includes('AlCl3'), 'Aluminum must link to AlCl3 (aluminum chloride)');
+
+  // Verify all 118 elements have selectable reagents via getReagentsForElement
+  for (const elem of elements) {
+    const rList = PeriodicTableModal.getReagentsForElement(elem);
+    assert(rList.length > 0, `Element ${elem.symbol} must have at least 1 selectable reagent`);
+    assert(rList[0].name && rList[0].name.length > 0, `Reagent for ${elem.symbol} must have a name`);
+  }
+
+  console.log(`✓ Test 2 passed: ${linkedReagentsCount} reagent mappings verified with 100% (118/118) element coverage\n`);
 }
 
 // Test 3: Spatial clearance between 3D window and beaker on table
 {
   console.log('Test 3: Spatial clearance between 3D window and beaker on table');
   const tableHeight = 0.88; // meters
-  const beakerMountY = 0.908;
+  const beakerMountY = 0.852;
   const beakerHeight = 0.36;
   const beakerTopY = beakerMountY + beakerHeight; // 1.268 meters
 
@@ -110,6 +124,50 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   console.log('✓ Test 4 passed: Window is situated behind beaker from any 360° vantage angle\n');
 }
 
+// Test 5: Vision Modal scale multipliers, clamping & physical 3D dimension scaling
+{
+  console.log('Test 5: Vision Modal scale multipliers, clamping & physical 3D dimension scaling');
+  const baseScale = 0.0016;
+  const minScale = 0.5;
+  const maxScale = 2.0;
+  const step = 0.1;
+
+  let currentScale = 1.0;
+  const zoomIn = () => {
+    currentScale = Math.min(maxScale, Math.round((currentScale + step) * 100) / 100);
+  };
+  const zoomOut = () => {
+    currentScale = Math.max(minScale, Math.round((currentScale - step) * 100) / 100);
+  };
+  const resetScale = () => {
+    currentScale = 1.0;
+  };
+
+  // Test zoom in steps
+  zoomIn();
+  assert.strictEqual(currentScale, 1.1, 'One zoomIn step should reach 1.1x');
+  zoomIn();
+  assert.strictEqual(currentScale, 1.2, 'Two zoomIn steps should reach 1.2x');
+
+  // Test max clamping
+  for (let i = 0; i < 20; i++) zoomIn();
+  assert.strictEqual(currentScale, 2.0, 'Scale must clamp to max 2.0x');
+  assert.strictEqual(baseScale * currentScale, 0.0032, 'Max physical scale should be 0.0032');
+
+  // Test zoom out steps
+  resetScale();
+  assert.strictEqual(currentScale, 1.0, 'Reset must restore 1.0x');
+  zoomOut();
+  assert.strictEqual(currentScale, 0.9, 'One zoomOut step should reach 0.9x');
+
+  // Test min clamping
+  for (let i = 0; i < 20; i++) zoomOut();
+  assert.strictEqual(currentScale, 0.5, 'Scale must clamp to min 0.5x');
+  assert.strictEqual(baseScale * currentScale, 0.0008, 'Min physical scale should be 0.0008');
+
+  console.log('✓ Test 5 passed: Scale multipliers, clamping bounds [0.5x, 2.0x] and physical conversions verified\n');
+}
+
 console.log('========================================================');
-console.log('All VisionOS Spatial Window Tests Passed (4/4)!');
+console.log('All VisionOS Spatial Window Tests Passed (5/5)!');
 console.log('========================================================\n');

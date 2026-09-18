@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TextureGenerator } from './Textures';
+import { TextureGenerator } from './Textures.ts';
 
 export class HoloTable {
   public readonly group = new THREE.Group();
@@ -271,6 +271,12 @@ export class HoloTable {
     this.targetHoloAlpha = 1.0;
   }
 
+  private isHovered = false;
+
+  public setHovered(hovered: boolean): void {
+    this.isHovered = hovered;
+  }
+
   public isHologramVisible(): boolean {
     return this.currentHoloAlpha > 0.1;
   }
@@ -279,9 +285,33 @@ export class HoloTable {
     return [this.mainScreen, this.beamCone];
   }
 
-  public mountBeaker(beakerGroup: THREE.Object3D): void {
-    beakerGroup.position.set(0, 0.908, 0);
+  public mountBeaker(beakerGroup: THREE.Object3D, position?: THREE.Vector3): void {
+    if (position) {
+      beakerGroup.position.copy(position);
+    } else {
+      beakerGroup.position.set(-0.38, 0.852, 1.10);
+    }
     this.group.add(beakerGroup);
+  }
+
+  public mountBeakers(
+    leftGroup: THREE.Object3D,
+    rightGroup: THREE.Object3D,
+    leftPos?: THREE.Vector3,
+    rightPos?: THREE.Vector3
+  ): void {
+    if (leftPos) {
+      leftGroup.position.copy(leftPos);
+    } else {
+      leftGroup.position.set(-0.38, 0.852, 1.10);
+    }
+    if (rightPos) {
+      rightGroup.position.copy(rightPos);
+    } else {
+      rightGroup.position.set(0.38, 0.852, 1.10);
+    }
+    this.group.add(leftGroup);
+    this.group.add(rightGroup);
   }
 
   public update(delta: number): void {
@@ -292,14 +322,18 @@ export class HoloTable {
     this.currentHoloAlpha = THREE.MathUtils.lerp(this.currentHoloAlpha, this.targetHoloAlpha, delta * 4.0);
 
     if (this.mainScreenMat) {
-      this.mainScreenMat.opacity = 0.72 * this.currentHoloAlpha;
-      const s = Math.max(0.01, this.currentHoloAlpha);
+      const targetScreenOpacity = (this.isHovered ? 0.90 : 0.72) * this.currentHoloAlpha;
+      this.mainScreenMat.opacity = THREE.MathUtils.lerp(this.mainScreenMat.opacity, targetScreenOpacity, delta * 6.0);
+      const targetScale = Math.max(0.01, this.currentHoloAlpha) * (this.isHovered ? 1.03 : 1.0);
+      const curScale = this.mainScreen.scale.x;
+      const s = THREE.MathUtils.lerp(curScale, targetScale, delta * 6.0);
       this.mainScreen.scale.set(s, s, s);
       this.mainScreen.visible = this.currentHoloAlpha > 0.01;
     }
 
     if (this.beamConeMat) {
-      this.beamConeMat.opacity = 0.025 * this.currentHoloAlpha;
+      const targetBeamOpacity = (this.isHovered ? 0.055 : 0.025) * this.currentHoloAlpha;
+      this.beamConeMat.opacity = THREE.MathUtils.lerp(this.beamConeMat.opacity, targetBeamOpacity, delta * 6.0);
       this.beamCone.visible = this.currentHoloAlpha > 0.01;
     }
 

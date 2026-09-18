@@ -36,7 +36,7 @@ export class PeriodicTableModal {
     { number: 4, symbol: 'Be', name: '铍', enName: 'Beryllium', mass: 9.0122, period: 2, group: 2, category: 'alkaline-earth', electronConfig: '[He] 2s²', oxidationStates: '+2', reagentIds: [] },
     { number: 5, symbol: 'B', name: '硼', enName: 'Boron', mass: 10.81, period: 2, group: 13, category: 'metalloid', electronConfig: '[He] 2s² 2p¹', oxidationStates: '+3', reagentIds: [] },
     { number: 6, symbol: 'C', name: '碳', enName: 'Carbon', mass: 12.011, period: 2, group: 14, category: 'reactive-nonmetal', electronConfig: '[He] 2s² 2p²', oxidationStates: '+4, +2, -4', reagentIds: ['Na2CO3', 'phenolphthalein'] },
-    { number: 7, symbol: 'N', name: '氮', enName: 'Nitrogen', mass: 14.007, period: 2, group: 15, category: 'reactive-nonmetal', electronConfig: '[He] 2s² 2p³', oxidationStates: '+5, +3, -3', reagentIds: ['AgNO3'] },
+    { number: 7, symbol: 'N', name: '氮', enName: 'Nitrogen', mass: 14.007, period: 2, group: 15, category: 'reactive-nonmetal', electronConfig: '[He] 2s² 2p³', oxidationStates: '+5, +3, -3', reagentIds: ['HNO3', 'AgNO3'] },
     { number: 8, symbol: 'O', name: '氧', enName: 'Oxygen', mass: 15.999, period: 2, group: 16, category: 'reactive-nonmetal', electronConfig: '[He] 2s² 2p⁴', oxidationStates: '-2, -1', reagentIds: ['H2O', 'H2O2', 'KMnO4'] },
     { number: 9, symbol: 'F', name: '氟', enName: 'Fluorine', mass: 18.998, period: 2, group: 17, category: 'reactive-nonmetal', electronConfig: '[He] 2s² 2p⁵', oxidationStates: '-1', reagentIds: [] },
     { number: 10, symbol: 'Ne', name: '氖', enName: 'Neon', mass: 20.180, period: 2, group: 18, category: 'noble-gas', electronConfig: '[He] 2s² 2p⁶', oxidationStates: '0', reagentIds: [] },
@@ -44,7 +44,7 @@ export class PeriodicTableModal {
     // Period 3
     { number: 11, symbol: 'Na', name: '钠', enName: 'Sodium', mass: 22.990, period: 3, group: 1, category: 'alkali-metal', electronConfig: '[Ne] 3s¹', oxidationStates: '+1', reagentIds: ['Na', 'NaOH', 'Na2CO3', 'NaCl'] },
     { number: 12, symbol: 'Mg', name: '镁', enName: 'Magnesium', mass: 24.305, period: 3, group: 2, category: 'alkaline-earth', electronConfig: '[Ne] 3s²', oxidationStates: '+2', reagentIds: ['Mg'] },
-    { number: 13, symbol: 'Al', name: '铝', enName: 'Aluminium', mass: 26.982, period: 3, group: 13, category: 'post-transition', electronConfig: '[Ne] 3s² 3p¹', oxidationStates: '+3', reagentIds: [] },
+    { number: 13, symbol: 'Al', name: '铝', enName: 'Aluminium', mass: 26.982, period: 3, group: 13, category: 'post-transition', electronConfig: '[Ne] 3s² 3p¹', oxidationStates: '+3', reagentIds: ['Al', 'AlCl3'] },
     { number: 14, symbol: 'Si', name: '硅', enName: 'Silicon', mass: 28.085, period: 3, group: 14, category: 'metalloid', electronConfig: '[Ne] 3s² 3p²', oxidationStates: '+4, -4', reagentIds: [] },
     { number: 15, symbol: 'P', name: '磷', enName: 'Phosphorus', mass: 30.974, period: 3, group: 15, category: 'reactive-nonmetal', electronConfig: '[Ne] 3s² 3p³', oxidationStates: '+5, +3, -3', reagentIds: [] },
     { number: 16, symbol: 'S', name: '硫', enName: 'Sulfur', mass: 32.06, period: 3, group: 16, category: 'reactive-nonmetal', electronConfig: '[Ne] 3s² 3p⁴', oxidationStates: '+6, +4, -2', reagentIds: ['H2SO4', 'CuSO4', 'FeSO4'] },
@@ -53,7 +53,7 @@ export class PeriodicTableModal {
 
     // Period 4
     { number: 19, symbol: 'K', name: '钾', enName: 'Potassium', mass: 39.098, period: 4, group: 1, category: 'alkali-metal', electronConfig: '[Ar] 4s¹', oxidationStates: '+1', reagentIds: ['KOH', 'KMnO4'] },
-    { number: 20, symbol: 'Ca', name: '钙', enName: 'Calcium', mass: 40.078, period: 4, group: 2, category: 'alkaline-earth', electronConfig: '[Ar] 4s²', oxidationStates: '+2', reagentIds: ['Ca(OH)2'] },
+    { number: 20, symbol: 'Ca', name: '钙', enName: 'Calcium', mass: 40.078, period: 4, group: 2, category: 'alkaline-earth', electronConfig: '[Ar] 4s²', oxidationStates: '+2', reagentIds: ['Ca(OH)2', 'CaCl2'] },
     { number: 21, symbol: 'Sc', name: '钪', enName: 'Scandium', mass: 44.956, period: 4, group: 3, category: 'transition-metal', electronConfig: '[Ar] 3d¹ 4s²', oxidationStates: '+3', reagentIds: [] },
     { number: 22, symbol: 'Ti', name: '钛', enName: 'Titanium', mass: 47.867, period: 4, group: 4, category: 'transition-metal', electronConfig: '[Ar] 3d² 4s²', oxidationStates: '+4, +3', reagentIds: [] },
     { number: 23, symbol: 'V', name: '钒', enName: 'Vanadium', mass: 50.942, period: 4, group: 5, category: 'transition-metal', electronConfig: '[Ar] 3d³ 4s²', oxidationStates: '+5, +4, +3, +2', reagentIds: [] },
@@ -88,7 +88,7 @@ export class PeriodicTableModal {
     { number: 50, symbol: 'Sn', name: '锡', enName: 'Tin', mass: 118.71, period: 5, group: 14, category: 'post-transition', electronConfig: '[Kr] 4d¹⁰ 5s² 5p²', oxidationStates: '+4, +2', reagentIds: [] },
     { number: 51, symbol: 'Sb', name: '锑', enName: 'Antimony', mass: 121.76, period: 5, group: 15, category: 'metalloid', electronConfig: '[Kr] 4d¹⁰ 5s² 5p³', oxidationStates: '+5, +3, -3', reagentIds: [] },
     { number: 52, symbol: 'Te', name: '碲', enName: 'Tellurium', mass: 127.60, period: 5, group: 16, category: 'metalloid', electronConfig: '[Kr] 4d¹⁰ 5s² 5p⁴', oxidationStates: '+6, +4, -2', reagentIds: [] },
-    { number: 53, symbol: 'I', name: '碘', enName: 'Iodine', mass: 126.90, period: 5, group: 17, category: 'reactive-nonmetal', electronConfig: '[Kr] 4d¹⁰ 5s² 5p⁵', oxidationStates: '+7, +5, -1', reagentIds: [] },
+    { number: 53, symbol: 'I', name: '碘', enName: 'Iodine', mass: 126.90, period: 5, group: 17, category: 'reactive-nonmetal', electronConfig: '[Kr] 4d¹⁰ 5s² 5p⁵', oxidationStates: '+7, +5, -1', reagentIds: ['KI'] },
     { number: 54, symbol: 'Xe', name: '氙', enName: 'Xenon', mass: 131.29, period: 5, group: 18, category: 'noble-gas', electronConfig: '[Kr] 4d¹⁰ 5s² 5p⁶', oxidationStates: '0, +2, +4, +6', reagentIds: [] },
 
     // Period 6
@@ -224,22 +224,76 @@ export class PeriodicTableModal {
     53: { row: 5, col: 17 },  // I  (Halogens: F -> Cl -> Br -> I)
   };
 
-  private engine: ChemistryEngine;
+  private engineLeft: ChemistryEngine;
+  private engineRight?: ChemistryEngine;
+  public activeBeakerId: 'left' | 'right' = 'left';
+  public currentViewMode: 'common' | 'all' = 'common';
   private onBackToDisciplines: () => void;
   private onViewBeaker?: () => void;
+  private onSelectBeaker?: (beakerId: 'left' | 'right') => void;
   private selectedElement: PeriodicElement;
   private toastTimeout: number | null = null;
 
   constructor(
     engine: ChemistryEngine,
     onBackToDisciplines: () => void,
-    onViewBeaker?: () => void
+    onViewBeaker?: () => void,
+    onSelectBeaker?: (beakerId: 'left' | 'right') => void
   ) {
-    this.engine = engine;
+    this.engineLeft = engine;
     this.onBackToDisciplines = onBackToDisciplines;
     this.onViewBeaker = onViewBeaker;
+    this.onSelectBeaker = onSelectBeaker;
     this.selectedElement = PeriodicTableModal.ELEMENTS.find((e) => e.symbol === 'Na') || PeriodicTableModal.ELEMENTS[0];
     this.createUI();
+  }
+
+  public setEngines(left: ChemistryEngine, right: ChemistryEngine, activeId: 'left' | 'right' = 'left'): void {
+    this.engineLeft = left;
+    this.engineRight = right;
+    this.setActiveBeaker(activeId);
+  }
+
+  public getActiveEngine(): ChemistryEngine {
+    if (this.activeBeakerId === 'right' && this.engineRight) {
+      return this.engineRight;
+    }
+    return this.engineLeft;
+  }
+
+  public setActiveBeaker(id: 'left' | 'right'): void {
+    this.activeBeakerId = id;
+    this.updateBeakerSwitcherUI();
+  }
+
+  public setViewMode(mode: 'common' | 'all'): void {
+    this.currentViewMode = mode;
+    const btnCommon = this.element.querySelector('#btn-mode-common');
+    const btnAll = this.element.querySelector('#btn-mode-all');
+    if (mode === 'common') {
+      btnCommon?.classList.add('active');
+      btnAll?.classList.remove('active');
+    } else {
+      btnCommon?.classList.remove('active');
+      btnAll?.classList.add('active');
+    }
+    this.renderGrid();
+  }
+
+  private updateBeakerSwitcherUI(): void {
+    const leftBtn = this.element.querySelector('#btn-periodic-beaker-left');
+    const rightBtn = this.element.querySelector('#btn-periodic-beaker-right');
+    const label = this.element.querySelector('#periodic-beaker-label');
+
+    if (this.activeBeakerId === 'left') {
+      leftBtn?.classList.add('active');
+      rightBtn?.classList.remove('active');
+      if (label) label.textContent = '当前目标：左侧烧杯 (默认)';
+    } else {
+      leftBtn?.classList.remove('active');
+      rightBtn?.classList.add('active');
+      if (label) label.textContent = '当前目标：右侧烧杯';
+    }
   }
 
   private createUI(): void {
@@ -247,7 +301,52 @@ export class PeriodicTableModal {
     this.element.className = 'vision-periodic-container';
 
     this.element.innerHTML = `
-      <!-- Pure Minimalist Periodic Grid (Common Elements Only) -->
+      <!-- Apple Vision Pro Spatial Toolbar -->
+      <div class="periodic-top-bar">
+        <!-- Target Beaker Segmented Control -->
+        <div class="periodic-beaker-tabs" role="tablist" aria-label="目标烧杯选择">
+          <button class="periodic-tab-btn active" id="btn-periodic-beaker-left" role="tab" title="为左侧烧杯添加试剂">
+            <span class="tab-indicator-dot"></span>
+            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 4h14a1 1 0 0 1 1 1v14a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5a1 1 0 0 1 1-1z"/>
+              <line x1="4" y1="4" x2="2" y2="4"/>
+              <line x1="7" y1="13" x2="17" y2="13"/>
+            </svg>
+            <span>左侧烧杯</span>
+          </button>
+          <button class="periodic-tab-btn" id="btn-periodic-beaker-right" role="tab" title="为右侧烧杯添加试剂">
+            <span class="tab-indicator-dot"></span>
+            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 2v7.31L5.5 17.5A2 2 0 0 0 7.2 21h9.6a2 2 0 0 0 1.7-3.5L14 9.31V2"/>
+              <line x1="8.5" y1="2" x2="15.5" y2="2"/>
+              <line x1="7.5" y1="16" x2="16.5" y2="16"/>
+            </svg>
+            <span>右侧烧杯</span>
+          </button>
+        </div>
+
+        <!-- Mode Segmented Control -->
+        <div class="periodic-view-mode-tabs" role="tablist" aria-label="元素表显示范围">
+          <button class="periodic-mode-btn active" id="btn-mode-common" role="tab" title="常用实验试剂元素 (28种)">
+            <span>常用试剂 (28)</span>
+          </button>
+          <button class="periodic-mode-btn" id="btn-mode-all" role="tab" title="完整元素周期表 (118种)">
+            <span>完整元素表 (118)</span>
+          </button>
+        </div>
+
+        <!-- Trailing Action: View Beaker Analysis -->
+        <button class="periodic-analysis-action-btn" id="btn-periodic-view-analysis" title="查看烧杯组分全息分析">
+          <span>烧杯成分分析</span>
+          <svg class="apple-sf-icon action-arrow" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+
+        <span id="periodic-beaker-label" style="display: none;">当前目标：左侧烧杯 (默认)</span>
+      </div>
+
+      <!-- Minimalist Periodic Grid (Supports both Common Reagents & Full 118 Elements) -->
       <div class="periodic-grid" id="periodic-elements-grid"></div>
 
       <!-- Apple Contextual Popover Card -->
@@ -271,35 +370,106 @@ export class PeriodicTableModal {
 
     mainGrid.innerHTML = '';
 
-    // Render 28 common elements with exact periodic group and period alignment
-    for (const [numStr, pos] of Object.entries(PeriodicTableModal.COMMON_ELEMENT_LAYOUT)) {
-      const num = parseInt(numStr, 10);
-      const elem = PeriodicTableModal.ELEMENTS.find((e) => e.number === num);
-      if (!elem) continue;
+    if (this.currentViewMode === 'common') {
+      mainGrid.classList.remove('full-table');
+      // Render 28 common elements with exact periodic group and period alignment
+      for (const [numStr, pos] of Object.entries(PeriodicTableModal.COMMON_ELEMENT_LAYOUT)) {
+        const num = parseInt(numStr, 10);
+        const elem = PeriodicTableModal.ELEMENTS.find((e) => e.number === num);
+        if (!elem) continue;
 
-      const card = document.createElement('div');
-      card.className = `element-cell cat-${elem.category}`;
-      card.dataset.num = elem.number.toString();
-      card.style.gridRow = pos.row.toString();
-      card.style.gridColumn = pos.col.toString();
+        const card = document.createElement('div');
+        card.className = `element-cell cat-${elem.category} ${this.selectedElement?.number === elem.number ? 'selected' : ''}`;
+        card.dataset.num = elem.number.toString();
+        card.style.gridRow = pos.row.toString();
+        card.style.gridColumn = pos.col.toString();
 
-      card.innerHTML = `
-        <span class="elem-num">${elem.number}</span>
-        <span class="elem-sym">${elem.symbol}</span>
-        <span class="elem-name">${elem.name}</span>
-      `;
+        card.innerHTML = `
+          <span class="elem-num">${elem.number}</span>
+          <span class="elem-sym">${elem.symbol}</span>
+          <span class="elem-name">${elem.name}</span>
+        `;
 
-      card.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openElementPopover(elem);
-      });
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.openElementPopover(elem);
+        });
 
-      mainGrid.appendChild(card);
+        mainGrid.appendChild(card);
+      }
+    } else {
+      mainGrid.classList.add('full-table');
+      // Render all 118 elements
+      for (const elem of PeriodicTableModal.ELEMENTS) {
+        const card = document.createElement('div');
+        card.className = `element-cell cat-${elem.category} ${this.selectedElement?.number === elem.number ? 'selected' : ''}`;
+        card.dataset.num = elem.number.toString();
+
+        if (elem.period <= 7) {
+          card.style.gridRow = elem.period.toString();
+          card.style.gridColumn = elem.group.toString();
+        } else if (elem.period === 8) {
+          // Lanthanides row (placed on row 8, col 3-17)
+          card.style.gridRow = '8';
+          card.style.gridColumn = elem.group.toString();
+        } else if (elem.period === 9) {
+          // Actinides row (placed on row 9, col 3-17)
+          card.style.gridRow = '9';
+          card.style.gridColumn = elem.group.toString();
+        }
+
+        card.innerHTML = `
+          <span class="elem-num">${elem.number}</span>
+          <span class="elem-sym">${elem.symbol}</span>
+          <span class="elem-name">${elem.name}</span>
+        `;
+
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.openElementPopover(elem);
+        });
+
+        mainGrid.appendChild(card);
+      }
     }
   }
 
   public selectElement(elem: PeriodicElement): void {
     this.openElementPopover(elem);
+  }
+
+  public static getReagentsForElement(elem: PeriodicElement): ChemicalReagent[] {
+    const list = elem.reagentIds.map((id) => ChemistryEngine.REAGENTS[id]).filter(Boolean);
+    if (list.length > 0) {
+      return list;
+    }
+
+    // Auto-generate standard elemental reagent if no specific compounds are configured
+    const id = elem.symbol;
+    if (!ChemistryEngine.REAGENTS[id]) {
+      const isMetal = [
+        'alkali-metal',
+        'alkaline-earth',
+        'transition-metal',
+        'post-transition',
+        'lanthanide',
+        'actinide',
+      ].includes(elem.category);
+      const isGas = elem.category === 'noble-gas';
+
+      ChemistryEngine.REAGENTS[id] = {
+        id,
+        name: isMetal ? `${elem.name}片 / 单质` : `${elem.name}单质试剂`,
+        formula: elem.symbol,
+        category: isMetal ? 'metal' : 'salt',
+        state: isMetal ? 'solid' : 'liquid',
+        color: isMetal ? 0xb0bec5 : 0xe0f7fa,
+        description: `${elem.name}元素（${elem.enName}）高纯度实验室单质试样。`,
+        defaultAmount: isMetal ? 1 : 20,
+        unit: isMetal ? '片' : (isGas ? 'mL' : 'mL'),
+      };
+    }
+    return [ChemistryEngine.REAGENTS[id]];
   }
 
   public openElementPopover(elem: PeriodicElement): void {
@@ -314,7 +484,7 @@ export class PeriodicTableModal {
       c.classList.toggle('selected', isSelected);
     });
 
-    const reagents = elem.reagentIds.map((id) => ChemistryEngine.REAGENTS[id]).filter(Boolean);
+    const reagents = PeriodicTableModal.getReagentsForElement(elem);
 
     card.innerHTML = `
       <div class="popover-header">
@@ -332,43 +502,36 @@ export class PeriodicTableModal {
             </div>
           </div>
         </div>
-        <button class="popover-close-btn" id="btn-popover-close" title="关闭 (ESC)">✕</button>
+        <button class="popover-close-btn" id="btn-popover-close" title="关闭 (ESC)">
+          <svg class="apple-sf-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
-      ${
-        reagents.length > 0
-          ? `
-          <div class="popover-reagents-list">
-            ${reagents
-              .map((r) => {
-                const isSolid = r.state === 'solid';
-                return `
-                <button class="popover-reagent-row" data-reagent-id="${r.id}">
-                  <span class="reagent-row-name">${r.name}</span>
-                  <span class="reagent-row-action">${isSolid ? '投入' : '注入'} ${r.defaultAmount}${r.unit}</span>
-                </button>
-              `;
-              })
-              .join('')}
-          </div>
-          `
-          : `
-          <div class="popover-element-meta">
-            <div class="meta-row">
-              <span class="meta-label">外层电子</span>
-              <span class="meta-value font-mono">${elem.electronConfig}</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">常见化合价</span>
-              <span class="meta-value font-mono">${elem.oxidationStates}</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">原子量</span>
-              <span class="meta-value font-mono">${elem.mass} u</span>
-            </div>
-          </div>
-          `
-      }
+      <div class="popover-reagents-list">
+        ${reagents
+          .map((r) => {
+            const isSolid = r.state === 'solid';
+            const stateLabel = isSolid ? '固态单质' : '水溶液';
+            return `
+            <button class="popover-reagent-row" data-reagent-id="${r.id}">
+              <div class="reagent-row-info">
+                <div class="reagent-row-primary">
+                  <span class="reagent-formula">${r.formula}</span>
+                  <span class="reagent-state-badge ${r.state}">${stateLabel}</span>
+                </div>
+                <div class="reagent-row-name">${r.name}</div>
+              </div>
+              <span class="reagent-row-action">
+                <span class="action-text">${isSolid ? '投入' : '注入'} ${r.defaultAmount}${r.unit}</span>
+              </span>
+            </button>
+          `;
+          })
+          .join('')}
+      </div>
     `;
 
     // Bind reagent buttons
@@ -376,18 +539,26 @@ export class PeriodicTableModal {
       const btn = card.querySelector(`.popover-reagent-row[data-reagent-id="${r.id}"]`);
       btn?.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.engine.addReagent(r.id, r.defaultAmount);
+        this.getActiveEngine().addReagent(r.id, r.defaultAmount);
 
         btn.classList.add('row-added');
         const actionSpan = btn.querySelector('.reagent-row-action');
-        const origText = actionSpan?.textContent || '';
-        if (actionSpan) actionSpan.textContent = '✓ 已加入';
+        const origHTML = actionSpan?.innerHTML || '';
+        if (actionSpan) {
+          actionSpan.innerHTML = `
+            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span>已加入</span>
+          `;
+        }
 
-        this.showToast(`已加入 ${r.name}`);
+        const beakerName = this.activeBeakerId === 'left' ? '左侧烧杯' : '右侧烧杯';
+        this.showToast(`已加入 ${r.formula} (${r.name}) 至【${beakerName}】`);
 
         setTimeout(() => {
           btn.classList.remove('row-added');
-          if (actionSpan) actionSpan.textContent = origText;
+          if (actionSpan) actionSpan.innerHTML = origHTML;
         }, 800);
       });
     });
@@ -454,6 +625,31 @@ export class PeriodicTableModal {
   }
 
   private bindEvents(): void {
+    // Beaker tabs in header
+    this.element.querySelector('#btn-periodic-beaker-left')?.addEventListener('click', () => {
+      this.setActiveBeaker('left');
+      this.onSelectBeaker?.('left');
+    });
+
+    this.element.querySelector('#btn-periodic-beaker-right')?.addEventListener('click', () => {
+      this.setActiveBeaker('right');
+      this.onSelectBeaker?.('right');
+    });
+
+    // View mode tabs (Common Reagents vs Full 118 Elements)
+    this.element.querySelector('#btn-mode-common')?.addEventListener('click', () => {
+      this.setViewMode('common');
+    });
+
+    this.element.querySelector('#btn-mode-all')?.addEventListener('click', () => {
+      this.setViewMode('all');
+    });
+
+    // View analysis button
+    this.element.querySelector('#btn-periodic-view-analysis')?.addEventListener('click', () => {
+      this.onViewBeaker?.();
+    });
+
     // Overlay backdrop click dismisses popover
     const overlay = this.element.querySelector('#element-popover-overlay');
     overlay?.addEventListener('click', (e) => {

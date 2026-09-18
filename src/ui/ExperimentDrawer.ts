@@ -36,7 +36,12 @@ export class ExperimentDrawer {
       <div class="drawer-header">
         <div class="drawer-title-row">
           <span class="drawer-title">实验库</span>
-          <button class="drawer-close-btn" id="drawer-close-btn" title="关闭 (ESC)">✕</button>
+          <button class="drawer-close-btn" id="drawer-close-btn" title="关闭 (ESC)">
+            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
         <div class="drawer-search-row">
           <div class="search-input-wrapper">

@@ -56,6 +56,34 @@ export interface ChemistryState {
   }>;
 }
 
+export interface SoluteComponent {
+  id: string;
+  formula: string;
+  name: string;
+  category: 'ion' | 'precipitate' | 'solid';
+  categoryLabel: string;
+  moles: number;
+  millimoles: number;
+  molarMass: number;
+  massGrams: number;
+  concentration?: number;
+  color: string;
+  percentage: number;
+}
+
+export interface ChemistryComposition {
+  totalVolumeMl: number;
+  waterVolumeMl: number;
+  waterMoles: number;
+  waterMassGrams: number;
+  temperature: number;
+  pH: number;
+  totalSoluteMoles: number;
+  totalSoluteMassGrams: number;
+  components: SoluteComponent[];
+  recentReaction: ChemicalReaction | null;
+}
+
 export class ChemistryEngine {
   public static readonly REAGENTS: Record<string, ChemicalReagent> = {
     H2O: {
@@ -323,6 +351,66 @@ export class ChemistryEngine {
       defaultAmount: 5,
       unit: '滴',
     },
+    Al: {
+      id: 'Al',
+      name: '铝片 / 铝条',
+      formula: 'Al',
+      category: 'metal',
+      state: 'solid',
+      color: 0xd6d6d6,
+      description: '银白色活泼两性金属，可与强酸或强碱剧烈置换释放大量氢气。',
+      defaultAmount: 1,
+      unit: '片',
+    },
+    AlCl3: {
+      id: 'AlCl3',
+      name: '氯化铝溶液 (0.5 mol/L)',
+      formula: 'AlCl₃',
+      category: 'salt',
+      state: 'liquid',
+      concentration: 0.5,
+      color: 0xfcfcfc,
+      description: '经典铝盐溶液，与强碱反应生成白色胶状沉淀氢氧化铝。',
+      defaultAmount: 20,
+      unit: 'mL',
+    },
+    HNO3: {
+      id: 'HNO3',
+      name: '稀硝酸 (1.0 mol/L)',
+      formula: 'HNO₃',
+      category: 'acid',
+      state: 'liquid',
+      concentration: 1.0,
+      color: 0xf8f9fa,
+      description: '强氧化性一元强酸，完全解离提供氢离子与硝酸根离子。',
+      hazard: '强腐蚀性',
+      defaultAmount: 20,
+      unit: 'mL',
+    },
+    CaCl2: {
+      id: 'CaCl2',
+      name: '氯化钙溶液 (0.5 mol/L)',
+      formula: 'CaCl₂',
+      category: 'salt',
+      state: 'liquid',
+      concentration: 0.5,
+      color: 0xfafafa,
+      description: '中性可溶钙盐溶液，遇碳酸根迅速产生白色沉淀。',
+      defaultAmount: 20,
+      unit: 'mL',
+    },
+    KI: {
+      id: 'KI',
+      name: '碘化钾溶液 (0.5 mol/L)',
+      formula: 'KI',
+      category: 'salt',
+      state: 'liquid',
+      concentration: 0.5,
+      color: 0xffffff,
+      description: '特征还原性钾盐溶液，遇氧化剂析出特征游离碘。',
+      defaultAmount: 20,
+      unit: 'mL',
+    },
   };
 
   public state: ChemistryState;
@@ -368,8 +456,21 @@ export class ChemistryEngine {
     }
   }
 
+  public static readonly REAGENT_ALIASES: Record<string, string> = {
+    hcl_1m: 'HCl',
+    mg_ribbon: 'Mg',
+    cu_plate: 'Cu',
+    fe_nail: 'Fe',
+    zn_granule: 'Zn',
+    na_chunk: 'Na',
+    naoh_1m: 'NaOH',
+    cuso4_05m: 'CuSO4',
+    bacl2_05m: 'BaCl2',
+  };
+
   public addReagent(reagentId: string, amount?: number): ChemicalReaction | null {
-    const reagent = ChemistryEngine.REAGENTS[reagentId];
+    const canonicalId = ChemistryEngine.REAGENT_ALIASES[reagentId] || reagentId;
+    const reagent = ChemistryEngine.REAGENTS[canonicalId];
     if (!reagent) {
       console.warn(`[ChemistryEngine] Unknown reagent: ${reagentId}`);
       return null;
@@ -484,6 +585,33 @@ export class ChemistryEngine {
           isExothermic: false,
           heatDelta: 0,
         });
+      } else if (reagent.id === 'AlCl3') {
+        const moles = (reagent.concentration || 0.5) * volLiters;
+        this.addIon('Al3+', moles);
+        this.addIon('Cl-', moles * 3);
+      } else if (reagent.id === 'HNO3') {
+        const moles = (reagent.concentration || 1.0) * volLiters;
+        this.addIon('H+', moles);
+        this.addIon('NO3-', moles);
+      } else if (reagent.id === 'CaCl2') {
+        const moles = (reagent.concentration || 0.5) * volLiters;
+        this.addIon('Ca2+', moles);
+        this.addIon('Cl-', moles * 2);
+      } else if (reagent.id === 'KI') {
+        const moles = (reagent.concentration || 0.5) * volLiters;
+        this.addIon('K+', moles);
+        this.addIon('I-', moles);
+      } else {
+        occurredReactions.push({
+          id: `add_${reagent.id}`,
+          title: `注入${reagent.name}`,
+          equation: `${reagent.formula} ➔ 注入体系`,
+          type: '试剂注入',
+          description: `向烧杯中注入 ${addedVol}mL ${reagent.name}。`,
+          phenomenon: `液面平缓上升，加入 ${addedVol}mL ${reagent.name}。`,
+          isExothermic: false,
+          heatDelta: 0,
+        });
       }
     } else {
       // Solid reagents
@@ -501,6 +629,10 @@ export class ChemistryEngine {
         const cur = this.state.solids.get('Fe') || { formula: 'Fe', name: '铁钉/铁粉', moles: 0 };
         cur.moles += qty * 0.018;
         this.state.solids.set('Fe', cur);
+      } else if (reagent.id === 'Al') {
+        const cur = this.state.solids.get('Al') || { formula: 'Al', name: '铝片', moles: 0 };
+        cur.moles += qty * 0.018;
+        this.state.solids.set('Al', cur);
       } else if (reagent.id === 'Cu') {
         const cur = this.state.solids.get('Cu') || { formula: 'Cu', name: '紫铜片', moles: 0 };
         cur.moles += qty * 0.015;
@@ -512,6 +644,21 @@ export class ChemistryEngine {
           type: '金属惰性',
           description: '铜在金属活动性顺序中排在氢 (H) 之后，常温下不与非氧化性稀酸发生反应。',
           phenomenon: '紫红色铜片沉入烧杯底部，表面光亮无气泡生成。',
+          isExothermic: false,
+          heatDelta: 0,
+        });
+      } else {
+        const formula = reagent.formula || reagent.id;
+        const cur = this.state.solids.get(formula) || { formula, name: reagent.name, moles: 0 };
+        cur.moles += qty * 0.015;
+        this.state.solids.set(formula, cur);
+        occurredReactions.push({
+          id: `add_${reagent.id}`,
+          title: `投入${reagent.name}`,
+          equation: `${formula} ➔ 投入体系`,
+          type: '试样加入',
+          description: `向烧杯体系中加入 ${qty}${reagent.unit} ${reagent.name}。`,
+          phenomenon: `${reagent.name}沉入烧杯底部。`,
           isExothermic: false,
           heatDelta: 0,
         });
@@ -863,6 +1010,65 @@ export class ChemistryEngine {
         heatDelta: 0.6,
         gasType: 'H2',
         gasRate: 0.5,
+      });
+    }
+
+    // 1d. Aluminium + Acid / Base
+    const solidAl = this.state.solids.get('Al');
+    if (solidAl && solidAl.moles > 1e-6 && this.getIon('H+') > 1e-4) {
+      const curH = this.getIon('H+');
+      const reacted = Math.min(curH / 3, solidAl.moles);
+      solidAl.moles -= reacted;
+      if (solidAl.moles <= 1e-6) this.state.solids.delete('Al');
+      this.setIon('H+', curH - reacted * 3);
+      this.addIon('Al3+', reacted);
+
+      const heatDelta = (reacted * 420 * 1000) / (this.state.volume * 4.184);
+      this.state.temperature = Math.min(94, this.state.temperature + heatDelta);
+      this.state.activeGasRate = 0.9;
+      this.state.gasType = 'H2';
+
+      this.state.activeEffects.push({ type: 'gas', intensity: 0.9, duration: 3.5 });
+      this.state.activeEffects.push({ type: 'exotherm', intensity: 0.7, duration: 2.0 });
+
+      const eq = this.getIon('SO4_2-') > 1e-4 ? '2Al + 3H₂SO₄ ➔ Al₂(SO₄)₃ + 3H₂↑' : '2Al + 6HCl ➔ 2AlCl₃ + 3H₂↑';
+      reactions.push({
+        id: 'al_acid',
+        title: '铝片剧烈置换释放氢气',
+        equation: eq,
+        type: '两性金属置换反应',
+        description: '铝单质与强酸剧烈反应，氧化膜溶解后表面持续涌出密集细微氢气泡并强烈放热。',
+        phenomenon: `铝片表面沸腾般剧烈冒出纯净微细氢气泡，液体温度攀升 (${this.state.temperature.toFixed(1)}°C)！`,
+        isExothermic: true,
+        heatDelta: heatDelta,
+        gasType: 'H2',
+        gasRate: 0.9,
+      });
+    } else if (solidAl && solidAl.moles > 1e-6 && this.getIon('OH-') > 1e-4) {
+      const curOH = this.getIon('OH-');
+      const reacted = Math.min(curOH, solidAl.moles);
+      solidAl.moles -= reacted;
+      if (solidAl.moles <= 1e-6) this.state.solids.delete('Al');
+      this.setIon('OH-', curOH - reacted);
+
+      const heatDelta = (reacted * 415 * 1000) / (this.state.volume * 4.184);
+      this.state.temperature = Math.min(92, this.state.temperature + heatDelta);
+      this.state.activeGasRate = 0.85;
+      this.state.gasType = 'H2';
+
+      this.state.activeEffects.push({ type: 'gas', intensity: 0.85, duration: 3.5 });
+
+      reactions.push({
+        id: 'al_base',
+        title: '铝与强碱溶液剧烈产氢',
+        equation: '2Al + 2OH⁻ + 6H₂O ➔ 2[Al(OH)₄]⁻ + 3H₂↑',
+        type: '两性金属特征反应',
+        description: '两性金属铝在强碱环境中与水及氢氧根协同反应生成四羟基合铝酸根并释放大量氢气。',
+        phenomenon: `铝片表面翻滚产生大量细密氢气泡，烧杯放热发烫 (${this.state.temperature.toFixed(1)}°C)！`,
+        isExothermic: true,
+        heatDelta: heatDelta,
+        gasType: 'H2',
+        gasRate: 0.85,
       });
     }
 
@@ -1471,5 +1677,312 @@ export class ChemistryEngine {
         }
       }
     }
+  }
+
+  public mixFrom(source: ChemistryEngine, volumeToTransfer?: number): ChemicalReaction[] {
+    const sourceVol = source.state.volume;
+    if (sourceVol <= 0.001) return [];
+
+    const transferVol = Math.min(sourceVol, volumeToTransfer !== undefined ? volumeToTransfer : sourceVol);
+    if (transferVol <= 0.001) return [];
+
+    const fraction = transferVol / sourceVol;
+
+    // Trigger pouring visual effect in receiving beaker
+    this.state.activeEffects.push({
+      type: 'pour',
+      color: source.state.liquidColor.getHex(),
+      intensity: 1.0,
+      duration: 1.2,
+    });
+
+    // 1. Transfer Solvated Ions
+    for (const [ion, moles] of source.state.ions) {
+      const transferMoles = moles * fraction;
+      if (transferMoles > 1e-9) {
+        source.state.ions.set(ion, Math.max(0, moles - transferMoles));
+        this.addIon(ion, transferMoles);
+      }
+    }
+
+    // 2. Transfer Precipitates
+    for (const [key, p] of source.state.precipitates) {
+      const transferMoles = p.moles * fraction;
+      if (transferMoles > 1e-9) {
+        p.moles -= transferMoles;
+        if (p.moles <= 1e-7) {
+          source.state.precipitates.delete(key);
+        }
+        const curP = this.state.precipitates.get(key);
+        if (curP) {
+          curP.moles += transferMoles;
+        } else {
+          this.state.precipitates.set(key, { ...p, moles: transferMoles });
+        }
+      }
+    }
+
+    // 3. Transfer Solid Metals (if pouring almost all volume)
+    if (fraction >= 0.85) {
+      for (const [key, s] of source.state.solids) {
+        const transferMoles = s.moles * fraction;
+        if (transferMoles > 1e-9) {
+          s.moles -= transferMoles;
+          if (s.moles <= 1e-7) {
+            source.state.solids.delete(key);
+          }
+          const curS = this.state.solids.get(key);
+          if (curS) {
+            curS.moles += transferMoles;
+          } else {
+            this.state.solids.set(key, { ...s, moles: transferMoles });
+          }
+        }
+      }
+    }
+
+    // 4. Transfer Chemical Indicators
+    const pTrans = source.state.indicators.phenolphthalein * fraction;
+    const lTrans = source.state.indicators.litmus * fraction;
+    source.state.indicators.phenolphthalein -= pTrans;
+    source.state.indicators.litmus -= lTrans;
+    this.state.indicators.phenolphthalein += pTrans;
+    this.state.indicators.litmus += lTrans;
+
+    // 5. Volume & Heat Exchange
+    const oldTargetVol = this.state.volume;
+    const newTargetVol = Math.min(this.state.maxVolume, oldTargetVol + transferVol);
+    this.state.volume = newTargetVol;
+    source.state.volume = Math.max(0, sourceVol - transferVol);
+
+    const totalV = oldTargetVol + transferVol;
+    if (totalV > 0) {
+      this.state.temperature = (this.state.temperature * oldTargetVol + source.state.temperature * transferVol) / totalV;
+    }
+
+    // 6. Process Chemical Equilibrium and Reactions
+    const occurredReactions: ChemicalReaction[] = this.processReactions();
+
+    if (occurredReactions.length > 0) {
+      for (const rx of occurredReactions) {
+        // If the topmost reaction is already the same continuous reaction (e.g. ongoing neutralization/precipitation/gas),
+        // update it in place rather than creating 60 duplicate reaction entries per second!
+        const topRx = this.state.recentReactions.length > 0 ? this.state.recentReactions[0] : null;
+        if (topRx && topRx.id === rx.id) {
+          topRx.phenomenon = rx.phenomenon;
+          topRx.equation = rx.equation;
+          topRx.heatDelta += rx.heatDelta;
+          if (rx.precipitate) {
+            topRx.precipitate = rx.precipitate;
+          }
+        } else {
+          this.state.recentReactions.unshift(rx);
+        }
+      }
+    } else {
+      // No new chemical reaction occurred in this transfer frame.
+      // Only record generic physical mixing if there is NO reaction in recent history,
+      // and do NOT duplicate or flood 'mix_solutions'.
+      const hasAnyReaction = this.state.recentReactions.length > 0;
+      if (!hasAnyReaction) {
+        this.state.recentReactions.unshift({
+          id: 'mix_solutions',
+          title: '烧杯溶液混合',
+          equation: 'Solution (A) + Solution (B) ➔ 充分物理混合',
+          type: '物理充分混合',
+          description: '两烧杯中的溶质分子与自由离子充分对流扩散，构成均匀混合体系。',
+          phenomenon: '两股溶液交汇融合，液面平缓上升，溶质与离子自由扩散。',
+          isExothermic: false,
+          heatDelta: 0,
+        });
+      }
+    }
+
+    if (this.state.recentReactions.length > 8) {
+      this.state.recentReactions.length = 8;
+    }
+
+    // Recompute macroscopic physicochemical properties on both beakers
+    this.updatepH();
+    this.updateLiquidColor();
+    source.updatepH();
+    source.updateLiquidColor();
+
+    this.notify();
+    source.notify();
+
+    return occurredReactions;
+  }
+
+  public getCompositionAnalysis(): ChemistryComposition {
+    const components: SoluteComponent[] = [];
+    const volLiters = Math.max(0.001, this.state.volume / 1000);
+
+    const ION_META: Record<string, { formula: string; name: string; molarMass: number; color: string }> = {
+      'H+': { formula: 'H⁺', name: '氢离子', molarMass: 1.008, color: '#ff453a' },
+      'OH-': { formula: 'OH⁻', name: '氢氧根离子', molarMass: 17.008, color: '#40c8e0' },
+      'Na+': { formula: 'Na⁺', name: '钠离子', molarMass: 22.990, color: '#64d2ff' },
+      'Cl-': { formula: 'Cl⁻', name: '氯离子', molarMass: 35.453, color: '#30d158' },
+      'Cu2+': { formula: 'Cu²⁺', name: '铜离子', molarMass: 63.546, color: '#0a84ff' },
+      'SO4_2-': { formula: 'SO₄²⁻', name: '硫酸根离子', molarMass: 96.06, color: '#ffd60a' },
+      'Ba2+': { formula: 'Ba²⁺', name: '钡离子', molarMass: 137.33, color: '#bf5af2' },
+      'Fe3+': { formula: 'Fe³⁺', name: '铁离子', molarMass: 55.845, color: '#ff9f0a' },
+      'Fe2+': { formula: 'Fe²⁺', name: '亚铁离子', molarMass: 55.845, color: '#34c759' },
+      'NO3-': { formula: 'NO₃⁻', name: '硝酸根离子', molarMass: 62.005, color: '#ff375f' },
+      'CO3_2-': { formula: 'CO₃²⁻', name: '碳酸根离子', molarMass: 60.009, color: '#ffb74d' },
+      'K+': { formula: 'K⁺', name: '钾离子', molarMass: 39.098, color: '#af52de' },
+      'Ca2+': { formula: 'Ca²⁺', name: '钙离子', molarMass: 40.078, color: '#e5e5ea' },
+      'Al3+': { formula: 'Al³⁺', name: '铝离子', molarMass: 26.982, color: '#81d4fa' },
+      'Ag+': { formula: 'Ag⁺', name: '银离子', molarMass: 107.87, color: '#cfd8dc' },
+      'I-': { formula: 'I⁻', name: '碘离子', molarMass: 126.90, color: '#9c27b0' },
+      'MnO4-': { formula: 'MnO₄⁻', name: '高锰酸根离子', molarMass: 118.94, color: '#7b1fa2' },
+      'H2O2': { formula: 'H₂O₂', name: '过氧化氢分子', molarMass: 34.015, color: '#80deea' },
+    };
+
+    const SOLID_META: Record<string, { formula: string; name: string; molarMass: number; color: string }> = {
+      'Mg': { formula: 'Mg', name: '镁金属单质', molarMass: 24.305, color: '#b0bec5' },
+      'Zn': { formula: 'Zn', name: '锌金属单质', molarMass: 65.38, color: '#78909c' },
+      'Fe': { formula: 'Fe', name: '铁金属单质', molarMass: 55.845, color: '#546e7a' },
+      'Cu': { formula: 'Cu', name: '紫铜单质', molarMass: 63.546, color: '#b87333' },
+      'Al': { formula: 'Al', name: '金属铝', molarMass: 26.982, color: '#90a4ae' },
+    };
+
+    const PRECIP_META: Record<string, { formula: string; name: string; molarMass: number; color: string }> = {
+      'BaSO4': { formula: 'BaSO₄↓', name: '硫酸钡沉淀', molarMass: 233.39, color: '#ffffff' },
+      'AgCl': { formula: 'AgCl↓', name: '氯化银凝乳状沉淀', molarMass: 143.32, color: '#f8fafc' },
+      'Cu(OH)2': { formula: 'Cu(OH)₂↓', name: '氢氧化铜蓝色沉淀', molarMass: 97.56, color: '#0288d1' },
+      'Fe(OH)3': { formula: 'Fe(OH)₃↓', name: '氢氧化铁红褐色沉淀', molarMass: 106.87, color: '#d84315' },
+      'Fe(OH)2': { formula: 'Fe(OH)₂↓', name: '氢氧化亚铁絮状沉淀', molarMass: 89.86, color: '#558b2f' },
+      'CaCO3': { formula: 'CaCO₃↓', name: '碳酸钙白色浑浊沉淀', molarMass: 100.09, color: '#f5f5f5' },
+      'Al(OH)3': { formula: 'Al(OH)₃↓', name: '氢氧化铝凝胶沉淀', molarMass: 78.00, color: '#eceff1' },
+    };
+
+    // 1. Solvated Ions (exclude neutral autodissociated H+ / OH- from pure water if concentration <= 1e-5 M)
+    for (const [ionName, moles] of this.state.ions) {
+      if (moles > 1e-6) {
+        // In pure water autodissociation is 1e-7 mol/L. If H+ or OH- is near neutral 1e-7, ignore
+        if ((ionName === 'H+' || ionName === 'OH-') && Math.abs(this.state.pH - 7.0) < 0.1 && moles < 5e-6) {
+          continue;
+        }
+
+        const meta = ION_META[ionName] || {
+          formula: ionName,
+          name: `${ionName}离子`,
+          molarMass: 50.0,
+          color: '#0a84ff',
+        };
+
+        components.push({
+          id: `ion_${ionName}`,
+          formula: meta.formula,
+          name: meta.name,
+          category: 'ion',
+          categoryLabel: '可溶离子',
+          moles: moles,
+          millimoles: moles * 1000,
+          molarMass: meta.molarMass,
+          massGrams: moles * meta.molarMass,
+          concentration: moles / volLiters,
+          color: meta.color,
+          percentage: 0,
+        });
+      }
+    }
+
+    // 2. Precipitates
+    for (const [key, p] of this.state.precipitates) {
+      if (p.moles > 1e-6) {
+        const meta = PRECIP_META[key] || {
+          formula: p.formula,
+          name: p.name,
+          molarMass: 100.0,
+          color: '#ffffff',
+        };
+
+        components.push({
+          id: `precip_${key}`,
+          formula: meta.formula,
+          name: meta.name,
+          category: 'precipitate',
+          categoryLabel: '难溶沉淀',
+          moles: p.moles,
+          millimoles: p.moles * 1000,
+          molarMass: meta.molarMass,
+          massGrams: p.moles * meta.molarMass,
+          color: meta.color,
+          percentage: 0,
+        });
+      }
+    }
+
+    // 3. Solid Metals
+    for (const [key, s] of this.state.solids) {
+      if (s.moles > 1e-6) {
+        const meta = SOLID_META[key] || {
+          formula: s.formula,
+          name: s.name,
+          molarMass: 50.0,
+          color: '#90a4ae',
+        };
+
+        components.push({
+          id: `solid_${key}`,
+          formula: meta.formula,
+          name: meta.name,
+          category: 'solid',
+          categoryLabel: '金属固相',
+          moles: s.moles,
+          millimoles: s.moles * 1000,
+          molarMass: meta.molarMass,
+          massGrams: s.moles * meta.molarMass,
+          color: meta.color,
+          percentage: 0,
+        });
+      }
+    }
+
+    // Calculate totals and percentages normalized strictly to 100%
+    let totalSoluteMoles = 0;
+    let totalSoluteMassGrams = 0;
+    for (const c of components) {
+      totalSoluteMoles += c.moles;
+      totalSoluteMassGrams += c.massGrams;
+    }
+
+    if (totalSoluteMoles > 0) {
+      for (const c of components) {
+        c.percentage = (c.moles / totalSoluteMoles) * 100;
+      }
+
+      // Sort descending (从大到小)
+      components.sort((a, b) => b.percentage - a.percentage);
+
+      // Clean rounding to 1 decimal place with exact 100.0% sum guarantee
+      let sumPct = 0;
+      for (const c of components) {
+        c.percentage = Math.round(c.percentage * 10) / 10;
+        sumPct += c.percentage;
+      }
+      if (components.length > 0 && Math.abs(sumPct - 100.0) > 0.01) {
+        components[0].percentage = Math.round((components[0].percentage + (100.0 - sumPct)) * 10) / 10;
+      }
+    }
+
+    const waterVolumeMl = this.state.volume;
+    const waterMoles = (waterVolumeMl * 1.0) / 18.015;
+    const waterMassGrams = waterVolumeMl * 1.0;
+
+    return {
+      totalVolumeMl: this.state.volume,
+      waterVolumeMl,
+      waterMoles,
+      waterMassGrams,
+      temperature: this.state.temperature,
+      pH: this.state.pH,
+      totalSoluteMoles,
+      totalSoluteMassGrams,
+      components,
+      recentReaction: this.state.recentReactions.length > 0 ? this.state.recentReactions[0] : null,
+    };
   }
 }

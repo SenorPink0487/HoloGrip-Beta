@@ -30,6 +30,17 @@ export class BeakerMesh {
   public readonly beakerHeight = 0.36;
   public readonly beakerRadius = 0.14;
 
+  public restingPosition = new THREE.Vector3(0, 0.852, 1.10);
+  public currentTiltZ = 0;
+  public targetTiltZ = 0;
+  public onVisibilityChange?: (visible: boolean, animate: boolean) => void;
+
+  private isHovered = false;
+  private hoverIntensity = 0.0;
+  private glassMaterial: THREE.MeshPhysicalMaterial;
+  private haloRing: THREE.Mesh;
+  private haloMaterial: THREE.MeshBasicMaterial;
+
   constructor() {
     this.group.name = 'ChemistryBeaker';
     this.group.visible = false;
@@ -140,10 +151,26 @@ export class BeakerMesh {
       depthWrite: false,
     });
 
+    this.glassMaterial = glassMat;
     this.glassBody = new THREE.Mesh(latheGeo, glassMat);
     this.glassBody.castShadow = false; // Clear glass does not cast dense opaque shadow
     this.glassBody.receiveShadow = true;
     this.group.add(this.glassBody);
+
+    // Ground holographic interaction halo ring
+    const haloGeo = new THREE.RingGeometry(outerRadius * 0.98, outerRadius * 1.25, 48);
+    this.haloMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.05,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.haloRing = new THREE.Mesh(haloGeo, this.haloMaterial);
+    this.haloRing.rotation.x = -Math.PI / 2;
+    this.haloRing.position.y = 0.002;
+    this.group.add(this.haloRing);
 
     // Beaker markings cylinder overlay
     const markingsGeo = new THREE.CylinderGeometry(outerRadius + 0.0005, outerRadius + 0.0005, height * 0.95, 64, 1, true);
@@ -238,10 +265,42 @@ export class BeakerMesh {
         this.group.visible = true;
       }
     }
+    this.onVisibilityChange?.(visible, animate);
+  }
+
+  public setTilt(angleZ: number): void {
+    this.targetTiltZ = angleZ;
   }
 
   public isVisible(): boolean {
     return this.group.visible && this.targetBeakerScale > 0.01;
+  }
+
+  public getLipWorldPosition(direction: 'left' | 'right' = 'right'): THREE.Vector3 {
+    const sign = direction === 'right' ? 1 : -1;
+    const localLip = new THREE.Vector3(sign * (this.beakerRadius + 0.006), this.beakerHeight, 0);
+    const worldPos = localLip.clone();
+    this.group.localToWorld(worldPos);
+    return worldPos;
+  }
+
+  public getMouthWorldPosition(): THREE.Vector3 {
+    const localMouth = new THREE.Vector3(0, this.beakerHeight, 0);
+    const worldPos = localMouth.clone();
+    this.group.localToWorld(worldPos);
+    return worldPos;
+  }
+
+  public getLiquidLevel(): number {
+    return this.currentLiquidLevel;
+  }
+
+  public getLiquidColor(): THREE.Color {
+    return this.currentLiquidColor;
+  }
+
+  public get liquidColor(): THREE.Color {
+    return this.currentLiquidColor;
   }
 
   public updateFromState(state: ChemistryState): void {
@@ -290,12 +349,40 @@ export class BeakerMesh {
       }
     }
 
+    // Smooth beaker tilt animation & physics
+    this.currentTiltZ = THREE.MathUtils.lerp(this.currentTiltZ, this.targetTiltZ, delta * 12.0);
+    this.group.rotation.z = this.currentTiltZ;
+
     // Smooth level change
     this.currentLiquidLevel = THREE.MathUtils.lerp(this.currentLiquidLevel, this.targetLiquidLevel, delta * 3.5);
     this.liquidMesh.scale.set(1, this.currentLiquidLevel, 1);
 
     const surfaceY = 0.009 + this.maxLiquidHeight * this.currentLiquidLevel;
-    this.liquidTopDisc.position.y = surfaceY;
+
+    // Strict fluid mechanics: liquid free surface remains horizontal in world space
+    // As beaker rotates by currentTiltZ, liquid top disc counter-rotates by -currentTiltZ
+    // and stays strictly centered within the glass walls without protruding outside
+    if (Math.abs(this.currentTiltZ) > 0.001) {
+      this.liquidTopDisc.rotation.z = -this.currentTiltZ;
+      this.liquidTopDisc.position.x = 0;
+      this.liquidTopDisc.position.y = surfaceY;
+
+      this.liquidMesh.rotation.z = 0;
+      this.liquidMesh.position.x = 0;
+    } else {
+      this.liquidTopDisc.rotation.z = 0;
+      this.liquidTopDisc.position.x = 0;
+      this.liquidTopDisc.position.y = surfaceY;
+
+      this.liquidMesh.rotation.z = 0;
+      this.liquidMesh.position.x = 0;
+
+      // Slight wave / wobble on top disc when changing level
+      const levelDiff = Math.abs(this.targetLiquidLevel - this.currentLiquidLevel);
+      if (levelDiff > 0.002) {
+        this.liquidTopDisc.rotation.z = Math.sin(Date.now() * 0.01) * 0.015 * Math.min(1.0, levelDiff * 20);
+      }
+    }
 
     // Smooth liquid color change
     this.currentLiquidColor.lerp(this.targetLiquidColor, delta * 4.0);
@@ -311,16 +398,25 @@ export class BeakerMesh {
     this.currentSedimentColor.lerp(this.targetSedimentColor, delta * 4.0);
     this.sedimentMaterial.color.copy(this.currentSedimentColor);
 
-    // Slight wave / wobble on top disc when changing level
-    const levelDiff = Math.abs(this.targetLiquidLevel - this.currentLiquidLevel);
-    if (levelDiff > 0.002) {
-      this.liquidTopDisc.rotation.z = Math.sin(Date.now() * 0.01) * 0.015 * Math.min(1.0, levelDiff * 20);
-    } else {
-      this.liquidTopDisc.rotation.z = 0;
+    // Smooth hover interactive feedback
+    const targetHover = this.isHovered ? 1.0 : 0.0;
+    this.hoverIntensity = THREE.MathUtils.lerp(this.hoverIntensity, targetHover, delta * 8.0);
+    if (this.glassMaterial) {
+      this.glassMaterial.emissive.set(0xffffff);
+      this.glassMaterial.emissiveIntensity = this.hoverIntensity * 0.16;
+    }
+    if (this.haloMaterial && this.haloRing) {
+      this.haloMaterial.opacity = 0.05 + this.hoverIntensity * 0.28;
+      const ringScale = 1.0 + this.hoverIntensity * 0.04;
+      this.haloRing.scale.set(ringScale, ringScale, 1.0);
     }
   }
 
+  public setHovered(hovered: boolean): void {
+    this.isHovered = hovered;
+  }
+
   public getInteractiveMeshes(): THREE.Object3D[] {
-    return [this.glassBody, this.liquidMesh];
+    return [this.glassBody, this.liquidMesh, this.haloRing];
   }
 }

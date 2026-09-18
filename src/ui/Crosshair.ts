@@ -1,6 +1,5 @@
 export class Crosshair {
   private element: HTMLElement;
-  private dotEl: HTMLElement;
   private ringEl: HTMLElement;
   private tooltipEl: HTMLElement;
 
@@ -16,12 +15,10 @@ export class Crosshair {
     this.element.id = 'vision-crosshair';
     this.element.innerHTML = `
       <div class="crosshair-ring"></div>
-      <div class="crosshair-dot"></div>
       <div class="crosshair-tooltip"></div>
     `;
 
     this.ringEl = this.element.querySelector('.crosshair-ring') as HTMLElement;
-    this.dotEl = this.element.querySelector('.crosshair-dot') as HTMLElement;
     this.tooltipEl = this.element.querySelector('.crosshair-tooltip') as HTMLElement;
 
     parent.appendChild(this.element);

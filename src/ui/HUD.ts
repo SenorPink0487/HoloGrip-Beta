@@ -1,5 +1,4 @@
 import { ExperimentDrawer } from './ExperimentDrawer';
-import { ParameterPanel } from './ParameterPanel';
 import { PerfOverlay } from './PerfOverlay';
 import { PlatformBridge } from '../core/platform/PlatformBridge';
 import type { ComputeBridge } from '../core/platform/ComputeBridge';
@@ -7,7 +6,6 @@ import type { IExperiment, ExperimentContext } from '../core/types';
 
 export class HUD {
   public drawer: ExperimentDrawer;
-  public parameterPanel: ParameterPanel;
   public perfOverlay: PerfOverlay;
   private platform = PlatformBridge.getInstance();
   private topBarEl: HTMLElement;
@@ -21,7 +19,6 @@ export class HUD {
     this.initTransitionToast();
 
     this.drawer = new ExperimentDrawer(document.body, this.onSwitchExperiment);
-    this.parameterPanel = new ParameterPanel(document.body, undefined, () => this.drawer.toggle());
     this.perfOverlay = new PerfOverlay(this.computeBridge, this.platform, document.body);
 
     // Bind F key to fullscreen
@@ -66,7 +63,6 @@ export class HUD {
       titleEl.textContent = experiment.metadata.name;
     }
     this.drawer.setActiveExperiment(experiment.metadata.id);
-    this.parameterPanel.bindExperiment(experiment, context);
   }
 
   public update(delta: number): void {

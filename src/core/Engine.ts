@@ -43,14 +43,62 @@ export class Engine {
   public hud: HUD;
 
   public crosshair: Crosshair;
-  public chemistryEngine: ChemistryEngine;
-  public beaker: BeakerMesh;
-  public reactionEffects: ReactionEffects;
+  public chemistryEngineLeft: ChemistryEngine;
+  public chemistryEngineRight: ChemistryEngine;
+  public beakerLeft: BeakerMesh;
+  public beakerRight: BeakerMesh;
+  public reactionEffectsLeft: ReactionEffects;
+  public reactionEffectsRight: ReactionEffects;
+  public activeBeakerId: 'left' | 'right' = 'left';
   public visionModal: VisionModal;
+
+  public get chemistryEngine(): ChemistryEngine {
+    return this.activeBeakerId === 'left' ? this.chemistryEngineLeft : this.chemistryEngineRight;
+  }
+  public set chemistryEngine(engine: ChemistryEngine) {
+    this.chemistryEngineLeft = engine;
+  }
+
+  public get beaker(): BeakerMesh {
+    return this.activeBeakerId === 'left' ? this.beakerLeft : this.beakerRight;
+  }
+  public set beaker(b: BeakerMesh) {
+    this.beakerLeft = b;
+  }
+
+  public get reactionEffects(): ReactionEffects {
+    return this.activeBeakerId === 'left' ? this.reactionEffectsLeft : this.reactionEffectsRight;
+  }
+  public set reactionEffects(re: ReactionEffects) {
+    this.reactionEffectsLeft = re;
+  }
+
+  // Inter-beaker pouring & fluid dynamics
+  private pourStreamMesh: THREE.Mesh | null = null;
+  private pourStreamMat: THREE.MeshPhysicalMaterial | null = null;
+  private pourVolumeBadgeEl: HTMLElement | null = null;
+
+  public beakerDragState: {
+    isDragging: boolean;
+    isPouring: boolean;
+    sourceId: 'left' | 'right';
+    targetId: 'left' | 'right';
+    sourceMesh: BeakerMesh;
+    targetMesh: BeakerMesh;
+    sourceEngine: ChemistryEngine;
+    targetEngine: ChemistryEngine;
+    downClientX: number;
+    downClientY: number;
+    downTime: number;
+    targetTilt: number;
+    targetPosition: THREE.Vector3;
+    lastPouredVolume: number;
+  } | null = null;
 
   private raycaster = new THREE.Raycaster();
   private centerScreen = new THREE.Vector2(0, 0);
-  private currentHoveredTarget: 'hologram' | 'beaker' | null = null;
+  private lastPointerPos: THREE.Vector2 | null = null;
+  private currentHoveredTarget: 'hologram' | 'beaker-left' | 'beaker-right' | 'beaker' | null = null;
 
   public clock = new THREE.Clock();
   private lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -180,21 +228,127 @@ export class Engine {
     this.holoStage = new HologramStage();
     this.scene.add(this.holoStage.group);
 
-    // Mount Chemistry Beaker on the table (initially hidden until chemistry mode entered)
-    this.chemistryEngine = new ChemistryEngine();
-    this.beaker = new BeakerMesh();
-    this.beaker.setVisible(false, false);
-    this.holoTable.mountBeaker(this.beaker.group);
+    // Mount two chemistry beakers symmetrically on sides of table (avoiding table center!)
+    this.chemistryEngineLeft = new ChemistryEngine();
+    this.chemistryEngineRight = new ChemistryEngine();
 
-    this.reactionEffects = new ReactionEffects(this.beaker);
-    this.beaker.group.add(this.reactionEffects.group);
+    this.beakerLeft = new BeakerMesh();
+    this.beakerLeft.restingPosition.set(-0.38, 0.852, 1.10);
+    this.beakerLeft.setVisible(false, false);
 
-    this.chemistryEngine.subscribe((state) => {
-      this.beaker.updateFromState(state);
+    this.beakerRight = new BeakerMesh();
+    this.beakerRight.restingPosition.set(0.38, 0.852, 1.10);
+    this.beakerRight.setVisible(false, false);
+
+    this.holoTable.mountBeakers(
+      this.beakerLeft.group,
+      this.beakerRight.group,
+      this.beakerLeft.restingPosition,
+      this.beakerRight.restingPosition
+    );
+
+    // Keep visibility in sync when setVisible is called
+    this.beakerLeft.onVisibilityChange = (visible, animate) => {
+      this.beakerRight.setVisible(visible, animate);
+    };
+
+    this.reactionEffectsLeft = new ReactionEffects(this.beakerLeft);
+    this.beakerLeft.group.add(this.reactionEffectsLeft.group);
+
+    this.reactionEffectsRight = new ReactionEffects(this.beakerRight);
+    this.beakerRight.group.add(this.reactionEffectsRight.group);
+
+    this.chemistryEngineLeft.subscribe((state) => {
+      this.beakerLeft.updateFromState(state);
       if (state.recentReactions.length === 0 && state.precipitates.size === 0 && state.solids.size === 0) {
-        this.reactionEffects?.reset();
+        this.reactionEffectsLeft?.reset();
       }
     });
+
+    this.chemistryEngineRight.subscribe((state) => {
+      this.beakerRight.updateFromState(state);
+      if (state.recentReactions.length === 0 && state.precipitates.size === 0 && state.solids.size === 0) {
+        this.reactionEffectsRight?.reset();
+      }
+    });
+
+    this.initPourStreamMesh();
+    this.initPourVolumeBadge();
+  }
+
+  private initPourStreamMesh(): void {
+    this.pourStreamMat = new THREE.MeshPhysicalMaterial({
+      color: 0xd7f3ff,
+      roughness: 0.05,
+      metalness: 0.02,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.05,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+    });
+    const dummyGeo = new THREE.BufferGeometry();
+    this.pourStreamMesh = new THREE.Mesh(dummyGeo, this.pourStreamMat);
+    this.pourStreamMesh.visible = false;
+    this.scene.add(this.pourStreamMesh);
+  }
+
+  private updatePourStream(startWorld: THREE.Vector3, endWorld: THREE.Vector3, color: THREE.Color): void {
+    if (!this.pourStreamMesh || !this.pourStreamMat) return;
+
+    this.pourStreamMat.color.copy(color);
+
+    const midWorld = startWorld.clone().lerp(endWorld, 0.45).add(new THREE.Vector3(0, 0.025, 0));
+    const curve = new THREE.CatmullRomCurve3([startWorld, midWorld, endWorld]);
+
+    this.pourStreamMesh.geometry.dispose();
+    this.pourStreamMesh.geometry = new THREE.TubeGeometry(curve, 16, 0.007, 8, false);
+    this.pourStreamMesh.visible = true;
+  }
+
+  private hidePourStream(): void {
+    if (this.pourStreamMesh) {
+      this.pourStreamMesh.visible = false;
+    }
+  }
+
+  private initPourVolumeBadge(): void {
+    if (typeof document === 'undefined') return;
+    this.pourVolumeBadgeEl = document.createElement('div');
+    this.pourVolumeBadgeEl.id = 'beaker-pour-vol-indicator';
+    this.pourVolumeBadgeEl.className = 'beaker-vol-indicator';
+    this.pourVolumeBadgeEl.innerHTML = `
+      <svg class="apple-sf-icon badge-glyph" viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+      </svg>
+      <span class="badge-text" id="beaker-vol-text">剩余量: 60 mL</span>
+    `;
+    this.container.appendChild(this.pourVolumeBadgeEl);
+  }
+
+  private updatePourVolumeBadge(beaker: BeakerMesh, volume: number): void {
+    if (!this.pourVolumeBadgeEl || !this.camera) return;
+
+    const topWorld = beaker.group.position.clone().add(new THREE.Vector3(0, beaker.beakerHeight + 0.12, 0));
+    topWorld.project(this.camera);
+    if (topWorld.z > 1.0) {
+      this.hidePourVolumeBadge();
+      return;
+    }
+
+    const x = (topWorld.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-(topWorld.y * 0.5) + 0.5) * window.innerHeight;
+
+    this.pourVolumeBadgeEl.style.transform = `translate(-50%, -100%) translate(${x}px, ${y - 14}px)`;
+    const textEl = this.pourVolumeBadgeEl.querySelector('#beaker-vol-text');
+    if (textEl) {
+      textEl.textContent = `剩余量: ${Math.max(0, Math.round(volume))} mL`;
+    }
+    this.pourVolumeBadgeEl.classList.add('visible');
+  }
+
+  private hidePourVolumeBadge(): void {
+    this.pourVolumeBadgeEl?.classList.remove('visible');
   }
 
   private initControls(): void {
@@ -314,13 +468,20 @@ export class Engine {
       onRecenter: () => {
         this.positionWindowInFrontOfCamera(true);
       },
+      onScaleChange: (multiplier: number) => {
+        const baseScale = 0.0016;
+        const s = baseScale * multiplier;
+        this.spatialWindowObject.scale.set(s, s, s);
+      },
       onSelectChemistry: () => {
         this.holoTable.hideHologram();
         this.holoStage.setStageVisible(false);
-        this.beaker.setVisible(true, true);
+        this.beakerLeft.setVisible(true, true);
+        this.beakerRight.setVisible(true, true);
       },
       onSelectPhysicsExperiment: async (id: string) => {
-        this.beaker.setVisible(false, true);
+        this.beakerLeft.setVisible(false, true);
+        this.beakerRight.setVisible(false, true);
         this.holoTable.showHologram();
         this.holoStage.setStageVisible(true);
         await this.switchExperiment(id);
@@ -328,7 +489,12 @@ export class Engine {
       onStirBeaker: () => {
         this.reactionEffects.triggerPour(0x0a84ff);
       },
+      onSelectBeaker: (beakerId) => {
+        this.activeBeakerId = beakerId;
+      },
     });
+
+    this.visionModal.setEngines(this.chemistryEngineLeft, this.chemistryEngineRight, 'left');
 
     // Mount 3D spatial window directly inside the Three.js 3D scene
     this.spatialWindowObject = new CSS3DObject(this.visionModal.element);
@@ -414,7 +580,24 @@ export class Engine {
     }
   }
 
-  private getInteractiveTargetAt(screenPos: THREE.Vector2): 'hologram' | 'beaker' | null {
+  private getInteractiveBeakerAt(screenPos: THREE.Vector2): 'left' | 'right' | null {
+    this.raycaster.setFromCamera(screenPos, this.camera);
+    if (this.beakerLeft && this.beakerLeft.isVisible()) {
+      const leftHits = this.raycaster.intersectObjects(this.beakerLeft.getInteractiveMeshes(), true);
+      if (leftHits.length > 0 && leftHits[0].distance < 8.0) {
+        return 'left';
+      }
+    }
+    if (this.beakerRight && this.beakerRight.isVisible()) {
+      const rightHits = this.raycaster.intersectObjects(this.beakerRight.getInteractiveMeshes(), true);
+      if (rightHits.length > 0 && rightHits[0].distance < 8.0) {
+        return 'right';
+      }
+    }
+    return null;
+  }
+
+  private getInteractiveTargetAt(screenPos: THREE.Vector2): 'hologram' | 'beaker-left' | 'beaker-right' | 'beaker' | null {
     this.raycaster.setFromCamera(screenPos, this.camera);
 
     // Check hologram projection (screens, emitter beam, and 3D stage)
@@ -429,13 +612,9 @@ export class Engine {
       }
     }
 
-    // Check beaker (only when beaker is visible on the table)
-    if (this.beaker && this.beaker.isVisible()) {
-      const beakerHits = this.raycaster.intersectObjects(this.beaker.getInteractiveMeshes(), true);
-      if (beakerHits.length > 0 && beakerHits[0].distance < 8.0) {
-        return 'beaker';
-      }
-    }
+    const beaker = this.getInteractiveBeakerAt(screenPos);
+    if (beaker === 'left') return 'beaker-left';
+    if (beaker === 'right') return 'beaker-right';
 
     return null;
   }
@@ -464,25 +643,146 @@ export class Engine {
       this.hud?.showTransition(false);
     });
 
-    // Click on interactive objects in 3D (crosshair aiming or direct pointer click)
-    this.renderer.domElement.addEventListener('pointerdown', (e) => {
-      if (this.visionModal && this.visionModal.visible) return;
+    // 3D Pointer interactions (Single-click Reagent Select & Long-press Drag & Pour)
+    canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (this.visionModal && this.visionModal.visible) {
+        if (e.target !== canvas) return;
+      }
 
       const mouseNDC = new THREE.Vector2(
         (e.clientX / window.innerWidth) * 2 - 1,
         -(e.clientY / window.innerHeight) * 2 + 1
       );
 
-      const target = this.getInteractiveTargetAt(mouseNDC) || this.currentHoveredTarget;
-      if (target) {
+      const beakerHit = this.getInteractiveBeakerAt(mouseNDC);
+      if (beakerHit) {
         e.stopPropagation();
-        if (target === 'hologram') {
-          this.holoTable.hideHologram();
-          this.holoStage.setStageVisible(false);
-          this.visionModal.open('disciplines');
-        } else if (target === 'beaker') {
-          this.visionModal.open('chemistry');
+        const sourceId = beakerHit;
+        const targetId = sourceId === 'left' ? 'right' : 'left';
+        const sourceMesh = sourceId === 'left' ? this.beakerLeft : this.beakerRight;
+        const targetMesh = sourceId === 'left' ? this.beakerRight : this.beakerLeft;
+        const sourceEngine = sourceId === 'left' ? this.chemistryEngineLeft : this.chemistryEngineRight;
+        const targetEngine = sourceId === 'left' ? this.chemistryEngineRight : this.chemistryEngineLeft;
+
+        this.beakerDragState = {
+          isDragging: false,
+          isPouring: false,
+          sourceId,
+          targetId,
+          sourceMesh,
+          targetMesh,
+          sourceEngine,
+          targetEngine,
+          downClientX: e.clientX,
+          downClientY: e.clientY,
+          downTime: performance.now(),
+          targetTilt: 0,
+          targetPosition: sourceMesh.restingPosition.clone(),
+          lastPouredVolume: 0,
+        };
+        return;
+      }
+
+      const target = this.getInteractiveTargetAt(mouseNDC) || this.currentHoveredTarget;
+      if (target === 'hologram') {
+        e.stopPropagation();
+        this.holoTable.hideHologram();
+        this.holoStage.setStageVisible(false);
+        this.visionModal.open('disciplines');
+      }
+    });
+
+    window.addEventListener('pointermove', (e: PointerEvent) => {
+      if (!this.lastPointerPos) {
+        this.lastPointerPos = new THREE.Vector2();
+      }
+      this.lastPointerPos.set(
+        (e.clientX / window.innerWidth) * 2 - 1,
+        -(e.clientY / window.innerHeight) * 2 + 1
+      );
+
+      if (!this.beakerDragState) return;
+
+      const dist = Math.hypot(e.clientX - this.beakerDragState.downClientX, e.clientY - this.beakerDragState.downClientY);
+      const elapsed = performance.now() - this.beakerDragState.downTime;
+
+      // Initiate dragging if moved > 8px or held > 160ms and moved > 2px
+      if (!this.beakerDragState.isDragging && (dist > 8 || (elapsed > 160 && dist > 2))) {
+        this.beakerDragState.isDragging = true;
+        this.crosshair?.setVisible(false);
+        this.inputManager.player.enabled = false;
+        this.inputManager.player.allowPointerLock = false;
+        this.inputManager.player.exitLock();
+      }
+
+      if (this.beakerDragState.isDragging) {
+        const mouseNDC = new THREE.Vector2(
+          (e.clientX / window.innerWidth) * 2 - 1,
+          -(e.clientY / window.innerHeight) * 2 + 1
+        );
+        this.raycaster.setFromCamera(mouseNDC, this.camera);
+
+        const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.10);
+        const hitPoint = new THREE.Vector3();
+        const intersected = this.raycaster.ray.intersectPlane(dragPlane, hitPoint);
+        if (intersected) {
+          hitPoint.x = Math.max(-0.85, Math.min(0.85, hitPoint.x));
+          hitPoint.z = Math.max(-0.55, Math.min(1.55, hitPoint.z));
+
+          const targetBase = this.beakerDragState.targetMesh.restingPosition;
+          const distToTarget = Math.hypot(hitPoint.x - targetBase.x, hitPoint.z - targetBase.z);
+
+          if (distToTarget < 0.38) {
+            // Hover pouring pose directly above target beaker mouth
+            this.beakerDragState.isPouring = true;
+            const isLeftToRight = this.beakerDragState.sourceId === 'left';
+            const hoverOffset = isLeftToRight ? -0.16 : 0.16;
+            const tiltAngle = isLeftToRight ? -Math.PI * 0.38 : Math.PI * 0.38;
+
+            this.beakerDragState.targetPosition.set(
+              targetBase.x + hoverOffset,
+              targetBase.y + this.beakerDragState.targetMesh.beakerHeight + 0.08,
+              targetBase.z
+            );
+            this.beakerDragState.targetTilt = tiltAngle;
+          } else {
+            // Moving in air
+            this.beakerDragState.isPouring = false;
+            this.beakerDragState.targetPosition.set(hitPoint.x, 1.08, hitPoint.z);
+            this.beakerDragState.targetTilt = 0;
+          }
         }
+      }
+    });
+
+    window.addEventListener('pointerup', (e: PointerEvent) => {
+      if (!this.beakerDragState) return;
+
+      const state = this.beakerDragState;
+      this.beakerDragState = null;
+      this.inputManager.player.enabled = true;
+      if (this.crosshair && (!this.visionModal || !this.visionModal.visible)) {
+        this.crosshair.setVisible(true);
+      }
+
+      if (!state.isDragging) {
+        // Single click: open Periodic Table for clicked beaker!
+        // "打开化学板块默认给左边的杯子选试剂，单击烧杯打开元素周期表页面自由选择"
+        this.activeBeakerId = state.sourceId;
+        this.visionModal.open('chemistry', state.sourceId);
+        return;
+      }
+
+      // Drag released: restore source beaker
+      state.sourceMesh.setTilt(0);
+      this.hidePourStream();
+      this.hidePourVolumeBadge();
+
+      // If liquid was transferred, trigger composition analysis view for target beaker!
+      // "视窗呈现：混合反应发生后，中央全息主视窗自动切换至该烧杯的成分分析面板进行大屏展示。"
+      if (state.lastPouredVolume > 0.01) {
+        this.activeBeakerId = state.targetId;
+        this.visionModal.open('beaker', state.targetId);
       }
     });
   }
@@ -522,18 +822,45 @@ export class Engine {
     }
     this.lastCrosshairCheck = now;
 
-    const targetType = this.getInteractiveTargetAt(this.centerScreen);
+    const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
+    let targetType = this.getInteractiveTargetAt(this.centerScreen);
+
+    // If not pointer locked and center crosshair didn't hit, also check free mouse pointer position
+    if (!targetType && !isPointerLocked && this.lastPointerPos) {
+      targetType = this.getInteractiveTargetAt(this.lastPointerPos);
+    }
+
     const hovered = targetType !== null;
     let label = '';
 
     if (targetType === 'hologram') {
-      label = '✦ 点击开启 3D 悬浮视窗';
+      label = '全息视窗 · 点击开启 3D 悬浮视窗';
+    } else if (targetType === 'beaker-left') {
+      label = '左侧烧杯 · 单击选试剂 / 长按拖拽倾倒';
+    } else if (targetType === 'beaker-right') {
+      label = '右侧烧杯 · 单击选试剂 / 长按拖拽倾倒';
     } else if (targetType === 'beaker') {
-      label = '✦ 点击开启化学实验视窗';
+      label = '烧杯 · 单击选试剂 / 长按拖拽倾倒';
     }
 
     this.currentHoveredTarget = targetType;
     this.crosshair.setHovered(hovered, label);
+
+    // 3D Interactive feedback: highlight beaker body & halo ring
+    if (this.beakerLeft) {
+      this.beakerLeft.setHovered(targetType === 'beaker-left');
+    }
+    if (this.beakerRight) {
+      this.beakerRight.setHovered(targetType === 'beaker-right');
+    }
+    if (this.holoTable) {
+      this.holoTable.setHovered(targetType === 'hologram');
+    }
+
+    // Cursor feedback for interactive targets
+    if (this.renderer?.domElement) {
+      this.renderer.domElement.style.cursor = hovered && !isPointerLocked ? 'pointer' : 'default';
+    }
   }
 
   private animate(): void {
@@ -570,15 +897,89 @@ export class Engine {
       this.holoStage.update(delta, elapsed, this.currentContext);
     }
 
-    if (this.chemistryEngine) {
-      this.chemistryEngine.update(delta);
+    if (this.chemistryEngineLeft) {
+      this.chemistryEngineLeft.update(delta);
+    }
+    if (this.chemistryEngineRight) {
+      this.chemistryEngineRight.update(delta);
     }
 
-    // Only update beaker mesh and reaction effects when beaker is actually visible on table
-    if (this.beaker && this.beaker.isVisible()) {
-      this.beaker.update(delta);
-      if (this.reactionEffects && this.chemistryEngine) {
-        this.reactionEffects.update(delta, this.chemistryEngine.state);
+    // Beaker drag, pour stream, volume transfer & physics
+    if (this.beakerDragState && this.beakerDragState.isDragging) {
+      const { sourceMesh, targetMesh, sourceEngine, targetEngine, targetPosition, targetTilt, isPouring } = this.beakerDragState;
+
+      // Smoothly lerp dragged beaker position towards target position
+      const posLerp = Math.min(1.0, delta * 12.0);
+      sourceMesh.group.position.lerp(targetPosition, posLerp);
+
+      // Smoothly tilt beaker towards target tilt
+      sourceMesh.setTilt(targetTilt);
+
+      // Pouring mechanics
+      if (isPouring) {
+        // Liquid begins flowing when beaker is sufficiently tilted and has remaining volume
+        if (Math.abs(sourceMesh.currentTiltZ) > 0.18 && sourceEngine.state.volume > 0.05) {
+          const transferRate = 35.0; // mL/s
+          const transferAmt = Math.min(sourceEngine.state.volume, transferRate * delta);
+          if (transferAmt > 0) {
+            targetEngine.mixFrom(sourceEngine, transferAmt);
+            this.beakerDragState.lastPouredVolume += transferAmt;
+
+            // Trigger pour splash & reaction effects in target beaker
+            const targetEffects = this.beakerDragState.targetId === 'left' ? this.reactionEffectsLeft : this.reactionEffectsRight;
+            targetEffects.triggerPour(sourceMesh.liquidColor.getHex());
+          }
+
+          // Dynamic fluid pouring stream connecting source lip to target mouth
+          const pourDirection = this.beakerDragState.sourceId === 'left' ? 'right' : 'left';
+          const lipPos = sourceMesh.getLipWorldPosition(pourDirection);
+          const mouthPos = targetMesh.getMouthWorldPosition();
+          this.updatePourStream(lipPos, mouthPos, sourceMesh.liquidColor);
+
+          // Update floating volume badge above tilted source beaker
+          this.updatePourVolumeBadge(sourceMesh, sourceEngine.state.volume);
+        } else if (sourceEngine.state.volume <= 0.05) {
+          // Source beaker emptied
+          this.hidePourStream();
+          this.updatePourVolumeBadge(sourceMesh, 0);
+        }
+      } else {
+        this.hidePourStream();
+        // Show remaining volume badge while holding and moving beaker in air
+        this.updatePourVolumeBadge(sourceMesh, sourceEngine.state.volume);
+      }
+    } else {
+      // Not dragging: smoothly return both beakers to symmetrical resting positions & reset tilt
+      if (this.beakerLeft) {
+        const dist = this.beakerLeft.group.position.distanceTo(this.beakerLeft.restingPosition);
+        if (dist > 0.0005) {
+          this.beakerLeft.group.position.lerp(this.beakerLeft.restingPosition, Math.min(1.0, delta * 10.0));
+        }
+        this.beakerLeft.setTilt(0);
+      }
+      if (this.beakerRight) {
+        const dist = this.beakerRight.group.position.distanceTo(this.beakerRight.restingPosition);
+        if (dist > 0.0005) {
+          this.beakerRight.group.position.lerp(this.beakerRight.restingPosition, Math.min(1.0, delta * 10.0));
+        }
+        this.beakerRight.setTilt(0);
+      }
+      this.hidePourStream();
+      this.hidePourVolumeBadge();
+    }
+
+    // Update both beaker meshes and reaction particle systems
+    if (this.beakerLeft && this.beakerLeft.isVisible()) {
+      this.beakerLeft.update(delta);
+      if (this.reactionEffectsLeft && this.chemistryEngineLeft) {
+        this.reactionEffectsLeft.update(delta, this.chemistryEngineLeft.state);
+      }
+    }
+
+    if (this.beakerRight && this.beakerRight.isVisible()) {
+      this.beakerRight.update(delta);
+      if (this.reactionEffectsRight && this.chemistryEngineRight) {
+        this.reactionEffectsRight.update(delta, this.chemistryEngineRight.state);
       }
     }
 

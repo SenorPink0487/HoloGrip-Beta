@@ -181,7 +181,11 @@ async function runLiveBenchmark() {
         returnByValue: true,
       });
 
-      const res = fpsMeasurement.result.result.value;
+      const res = fpsMeasurement?.result?.result?.value;
+      if (!res) {
+        console.error(`  [${scenarioName}] Measurement returned unexpected CDP result:`, JSON.stringify(fpsMeasurement));
+        throw new Error(`Failed to read measurement result for scenario "${scenarioName}"`);
+      }
       console.log(`  [${scenarioName}]`);
       console.log(`    Measured Average FPS:   ${res.avgFps.toFixed(2)} FPS`);
       console.log(`    Frame Time Median(p50): ${res.p50.toFixed(2)} ms`);

@@ -17,13 +17,13 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     id: 'physics',
     name: '前沿物理',
-    icon: '⚛️',
+    icon: 'physics',
     description: '经典天体力学、非线性动力系统与波动场论空间模拟',
   },
   {
     id: 'math',
     name: '空间数学',
-    icon: '📐',
+    icon: 'math',
     description: '微分流形、四维几何与高维拓扑动力系统',
   },
 ];
