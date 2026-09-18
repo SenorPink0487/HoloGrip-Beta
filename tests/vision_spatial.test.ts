@@ -4,37 +4,34 @@ import { ChemistryEngine } from '../src/chemistry/ChemistryEngine.ts';
 
 console.log('=== Starting VisionOS Spatial Window & Integration Verification ===\n');
 
-// Test 1: 118 Periodic Elements completeness & integrity
+// Test 1: 28 Common Reagent Elements completeness & integrity
 {
-  console.log('Test 1: 118 Periodic Elements completeness & integrity');
+  console.log('Test 1: 28 Common Reagent Elements completeness & integrity');
   const elements = PeriodicTableModal.ELEMENTS;
-  assert.strictEqual(elements.length, 118, 'Must contain exactly 118 elements');
+  assert.strictEqual(elements.length, 28, 'Must contain exactly 28 common reagent elements');
 
-  for (let num = 1; num <= 118; num++) {
-    const elem = elements.find((e) => e.number === num);
-    assert(elem !== undefined, `Element number ${num} must exist`);
-    assert(elem.symbol && elem.symbol.length > 0, `Element ${num} must have a symbol`);
-    assert(elem.name && elem.name.length > 0, `Element ${num} must have a Chinese name`);
-    assert(elem.enName && elem.enName.length > 0, `Element ${num} must have an English name`);
-    assert(elem.mass > 0, `Element ${num} must have positive mass`);
-    assert(elem.category && elem.category.length > 0, `Element ${num} must have a valid category`);
+  for (const elem of elements) {
+    assert(elem.number > 0, `Element number must be positive, got ${elem.number}`);
+    assert(elem.symbol && elem.symbol.length > 0, `Element ${elem.number} must have a symbol`);
+    assert(elem.name && elem.name.length > 0, `Element ${elem.number} must have a Chinese name`);
+    assert(elem.enName && elem.enName.length > 0, `Element ${elem.number} must have an English name`);
+    assert(elem.mass > 0, `Element ${elem.number} must have positive mass`);
+    assert(elem.category && elem.category.length > 0, `Element ${elem.number} must have a valid category`);
+
+    // Must be positioned in COMMON_ELEMENT_LAYOUT
+    const layout = PeriodicTableModal.COMMON_ELEMENT_LAYOUT[elem.number];
+    assert(layout !== undefined, `Element ${elem.symbol} (${elem.number}) must have position in COMMON_ELEMENT_LAYOUT`);
+    assert(layout.row >= 1 && layout.row <= 5, `Element ${elem.symbol} row must be within 1-5`);
+    assert(layout.col >= 1 && layout.col <= 18, `Element ${elem.symbol} col must be within 1-18`);
   }
 
-  // Verify Lanthanides (57 - 71)
-  for (let num = 57; num <= 71; num++) {
-    const elem = elements.find((e) => e.number === num)!;
-    assert.strictEqual(elem.category, 'lanthanide', `Element ${num} must be lanthanide`);
-    assert.strictEqual(elem.period, 8, `Element ${num} must have period 8 for sub-grid`);
-  }
+  // Verify non-common heavy actinide/lanthanide elements are removed
+  const hasLanthanides = elements.some((e) => e.category === 'lanthanide');
+  const hasActinides = elements.some((e) => e.category === 'actinide');
+  assert.strictEqual(hasLanthanides, false, 'Lanthanides should be removed from common reagents');
+  assert.strictEqual(hasActinides, false, 'Actinides should be removed from common reagents');
 
-  // Verify Actinides (89 - 103)
-  for (let num = 89; num <= 103; num++) {
-    const elem = elements.find((e) => e.number === num)!;
-    assert.strictEqual(elem.category, 'actinide', `Element ${num} must be actinide`);
-    assert.strictEqual(elem.period, 9, `Element ${num} must have period 9 for sub-grid`);
-  }
-
-  console.log('✓ Test 1 passed: All 118 elements verified with full metadata\n');
+  console.log('✓ Test 1 passed: All 28 common reagent elements verified with full layout & metadata\n');
 }
 
 // Test 2: Reagents linking consistency
@@ -62,14 +59,14 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   assert(alElem.reagentIds.includes('Al'), 'Aluminum must link to Al (solid metal)');
   assert(alElem.reagentIds.includes('AlCl3'), 'Aluminum must link to AlCl3 (aluminum chloride)');
 
-  // Verify all 118 elements have selectable reagents via getReagentsForElement
+  // Verify all 28 elements have selectable reagents via getReagentsForElement
   for (const elem of elements) {
     const rList = PeriodicTableModal.getReagentsForElement(elem);
     assert(rList.length > 0, `Element ${elem.symbol} must have at least 1 selectable reagent`);
     assert(rList[0].name && rList[0].name.length > 0, `Reagent for ${elem.symbol} must have a name`);
   }
 
-  console.log(`✓ Test 2 passed: ${linkedReagentsCount} reagent mappings verified with 100% (118/118) element coverage\n`);
+  console.log(`✓ Test 2 passed: ${linkedReagentsCount} reagent mappings verified with 100% (28/28) element coverage\n`);
 }
 
 // Test 3: Spatial clearance between 3D window and beaker on table

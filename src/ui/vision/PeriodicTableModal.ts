@@ -54,118 +54,16 @@ export class PeriodicTableModal {
     // Period 4
     { number: 19, symbol: 'K', name: '钾', enName: 'Potassium', mass: 39.098, period: 4, group: 1, category: 'alkali-metal', electronConfig: '[Ar] 4s¹', oxidationStates: '+1', reagentIds: ['KOH', 'KMnO4'] },
     { number: 20, symbol: 'Ca', name: '钙', enName: 'Calcium', mass: 40.078, period: 4, group: 2, category: 'alkaline-earth', electronConfig: '[Ar] 4s²', oxidationStates: '+2', reagentIds: ['Ca(OH)2', 'CaCl2'] },
-    { number: 21, symbol: 'Sc', name: '钪', enName: 'Scandium', mass: 44.956, period: 4, group: 3, category: 'transition-metal', electronConfig: '[Ar] 3d¹ 4s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 22, symbol: 'Ti', name: '钛', enName: 'Titanium', mass: 47.867, period: 4, group: 4, category: 'transition-metal', electronConfig: '[Ar] 3d² 4s²', oxidationStates: '+4, +3', reagentIds: [] },
-    { number: 23, symbol: 'V', name: '钒', enName: 'Vanadium', mass: 50.942, period: 4, group: 5, category: 'transition-metal', electronConfig: '[Ar] 3d³ 4s²', oxidationStates: '+5, +4, +3, +2', reagentIds: [] },
-    { number: 24, symbol: 'Cr', name: '铬', enName: 'Chromium', mass: 51.996, period: 4, group: 6, category: 'transition-metal', electronConfig: '[Ar] 3d⁵ 4s¹', oxidationStates: '+6, +3, +2', reagentIds: [] },
     { number: 25, symbol: 'Mn', name: '锰', enName: 'Manganese', mass: 54.938, period: 4, group: 7, category: 'transition-metal', electronConfig: '[Ar] 3d⁵ 4s²', oxidationStates: '+7, +4, +2', reagentIds: ['KMnO4'] },
     { number: 26, symbol: 'Fe', name: '铁', enName: 'Iron', mass: 55.845, period: 4, group: 8, category: 'transition-metal', electronConfig: '[Ar] 3d⁶ 4s²', oxidationStates: '+3, +2', reagentIds: ['Fe', 'FeCl3', 'FeSO4'] },
-    { number: 27, symbol: 'Co', name: '钴', enName: 'Cobalt', mass: 58.933, period: 4, group: 9, category: 'transition-metal', electronConfig: '[Ar] 3d⁷ 4s²', oxidationStates: '+3, +2', reagentIds: [] },
-    { number: 28, symbol: 'Ni', name: '镍', enName: 'Nickel', mass: 58.693, period: 4, group: 10, category: 'transition-metal', electronConfig: '[Ar] 3d⁸ 4s²', oxidationStates: '+2, +3', reagentIds: [] },
     { number: 29, symbol: 'Cu', name: '铜', enName: 'Copper', mass: 63.546, period: 4, group: 11, category: 'transition-metal', electronConfig: '[Ar] 3d¹⁰ 4s¹', oxidationStates: '+2, +1', reagentIds: ['Cu', 'CuSO4'] },
     { number: 30, symbol: 'Zn', name: '锌', enName: 'Zinc', mass: 65.38, period: 4, group: 12, category: 'transition-metal', electronConfig: '[Ar] 3d¹⁰ 4s²', oxidationStates: '+2', reagentIds: ['Zn'] },
-    { number: 31, symbol: 'Ga', name: '镓', enName: 'Gallium', mass: 69.723, period: 4, group: 13, category: 'post-transition', electronConfig: '[Ar] 3d¹⁰ 4s² 4p¹', oxidationStates: '+3', reagentIds: [] },
-    { number: 32, symbol: 'Ge', name: '锗', enName: 'Germanium', mass: 72.630, period: 4, group: 14, category: 'metalloid', electronConfig: '[Ar] 3d¹⁰ 4s² 4p²', oxidationStates: '+4, +2', reagentIds: [] },
-    { number: 33, symbol: 'As', name: '砷', enName: 'Arsenic', mass: 74.922, period: 4, group: 15, category: 'metalloid', electronConfig: '[Ar] 3d¹⁰ 4s² 4p³', oxidationStates: '+5, +3, -3', reagentIds: [] },
-    { number: 34, symbol: 'Se', name: '硒', enName: 'Selenium', mass: 78.971, period: 4, group: 16, category: 'reactive-nonmetal', electronConfig: '[Ar] 3d¹⁰ 4s² 4p⁴', oxidationStates: '+6, +4, -2', reagentIds: [] },
-    { number: 35, symbol: 'Br', name: '溴', enName: 'Bromine', mass: 79.904, period: 4, group: 17, category: 'reactive-nonmetal', electronConfig: '[Ar] 3d¹⁰ 4s² 4p⁵', oxidationStates: '+5, +1, -1', reagentIds: [] },
-    { number: 36, symbol: 'Kr', name: '氪', enName: 'Krypton', mass: 83.798, period: 4, group: 18, category: 'noble-gas', electronConfig: '[Ar] 3d¹⁰ 4s² 4p⁶', oxidationStates: '0', reagentIds: [] },
+    { number: 35, symbol: 'Br', name: '溴', enName: 'Bromine', mass: 79.904, period: 4, group: 17, category: 'reactive-nonmetal', electronConfig: '[Ar] 3d¹⁰ 4s² 4p⁵', oxidationStates: '+5, +1, -1', reagentIds: ['Br2'] },
 
-    // Period 5
-    { number: 37, symbol: 'Rb', name: '铷', enName: 'Rubidium', mass: 85.468, period: 5, group: 1, category: 'alkali-metal', electronConfig: '[Kr] 5s¹', oxidationStates: '+1', reagentIds: [] },
-    { number: 38, symbol: 'Sr', name: '锶', enName: 'Strontium', mass: 87.62, period: 5, group: 2, category: 'alkaline-earth', electronConfig: '[Kr] 5s²', oxidationStates: '+2', reagentIds: [] },
-    { number: 39, symbol: 'Y', name: '钇', enName: 'Yttrium', mass: 88.906, period: 5, group: 3, category: 'transition-metal', electronConfig: '[Kr] 4d¹ 5s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 40, symbol: 'Zr', name: '锆', enName: 'Zirconium', mass: 91.224, period: 5, group: 4, category: 'transition-metal', electronConfig: '[Kr] 4d² 5s²', oxidationStates: '+4', reagentIds: [] },
-    { number: 41, symbol: 'Nb', name: '铌', enName: 'Niobium', mass: 92.906, period: 5, group: 5, category: 'transition-metal', electronConfig: '[Kr] 4d⁴ 5s¹', oxidationStates: '+5, +3', reagentIds: [] },
-    { number: 42, symbol: 'Mo', name: '钼', enName: 'Molybdenum', mass: 95.95, period: 5, group: 6, category: 'transition-metal', electronConfig: '[Kr] 4d⁵ 5s¹', oxidationStates: '+6, +4', reagentIds: [] },
-    { number: 43, symbol: 'Tc', name: '锝', enName: 'Technetium', mass: 98, period: 5, group: 7, category: 'transition-metal', electronConfig: '[Kr] 4d⁵ 5s²', oxidationStates: '+7, +4', reagentIds: [] },
-    { number: 44, symbol: 'Ru', name: '钌', enName: 'Ruthenium', mass: 101.07, period: 5, group: 8, category: 'transition-metal', electronConfig: '[Kr] 4d⁷ 5s¹', oxidationStates: '+4, +3', reagentIds: [] },
-    { number: 45, symbol: 'Rh', name: '铑', enName: 'Rhodium', mass: 102.91, period: 5, group: 9, category: 'transition-metal', electronConfig: '[Kr] 4d⁸ 5s¹', oxidationStates: '+3', reagentIds: [] },
-    { number: 46, symbol: 'Pd', name: '钯', enName: 'Palladium', mass: 106.42, period: 5, group: 10, category: 'transition-metal', electronConfig: '[Kr] 4d¹⁰', oxidationStates: '+2, +4', reagentIds: [] },
+    // Period 5 & 6 (Common Lab Elements aligned vertically with their chemical family)
     { number: 47, symbol: 'Ag', name: '银', enName: 'Silver', mass: 107.87, period: 5, group: 11, category: 'transition-metal', electronConfig: '[Kr] 4d¹⁰ 5s¹', oxidationStates: '+1', reagentIds: ['AgNO3'] },
-    { number: 48, symbol: 'Cd', name: '镉', enName: 'Cadmium', mass: 112.41, period: 5, group: 12, category: 'transition-metal', electronConfig: '[Kr] 4d¹⁰ 5s²', oxidationStates: '+2', reagentIds: [] },
-    { number: 49, symbol: 'In', name: '铟', enName: 'Indium', mass: 114.82, period: 5, group: 13, category: 'post-transition', electronConfig: '[Kr] 4d¹⁰ 5s² 5p¹', oxidationStates: '+3', reagentIds: [] },
-    { number: 50, symbol: 'Sn', name: '锡', enName: 'Tin', mass: 118.71, period: 5, group: 14, category: 'post-transition', electronConfig: '[Kr] 4d¹⁰ 5s² 5p²', oxidationStates: '+4, +2', reagentIds: [] },
-    { number: 51, symbol: 'Sb', name: '锑', enName: 'Antimony', mass: 121.76, period: 5, group: 15, category: 'metalloid', electronConfig: '[Kr] 4d¹⁰ 5s² 5p³', oxidationStates: '+5, +3, -3', reagentIds: [] },
-    { number: 52, symbol: 'Te', name: '碲', enName: 'Tellurium', mass: 127.60, period: 5, group: 16, category: 'metalloid', electronConfig: '[Kr] 4d¹⁰ 5s² 5p⁴', oxidationStates: '+6, +4, -2', reagentIds: [] },
-    { number: 53, symbol: 'I', name: '碘', enName: 'Iodine', mass: 126.90, period: 5, group: 17, category: 'reactive-nonmetal', electronConfig: '[Kr] 4d¹⁰ 5s² 5p⁵', oxidationStates: '+7, +5, -1', reagentIds: ['KI'] },
-    { number: 54, symbol: 'Xe', name: '氙', enName: 'Xenon', mass: 131.29, period: 5, group: 18, category: 'noble-gas', electronConfig: '[Kr] 4d¹⁰ 5s² 5p⁶', oxidationStates: '0, +2, +4, +6', reagentIds: [] },
-
-    // Period 6
-    { number: 55, symbol: 'Cs', name: '铯', enName: 'Caesium', mass: 132.91, period: 6, group: 1, category: 'alkali-metal', electronConfig: '[Xe] 6s¹', oxidationStates: '+1', reagentIds: [] },
+    { number: 53, symbol: 'I', name: '碘', enName: 'Iodine', mass: 126.90, period: 5, group: 17, category: 'reactive-nonmetal', electronConfig: '[Kr] 4d¹⁰ 5s² 5p⁵', oxidationStates: '+7, +5, -1', reagentIds: ['KI', 'I2'] },
     { number: 56, symbol: 'Ba', name: '钡', enName: 'Barium', mass: 137.33, period: 6, group: 2, category: 'alkaline-earth', electronConfig: '[Xe] 6s²', oxidationStates: '+2', reagentIds: ['BaCl2'] },
-
-    // Lanthanides (57 - 71)
-    { number: 57, symbol: 'La', name: '镧', enName: 'Lanthanum', mass: 138.91, period: 8, group: 3, category: 'lanthanide', electronConfig: '[Xe] 5d¹ 6s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 58, symbol: 'Ce', name: '铈', enName: 'Cerium', mass: 140.12, period: 8, group: 4, category: 'lanthanide', electronConfig: '[Xe] 4f¹ 5d¹ 6s²', oxidationStates: '+4, +3', reagentIds: [] },
-    { number: 59, symbol: 'Pr', name: '镨', enName: 'Praseodymium', mass: 140.91, period: 8, group: 5, category: 'lanthanide', electronConfig: '[Xe] 4f³ 6s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 60, symbol: 'Nd', name: '钕', enName: 'Neodymium', mass: 144.24, period: 8, group: 6, category: 'lanthanide', electronConfig: '[Xe] 4f⁴ 6s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 61, symbol: 'Pm', name: '钷', enName: 'Promethium', mass: 145, period: 8, group: 7, category: 'lanthanide', electronConfig: '[Xe] 4f⁵ 6s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 62, symbol: 'Sm', name: '钐', enName: 'Samarium', mass: 150.36, period: 8, group: 8, category: 'lanthanide', electronConfig: '[Xe] 4f⁶ 6s²', oxidationStates: '+3, +2', reagentIds: [] },
-    { number: 63, symbol: 'Eu', name: '铕', enName: 'Europium', mass: 151.96, period: 8, group: 9, category: 'lanthanide', electronConfig: '[Xe] 4f⁷ 6s²', oxidationStates: '+3, +2', reagentIds: [] },
-    { number: 64, symbol: 'Gd', name: '钆', enName: 'Gadolinium', mass: 157.25, period: 8, group: 10, category: 'lanthanide', electronConfig: '[Xe] 4f⁷ 5d¹ 6s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 65, symbol: 'Tb', name: '铽', enName: 'Terbium', mass: 158.93, period: 8, group: 11, category: 'lanthanide', electronConfig: '[Xe] 4f⁹ 6s²', oxidationStates: '+3, +4', reagentIds: [] },
-    { number: 66, symbol: 'Dy', name: '镝', enName: 'Dysprosium', mass: 162.50, period: 8, group: 12, category: 'lanthanide', electronConfig: '[Xe] 4f¹⁰ 6s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 67, symbol: 'Ho', name: '钬', enName: 'Holmium', mass: 164.93, period: 8, group: 13, category: 'lanthanide', electronConfig: '[Xe] 4f¹¹ 6s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 68, symbol: 'Er', name: '铒', enName: 'Erbium', mass: 167.26, period: 8, group: 14, category: 'lanthanide', electronConfig: '[Xe] 4f¹² 6s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 69, symbol: 'Tm', name: '铥', enName: 'Thulium', mass: 168.93, period: 8, group: 15, category: 'lanthanide', electronConfig: '[Xe] 4f¹³ 6s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 70, symbol: 'Yb', name: '镱', enName: 'Ytterbium', mass: 173.05, period: 8, group: 16, category: 'lanthanide', electronConfig: '[Xe] 4f¹⁴ 6s²', oxidationStates: '+3, +2', reagentIds: [] },
-    { number: 71, symbol: 'Lu', name: '镥', enName: 'Lutetium', mass: 174.97, period: 8, group: 17, category: 'lanthanide', electronConfig: '[Xe] 4f¹⁴ 5d¹ 6s²', oxidationStates: '+3', reagentIds: [] },
-
-    // Period 6 (continued)
-    { number: 72, symbol: 'Hf', name: '铪', enName: 'Hafnium', mass: 178.49, period: 6, group: 4, category: 'transition-metal', electronConfig: '[Xe] 4f¹⁴ 5d² 6s²', oxidationStates: '+4', reagentIds: [] },
-    { number: 73, symbol: 'Ta', name: '钽', enName: 'Tantalum', mass: 180.95, period: 6, group: 5, category: 'transition-metal', electronConfig: '[Xe] 4f¹⁴ 5d³ 6s²', oxidationStates: '+5', reagentIds: [] },
-    { number: 74, symbol: 'W', name: '钨', enName: 'Tungsten', mass: 183.84, period: 6, group: 6, category: 'transition-metal', electronConfig: '[Xe] 4f¹⁴ 5d⁴ 6s²', oxidationStates: '+6, +4', reagentIds: [] },
-    { number: 75, symbol: 'Re', name: '铼', enName: 'Rhenium', mass: 186.21, period: 6, group: 7, category: 'transition-metal', electronConfig: '[Xe] 4f¹⁴ 5d⁵ 6s²', oxidationStates: '+7, +4', reagentIds: [] },
-    { number: 76, symbol: 'Os', name: '锇', enName: 'Osmium', mass: 190.23, period: 6, group: 8, category: 'transition-metal', electronConfig: '[Xe] 4f¹⁴ 5d⁶ 6s²', oxidationStates: '+4, +8', reagentIds: [] },
-    { number: 77, symbol: 'Ir', name: '铱', enName: 'Iridium', mass: 192.22, period: 6, group: 9, category: 'transition-metal', electronConfig: '[Xe] 4f¹⁴ 5d⁷ 6s²', oxidationStates: '+4, +3', reagentIds: [] },
-    { number: 78, symbol: 'Pt', name: '铂', enName: 'Platinum', mass: 195.08, period: 6, group: 10, category: 'transition-metal', electronConfig: '[Xe] 4f¹⁴ 5d⁹ 6s¹', oxidationStates: '+4, +2', reagentIds: [] },
-    { number: 79, symbol: 'Au', name: '金', enName: 'Gold', mass: 196.97, period: 6, group: 11, category: 'transition-metal', electronConfig: '[Xe] 4f¹⁴ 5d¹⁰ 6s¹', oxidationStates: '+3, +1', reagentIds: [] },
-    { number: 80, symbol: 'Hg', name: '汞', enName: 'Mercury', mass: 200.59, period: 6, group: 12, category: 'transition-metal', electronConfig: '[Xe] 4f¹⁴ 5d¹⁰ 6s²', oxidationStates: '+2, +1', reagentIds: [] },
-    { number: 81, symbol: 'Tl', name: '铊', enName: 'Thallium', mass: 204.38, period: 6, group: 13, category: 'post-transition', electronConfig: '[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p¹', oxidationStates: '+1, +3', reagentIds: [] },
-    { number: 82, symbol: 'Pb', name: '铅', enName: 'Lead', mass: 207.2, period: 6, group: 14, category: 'post-transition', electronConfig: '[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p²', oxidationStates: '+2, +4', reagentIds: [] },
-    { number: 83, symbol: 'Bi', name: '铋', enName: 'Bismuth', mass: 208.98, period: 6, group: 15, category: 'post-transition', electronConfig: '[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p³', oxidationStates: '+3', reagentIds: [] },
-    { number: 84, symbol: 'Po', name: '钋', enName: 'Polonium', mass: 209, period: 6, group: 16, category: 'post-transition', electronConfig: '[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p⁴', oxidationStates: '+4, +2', reagentIds: [] },
-    { number: 85, symbol: 'At', name: '砹', enName: 'Astatine', mass: 210, period: 6, group: 17, category: 'metalloid', electronConfig: '[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p⁵', oxidationStates: '-1, +1', reagentIds: [] },
-    { number: 86, symbol: 'Rn', name: '氡', enName: 'Radon', mass: 222, period: 6, group: 18, category: 'noble-gas', electronConfig: '[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p⁶', oxidationStates: '0', reagentIds: [] },
-
-    // Period 7
-    { number: 87, symbol: 'Fr', name: '钫', enName: 'Francium', mass: 223, period: 7, group: 1, category: 'alkali-metal', electronConfig: '[Rn] 7s¹', oxidationStates: '+1', reagentIds: [] },
-    { number: 88, symbol: 'Ra', name: '镭', enName: 'Radium', mass: 226, period: 7, group: 2, category: 'alkaline-earth', electronConfig: '[Rn] 7s²', oxidationStates: '+2', reagentIds: [] },
-
-    // Actinides (89 - 103)
-    { number: 89, symbol: 'Ac', name: '锕', enName: 'Actinium', mass: 227, period: 9, group: 3, category: 'actinide', electronConfig: '[Rn] 6d¹ 7s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 90, symbol: 'Th', name: '钍', enName: 'Thorium', mass: 232.04, period: 9, group: 4, category: 'actinide', electronConfig: '[Rn] 6d² 7s²', oxidationStates: '+4', reagentIds: [] },
-    { number: 91, symbol: 'Pa', name: '镤', enName: 'Protactinium', mass: 231.04, period: 9, group: 5, category: 'actinide', electronConfig: '[Rn] 5f² 6d¹ 7s²', oxidationStates: '+5, +4', reagentIds: [] },
-    { number: 92, symbol: 'U', name: '铀', enName: 'Uranium', mass: 238.03, period: 9, group: 6, category: 'actinide', electronConfig: '[Rn] 5f³ 6d¹ 7s²', oxidationStates: '+6, +4', reagentIds: [] },
-    { number: 93, symbol: 'Np', name: '镎', enName: 'Neptunium', mass: 237, period: 9, group: 7, category: 'actinide', electronConfig: '[Rn] 5f⁴ 6d¹ 7s²', oxidationStates: '+5, +4', reagentIds: [] },
-    { number: 94, symbol: 'Pu', name: '钚', enName: 'Plutonium', mass: 244, period: 9, group: 8, category: 'actinide', electronConfig: '[Rn] 5f⁶ 7s²', oxidationStates: '+4, +3', reagentIds: [] },
-    { number: 95, symbol: 'Am', name: '镅', enName: 'Americium', mass: 243, period: 9, group: 9, category: 'actinide', electronConfig: '[Rn] 5f⁷ 7s²', oxidationStates: '+3, +4', reagentIds: [] },
-    { number: 96, symbol: 'Cm', name: '锔', enName: 'Curium', mass: 247, period: 9, group: 10, category: 'actinide', electronConfig: '[Rn] 5f⁷ 6d¹ 7s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 97, symbol: 'Bk', name: '锫', enName: 'Berkelium', mass: 247, period: 9, group: 11, category: 'actinide', electronConfig: '[Rn] 5f⁹ 7s²', oxidationStates: '+3, +4', reagentIds: [] },
-    { number: 98, symbol: 'Cf', name: '锎', enName: 'Californium', mass: 251, period: 9, group: 12, category: 'actinide', electronConfig: '[Rn] 5f¹⁰ 7s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 99, symbol: 'Es', name: '锿', enName: 'Einsteinium', mass: 252, period: 9, group: 13, category: 'actinide', electronConfig: '[Rn] 5f¹¹ 7s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 100, symbol: 'Fm', name: '镄', enName: 'Fermium', mass: 257, period: 9, group: 14, category: 'actinide', electronConfig: '[Rn] 5f¹² 7s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 101, symbol: 'Md', name: '钔', enName: 'Mendelevium', mass: 258, period: 9, group: 15, category: 'actinide', electronConfig: '[Rn] 5f¹³ 7s²', oxidationStates: '+3, +2', reagentIds: [] },
-    { number: 102, symbol: 'No', name: '锘', enName: 'Nobelium', mass: 259, period: 9, group: 16, category: 'actinide', electronConfig: '[Rn] 5f¹⁴ 7s²', oxidationStates: '+2, +3', reagentIds: [] },
-    { number: 103, symbol: 'Lr', name: '铹', enName: 'Lawrencium', mass: 266, period: 9, group: 17, category: 'actinide', electronConfig: '[Rn] 5f¹⁴ 7s² 7p¹', oxidationStates: '+3', reagentIds: [] },
-
-    // Period 7 (continued, 104 - 118)
-    { number: 104, symbol: 'Rf', name: '𬬻', enName: 'Rutherfordium', mass: 267, period: 7, group: 4, category: 'transition-metal', electronConfig: '[Rn] 5f¹⁴ 6d² 7s²', oxidationStates: '+4', reagentIds: [] },
-    { number: 105, symbol: 'Db', name: '𬭊', enName: 'Dubnium', mass: 268, period: 7, group: 5, category: 'transition-metal', electronConfig: '[Rn] 5f¹⁴ 6d³ 7s²', oxidationStates: '+5', reagentIds: [] },
-    { number: 106, symbol: 'Sg', name: '𬭳', enName: 'Seaborgium', mass: 269, period: 7, group: 6, category: 'transition-metal', electronConfig: '[Rn] 5f¹⁴ 6d⁴ 7s²', oxidationStates: '+6', reagentIds: [] },
-    { number: 107, symbol: 'Bh', name: '𬭛', enName: 'Bohrium', mass: 270, period: 7, group: 7, category: 'transition-metal', electronConfig: '[Rn] 5f¹⁴ 6d⁵ 7s²', oxidationStates: '+7', reagentIds: [] },
-    { number: 108, symbol: 'Hs', name: '𬭶', enName: 'Hassium', mass: 277, period: 7, group: 8, category: 'transition-metal', electronConfig: '[Rn] 5f¹⁴ 6d⁶ 7s²', oxidationStates: '+8', reagentIds: [] },
-    { number: 109, symbol: 'Mt', name: '鿏', enName: 'Meitnerium', mass: 278, period: 7, group: 9, category: 'transition-metal', electronConfig: '[Rn] 5f¹⁴ 6d⁷ 7s²', oxidationStates: '+9', reagentIds: [] },
-    { number: 110, symbol: 'Ds', name: '𫟼', enName: 'Darmstadtium', mass: 281, period: 7, group: 10, category: 'transition-metal', electronConfig: '[Rn] 5f¹⁴ 6d⁸ 7s²', oxidationStates: '+8', reagentIds: [] },
-    { number: 111, symbol: 'Rg', name: '𬬭', enName: 'Roentgenium', mass: 282, period: 7, group: 11, category: 'transition-metal', electronConfig: '[Rn] 5f¹⁴ 6d⁹ 7s²', oxidationStates: '+3', reagentIds: [] },
-    { number: 112, symbol: 'Cn', name: '鎶', enName: 'Copernicium', mass: 285, period: 7, group: 12, category: 'transition-metal', electronConfig: '[Rn] 5f¹⁴ 6d¹⁰ 7s²', oxidationStates: '+2', reagentIds: [] },
-    { number: 113, symbol: 'Nh', name: '鿭', enName: 'Nihonium', mass: 286, period: 7, group: 13, category: 'post-transition', electronConfig: '[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p¹', oxidationStates: '+1', reagentIds: [] },
-    { number: 114, symbol: 'Fl', name: '𫓧', enName: 'Flerovium', mass: 289, period: 7, group: 14, category: 'post-transition', electronConfig: '[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p²', oxidationStates: '+2', reagentIds: [] },
-    { number: 115, symbol: 'Mc', name: '镆', enName: 'Moscovium', mass: 290, period: 7, group: 15, category: 'post-transition', electronConfig: '[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p³', oxidationStates: '+1, +3', reagentIds: [] },
-    { number: 116, symbol: 'Lv', name: '𫟷', enName: 'Livermorium', mass: 293, period: 7, group: 16, category: 'post-transition', electronConfig: '[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁴', oxidationStates: '+2', reagentIds: [] },
-    { number: 117, symbol: 'Ts', name: '鿬', enName: 'Tennessine', mass: 294, period: 7, group: 17, category: 'reactive-nonmetal', electronConfig: '[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁵', oxidationStates: '-1', reagentIds: [] },
-    { number: 118, symbol: 'Og', name: '鿫', enName: 'Oganesson', mass: 294, period: 7, group: 18, category: 'noble-gas', electronConfig: '[Rn] 5f¹⁴ 6d¹⁰ 7s² 7p⁶', oxidationStates: '0', reagentIds: [] },
   ];
 
   /**
@@ -227,7 +125,6 @@ export class PeriodicTableModal {
   private engineLeft: ChemistryEngine;
   private engineRight?: ChemistryEngine;
   public activeBeakerId: 'left' | 'right' = 'left';
-  public currentViewMode: 'common' | 'all' = 'common';
   private onBackToDisciplines: () => void;
   private onViewBeaker?: () => void;
   private onSelectBeaker?: (beakerId: 'left' | 'right') => void;
@@ -264,20 +161,6 @@ export class PeriodicTableModal {
   public setActiveBeaker(id: 'left' | 'right'): void {
     this.activeBeakerId = id;
     this.updateBeakerSwitcherUI();
-  }
-
-  public setViewMode(mode: 'common' | 'all'): void {
-    this.currentViewMode = mode;
-    const btnCommon = this.element.querySelector('#btn-mode-common');
-    const btnAll = this.element.querySelector('#btn-mode-all');
-    if (mode === 'common') {
-      btnCommon?.classList.add('active');
-      btnAll?.classList.remove('active');
-    } else {
-      btnCommon?.classList.remove('active');
-      btnAll?.classList.add('active');
-    }
-    this.renderGrid();
   }
 
   private updateBeakerSwitcherUI(): void {
@@ -325,14 +208,9 @@ export class PeriodicTableModal {
           </button>
         </div>
 
-        <!-- Mode Segmented Control -->
-        <div class="periodic-view-mode-tabs" role="tablist" aria-label="元素表显示范围">
-          <button class="periodic-mode-btn active" id="btn-mode-common" role="tab" title="常用实验试剂元素 (28种)">
-            <span>常用试剂 (28)</span>
-          </button>
-          <button class="periodic-mode-btn" id="btn-mode-all" role="tab" title="完整元素周期表 (118种)">
-            <span>完整元素表 (118)</span>
-          </button>
+        <!-- Mode Badge -->
+        <div class="periodic-mode-badge" title="常用实验试剂元素 (28种)">
+          <span>常用试剂 (28)</span>
         </div>
 
         <!-- Trailing Action: View Beaker Analysis -->
@@ -346,7 +224,7 @@ export class PeriodicTableModal {
         <span id="periodic-beaker-label" style="display: none;">当前目标：左侧烧杯 (默认)</span>
       </div>
 
-      <!-- Minimalist Periodic Grid (Supports both Common Reagents & Full 118 Elements) -->
+      <!-- Common Reagents Periodic Grid -->
       <div class="periodic-grid" id="periodic-elements-grid"></div>
 
       <!-- Apple Contextual Popover Card -->
@@ -370,67 +248,30 @@ export class PeriodicTableModal {
 
     mainGrid.innerHTML = '';
 
-    if (this.currentViewMode === 'common') {
-      mainGrid.classList.remove('full-table');
-      // Render 28 common elements with exact periodic group and period alignment
-      for (const [numStr, pos] of Object.entries(PeriodicTableModal.COMMON_ELEMENT_LAYOUT)) {
-        const num = parseInt(numStr, 10);
-        const elem = PeriodicTableModal.ELEMENTS.find((e) => e.number === num);
-        if (!elem) continue;
+    // Render 28 common elements with exact periodic group and period alignment
+    for (const [numStr, pos] of Object.entries(PeriodicTableModal.COMMON_ELEMENT_LAYOUT)) {
+      const num = parseInt(numStr, 10);
+      const elem = PeriodicTableModal.ELEMENTS.find((e) => e.number === num);
+      if (!elem) continue;
 
-        const card = document.createElement('div');
-        card.className = `element-cell cat-${elem.category} ${this.selectedElement?.number === elem.number ? 'selected' : ''}`;
-        card.dataset.num = elem.number.toString();
-        card.style.gridRow = pos.row.toString();
-        card.style.gridColumn = pos.col.toString();
+      const card = document.createElement('div');
+      card.className = `element-cell cat-${elem.category} ${this.selectedElement?.number === elem.number ? 'selected' : ''}`;
+      card.dataset.num = elem.number.toString();
+      card.style.gridRow = pos.row.toString();
+      card.style.gridColumn = pos.col.toString();
 
-        card.innerHTML = `
-          <span class="elem-num">${elem.number}</span>
-          <span class="elem-sym">${elem.symbol}</span>
-          <span class="elem-name">${elem.name}</span>
-        `;
+      card.innerHTML = `
+        <span class="elem-num">${elem.number}</span>
+        <span class="elem-sym">${elem.symbol}</span>
+        <span class="elem-name">${elem.name}</span>
+      `;
 
-        card.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.openElementPopover(elem);
-        });
+      card.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openElementPopover(elem);
+      });
 
-        mainGrid.appendChild(card);
-      }
-    } else {
-      mainGrid.classList.add('full-table');
-      // Render all 118 elements
-      for (const elem of PeriodicTableModal.ELEMENTS) {
-        const card = document.createElement('div');
-        card.className = `element-cell cat-${elem.category} ${this.selectedElement?.number === elem.number ? 'selected' : ''}`;
-        card.dataset.num = elem.number.toString();
-
-        if (elem.period <= 7) {
-          card.style.gridRow = elem.period.toString();
-          card.style.gridColumn = elem.group.toString();
-        } else if (elem.period === 8) {
-          // Lanthanides row (placed on row 8, col 3-17)
-          card.style.gridRow = '8';
-          card.style.gridColumn = elem.group.toString();
-        } else if (elem.period === 9) {
-          // Actinides row (placed on row 9, col 3-17)
-          card.style.gridRow = '9';
-          card.style.gridColumn = elem.group.toString();
-        }
-
-        card.innerHTML = `
-          <span class="elem-num">${elem.number}</span>
-          <span class="elem-sym">${elem.symbol}</span>
-          <span class="elem-name">${elem.name}</span>
-        `;
-
-        card.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.openElementPopover(elem);
-        });
-
-        mainGrid.appendChild(card);
-      }
+      mainGrid.appendChild(card);
     }
   }
 
@@ -634,15 +475,6 @@ export class PeriodicTableModal {
     this.element.querySelector('#btn-periodic-beaker-right')?.addEventListener('click', () => {
       this.setActiveBeaker('right');
       this.onSelectBeaker?.('right');
-    });
-
-    // View mode tabs (Common Reagents vs Full 118 Elements)
-    this.element.querySelector('#btn-mode-common')?.addEventListener('click', () => {
-      this.setViewMode('common');
-    });
-
-    this.element.querySelector('#btn-mode-all')?.addEventListener('click', () => {
-      this.setViewMode('all');
     });
 
     // View analysis button

@@ -208,6 +208,77 @@ console.log('=== Starting Chemistry Engine Comprehensive Verification ===\n');
   console.log('✓ Test 9 passed\n');
 }
 
+// Test 10: Realistic liquid color transformations
+{
+  console.log('Test 10: Realistic liquid color transformations');
+  const engine = new ChemistryEngine();
+
+  // 10a. CuSO4 -> vivid sky-blue / azure (blue channel strongly dominates red)
+  engine.addReagent('CuSO4', 25);
+  const cuColor = engine.state.liquidColor;
+  assert(cuColor.b > cuColor.r + 0.35, `CuSO4 should have high blue and low red: r=${cuColor.r.toFixed(2)}, b=${cuColor.b.toFixed(2)}`);
+  console.log(`  CuSO4 blue color verified: rgb(${cuColor.r.toFixed(2)}, ${cuColor.g.toFixed(2)}, ${cuColor.b.toFixed(2)})`);
+
+  // 10b. FeCl3 -> rich golden-amber / orange-brown (red & green exceed blue)
+  engine.reset();
+  engine.addReagent('FeCl3', 25);
+  const fe3Color = engine.state.liquidColor;
+  assert(fe3Color.r > fe3Color.b + 0.3, `FeCl3 should have strong red/amber tone: r=${fe3Color.r.toFixed(2)}, b=${fe3Color.b.toFixed(2)}`);
+  console.log(`  FeCl3 amber color verified: rgb(${fe3Color.r.toFixed(2)}, ${fe3Color.g.toFixed(2)}, ${fe3Color.b.toFixed(2)})`);
+
+  // 10c. FeSO4 -> light apple/jade green (green exceeds red and blue)
+  engine.reset();
+  engine.addReagent('FeSO4', 25);
+  const fe2Color = engine.state.liquidColor;
+  assert(fe2Color.g > fe2Color.r + 0.15, `FeSO4 should have distinct green: g=${fe2Color.g.toFixed(2)}, r=${fe2Color.r.toFixed(2)}`);
+  console.log(`  FeSO4 green color verified: rgb(${fe2Color.r.toFixed(2)}, ${fe2Color.g.toFixed(2)}, ${fe2Color.b.toFixed(2)})`);
+
+  // 10d. KMnO4 -> deep royal purple, and decolorizes with H2O2 + acid
+  engine.reset();
+  engine.addReagent('KMnO4', 15);
+  const kmno4Color = engine.state.liquidColor;
+  assert(kmno4Color.b > kmno4Color.g + 0.2 && kmno4Color.r > kmno4Color.g + 0.1 && kmno4Color.g < 0.15, `KMnO4 must be deep purple (high red+blue, low green): r=${kmno4Color.r.toFixed(2)}, g=${kmno4Color.g.toFixed(2)}, b=${kmno4Color.b.toFixed(2)}`);
+  console.log(`  KMnO4 purple verified: rgb(${kmno4Color.r.toFixed(2)}, ${kmno4Color.g.toFixed(2)}, ${kmno4Color.b.toFixed(2)})`);
+
+  // Add acid + H2O2 to reduce MnO4- -> Mn2+ (decolorize)
+  engine.addReagent('H2SO4', 30);
+  engine.addReagent('H2O2', 30);
+  const decolorColor = engine.state.liquidColor;
+  assert(decolorColor.g > 0.7 && decolorColor.b > 0.8, 'KMnO4 should completely decolorize back to clear liquid');
+  console.log(`  KMnO4 redox decolorization verified: rgb(${decolorColor.r.toFixed(2)}, ${decolorColor.g.toFixed(2)}, ${decolorColor.b.toFixed(2)})`);
+
+  // 10e. NaOH + phenolphthalein -> vivid fuchsia pink, neutralizes with HCl back to colorless
+  engine.reset();
+  engine.addReagent('NaOH', 25);
+  engine.addReagent('phenolphthalein', 5);
+  const pinkColor = engine.state.liquidColor;
+  assert(pinkColor.r > 0.7 && pinkColor.g < 0.2 && pinkColor.b > 0.2, `Alkaline phenolphthalein must be bright magenta-pink: r=${pinkColor.r.toFixed(2)}, g=${pinkColor.g.toFixed(2)}, b=${pinkColor.b.toFixed(2)}`);
+  console.log(`  Phenolphthalein pink verified: rgb(${pinkColor.r.toFixed(2)}, ${pinkColor.g.toFixed(2)}, ${pinkColor.b.toFixed(2)})`);
+
+  // Add HCl to neutralize
+  engine.addReagent('HCl', 35);
+  const neutralizedColor = engine.state.liquidColor;
+  assert(neutralizedColor.g > 0.7 && neutralizedColor.b > 0.8, 'Neutralization should restore colorless water appearance');
+  console.log(`  Acid-base titration decolorization verified: rgb(${neutralizedColor.r.toFixed(2)}, ${neutralizedColor.g.toFixed(2)}, ${neutralizedColor.b.toFixed(2)})`);
+
+  // 10f. Bromine water Br2 -> orange-amber
+  engine.reset();
+  engine.addReagent('Br2', 20);
+  const brColor = engine.state.liquidColor;
+  assert(brColor.r > brColor.b + 0.35, `Br2 should be orange-amber: r=${brColor.r.toFixed(2)}, b=${brColor.b.toFixed(2)}`);
+  console.log(`  Br2 amber-orange color verified: rgb(${brColor.r.toFixed(2)}, ${brColor.g.toFixed(2)}, ${brColor.b.toFixed(2)})`);
+
+  // 10g. Precipitate suspension: BaCl2 + CuSO4 -> milky sky-blue
+  engine.reset();
+  engine.addReagent('CuSO4', 25);
+  engine.addReagent('BaCl2', 25);
+  const pptColor = engine.state.liquidColor;
+  assert(pptColor.b > 0.7 && pptColor.r > 0.4, 'BaSO4 in CuSO4 should be milky sky-blue suspension');
+  console.log(`  BaSO4 + Cu2+ milky-blue suspension verified: rgb(${pptColor.r.toFixed(2)}, ${pptColor.g.toFixed(2)}, ${pptColor.b.toFixed(2)})`);
+
+  console.log('✓ Test 10 passed: All realistic liquid color transformations verified\n');
+}
+
 console.log('========================================================');
-console.log('All Comprehensive Chemistry Engine Tests Passed (9/9)!');
+console.log('All Comprehensive Chemistry Engine Tests Passed (10/10)!');
 console.log('========================================================');

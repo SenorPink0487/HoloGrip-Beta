@@ -15,6 +15,10 @@ export class BeakerMesh {
   private currentLiquidLevel = 0.24;
   private targetLiquidColor = new THREE.Color(0xd7f3ff);
   private currentLiquidColor = new THREE.Color(0xd7f3ff);
+  private targetLiquidOpacity = 0.82;
+  private currentLiquidOpacity = 0.82;
+  private targetLiquidRoughness = 0.06;
+  private currentLiquidRoughness = 0.06;
 
   private targetSedimentOpacity = 0.0;
   private currentSedimentOpacity = 0.0;
@@ -215,7 +219,7 @@ export class BeakerMesh {
     // Top surface disc (meniscus reflection)
     const discGeo = new THREE.CircleGeometry(liquidRadius, 64);
     const discMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
+      color: 0xd7f3ff,
       roughness: 0.05,
       metalness: 0.02,
       clearcoat: 0.9,
@@ -307,7 +311,7 @@ export class BeakerMesh {
     this.targetLiquidLevel = Math.max(0.05, Math.min(1.0, state.volume / state.maxVolume));
     this.targetLiquidColor.copy(state.liquidColor);
 
-    // Check precipitates for sediment
+    // Check precipitates for sediment and turbidity
     let totalPrecipMoles = 0;
     let dominantColor = 0xffffff;
 
@@ -318,13 +322,22 @@ export class BeakerMesh {
       }
     }
 
-    if (totalPrecipMoles > 0.0005) {
+    if (totalPrecipMoles > 0.0003) {
       this.targetSedimentScale = Math.min(1.0, totalPrecipMoles * 40.0);
       this.targetSedimentColor.setHex(dominantColor);
-      this.targetSedimentOpacity = 0.92;
+      this.targetSedimentOpacity = 0.94;
+      // Turbid milky suspension scattering
+      this.targetLiquidOpacity = 0.95;
+      this.targetLiquidRoughness = 0.32;
     } else {
       this.targetSedimentOpacity = 0.0;
       this.targetSedimentScale = 0.001;
+      // Clear solution: slightly higher opacity for colored solutions, high clarity
+      const isColored = Math.abs(state.liquidColor.r - 0.84) > 0.08 ||
+                        Math.abs(state.liquidColor.g - 0.95) > 0.08 ||
+                        Math.abs(state.liquidColor.b - 1.0) > 0.08;
+      this.targetLiquidOpacity = isColored ? 0.88 : 0.78;
+      this.targetLiquidRoughness = isColored ? 0.06 : 0.04;
     }
   }
 
@@ -385,8 +398,17 @@ export class BeakerMesh {
     }
 
     // Smooth liquid color change
-    this.currentLiquidColor.lerp(this.targetLiquidColor, delta * 4.0);
+    this.currentLiquidColor.lerp(this.targetLiquidColor, delta * 5.0);
     this.liquidMaterial.color.copy(this.currentLiquidColor);
+    (this.liquidTopDisc.material as THREE.MeshPhysicalMaterial).color.copy(this.currentLiquidColor);
+
+    // Smooth liquid opacity & roughness change (turbidity scattering)
+    this.currentLiquidOpacity = THREE.MathUtils.lerp(this.currentLiquidOpacity, this.targetLiquidOpacity, delta * 4.0);
+    this.liquidMaterial.opacity = this.currentLiquidOpacity;
+    (this.liquidTopDisc.material as THREE.MeshPhysicalMaterial).opacity = Math.min(0.92, this.currentLiquidOpacity * 0.9);
+
+    this.currentLiquidRoughness = THREE.MathUtils.lerp(this.currentLiquidRoughness, this.targetLiquidRoughness, delta * 4.0);
+    this.liquidMaterial.roughness = this.currentLiquidRoughness;
 
     // Smooth sediment animation
     this.currentSedimentOpacity = THREE.MathUtils.lerp(this.currentSedimentOpacity, this.targetSedimentOpacity, delta * 4.0);

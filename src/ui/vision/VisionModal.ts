@@ -1,14 +1,18 @@
 import { DisciplineSelector } from './DisciplineSelector';
 import { PeriodicTableModal } from './PeriodicTableModal';
 import { ExperimentStatusCard } from './ExperimentStatusCard';
+import { PhysicsDisciplineModal } from './PhysicsDisciplineModal';
+import { OpticsControlCard } from './OpticsControlCard';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine';
+import type { OpticsExperimentManager, OpticsExperimentId } from '../../physics/optics/OpticsExperimentManager';
 
-export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math';
+export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'optics';
 
 export interface VisionModalCallbacks {
   onClose: () => void;
   onOpen: () => void;
   onSelectPhysicsExperiment?: (id: string) => Promise<void>;
+  onSelectOptics?: (experimentId: OpticsExperimentId) => void;
   onSelectChemistry?: () => void;
   onStirBeaker?: () => void;
   onRecenter?: () => void;
@@ -31,6 +35,9 @@ export class VisionModal {
   private disciplineSelector: DisciplineSelector;
   private periodicTableModal: PeriodicTableModal;
   private statusCard: ExperimentStatusCard;
+  private physicsModal: PhysicsDisciplineModal;
+  private opticsControlCard: OpticsControlCard | null = null;
+  private opticsManager: OpticsExperimentManager | null = null;
 
   private bodyContainer: HTMLElement;
   private statusCardSlot: HTMLElement;
@@ -131,54 +138,32 @@ export class VisionModal {
       },
     });
 
+    this.physicsModal = new PhysicsDisciplineModal({
+      onBackToDisciplines: () => this.switchTab('disciplines'),
+      onSelectOpticsExperiment: (expId) => {
+        this.callbacks.onSelectOptics?.(expId);
+        this.switchTab('optics');
+      },
+    });
+
     // Mount initial view
     this.switchTab('disciplines');
 
     this.bindHeaderEvents();
   }
 
+  public setOpticsManager(manager: OpticsExperimentManager): void {
+    this.opticsManager = manager;
+    this.opticsControlCard = new OpticsControlCard(manager);
+    if (this.activeTab === 'optics') {
+      this.switchTab('optics');
+    }
+  }
+
   private createFloatingLauncher(parent: HTMLElement): void {
     this.floatingLauncher = document.createElement('div');
     this.floatingLauncher.id = 'vision-floating-launcher';
-    this.floatingLauncher.className = 'vision-launcher hud-interactive';
-    this.floatingLauncher.innerHTML = `
-      <div class="launcher-inner">
-        <svg class="apple-sf-icon launcher-logo-svg" viewBox="0 0 170 170" width="13" height="13" fill="currentColor">
-          <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.6-7.71-11.7-14.01-6.19-9.56-11-20.7-14.42-33.43-3.42-12.73-5.13-24.3-5.13-34.71 0-15.11 3.86-27.46 11.59-37.06 7.73-9.6 17.5-14.49 29.31-14.67 4.9.11 10.37 1.47 16.42 4.09 6.05 2.62 9.99 4.04 11.82 4.25 1.52-.21 5.76-1.74 12.73-4.57 6.96-2.83 12.92-4.14 17.88-3.92 11.21.65 20.47 4.79 27.79 12.41 7.32 7.62 12.08 17.09 14.28 28.41-10.02 6.09-15.03 14.59-15.03 25.5 0 9.14 3.75 16.98 11.24 23.51 7.5 6.53 16.44 10.12 26.83 10.77-1.96 5.88-4.13 11.32-6.52 16.32zM119.22 31.84c0-7.39 2.6-14.15 7.8-20.28 5.2-6.13 11.75-10.34 19.65-12.63.87 7.62-1.41 14.6-6.85 20.93-5.43 6.33-12.29 10.33-20.6 11.98z"/>
-        </svg>
-        <span class="launcher-text">全息视窗</span>
-        <kbd class="launcher-kbd">V</kbd>
-      </div>
-    `;
-
-    this.floatingLauncher.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.open();
-    });
-
-    parent.appendChild(this.floatingLauncher);
-  }
-
-  private createPhysicsView(): HTMLElement {
-    const el = document.createElement('div');
-    el.className = 'vision-sector-page';
-    el.innerHTML = `
-      <div class="sector-display-container">
-        <div class="vision-empty-state">
-          <div class="empty-state-icon">
-            <svg class="vision-empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="2.5"/>
-              <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(30 12 12)"/>
-              <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-30 12 12)"/>
-            </svg>
-          </div>
-          <h3 class="empty-state-title">物理实验</h3>
-          <p class="empty-state-subtitle">即将推出</p>
-        </div>
-      </div>
-    `;
-
-    return el;
+    this.floatingLauncher.style.display = 'none';
   }
 
   private createMathView(): HTMLElement {
@@ -196,17 +181,24 @@ export class VisionModal {
             </svg>
           </div>
           <h3 class="empty-state-title">数学实验</h3>
-          <p class="empty-state-subtitle">即将推出</p>
+          <p class="empty-state-subtitle">流形与拓扑动力学规划中</p>
         </div>
       </div>
     `;
-
     return el;
   }
 
   private bindHeaderEvents(): void {
     this.btnBack?.addEventListener('click', () => {
-      this.switchTab('disciplines');
+      if (this.activeTab === 'optics') {
+        this.switchTab('physics');
+      } else if (this.activeTab === 'physics' || this.activeTab === 'chemistry' || this.activeTab === 'math') {
+        this.switchTab('disciplines');
+      } else if (this.activeTab === 'beaker') {
+        this.switchTab('chemistry');
+      } else {
+        this.switchTab('disciplines');
+      }
     });
 
     this.element.querySelector('#vision-window-mover-bar')?.addEventListener('click', () => {
@@ -237,7 +229,6 @@ export class VisionModal {
           this.close();
         }
       } else if (this.isOpen) {
-        // Zoom In: "+" / "=" (Equal, NumpadAdd), or "]" (BracketRight)
         if (
           e.code === 'Equal' ||
           e.code === 'NumpadAdd' ||
@@ -248,9 +239,7 @@ export class VisionModal {
         ) {
           e.preventDefault();
           this.zoomIn();
-        }
-        // Zoom Out: "-" (Minus, NumpadSubtract), or "[" (BracketLeft)
-        else if (
+        } else if (
           e.code === 'Minus' ||
           e.code === 'NumpadSubtract' ||
           e.code === 'BracketLeft' ||
@@ -260,9 +249,7 @@ export class VisionModal {
         ) {
           e.preventDefault();
           this.zoomOut();
-        }
-        // Reset Scale: "0" (Digit0, Numpad0)
-        else if (e.code === 'Digit0' || e.code === 'Numpad0' || e.key === '0') {
+        } else if (e.code === 'Digit0' || e.code === 'Numpad0' || e.key === '0') {
           e.preventDefault();
           this.resetScale();
         }
@@ -303,9 +290,10 @@ export class VisionModal {
     const titleEl = this.element.querySelector('#vision-window-title');
     const titles: Record<VisionTab, string> = {
       disciplines: '学科领域',
-      chemistry: '元素周期表 · 试剂注入',
+      chemistry: '常用试剂 · 试剂注入',
       beaker: '烧杯组分全息分析',
-      physics: '前沿物理',
+      physics: '物理学科',
+      optics: '光学实验教辅演示台',
       math: '空间数学',
     };
     if (titleEl) {
@@ -319,12 +307,20 @@ export class VisionModal {
     if (tab === 'disciplines') {
       this.bodyContainer.appendChild(this.disciplineSelector.element);
     } else if (tab === 'chemistry') {
-      // Default to left beaker when opening chemistry plate ("打开化学板块默认给左边的杯子选试剂")
       this.setActiveBeaker('left');
       this.bodyContainer.appendChild(this.periodicTableModal.element);
       this.callbacks.onSelectChemistry?.();
     } else if (tab === 'physics') {
-      this.bodyContainer.appendChild(this.createPhysicsView());
+      this.bodyContainer.appendChild(this.physicsModal.element);
+    } else if (tab === 'optics') {
+      if (this.opticsControlCard) {
+        this.bodyContainer.appendChild(this.opticsControlCard.element);
+      } else {
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'vision-empty-state';
+        loadingEl.innerHTML = '<p class="empty-state-subtitle">光具座初始化中...</p>';
+        this.bodyContainer.appendChild(loadingEl);
+      }
     } else if (tab === 'math') {
       this.bodyContainer.appendChild(this.createMathView());
     } else if (tab === 'beaker') {

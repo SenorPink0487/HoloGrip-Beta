@@ -2,7 +2,8 @@ export type WorkerAction =
   | 'INIT'
   | 'NBODY_STEP'
   | 'WAVE_STEP'
-  | 'LORENZ_STEP';
+  | 'LORENZ_STEP'
+  | 'OPTICS_FRINGE_STEP';
 
 export interface BaseWorkerRequest {
   id: number;
@@ -39,10 +40,27 @@ export interface LorenzStepRequest extends BaseWorkerRequest {
   dt: number;
 }
 
+export interface OpticsFringeRequest extends BaseWorkerRequest {
+  action: 'OPTICS_FRINGE_STEP';
+  width: number;
+  height: number;
+  type: 'double_slit' | 'single_slit' | 'circular_aperture' | 'grating' | 'polarization_spot' | 'dispersion_spectrum';
+  wavelengthNm: number;
+  slitDistanceMm?: number;
+  slitWidthMm?: number;
+  screenDistanceM?: number;
+  gratingDensityLinesPerMm?: number;
+  polarizerAngleDeg?: number;
+  analyzerAngleDeg?: number;
+  screenPhysicalWidthM?: number;
+  intensity?: number;
+}
+
 export type WorkerRequest =
   | NBodyStepRequest
   | WaveStepRequest
-  | LorenzStepRequest;
+  | LorenzStepRequest
+  | OpticsFringeRequest;
 
 export type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
 
@@ -69,7 +87,17 @@ export interface LorenzStepResponse {
   computeTimeMs: number;
 }
 
+export interface OpticsFringeResponse {
+  id: number;
+  action: 'OPTICS_FRINGE_STEP';
+  pixels: Uint8ClampedArray;
+  width: number;
+  height: number;
+  computeTimeMs: number;
+}
+
 export type WorkerResponse =
   | NBodyStepResponse
   | WaveStepResponse
-  | LorenzStepResponse;
+  | LorenzStepResponse
+  | OpticsFringeResponse;

@@ -219,7 +219,7 @@ async function runLiveBenchmark() {
       `,
     });
     await new Promise((r) => setTimeout(r, 400));
-    await sampleFps('2. VisionOS 3D Spatial Window Open (118 Periodic Elements)');
+    await sampleFps('2. VisionOS 3D Spatial Window Open (28 Common Reagents)');
 
     // -------------------------------------------------------------
     // Scenario 3: Interactive Chemistry Laboratory Active (Mounted Beaker on Table)

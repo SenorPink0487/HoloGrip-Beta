@@ -65,11 +65,6 @@ export class ExperimentStatusCard {
 
     this.element.innerHTML = `
       <div class="status-card-header">
-        <div class="status-card-title-group">
-          <span class="status-live-indicator"></span>
-          <span class="status-card-title" id="beaker-title-label">左侧烧杯 · 组分全息分析</span>
-        </div>
-
         <div class="beaker-selector-tabs" role="tablist" aria-label="烧杯切换">
           <button class="beaker-tab-btn active" id="btn-select-beaker-left" role="tab" title="查看左侧烧杯">
             <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -121,9 +116,9 @@ export class ExperimentStatusCard {
         </div>
       </div>
 
-      <!-- Top Solvent & Solution Overview (卡片顶部单独展示溶剂水及总体积) -->
+      <!-- Top Solution Overview (体积、温度、pH三大教学核心指标) -->
       <div class="status-metrics-row">
-        <!-- Total Volume -->
+        <!-- 1. Total Volume -->
         <div class="metric-box">
           <div class="metric-label">溶液总体积</div>
           <div class="metric-value-row">
@@ -135,17 +130,7 @@ export class ExperimentStatusCard {
           </div>
         </div>
 
-        <!-- Solvent H2O (Top Banner Separate Display) -->
-        <div class="metric-box">
-          <div class="metric-label">溶剂水 (H₂O)</div>
-          <div class="metric-value-row">
-            <span class="metric-val" id="metric-water">60</span>
-            <span class="metric-unit" id="metric-water-sub">mL (3.33 mol)</span>
-          </div>
-          <div class="metric-badge-tag neutral" id="metric-water-tag">溶剂基质</div>
-        </div>
-
-        <!-- Temperature -->
+        <!-- 2. Temperature -->
         <div class="metric-box">
           <div class="metric-label">反应温度</div>
           <div class="metric-value-row">
@@ -155,7 +140,7 @@ export class ExperimentStatusCard {
           <div class="metric-badge-tag normal" id="metric-temp-badge">室温平衡</div>
         </div>
 
-        <!-- pH -->
+        <!-- 3. pH -->
         <div class="metric-box">
           <div class="metric-label">酸碱度 (pH)</div>
           <div class="metric-value-row">
@@ -168,86 +153,82 @@ export class ExperimentStatusCard {
         </div>
       </div>
 
-      <!-- Two-Column Spatial Workspace (左栏全息环形图与图例，右栏成分清单与反应记录独立卡片) -->
+      <!-- Two-Column Teaching Layout (左侧：实验现象与化学反应；右侧：烧杯主要成分与浓度) -->
       <div class="status-workspace-columns">
-        <!-- Left Column: Holographic Donut Chart Card -->
+        <!-- Left Column: 实验现象与化学反应 -->
         <div class="workspace-col-left">
-          <div class="pie-chart-card glass-card">
-            <div class="chart-card-header">
-              <div class="chart-card-title-row">
-                <span class="chart-badge-tag">100% 归一化</span>
-                <span class="chart-card-title">溶质与固相产物</span>
-              </div>
-              <span class="chart-moles-tag" id="chart-total-moles-tag">0.0 mmol</span>
-            </div>
-            <div class="chart-subtitle">聚焦离子、难溶沉淀及固相产物（按摩尔比归一化）</div>
-
-            <div class="pie-chart-viewport" id="pie-chart-container">
-              <!-- Rendered by SVG dynamically -->
-            </div>
-
-            <!-- Mini Legend Breakdown -->
-            <div class="pie-chart-legend-container" id="pie-chart-legend">
-              <div class="pie-legend-empty">高纯水介质 (H₂O) · 未检测到溶质</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Dual-Deck Detailed Analysis Cards -->
-        <div class="workspace-col-right">
-          <!-- Upper Deck: Ranked Solutes & Products List (从大到小排列) -->
-          <div class="ranked-solutes-card glass-card">
-            <div class="ranked-card-header">
-              <div class="card-title-group">
-                <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="3" y1="6" x2="21" y2="6"/>
-                  <line x1="3" y1="12" x2="15" y2="12"/>
-                  <line x1="3" y1="18" x2="9" y2="18"/>
-                </svg>
-                <span class="ranked-card-title">成分占比降序清单 (从大到小)</span>
-              </div>
-              <span class="ranked-count-tag" id="ranked-count-tag">0 种溶质/产物</span>
-            </div>
-
-            <div class="ranked-components-scroll" id="ranked-components-container">
-              <div class="empty-solute-notice">
-                <div class="notice-icon-wrapper">
-                  <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" fill="rgba(100, 210, 255, 0.15)"/>
-                    <path d="M8 14c1.5 1 3.5 1 5 0s3.5-1 5 0"/>
-                  </svg>
-                </div>
-                <div class="notice-title">高纯度去离子水体系</div>
-                <div class="notice-desc">当前烧杯中仅含溶剂水 (H₂O)，未检测到溶解离子或固相产物。单击“选试剂”加入溶质，或长按拖拽烧杯混合发生反应。</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Lower Deck: Balanced Chemical Equation & Macro Reaction Log -->
           <div class="reactions-log-card glass-card">
-            <div class="reactions-card-header">
+            <div class="card-section-header">
               <div class="card-title-group">
-                <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg class="apple-sf-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M10 2v7.31L5.5 17.5A2 2 0 0 0 7.2 21h9.6a2 2 0 0 0 1.7-3.5L14 9.31V2"/>
                   <line x1="8.5" y1="2" x2="15.5" y2="2"/>
                 </svg>
-                <span class="reactions-card-title">化学反应全息记录</span>
+                <span class="card-section-title">实验现象与化学反应</span>
               </div>
               <span class="reactions-count-tag" id="reactions-count-tag">实时记录</span>
             </div>
 
             <div class="reactions-log-list" id="reactions-list">
               <div class="reaction-item empty">
-                <div class="eq-hint">在元素周期表中选择元素试剂，或长按拖拽将一个烧杯倒入另一个烧杯混合触发反应</div>
+                <div class="notice-icon-wrapper">
+                  <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                </div>
+                <div class="empty-notice-title">当前体系稳定 · 尚未发生反应</div>
+                <div class="empty-notice-desc">在右上角点击“选试剂”注入酸、碱或金属，或长按拖拽烧杯倾倒混合触发化学反应</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: 烧杯主要成分与浓度 -->
+        <div class="workspace-col-right">
+          <div class="ranked-solutes-card glass-card">
+            <div class="card-section-header">
+              <div class="card-title-group">
+                <svg class="apple-sf-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6"/>
+                  <line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/>
+                  <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+                <span class="card-section-title">烧杯主要成分与浓度</span>
+              </div>
+              <span class="ranked-count-tag" id="ranked-count-tag">纯水相</span>
+            </div>
+
+            <div class="ranked-components-scroll" id="ranked-components-container">
+              <div class="empty-solute-notice">
+                <div class="notice-icon-wrapper">
+                  <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                  </svg>
+                </div>
+                <div class="notice-title">高纯去离子水体系</div>
+                <div class="notice-desc">溶剂为水 (H₂O)，未检测到溶解离子或固相沉淀。单击右上角“选试剂”加入溶质。</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Hidden fallbacks for legacy compatibility -->
-      <div style="display: none;" id="ions-container"></div>
-      <div style="display: none;" id="precip-container"></div>
+      <!-- Hidden fallbacks for legacy/test compatibility -->
+      <div style="display: none;">
+        <span id="beaker-title-label">左侧烧杯 · 组分全息分析</span>
+        <span id="metric-water"></span>
+        <span id="metric-water-sub"></span>
+        <span id="chart-total-moles-tag"></span>
+        <div id="pie-chart-container"></div>
+        <div id="pie-chart-legend"></div>
+        <div id="ions-container"></div>
+        <div id="precip-container"></div>
+      </div>
     `;
 
     this.bindEvents();
@@ -370,43 +351,11 @@ export class ExperimentStatusCard {
       }
     }
 
-    // 5. 100% Pie Chart rendering
-    const pieContainer = this.element.querySelector('#pie-chart-container');
-    if (pieContainer) {
-      pieContainer.innerHTML = this.renderPieChartSvg(comp.components);
-    }
-
-    // 5b. Update chart moles tag & pie-chart-legend breakdown
-    const totalMmols = comp.components.reduce((sum, c) => sum + c.millimoles, 0);
-    const molesTag = this.element.querySelector('#chart-total-moles-tag');
-    if (molesTag) {
-      molesTag.textContent = totalMmols > 0 ? `${totalMmols.toFixed(1)} mmol` : '纯水介质';
-    }
-
-    const pieLegend = this.element.querySelector('#pie-chart-legend');
-    if (pieLegend) {
-      if (comp.components.length === 0) {
-        pieLegend.innerHTML = `<div class="pie-legend-empty">高纯水介质 (H₂O) · 未检测到溶质</div>`;
-      } else {
-        pieLegend.innerHTML = comp.components
-          .map(
-            (c) => `
-          <div class="pie-legend-chip">
-            <span class="legend-chip-dot" style="background: ${c.color}; box-shadow: 0 0 6px ${c.color};"></span>
-            <span class="legend-chip-formula">${c.formula}</span>
-            <span class="legend-chip-pct">${c.percentage.toFixed(1)}%</span>
-          </div>
-        `
-          )
-          .join('');
-      }
-    }
-
-    // 6. Ranked Components from largest to smallest (从大到小排列)
+    // 4. Substances & Solutes List (烧杯主要化学成分与浓度)
     const rankedContainer = this.element.querySelector('#ranked-components-container');
     const countTag = this.element.querySelector('#ranked-count-tag');
     if (countTag) {
-      countTag.textContent = `${comp.components.length} 种溶质/产物`;
+      countTag.textContent = comp.components.length > 0 ? `${comp.components.length} 种主要成分` : '纯水相';
     }
 
     if (rankedContainer) {
@@ -414,40 +363,39 @@ export class ExperimentStatusCard {
         rankedContainer.innerHTML = `
           <div class="empty-solute-notice">
             <div class="notice-icon-wrapper">
-              <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" fill="rgba(100, 210, 255, 0.15)"/>
-                <path d="M8 14c1.5 1 3.5 1 5 0s3.5-1 5 0"/>
+              <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
               </svg>
             </div>
-            <div class="notice-title">高纯度去离子水体系</div>
-            <div class="notice-desc">当前烧杯中仅含溶剂水 (H₂O)，未检测到溶解离子或固相产物。单击“选试剂”加入溶质，或长按拖拽烧杯混合发生反应。</div>
+            <div class="notice-title">高纯去离子水体系</div>
+            <div class="notice-desc">溶剂为水 (H₂O)，未检测到溶解离子或固相沉淀。单击右上角“选试剂”加入溶质。</div>
           </div>
         `;
       } else {
         rankedContainer.innerHTML = comp.components
-          .map((c, index) => {
-            const rankNum = index + 1;
-            const concStr = c.concentration !== undefined ? `${c.concentration.toFixed(3)} mol/L` : `${c.massGrams.toFixed(3)} g 固相`;
+          .map((c) => {
+            let concDisplay = '';
+            if (c.category === 'precipitate') {
+              concDisplay = `${c.massGrams.toFixed(3)} g 沉淀`;
+            } else if (c.category === 'solid') {
+              concDisplay = `${c.massGrams.toFixed(3)} g 固态`;
+            } else if (c.concentration !== undefined) {
+              concDisplay = `${c.concentration.toFixed(3)} mol/L`;
+            } else {
+              concDisplay = `${c.massGrams.toFixed(3)} g`;
+            }
+
             return `
-              <div class="ranked-component-item rank-${rankNum}">
-                <div class="comp-rank-badge">#${rankNum}</div>
-                <div class="comp-color-dot" style="background: ${c.color}; box-shadow: 0 0 8px ${c.color};"></div>
-                <div class="comp-info-col">
-                  <div class="comp-title-row">
-                    <span class="comp-formula">${c.formula}</span>
-                    <span class="comp-name">${c.name}</span>
-                    <span class="comp-category-tag ${c.category}">${c.categoryLabel}</span>
-                  </div>
-                  <div class="comp-subtext-row">
-                    <span class="comp-data-chip">物质的量: ${(c.millimoles).toFixed(2)} mmol</span>
-                    <span class="comp-data-chip">${concStr}</span>
-                  </div>
+              <div class="teaching-solute-row">
+                <div class="solute-badge-col">
+                  <span class="solute-dot" style="background: ${c.color}; box-shadow: 0 0 6px ${c.color};"></span>
+                  <span class="solute-formula">${c.formula}</span>
+                  <span class="solute-name">${c.name}</span>
+                  <span class="comp-category-tag ${c.category}">${c.categoryLabel}</span>
                 </div>
-                <div class="comp-pct-col">
-                  <span class="comp-pct-text">${c.percentage.toFixed(1)}%</span>
-                  <div class="comp-mini-bar">
-                    <div class="comp-mini-fill" style="width: ${c.percentage}%; background: ${c.color};"></div>
-                  </div>
+                <div class="solute-metrics-col">
+                  <span class="solute-conc-val">${concDisplay}</span>
+                  <span class="solute-moles-val">${c.millimoles.toFixed(2)} mmol</span>
                 </div>
               </div>
             `;
@@ -456,18 +404,26 @@ export class ExperimentStatusCard {
       }
     }
 
-    // 7. Reactions Log
+    // 5. Reactions Log (实验现象与化学反应)
     const reactionsList = this.element.querySelector('#reactions-list');
     const rxCountTag = this.element.querySelector('#reactions-count-tag');
     if (rxCountTag) {
-      rxCountTag.textContent = state.recentReactions.length > 0 ? `${state.recentReactions.length} 条记录` : '实时记录';
+      rxCountTag.textContent = state.recentReactions.length > 0 ? `${state.recentReactions.length} 个反应` : '实时记录';
     }
 
     if (reactionsList) {
       if (state.recentReactions.length === 0) {
         reactionsList.innerHTML = `
           <div class="reaction-item empty">
-            <div class="eq-hint">在元素周期表中选择元素试剂，或长按拖拽将一个烧杯倒入另一个烧杯混合触发反应</div>
+            <div class="notice-icon-wrapper">
+              <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div class="empty-notice-title">当前体系稳定 · 尚未发生反应</div>
+            <div class="empty-notice-desc">在右上角点击“选试剂”注入酸、碱或金属，或长按拖拽烧杯倾倒混合触发化学反应</div>
           </div>
         `;
       } else {
@@ -480,98 +436,14 @@ export class ExperimentStatusCard {
               <span class="rx-type-tag">${r.type}</span>
             </div>
             <div class="rx-equation">${r.equation}</div>
-            <div class="rx-phenomenon"><strong>宏观现象：</strong>${r.phenomenon}</div>
-            <div class="rx-desc"><strong>原理简述：</strong>${r.description}</div>
+            <div class="rx-phenomenon"><strong>实验现象：</strong>${r.phenomenon}</div>
+            <div class="rx-desc"><strong>反应原理：</strong>${r.description}</div>
           </div>
         `
           )
           .join('');
       }
     }
-  }
-
-  private renderPieChartSvg(components: SoluteComponent[]): string {
-    const cx = 110;
-    const cy = 110;
-    const R = 84;
-    const r = 50;
-
-    if (components.length === 0) {
-      return `
-        <svg class="pie-chart-svg" viewBox="0 0 220 220">
-          <circle cx="${cx}" cy="${cy}" r="67" fill="none" stroke="rgba(100, 210, 255, 0.22)" stroke-width="28" />
-          <text x="${cx}" y="103" text-anchor="middle" class="chart-center-sub">高纯水相</text>
-          <text x="${cx}" y="125" text-anchor="middle" class="chart-center-pct">100%</text>
-          <text x="${cx}" y="141" text-anchor="middle" class="chart-center-total">去离子水 (H₂O)</text>
-        </svg>
-      `;
-    }
-
-    const totalMmols = components.reduce((sum, c) => sum + c.millimoles, 0);
-
-    if (components.length === 1) {
-      const c = components[0];
-      return `
-        <svg class="pie-chart-svg" viewBox="0 0 220 220">
-          <circle cx="${cx}" cy="${cy}" r="67" fill="none" stroke="${c.color}" stroke-width="32" opacity="0.95" />
-          <text x="${cx}" y="102" text-anchor="middle" class="chart-center-sub">${c.formula} ${c.name}</text>
-          <text x="${cx}" y="125" text-anchor="middle" class="chart-center-pct">100%</text>
-          <text x="${cx}" y="141" text-anchor="middle" class="chart-center-total">${c.millimoles.toFixed(1)} mmol</text>
-        </svg>
-      `;
-    }
-
-    let startAngle = -Math.PI / 2;
-    const paths: string[] = [];
-
-    for (let i = 0; i < components.length; i++) {
-      const c = components[i];
-      const sliceAngle = (c.percentage / 100) * Math.PI * 2;
-      if (sliceAngle < 0.002) continue;
-
-      // Scale gap proportionally with sliceAngle to strictly avoid inverted negative arc sweeps for small percentages
-      const gap = Math.min(0.018, sliceAngle * 0.12);
-      const a0 = startAngle + gap;
-      const a1 = startAngle + sliceAngle - gap;
-      startAngle += sliceAngle;
-
-      const x0_outer = cx + R * Math.cos(a0);
-      const y0_outer = cy + R * Math.sin(a0);
-      const x1_outer = cx + R * Math.cos(a1);
-      const y1_outer = cy + R * Math.sin(a1);
-
-      const x1_inner = cx + r * Math.cos(a1);
-      const y1_inner = cy + r * Math.sin(a1);
-      const x0_inner = cx + r * Math.cos(a0);
-      const y0_inner = cy + r * Math.sin(a0);
-
-      const largeArc = (a1 - a0) > Math.PI ? 1 : 0;
-
-      const d = `
-        M ${x0_outer.toFixed(2)} ${y0_outer.toFixed(2)}
-        A ${R} ${R} 0 ${largeArc} 1 ${x1_outer.toFixed(2)} ${y1_outer.toFixed(2)}
-        L ${x1_inner.toFixed(2)} ${y1_inner.toFixed(2)}
-        A ${r} ${r} 0 ${largeArc} 0 ${x0_inner.toFixed(2)} ${y0_inner.toFixed(2)}
-        Z
-      `;
-
-      paths.push(`
-        <path d="${d}" fill="${c.color}" opacity="0.92" class="pie-slice" data-comp-id="${c.id}">
-          <title>${c.name} (${c.formula}): ${c.percentage.toFixed(1)}% · ${c.millimoles.toFixed(2)} mmol</title>
-        </path>
-      `);
-    }
-
-    return `
-      <svg class="pie-chart-svg" viewBox="0 0 220 220">
-        <g class="pie-slices-group">
-          ${paths.join('')}
-        </g>
-        <text x="${cx}" y="102" text-anchor="middle" class="chart-center-sub">溶质与产物</text>
-        <text x="${cx}" y="125" text-anchor="middle" class="chart-center-pct">100%</text>
-        <text x="${cx}" y="141" text-anchor="middle" class="chart-center-total">共 ${totalMmols.toFixed(1)} mmol</text>
-      </svg>
-    `;
   }
 
   public destroy(): void {

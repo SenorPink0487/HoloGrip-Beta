@@ -411,6 +411,31 @@ export class ChemistryEngine {
       defaultAmount: 20,
       unit: 'mL',
     },
+    Br2: {
+      id: 'Br2',
+      name: '饱和溴水',
+      formula: 'Br₂',
+      category: 'oxide',
+      state: 'liquid',
+      concentration: 0.2,
+      color: 0xd97706,
+      description: '特征橙黄色至红棕色溴水溶液，强氧化性卤素单质。',
+      hazard: '刺激性氧化性',
+      defaultAmount: 20,
+      unit: 'mL',
+    },
+    I2: {
+      id: 'I2',
+      name: '碘水试剂 (I₂-KI)',
+      formula: 'I₂',
+      category: 'oxide',
+      state: 'liquid',
+      concentration: 0.1,
+      color: 0x854d0e,
+      description: '特征棕黄色游离碘水溶液，强氧化剂与淀粉显色剂。',
+      defaultAmount: 20,
+      unit: 'mL',
+    },
   };
 
   public state: ChemistryState;
@@ -601,6 +626,32 @@ export class ChemistryEngine {
         const moles = (reagent.concentration || 0.5) * volLiters;
         this.addIon('K+', moles);
         this.addIon('I-', moles);
+      } else if (reagent.id === 'Br2') {
+        const moles = (reagent.concentration || 0.2) * volLiters;
+        this.addIon('Br2', moles);
+        occurredReactions.push({
+          id: 'add_br2',
+          title: '注入饱和溴水',
+          equation: 'Br₂(aq) ➔ 注入体系',
+          type: '卤素溶液注入',
+          description: '注入特征橙黄色溴水溶液，强氧化性游离溴分子均匀扩散于体系中。',
+          phenomenon: '烧杯液体迅速呈现特征橙黄色至橙红透明色。',
+          isExothermic: false,
+          heatDelta: 0,
+        });
+      } else if (reagent.id === 'I2') {
+        const moles = (reagent.concentration || 0.1) * volLiters;
+        this.addIon('I2', moles);
+        occurredReactions.push({
+          id: 'add_i2',
+          title: '注入碘水试剂',
+          equation: 'I₂(aq) + I⁻ ⇌ I₃⁻',
+          type: '卤素络合溶液注入',
+          description: '注入特征棕黄色游离碘溶液，多碘配离子均匀扩散。',
+          phenomenon: '烧杯液体迅速呈现特征棕黄色至红褐色。',
+          isExothermic: false,
+          heatDelta: 0,
+        });
       } else {
         occurredReactions.push({
           id: `add_${reagent.id}`,
@@ -1586,68 +1637,106 @@ export class ChemistryEngine {
   }
 
   private updateLiquidColor(): void {
-    const baseColor = new THREE.Color(0xd2f0ff); // Clear water tint
-    const volL = this.state.volume / 1000;
+    const baseColor = new THREE.Color(0xd7f3ff); // Clear water refractive tint
+    const volL = Math.max(0.01, this.state.volume / 1000);
 
-    // Check ions
+    // 1. Solute Ions & Halogen Molecules Absorbance Modeling (Beer-Lambert optical curve)
     const cuConc = this.getIon('Cu2+') / volL;
     const fe3Conc = this.getIon('Fe3+') / volL;
     const fe2Conc = this.getIon('Fe2+') / volL;
     const mno4Conc = this.getIon('MnO4-') / volL;
+    const br2Conc = this.getIon('Br2') / volL;
+    const i2Conc = this.getIon('I2') / volL;
 
-    if (mno4Conc > 0.0001) {
-      // Intense permanganate violet
-      const violetColor = new THREE.Color(0x8e24aa);
-      baseColor.lerp(violetColor, Math.min(0.95, mno4Conc * 40.0));
+    // Copper(II) hydrated ion [Cu(H2O)4]2+ -> brilliant azure / royal sky-blue
+    if (cuConc > 0.0005) {
+      const blueColor = new THREE.Color(0x0091ea);
+      const intensity = Math.min(0.96, Math.pow(cuConc / 0.12, 0.5) * 0.96);
+      baseColor.lerp(blueColor, intensity);
     }
 
-    if (cuConc > 0.001) {
-      // Sky blue
-      const blueColor = new THREE.Color(0x00a8ff);
-      baseColor.lerp(blueColor, Math.min(0.85, cuConc * 1.5));
+    // Iron(III) hydrolyzed complex [Fe(H2O)5(OH)]2+ -> rich golden-amber to orange-brown
+    if (fe3Conc > 0.0005) {
+      const amberColor = fe3Conc > 0.05 ? new THREE.Color(0xd97706) : new THREE.Color(0xf59e0b);
+      const intensity = Math.min(0.96, Math.pow(fe3Conc / 0.10, 0.5) * 0.96);
+      baseColor.lerp(amberColor, intensity);
     }
 
-    if (fe3Conc > 0.001) {
-      // Amber/yellow
-      const amberColor = new THREE.Color(0xff9800);
-      baseColor.lerp(amberColor, Math.min(0.9, fe3Conc * 2.0));
-    }
-
+    // Iron(II) hydrated ion [Fe(H2O)6]2+ -> pale apple / jade green
     if (fe2Conc > 0.001) {
-      // Pale green
-      const greenColor = new THREE.Color(0x66bb6a);
-      baseColor.lerp(greenColor, Math.min(0.8, fe2Conc * 1.8));
+      const greenColor = new THREE.Color(0x4caf50);
+      const intensity = Math.min(0.90, Math.pow(fe2Conc / 0.12, 0.5) * 0.90);
+      baseColor.lerp(greenColor, intensity);
     }
 
-    // Check indicators
+    // Bromine water Br2 -> characteristic amber-orange
+    if (br2Conc > 0.0005) {
+      const bromineColor = new THREE.Color(0xd97706);
+      const intensity = Math.min(0.95, Math.pow(br2Conc / 0.04, 0.5) * 0.95);
+      baseColor.lerp(bromineColor, intensity);
+    }
+
+    // Iodine aqueous solution I2 / I3- -> deep sherry amber / brown-yellow
+    if (i2Conc > 0.0005) {
+      const iodineColor = new THREE.Color(0x854d0e);
+      const intensity = Math.min(0.95, Math.pow(i2Conc / 0.03, 0.5) * 0.95);
+      baseColor.lerp(iodineColor, intensity);
+    }
+
+    // Permanganate MnO4- -> intense royal violet-purple (strongly absorbs visible spectrum)
+    if (mno4Conc > 0.0001) {
+      const violetColor = new THREE.Color(0x7b1fa2);
+      const intensity = Math.min(0.98, Math.pow(mno4Conc / 0.015, 0.4) * 0.98);
+      baseColor.lerp(violetColor, intensity);
+    }
+
+    // 2. Acid-Base Indicator Sensitive Chromatic Shift
     if (this.state.indicators.phenolphthalein > 0) {
       if (this.state.pH >= 8.2) {
-        // Vibrant fuchsia pink
+        // High saturation vibrant fuchsia / magenta pink in alkaline conditions
         const pinkColor = new THREE.Color(0xff1493);
-        const intensity = Math.min(1.0, (this.state.pH - 8.2) / 1.5 + 0.3);
+        const intensity = Math.min(0.96, 0.75 + (this.state.pH - 8.2) * 0.15);
         baseColor.lerp(pinkColor, intensity);
       }
     }
 
     if (this.state.indicators.litmus > 0) {
       if (this.state.pH < 5.0) {
-        // Red
-        const redColor = new THREE.Color(0xe53935);
-        baseColor.lerp(redColor, 0.75);
+        // Acid red
+        const redColor = new THREE.Color(0xd32f2f);
+        baseColor.lerp(redColor, 0.94);
       } else if (this.state.pH > 8.0) {
-        // Blue
-        const deepBlue = new THREE.Color(0x1e88e5);
-        baseColor.lerp(deepBlue, 0.75);
+        // Alkaline royal blue
+        const deepBlue = new THREE.Color(0x1565c0);
+        baseColor.lerp(deepBlue, 0.94);
       } else {
-        // Purple
-        const purpleColor = new THREE.Color(0x8e24aa);
-        baseColor.lerp(purpleColor, 0.65);
+        // Neutral purple
+        const purpleColor = new THREE.Color(0x7b1fa2);
+        baseColor.lerp(purpleColor, 0.88);
       }
     }
 
-    // Cloudy precipitate tint
-    if (this.state.precipitates.has('CaCO3') || this.state.precipitates.has('BaSO4')) {
-      baseColor.lerp(new THREE.Color(0xf1f5f9), 0.35);
+    // 3. Precipitate Suspension / Turbidity Chromatic Shift
+    let totalPrecipMoles = 0;
+    for (const [_, p] of this.state.precipitates) {
+      totalPrecipMoles += p.moles;
+    }
+
+    if (totalPrecipMoles > 0.0002) {
+      const precipConc = totalPrecipMoles / volL;
+      const cloudFactor = Math.min(0.95, Math.pow(precipConc / 0.03, 0.5) * 0.92);
+
+      // Dominant precipitate suspension color
+      let precipTint = new THREE.Color(0xf8fafc); // Default milky white (BaSO4, CaCO3, AgCl, Al(OH)3, BaCO3)
+      if (this.state.precipitates.has('Cu(OH)2')) {
+        precipTint = new THREE.Color(0x0284c7); // Opaque vibrant azure blue
+      } else if (this.state.precipitates.has('Fe(OH)3')) {
+        precipTint = new THREE.Color(0x7c2d12); // Opaque reddish-brown rust
+      } else if (this.state.precipitates.has('Fe(OH)2')) {
+        precipTint = new THREE.Color(0x556b2f); // Opaque grayish-green
+      }
+
+      baseColor.lerp(precipTint, cloudFactor);
     }
 
     this.state.liquidColor.copy(baseColor);
