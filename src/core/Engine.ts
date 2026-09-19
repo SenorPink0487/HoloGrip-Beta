@@ -19,7 +19,6 @@ import { ChemistryEngine } from '../chemistry/ChemistryEngine';
 import { BeakerMesh } from '../scene/BeakerMesh';
 import { ReactionEffects } from '../scene/ReactionEffects';
 import { VisionModal } from '../ui/vision/VisionModal';
-import { OpticsExperimentManager, OpticsExperimentId } from '../physics/optics/OpticsExperimentManager';
 import type { ExperimentContext, IExperiment } from './types';
 
 export class Engine {
@@ -52,12 +51,6 @@ export class Engine {
   public reactionEffectsRight: ReactionEffects;
   public activeBeakerId: 'left' | 'right' = 'left';
   public visionModal: VisionModal;
-  public opticsManager: OpticsExperimentManager | null = null;
-  public opticsDragState: {
-    carrierId: string;
-    downClientX: number;
-    initialCarrierX: number;
-  } | null = null;
 
   public get chemistryEngine(): ChemistryEngine {
     return this.activeBeakerId === 'left' ? this.chemistryEngineLeft : this.chemistryEngineRight;
@@ -485,33 +478,13 @@ export class Engine {
         this.holoStage.setStageVisible(false);
         this.beakerLeft.setVisible(true, true);
         this.beakerRight.setVisible(true, true);
-        if (this.opticsManager) {
-          this.opticsManager.setVisible(false);
-        }
       },
       onSelectPhysicsExperiment: async (id: string) => {
         this.beakerLeft.setVisible(false, true);
         this.beakerRight.setVisible(false, true);
         this.holoTable.showHologram();
         this.holoStage.setStageVisible(true);
-        if (this.opticsManager) {
-          this.opticsManager.setVisible(false);
-        }
         await this.switchExperiment(id);
-      },
-      onSelectOptics: (experimentId: OpticsExperimentId) => {
-        this.beakerLeft.setVisible(false, true);
-        this.beakerRight.setVisible(false, true);
-        this.holoTable.hideHologram();
-        this.holoStage.setStageVisible(false);
-
-        if (!this.opticsManager) {
-          this.opticsManager = new OpticsExperimentManager(this.computeBridge);
-          this.scene.add(this.opticsManager.group);
-          this.visionModal.setOpticsManager(this.opticsManager);
-        }
-        this.opticsManager.setVisible(true);
-        this.opticsManager.setExperiment(experimentId);
       },
       onStirBeaker: () => {
         this.reactionEffects.triggerPour(0x0a84ff);
@@ -669,36 +642,6 @@ export class Engine {
         -(e.clientY / window.innerHeight) * 2 + 1
       );
 
-      // Optics apparatus 3D interactions
-      if (this.opticsManager && this.opticsManager.group.visible) {
-        this.raycaster.setFromCamera(mouseNDC, this.camera);
-        const opticsHits = this.raycaster.intersectObjects(this.opticsManager.group.children, true);
-        if (opticsHits.length > 0 && opticsHits[0].distance < 8.0) {
-          let obj: THREE.Object3D | null = opticsHits[0].object;
-          while (obj && obj !== this.opticsManager.group) {
-            if (obj.name === 'laser-power-btn') {
-              e.stopPropagation();
-              this.opticsManager.toggleLaserPower();
-              return;
-            }
-            if (obj.name && obj.name.startsWith('carrier-')) {
-              e.stopPropagation();
-              const carrierId = obj.name.replace('carrier-', '');
-              const carrier = this.opticsManager.bench.carriers.get(carrierId);
-              if (carrier) {
-                this.opticsDragState = {
-                  carrierId,
-                  downClientX: e.clientX,
-                  initialCarrierX: carrier.currentX,
-                };
-                return;
-              }
-            }
-            obj = obj.parent;
-          }
-        }
-      }
-
       const beakerHit = this.getInteractiveBeakerAt(mouseNDC);
       if (beakerHit) {
         e.stopPropagation();
@@ -737,15 +680,6 @@ export class Engine {
         (e.clientX / window.innerWidth) * 2 - 1,
         -(e.clientY / window.innerHeight) * 2 + 1
       );
-
-      if (this.opticsDragState && this.opticsManager) {
-        const dx = (e.clientX - this.opticsDragState.downClientX) * 0.0012;
-        this.opticsManager.setCarrierFromRaycast(
-          this.opticsDragState.carrierId,
-          this.opticsDragState.initialCarrierX + dx
-        );
-        return;
-      }
 
       if (!this.beakerDragState) return;
 
@@ -802,10 +736,6 @@ export class Engine {
     });
 
     window.addEventListener('pointerup', (e: PointerEvent) => {
-      if (this.opticsDragState) {
-        this.opticsDragState = null;
-      }
-
       if (!this.beakerDragState) return;
 
       const state = this.beakerDragState;
@@ -1033,10 +963,6 @@ export class Engine {
 
     if (this.hud) {
       this.hud.update(delta);
-    }
-
-    if (this.opticsManager && this.opticsManager.group.visible) {
-      this.opticsManager.update(delta);
     }
 
     this.checkCrosshairIntersection(now);

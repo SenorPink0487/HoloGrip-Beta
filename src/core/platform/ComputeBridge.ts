@@ -4,8 +4,6 @@ import type {
   NBodyStepResponse,
   WaveStepResponse,
   LorenzStepResponse,
-  OpticsFringeRequest,
-  OpticsFringeResponse,
 } from '../../workers/workerMessages';
 
 export interface ComputeMetrics {
@@ -184,20 +182,5 @@ export class ComputeBridge {
 
     this.recordMetrics(res.computeTimeMs);
     return res.positions;
-  }
-
-  /**
-   * Run multi-core optical wavefield & fringe matrix computation across Web Workers
-   */
-  public async computeOpticsFringe(
-    params: Omit<OpticsFringeRequest, 'id' | 'action'>
-  ): Promise<OpticsFringeResponse> {
-    const res = await this.workerPool.execute<OpticsFringeResponse>({
-      action: 'OPTICS_FRINGE_STEP',
-      ...params,
-    });
-
-    this.recordMetrics(res.computeTimeMs);
-    return res;
   }
 }

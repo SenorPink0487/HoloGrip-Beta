@@ -2,17 +2,14 @@ import { DisciplineSelector } from './DisciplineSelector';
 import { PeriodicTableModal } from './PeriodicTableModal';
 import { ExperimentStatusCard } from './ExperimentStatusCard';
 import { PhysicsDisciplineModal } from './PhysicsDisciplineModal';
-import { OpticsControlCard } from './OpticsControlCard';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine';
-import type { OpticsExperimentManager, OpticsExperimentId } from '../../physics/optics/OpticsExperimentManager';
 
-export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'optics';
+export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math';
 
 export interface VisionModalCallbacks {
   onClose: () => void;
   onOpen: () => void;
   onSelectPhysicsExperiment?: (id: string) => Promise<void>;
-  onSelectOptics?: (experimentId: OpticsExperimentId) => void;
   onSelectChemistry?: () => void;
   onStirBeaker?: () => void;
   onRecenter?: () => void;
@@ -36,8 +33,6 @@ export class VisionModal {
   private periodicTableModal: PeriodicTableModal;
   private statusCard: ExperimentStatusCard;
   private physicsModal: PhysicsDisciplineModal;
-  private opticsControlCard: OpticsControlCard | null = null;
-  private opticsManager: OpticsExperimentManager | null = null;
 
   private bodyContainer: HTMLElement;
   private statusCardSlot: HTMLElement;
@@ -140,24 +135,12 @@ export class VisionModal {
 
     this.physicsModal = new PhysicsDisciplineModal({
       onBackToDisciplines: () => this.switchTab('disciplines'),
-      onSelectOpticsExperiment: (expId) => {
-        this.callbacks.onSelectOptics?.(expId);
-        this.switchTab('optics');
-      },
     });
 
     // Mount initial view
     this.switchTab('disciplines');
 
     this.bindHeaderEvents();
-  }
-
-  public setOpticsManager(manager: OpticsExperimentManager): void {
-    this.opticsManager = manager;
-    this.opticsControlCard = new OpticsControlCard(manager);
-    if (this.activeTab === 'optics') {
-      this.switchTab('optics');
-    }
   }
 
   private createFloatingLauncher(parent: HTMLElement): void {
@@ -190,9 +173,7 @@ export class VisionModal {
 
   private bindHeaderEvents(): void {
     this.btnBack?.addEventListener('click', () => {
-      if (this.activeTab === 'optics') {
-        this.switchTab('physics');
-      } else if (this.activeTab === 'physics' || this.activeTab === 'chemistry' || this.activeTab === 'math') {
+      if (this.activeTab === 'physics' || this.activeTab === 'chemistry' || this.activeTab === 'math') {
         this.switchTab('disciplines');
       } else if (this.activeTab === 'beaker') {
         this.switchTab('chemistry');
@@ -293,7 +274,6 @@ export class VisionModal {
       chemistry: '常用试剂 · 试剂注入',
       beaker: '烧杯组分全息分析',
       physics: '物理学科',
-      optics: '光学实验教辅演示台',
       math: '空间数学',
     };
     if (titleEl) {
@@ -312,15 +292,6 @@ export class VisionModal {
       this.callbacks.onSelectChemistry?.();
     } else if (tab === 'physics') {
       this.bodyContainer.appendChild(this.physicsModal.element);
-    } else if (tab === 'optics') {
-      if (this.opticsControlCard) {
-        this.bodyContainer.appendChild(this.opticsControlCard.element);
-      } else {
-        const loadingEl = document.createElement('div');
-        loadingEl.className = 'vision-empty-state';
-        loadingEl.innerHTML = '<p class="empty-state-subtitle">光具座初始化中...</p>';
-        this.bodyContainer.appendChild(loadingEl);
-      }
     } else if (tab === 'math') {
       this.bodyContainer.appendChild(this.createMathView());
     } else if (tab === 'beaker') {
