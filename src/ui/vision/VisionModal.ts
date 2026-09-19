@@ -135,6 +135,10 @@ export class VisionModal {
 
     this.physicsModal = new PhysicsDisciplineModal({
       onBackToDisciplines: () => this.switchTab('disciplines'),
+      onSelectExperiment: async (id: string) => {
+        await this.callbacks.onSelectPhysicsExperiment?.(id);
+        this.close();
+      },
     });
 
     // Mount initial view

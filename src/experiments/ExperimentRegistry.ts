@@ -15,6 +15,12 @@ export interface CategoryInfo {
 
 export const CATEGORIES: CategoryInfo[] = [
   {
+    id: 'optics',
+    name: '光学物理',
+    icon: 'optics',
+    description: '几何传播、杨氏双缝干涉、光栅衍射与偏振态高精度3D实验台',
+  },
+  {
     id: 'physics',
     name: '前沿物理',
     icon: 'physics',

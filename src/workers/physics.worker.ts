@@ -136,5 +136,74 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       ctx.postMessage(resp, [positions.buffer]);
       break;
     }
+
+    case 'OPTICAL_DIFFRACTION_STEP': {
+      const {
+        id,
+        intensityBuffer,
+        wavelengthNm,
+        slitWidthMm,
+        slitDistanceMm,
+        screenDistanceM,
+        screenSpanMm,
+        slitCount,
+        gratingLinesPerMm,
+      } = req;
+
+      const n = intensityBuffer.length;
+      const lambda = wavelengthNm * 1e-9;
+      const a = slitWidthMm * 1e-3;
+      const d = slitCount > 1 && gratingLinesPerMm && gratingLinesPerMm > 0
+        ? (1e-3 / gratingLinesPerMm)
+        : slitDistanceMm * 1e-3;
+      const L = Math.max(0.1, screenDistanceM);
+      const span = screenSpanMm * 1e-3;
+
+      for (let i = 0; i < n; i++) {
+        // Position y from -span/2 to +span/2
+        const y = ((i / (n - 1)) - 0.5) * span;
+        const sinTheta = y / Math.sqrt(y * y + L * L);
+
+        // Diffraction envelope beta
+        const beta = (Math.PI * a * sinTheta) / lambda;
+        const sinc = Math.abs(beta) < 1e-7 ? 1.0 : Math.sin(beta) / beta;
+        const diffEnvelope = sinc * sinc;
+
+        let intensity = diffEnvelope;
+
+        if (slitCount === 2) {
+          // Double slit interference term: cos^2(alpha)
+          const alpha = (Math.PI * d * sinTheta) / lambda;
+          const interference = Math.cos(alpha) * Math.cos(alpha);
+          intensity = diffEnvelope * interference;
+        } else if (slitCount > 2) {
+          // Grating / Multi-slit interference term
+          const N = Math.min(16, slitCount);
+          const alpha = (Math.PI * d * sinTheta) / lambda;
+          const sinAlpha = Math.sin(alpha);
+          let gratingTerm = 1.0;
+          if (Math.abs(sinAlpha) < 1e-5) {
+            gratingTerm = 1.0;
+          } else {
+            const sinNAlpha = Math.sin(N * alpha);
+            gratingTerm = (sinNAlpha * sinNAlpha) / (N * N * sinAlpha * sinAlpha);
+          }
+          intensity = diffEnvelope * gratingTerm;
+        }
+
+        intensityBuffer[i] = Math.max(0.0, Math.min(1.0, intensity));
+      }
+
+      const computeTimeMs = performance.now() - startTime;
+      const resp: WorkerResponse = {
+        id,
+        action: 'OPTICAL_DIFFRACTION_STEP',
+        intensityBuffer,
+        computeTimeMs,
+      };
+
+      ctx.postMessage(resp, [intensityBuffer.buffer]);
+      break;
+    }
   }
 };

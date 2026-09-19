@@ -516,6 +516,12 @@ export class Engine {
     const requestId = ++this.currentSwitchRequestId;
     this.hud.showTransition(true, '全息粒子解聚与参数重构...');
 
+    // Guarantee holographic stage is active and clean table surface for 3D hardware
+    this.holoStage.setStageVisible(true);
+    this.holoTable.hideHologram();
+    this.beakerLeft.setVisible(false, true);
+    this.beakerRight.setVisible(false, true);
+
     try {
       const registry = ExperimentRegistry.getInstance();
       const experiment = await registry.loadExperiment(id);
@@ -557,6 +563,7 @@ export class Engine {
 
       this.currentExperimentId = id;
       this.hud.setActiveExperiment(experiment, this.currentContext);
+      this.holoStage.setStageVisible(true);
       if (this.renderer?.shadowMap?.enabled) {
         this.renderer.shadowMap.needsUpdate = true;
       }
@@ -574,9 +581,11 @@ export class Engine {
   }
 
   private async initDefaultExperiment(): Promise<void> {
-    const all = ExperimentRegistry.getInstance().getAll();
+    const registry = ExperimentRegistry.getInstance();
+    const all = registry.getAll();
     if (all.length > 0) {
-      await this.switchExperiment(all[0].id);
+      const defaultExp = all.find((e) => e.id === 'optics-lab') || all[0];
+      await this.switchExperiment(defaultExp.id);
     }
   }
 
@@ -669,6 +678,20 @@ export class Engine {
           lastPouredVolume: 0,
         };
         return;
+      }
+
+      // Forward 3D interaction to active experiment on hologram stage
+      if (this.holoStage.activeExperiment?.onPointerDown) {
+        this.raycaster.setFromCamera(mouseNDC, this.camera);
+        const hits = this.raycaster.intersectObjects(this.holoStage.activeExperiment.rootGroup.children, true);
+        const hit = hits.length > 0 ? hits[0] : null;
+        if (hit) {
+          const handled = this.holoStage.activeExperiment.onPointerDown(e, hit, this.currentContext);
+          if (handled) {
+            e.stopPropagation();
+            return;
+          }
+        }
       }
     });
 

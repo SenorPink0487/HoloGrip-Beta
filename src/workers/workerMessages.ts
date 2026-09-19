@@ -2,7 +2,8 @@ export type WorkerAction =
   | 'INIT'
   | 'NBODY_STEP'
   | 'WAVE_STEP'
-  | 'LORENZ_STEP';
+  | 'LORENZ_STEP'
+  | 'OPTICAL_DIFFRACTION_STEP';
 
 export interface BaseWorkerRequest {
   id: number;
@@ -39,10 +40,23 @@ export interface LorenzStepRequest extends BaseWorkerRequest {
   dt: number;
 }
 
+export interface OpticalDiffractionStepRequest extends BaseWorkerRequest {
+  action: 'OPTICAL_DIFFRACTION_STEP';
+  intensityBuffer: Float32Array;
+  wavelengthNm: number;
+  slitWidthMm: number;
+  slitDistanceMm: number;
+  screenDistanceM: number;
+  screenSpanMm: number;
+  slitCount: number;
+  gratingLinesPerMm?: number;
+}
+
 export type WorkerRequest =
   | NBodyStepRequest
   | WaveStepRequest
-  | LorenzStepRequest;
+  | LorenzStepRequest
+  | OpticalDiffractionStepRequest;
 
 export type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
 
@@ -69,7 +83,15 @@ export interface LorenzStepResponse {
   computeTimeMs: number;
 }
 
+export interface OpticalDiffractionStepResponse {
+  id: number;
+  action: 'OPTICAL_DIFFRACTION_STEP';
+  intensityBuffer: Float32Array;
+  computeTimeMs: number;
+}
+
 export type WorkerResponse =
   | NBodyStepResponse
   | WaveStepResponse
-  | LorenzStepResponse;
+  | LorenzStepResponse
+  | OpticalDiffractionStepResponse;

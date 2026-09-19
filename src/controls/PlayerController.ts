@@ -13,7 +13,7 @@ export class PlayerController {
   };
 
   public yaw = 0;
-  public pitch = -0.04;
+  public pitch = -0.20;
   public minPitch = -Math.PI / 2.1;
   public maxPitch = Math.PI / 2.1;
 
@@ -22,7 +22,7 @@ export class PlayerController {
   public moveSpeed = 3.8;
   public sprintMultiplier = 1.7;
   public damping = 9.0;
-  public eyeHeight = 1.65;
+  public eyeHeight = 1.48;
 
   public roomRadius = 7.6;
   public tableRadius = 2.45;
@@ -49,7 +49,8 @@ export class PlayerController {
     this.camera = camera;
     this.domElement = domElement;
 
-    this.camera.position.set(0, this.eyeHeight, 5.2);
+    // Position player right at the edge of the HoloTable for natural, interactive arm's length observation
+    this.camera.position.set(0, this.eyeHeight, 2.65);
     this.camera.rotation.order = 'YXZ';
     this.updateCameraRotation();
 

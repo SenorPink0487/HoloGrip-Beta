@@ -54,4 +54,7 @@ export abstract class BaseExperiment implements IExperiment {
   }
 
   public onParameterChange?(id: string, value: any, context: ExperimentContext): void;
+  public onPointerDown?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean | void;
+  public onPointerMove?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void;
+  public onPointerUp?(event: PointerEvent, context: ExperimentContext): void;
 }

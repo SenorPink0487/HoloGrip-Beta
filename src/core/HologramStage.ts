@@ -16,14 +16,14 @@ export class HologramStage {
 
   constructor() {
     this.group.name = 'HologramStage';
-    this.group.position.set(0, 1.35, 0); // Center above table aperture
+    this.group.position.set(0, 0.908, 0); // Directly resting atop table circular aperture plate
     this.group.add(this.transitionGroup);
 
     this.initTransitionEffects();
   }
 
   private initTransitionEffects(): void {
-    // Hologram projection ring
+    // Hologram projection ring resting just over table aperture
     const ringGeo = new THREE.RingGeometry(0.35, 0.48, 64);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x00f7ff,
@@ -34,12 +34,12 @@ export class HologramStage {
     });
     this.emitterRing = new THREE.Mesh(ringGeo, ringMat);
     this.emitterRing.rotation.x = -Math.PI / 2;
-    this.emitterRing.position.y = -0.42;
+    this.emitterRing.position.y = 0.003;
     this.group.add(this.emitterRing);
 
     // Dynamic stage light
     this.hologramApertureLight = new THREE.PointLight(0x00e5ff, 0.8, 3.5, 2.0);
-    this.hologramApertureLight.position.set(0, 0, 0);
+    this.hologramApertureLight.position.set(0, 0.35, 0);
     this.group.add(this.hologramApertureLight);
 
     // Transition quantum particles
@@ -117,13 +117,20 @@ export class HologramStage {
 
     if (context.renderer.compileAsync) {
       try {
-        await context.renderer.compileAsync(newExperiment.rootGroup, context.camera, context.scene);
+        await Promise.race([
+          context.renderer.compileAsync(newExperiment.rootGroup, context.camera, context.scene),
+          new Promise((resolve) => setTimeout(resolve, 250)),
+        ]);
       } catch (err) {
         console.warn('[HologramStage] compileAsync fallback:', err);
-        context.renderer.compile(newExperiment.rootGroup, context.camera, context.scene);
+        try {
+          context.renderer.compile(newExperiment.rootGroup, context.camera, context.scene);
+        } catch {}
       }
-    } else {
-      context.renderer.compile(newExperiment.rootGroup, context.camera, context.scene);
+    } else if (context.renderer.compile) {
+      try {
+        context.renderer.compile(newExperiment.rootGroup, context.camera, context.scene);
+      } catch {}
     }
     if (this.currentSwitchToken !== token) {
       newExperiment.dispose(context);
@@ -143,6 +150,7 @@ export class HologramStage {
     newExperiment.mount(context);
     newExperiment.rootGroup.scale.set(0.01, 0.01, 0.01);
     this.group.add(newExperiment.rootGroup);
+    this.setStageVisible(true);
 
     // 6. Complete transition
     if (this.currentSwitchToken === token) {
@@ -154,6 +162,10 @@ export class HologramStage {
 
   public setStageVisible(visible: boolean): void {
     this.group.visible = visible;
+    if (visible && this.currentExperiment && this.currentExperiment.rootGroup.scale.x < 0.1) {
+      // Prompt immediate scale-up if previously suppressed
+      this.currentExperiment.rootGroup.scale.set(0.2, 0.2, 0.2);
+    }
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {

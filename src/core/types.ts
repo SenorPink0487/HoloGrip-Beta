@@ -111,6 +111,13 @@ export interface IExperiment {
    * Called when a parameter is altered by the user via UI or API.
    */
   onParameterChange?(id: string, value: any, context: ExperimentContext): void;
+
+  /**
+   * Optional 3D scene pointer interaction hooks.
+   */
+  onPointerDown?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean | void;
+  onPointerMove?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void;
+  onPointerUp?(event: PointerEvent, context: ExperimentContext): void;
 }
 
 export interface ExperimentModule {
