@@ -5,6 +5,7 @@ import { LaserEmitterMesh } from '../../../scene/optics/LaserEmitterMesh.ts';
 import { SlitApertureMesh, type SlitType } from '../../../scene/optics/SlitApertureMesh.ts';
 import { DetectorScreenMesh } from '../../../scene/optics/DetectorScreenMesh.ts';
 import { OpticalBeamSystem } from '../../../scene/optics/OpticalBeamSystem.ts';
+import { OpticsInteractionManager } from '../../../scene/optics/OpticsInteractionManager.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 import type { OpticalDiffractionStepResponse } from '../../../workers/workerMessages.ts';
@@ -20,6 +21,11 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
   private detectorScreen: DetectorScreenMesh;
   private beamSystem: OpticalBeamSystem;
 
+  private laserSaddle: THREE.Group;
+  private slitSaddle: THREE.Group;
+  private screenSaddle: THREE.Group;
+  private interactionManager: OpticsInteractionManager;
+
   private diffractionType: SlitType = 'grating';
   private wavelength = 532.0;
   private slitWidth = 0.05;
@@ -28,6 +34,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
   private workerBuffer: Float32Array = new Float32Array(512);
   private isWorkerBusy = false;
   private hasWorkerResult = false;
+  private lastStateHash = '';
 
   public init(context: ExperimentContext): void {
     // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
@@ -38,40 +45,126 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
     this.rootGroup.add(this.rail.group);
     this.addDisposable(() => this.rail.dispose());
 
-    const laserSaddle = this.rail.createCarrierSaddle('LaserSaddle');
-    laserSaddle.position.z = -0.52;
+    this.laserSaddle = this.rail.createCarrierSaddle('LaserSaddle');
+    this.laserSaddle.position.z = -0.52;
 
-    const slitSaddle = this.rail.createCarrierSaddle('SlitSaddle');
-    slitSaddle.position.z = -0.05;
+    this.slitSaddle = this.rail.createCarrierSaddle('SlitSaddle');
+    this.slitSaddle.position.z = -0.05;
 
-    const screenSaddle = this.rail.createCarrierSaddle('ScreenSaddle');
-    screenSaddle.position.z = 0.48;
+    this.screenSaddle = this.rail.createCarrierSaddle('ScreenSaddle');
+    this.screenSaddle.position.z = 0.48;
 
     this.laser = this.track(new LaserEmitterMesh(this.wavelength));
-    laserSaddle.add(this.laser.group);
+    this.laserSaddle.add(this.laser.group);
     this.addDisposable(() => this.laser.dispose());
 
     this.slitFixture = this.track(new SlitApertureMesh(this.diffractionType));
-    slitSaddle.add(this.slitFixture.group);
+    this.slitSaddle.add(this.slitFixture.group);
     this.addDisposable(() => this.slitFixture.dispose());
 
     this.detectorScreen = this.track(new DetectorScreenMesh());
-    screenSaddle.add(this.detectorScreen.group);
+    this.screenSaddle.add(this.detectorScreen.group);
     this.addDisposable(() => this.detectorScreen.dispose());
 
     this.beamSystem = this.track(new OpticalBeamSystem(this.wavelength));
     this.rootGroup.add(this.beamSystem.group);
     this.addDisposable(() => this.beamSystem.dispose());
+
+    this.interactionManager = new OpticsInteractionManager({
+      rootGroup: this.rootGroup,
+      rail: this.rail,
+      laser: this.laser,
+      laserSaddle: this.laserSaddle,
+      slitFixture: this.slitFixture,
+      slitSaddle: this.slitSaddle,
+      detectorScreen: this.detectorScreen,
+      screenSaddle: this.screenSaddle,
+      beamSystem: this.beamSystem,
+
+      onLaserChange: (_isOn, wavelengthNm) => {
+        this.wavelength = wavelengthNm;
+        this.laser.updateWavelength(this.wavelength);
+        this.beamSystem.updateWavelength(this.wavelength);
+        context.setParameter('wavelength', this.wavelength);
+      },
+      onSlitChange: (slitType, _dist, widthMm, density) => {
+        const mappedType: SlitType = slitType === 'single' ? 'single' : 'grating';
+        this.diffractionType = mappedType;
+        this.slitWidth = widthMm;
+        this.gratingLinesPerMm = density;
+        this.slitFixture.setParameters({
+          type: mappedType,
+          slitWidthMm: widthMm,
+          gratingLinesPerMm: density,
+        });
+        context.setParameter('diffractionType', mappedType);
+        context.setParameter('slitWidth', widthMm);
+        context.setParameter('gratingDensity', String(density));
+      },
+    });
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
-    const startPos = new THREE.Vector3(0, 0.186, -0.40);
-    const endPos = new THREE.Vector3(0, 0.186, 0.474);
-    this.beamSystem.updateStraightBeam(startPos, endPos);
+    const startPos = new THREE.Vector3(0, 0.186, this.laserSaddle.position.z + 0.123);
+    const slitPos = new THREE.Vector3(0, 0.186, this.slitSaddle.position.z - 0.008);
+    const screenDistM = Math.max(0.08, this.screenSaddle.position.z - this.slitSaddle.position.z);
 
-    this.dispatchWorkerDiffraction(context);
+    if (!this.laser.isOn) {
+      this.lastStateHash = '';
+      this.beamSystem.setIntensity(0);
+      this.beamSystem.clearWavefronts();
+      this.beamSystem.clearDiffractionFan();
+      this.beamSystem.clearGratingOrders();
+      this.detectorScreen.renderFringesPattern({
+        mode: this.diffractionType === 'grating' ? 'grating' : 'single_slit',
+        wavelengthNm: this.wavelength,
+        intensity: 0,
+        slitWidthMm: this.slitWidth,
+        gratingLinesPerMm: this.gratingLinesPerMm,
+        screenDistanceM: screenDistM,
+      });
+      this.detectorScreen.updateMeter({
+        intensityRatio: 0,
+        wavelengthNm: this.wavelength,
+        fringeSpacingMm: 0,
+      });
+      return;
+    }
+
+    this.beamSystem.setIntensity(1.0);
+    // 1. Incoming beam terminates at front of aperture holder
+    this.beamSystem.updateSegmentedBeam([{ start: startPos, end: slitPos, intensity: 1.0 }]);
 
     const isGrating = this.diffractionType === 'grating';
+    if (isGrating) {
+      this.beamSystem.clearWavefronts();
+      this.beamSystem.clearDiffractionFan();
+      this.beamSystem.updateGratingOrders(
+        this.slitSaddle.position.z,
+        this.screenSaddle.position.z,
+        this.gratingLinesPerMm
+      );
+    } else {
+      this.beamSystem.clearGratingOrders();
+      this.beamSystem.updateSingleSlitWavefronts(
+        this.slitSaddle.position.z,
+        this.slitWidth,
+        elapsed,
+        this.screenSaddle.position.z
+      );
+      this.beamSystem.updateDiffractionFan(
+        this.slitSaddle.position.z,
+        this.screenSaddle.position.z,
+        0.038
+      );
+    }
+
+    // Multi-Core Worker physics computation with state hash dirty checking
+    const stateHash = `${this.diffractionType}_${this.wavelength}_${this.slitWidth.toFixed(3)}_${this.gratingLinesPerMm}_${screenDistM.toFixed(3)}`;
+    if (stateHash !== this.lastStateHash) {
+      this.lastStateHash = stateHash;
+      this.dispatchWorkerDiffraction(context, screenDistM);
+    }
 
     if (isGrating) {
       this.detectorScreen.renderFringesPattern({
@@ -80,7 +173,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
         intensity: 1.0,
         slitWidthMm: this.slitWidth,
         gratingLinesPerMm: this.gratingLinesPerMm,
-        screenDistanceM: 0.53,
+        screenDistanceM: screenDistM,
       });
     } else if (this.hasWorkerResult) {
       this.detectorScreen.renderFringesFromBuffer(this.workerBuffer, this.wavelength, 1.0);
@@ -91,7 +184,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
         intensity: 1.0,
         slitWidthMm: this.slitWidth,
         gratingLinesPerMm: this.gratingLinesPerMm,
-        screenDistanceM: 0.53,
+        screenDistanceM: screenDistM,
       });
     }
 
@@ -101,7 +194,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
     });
   }
 
-  private async dispatchWorkerDiffraction(context: ExperimentContext): Promise<void> {
+  private async dispatchWorkerDiffraction(context: ExperimentContext, screenDistM: number): Promise<void> {
     if (this.isWorkerBusy) return;
     this.isWorkerBusy = true;
 
@@ -112,7 +205,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
           wavelengthNm: this.wavelength,
           slitWidthMm: this.slitWidth,
           slitDistanceMm: 0.25,
-          screenDistanceM: 0.53,
+          screenDistanceM: screenDistM,
           screenSpanMm: 80.0,
           slitCount: this.diffractionType === 'grating' ? 8 : 1,
           gratingLinesPerMm: this.gratingLinesPerMm,
@@ -129,7 +222,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
             wavelengthNm: this.wavelength,
             slitWidthMm: this.slitWidth,
             slitDistanceMm: 0.25,
-            screenDistanceM: 0.53,
+            screenDistanceM: screenDistM,
             screenSpanMm: 80.0,
             slitCount: this.diffractionType === 'grating' ? 8 : 1,
             gratingLinesPerMm: this.gratingLinesPerMm,
@@ -167,5 +260,21 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
       this.gratingLinesPerMm = Number(value);
       this.slitFixture.setParameters({ gratingLinesPerMm: this.gratingLinesPerMm });
     }
+  }
+
+  public override onPointerDown(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean {
+    return this.interactionManager?.onPointerDown(event, hit, context) ?? false;
+  }
+
+  public override onPointerMove(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void {
+    this.interactionManager?.onPointerMove(event, hit, context);
+  }
+
+  public override onPointerUp(event: PointerEvent, context: ExperimentContext): void {
+    this.interactionManager?.onPointerUp(event, context);
+  }
+
+  public override getHoverTarget(raycaster: THREE.Raycaster) {
+    return this.interactionManager?.getHoverTarget(raycaster) ?? null;
   }
 }

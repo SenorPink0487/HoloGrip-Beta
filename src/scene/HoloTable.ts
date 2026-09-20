@@ -10,10 +10,12 @@ export class HoloTable {
   private particleSpeeds: Float32Array;
   private mainScreen: THREE.Mesh;
   private beamCone: THREE.Mesh;
+  private emitterLens: THREE.Mesh;
 
   private mainScreenMat: THREE.MeshBasicMaterial;
   private particlesMat: THREE.PointsMaterial;
   private beamConeMat: THREE.MeshBasicMaterial;
+  private emitterLensMat: THREE.MeshStandardMaterial;
 
   private targetHoloAlpha = 1.0;
   private currentHoloAlpha = 1.0;
@@ -171,14 +173,18 @@ export class HoloTable {
 
     // Subtle optical frosted glass lens ring
     const lensGeo = new THREE.RingGeometry(0.22, 0.38, 64);
-    const lensMat = new THREE.MeshBasicMaterial({
-      color: 0xd8e4f0,
+    this.emitterLensMat = new THREE.MeshStandardMaterial({
+      color: 0x1a222c,
+      metalness: 0.8,
+      roughness: 0.35,
+      emissive: 0x00f7ff,
+      emissiveIntensity: 0.3,
       side: THREE.DoubleSide,
     });
-    const lens = new THREE.Mesh(lensGeo, lensMat);
-    lens.rotation.x = -Math.PI / 2;
-    lens.position.y = 0.906;
-    this.group.add(lens);
+    this.emitterLens = new THREE.Mesh(lensGeo, this.emitterLensMat);
+    this.emitterLens.rotation.x = -Math.PI / 2;
+    this.emitterLens.position.y = 0.906;
+    this.group.add(this.emitterLens);
 
     // Center dark core aperture disc
     const coreGeo = new THREE.CircleGeometry(0.22, 64);
@@ -274,6 +280,7 @@ export class HoloTable {
       if (this.particlesMat) this.particlesMat.opacity = 0;
       if (this.particles) this.particles.visible = false;
       if (this.holoLight) this.holoLight.intensity = 0;
+      if (this.emitterLensMat) this.emitterLensMat.emissiveIntensity = 0;
     }
   }
 
@@ -369,6 +376,10 @@ export class HoloTable {
 
     if (this.holoLight) {
       this.holoLight.intensity = (0.55 + Math.sin(t * 2.5) * 0.06) * this.currentHoloAlpha;
+    }
+
+    if (this.emitterLensMat) {
+      this.emitterLensMat.emissiveIntensity = 0.3 * this.currentHoloAlpha;
     }
   }
 }

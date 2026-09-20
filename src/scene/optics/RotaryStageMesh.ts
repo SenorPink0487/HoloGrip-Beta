@@ -150,6 +150,8 @@ export class RotaryStageMesh {
     this.micrometerKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.018, 24), brassMat);
     this.micrometerKnob.rotation.z = Math.PI * 0.5;
     this.micrometerKnob.position.x = 0.02;
+    this.micrometerKnob.name = 'RotaryMicrometer';
+    this.micrometerKnob.userData = { isRotaryMicrometer: true, rotaryStage: this };
     micrometerGroup.add(this.micrometerKnob);
 
     this.group.add(micrometerGroup);
@@ -173,6 +175,7 @@ export class RotaryStageMesh {
     // 1. Rotating main disc
     const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.012, 48), rotorMat);
     disc.castShadow = true;
+    disc.userData = { isRotaryStageRotor: true, rotaryStage: this };
     this.rotorGroup.add(disc);
 
     // 2. 360 Degree Dial Disc Top Face
@@ -184,12 +187,14 @@ export class RotaryStageMesh {
     const dialDisc = new THREE.Mesh(new THREE.CircleGeometry(0.0458, 48), dialMat);
     dialDisc.rotation.x = -Math.PI * 0.5;
     dialDisc.position.y = 0.0061;
+    dialDisc.userData = { isRotaryStageRotor: true, rotaryStage: this };
     this.rotorGroup.add(dialDisc);
 
     // 3. Central sample stage platform (for holding prism)
     const stagePlatform = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.005, 36), rotorMat);
     stagePlatform.position.y = 0.0086;
     stagePlatform.castShadow = true;
+    stagePlatform.userData = { isRotaryStageRotor: true, rotaryStage: this };
     this.rotorGroup.add(stagePlatform);
 
     // 4. Spring-loaded brass clamp arms for prism (3 clamps)
@@ -210,6 +215,8 @@ export class RotaryStageMesh {
       this.rotorGroup.add(clampArm);
     }
 
+    this.rotorGroup.name = 'RotaryStageRotor';
+    this.rotorGroup.userData = { isRotaryStageRotor: true, rotaryStage: this };
     this.group.add(this.rotorGroup);
   }
 
@@ -220,6 +227,12 @@ export class RotaryStageMesh {
     if (this.micrometerKnob) {
       this.micrometerKnob.rotation.x = rad * 8.0;
     }
+  }
+
+  public rotateBy(deltaDeg: number): number {
+    const newAng = Math.max(-35, Math.min(35, this.currentAngleDeg + deltaDeg));
+    this.setRotationAngleDeg(newAng);
+    return newAng;
   }
 
   public dispose(): void {

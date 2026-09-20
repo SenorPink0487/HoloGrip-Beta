@@ -120,6 +120,7 @@ export interface IExperiment {
   onPointerDown?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean | void;
   onPointerMove?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void;
   onPointerUp?(event: PointerEvent, context: ExperimentContext): void;
+  getHoverTarget?(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null;
 }
 
 export interface ExperimentModule {

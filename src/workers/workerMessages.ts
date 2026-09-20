@@ -89,6 +89,7 @@ export interface OpticalDispersionStepRequest extends BaseWorkerRequest {
   prismRotationY: number;
   baseIndex: number;
   incomingPos: [number, number, number];
+  screenZ?: number;
 }
 
 export interface ChemistryStepRequest extends BaseWorkerRequest {

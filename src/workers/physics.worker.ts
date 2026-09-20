@@ -299,7 +299,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
     }
 
     case 'OPTICAL_DISPERSION_STEP': {
-      const { id, apexPos, prismRotationY, baseIndex, incomingPos } = req;
+      const { id, apexPos, prismRotationY, baseIndex, incomingPos, screenZ = 0.48 } = req;
 
       const spectrumWavelengths = [
         { wl: 680, name: 'Red' },
@@ -312,47 +312,77 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       ];
 
       const rays: WorkerDispersionRayData[] = [];
-      const prismSide = 0.14;
-      const inDirX = 0, inDirY = 0, inDirZ = 1;
+      const side = 0.075;
+      const h = side * Math.sin(Math.PI / 3);
+      const theta = prismRotationY;
+      const cosT = Math.cos(theta);
+      const sinT = Math.sin(theta);
+
+      const Ax = apexPos[0] + (-h * 0.5) * sinT;
+      const Az = apexPos[2] + (-h * 0.5) * cosT;
+      const Bx = apexPos[0] + (-side * 0.5) * cosT + (h * 0.5) * sinT;
+      const Bz = apexPos[2] - (-side * 0.5) * sinT + (h * 0.5) * cosT;
+
+      const n1Len = Math.hypot(-0.866025 * cosT - 0.5 * sinT, 0.866025 * sinT - 0.5 * cosT) || 1;
+      const face1Nx = (-0.866025 * cosT - 0.5 * sinT) / n1Len;
+      const face1Ny = 0;
+      const face1Nz = (0.866025 * sinT - 0.5 * cosT) / n1Len;
+
+      const n2Len = Math.hypot(0.866025 * cosT - 0.5 * sinT, -0.866025 * sinT - 0.5 * cosT) || 1;
+      const face2Nx = (0.866025 * cosT - 0.5 * sinT) / n2Len;
+      const face2Ny = 0;
+      const face2Nz = (-0.866025 * sinT - 0.5 * cosT) / n2Len;
+
+      let u = (incomingPos[0] - Ax) / (Bx - Ax || 1e-5);
+      if (u < 0.1 || u > 0.9) {
+        u = 0.45;
+      }
+      const pEnterX = Ax + u * (Bx - Ax);
+      const pEnterY = apexPos[1];
+      const pEnterZ = Az + u * (Bz - Az);
+
+      let inDirX = pEnterX - incomingPos[0];
+      let inDirY = pEnterY - incomingPos[1];
+      let inDirZ = pEnterZ - incomingPos[2];
+      const inLen = Math.hypot(inDirX, inDirY, inDirZ) || 1;
+      inDirX /= inLen; inDirY /= inLen; inDirZ /= inLen;
+      if (inLen < 1e-4) { inDirX = 0; inDirY = 0; inDirZ = 1; }
 
       for (const spec of spectrumWavelengths) {
         const lambdaUm = spec.wl / 1000;
         const refUm = 0.5893;
-        const delta = 0.0075 * (1 / (lambdaUm * lambdaUm) - 1 / (refUm * refUm));
+        const delta = 0.016 * (1 / (lambdaUm * lambdaUm) - 1 / (refUm * refUm));
         const n = Math.max(1.0, baseIndex + delta);
         const rgb = wavelengthToRgb(spec.wl);
 
-        // Geometry of 60° equilateral prism
-        const apexAngle = Math.PI / 3;
-        const f1Angle = prismRotationY + apexAngle * 0.5;
-        const face1Nx = -Math.sin(f1Angle), face1Ny = 0, face1Nz = Math.cos(f1Angle);
-
+        // 1. Refract into glass at Face 1
         const r1 = refractRay3D(inDirX, inDirY, inDirZ, face1Nx, face1Ny, face1Nz, 1.0, n);
 
-        const pEnter: [number, number, number] = [
-          apexPos[0] - 0.02,
-          apexPos[1],
-          apexPos[2] - prismSide * 0.25,
-        ];
-        const pExit: [number, number, number] = [
-          pEnter[0] + r1.outX * 0.065,
-          pEnter[1] + r1.outY * 0.065,
-          pEnter[2] + r1.outZ * 0.065,
-        ];
+        // 2. Intersect Face 2 plane (passing through A with normal N2)
+        const denom = r1.outX * face2Nx + r1.outZ * face2Nz;
+        const tExit = Math.abs(denom) > 1e-5
+          ? ((Ax - pEnterX) * face2Nx + (Az - pEnterZ) * face2Nz) / denom
+          : 0.045;
+        const validTExit = Math.max(0.01, tExit);
+        const pExitX = pEnterX + r1.outX * validTExit;
+        const pExitY = apexPos[1];
+        const pExitZ = pEnterZ + r1.outZ * validTExit;
 
-        const f2Angle = prismRotationY - apexAngle * 0.5;
-        const face2Nx = Math.sin(f2Angle), face2Ny = 0, face2Nz = Math.cos(f2Angle);
-
+        // 3. Refract out of glass at Face 2
         const r2 = refractRay3D(r1.outX, r1.outY, r1.outZ, face2Nx, face2Ny, face2Nz, n, 1.0);
+        const outX = r2.refracted ? r2.outX : r1.outX;
+        const outY = r2.refracted ? r2.outY : r1.outY;
+        const outZ = r2.refracted ? r2.outZ : r1.outZ;
 
-        const pScreen: [number, number, number] = [
-          pExit[0] + r2.outX * 0.52,
-          pExit[1] + r2.outY * 0.52,
-          pExit[2] + r2.outZ * 0.52,
-        ];
+        // 4. Intersect detector screen at screenZ
+        const distZ = screenZ - pExitZ;
+        const tScreen = outZ > 1e-4 ? distZ / outZ : 0.45;
+        const validTScreen = Math.max(0.05, tScreen);
+        const pScreenX = pExitX + outX * validTScreen;
+        const pScreenY = apexPos[1];
+        const pScreenZ = screenZ;
 
-        // Deviation angle
-        const dotProd = Math.max(-1, Math.min(1, inDirZ * r2.outZ + inDirX * r2.outX + inDirY * r2.outY));
+        const dotProd = Math.max(-1, Math.min(1, inDirX * outX + inDirY * outY + inDirZ * outZ));
         const deviationAngleRad = Math.acos(dotProd);
 
         rays.push({
@@ -361,10 +391,10 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
           refractiveIndex: n,
           deviationAngleRad,
           points: [
-            incomingPos,
-            pEnter,
-            pExit,
-            pScreen,
+            [incomingPos[0], incomingPos[1], incomingPos[2]],
+            [pEnterX, pEnterY, pEnterZ],
+            [pExitX, pExitY, pExitZ],
+            [pScreenX, pScreenY, pScreenZ],
           ],
         });
       }
@@ -724,11 +754,11 @@ function wavelengthToRgb(w: number): [number, number, number] {
     r = (w - 510) / (580 - 510);
     g = 1.0;
     b = 0.0;
-  } else if (w >= 580 && w < 645) {
+  } else if (w >= 580 && w < 620) {
     r = 1.0;
-    g = -(w - 645) / (645 - 580);
+    g = -(w - 620) / (620 - 580);
     b = 0.0;
-  } else if (w >= 645 && w <= 750) {
+  } else if (w >= 620 && w <= 750) {
     r = 1.0;
     g = 0.0;
     b = 0.0;

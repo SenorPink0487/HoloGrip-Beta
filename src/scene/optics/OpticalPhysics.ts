@@ -40,11 +40,11 @@ export class OpticalPhysics {
       r = (w - 510) / (580 - 510);
       g = 1.0;
       b = 0.0;
-    } else if (w >= 580 && w < 645) {
+    } else if (w >= 580 && w < 620) {
       r = 1.0;
-      g = -(w - 645) / (645 - 580);
+      g = -(w - 620) / (620 - 580);
       b = 0.0;
-    } else if (w >= 645 && w <= 750) {
+    } else if (w >= 620 && w <= 750) {
       r = 1.0;
       g = 0.0;
       b = 0.0;
@@ -161,7 +161,8 @@ export class OpticalPhysics {
     apexPos: THREE.Vector3,
     prismRotationY: number,
     baseIndex = 1.54,
-    incomingPos: THREE.Vector3 = new THREE.Vector3(0, 0, -0.6)
+    incomingPos: THREE.Vector3 = new THREE.Vector3(0, 0, -0.6),
+    screenZ = 0.48
   ): DispersionRay[] {
     const spectrumWavelengths = [
       { wl: 680, name: 'Red' },
@@ -174,36 +175,82 @@ export class OpticalPhysics {
     ];
 
     const rays: DispersionRay[] = [];
-    const prismSide = 0.14;
-    const inDir = new THREE.Vector3(0, 0, 1);
+    const side = 0.075;
+    const h = side * Math.sin(Math.PI / 3);
+    const theta = prismRotationY;
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
+
+    // Rotated apex A and base corners B, C in XZ plane relative to apexPos
+    // Local: A = (0, -h*0.5), B = (-side*0.5, h*0.5), C = (side*0.5, h*0.5)
+    const Ax = apexPos.x + (-h * 0.5) * sinT;
+    const Az = apexPos.z + (-h * 0.5) * cosT;
+    const Bx = apexPos.x + (-side * 0.5) * cosT + (h * 0.5) * sinT;
+    const Bz = apexPos.z - (-side * 0.5) * sinT + (h * 0.5) * cosT;
+
+    // Face 1 (AB) outward normal pointing into air
+    const N1 = new THREE.Vector3(
+      -0.866025 * cosT - 0.5 * sinT,
+      0,
+      0.866025 * sinT - 0.5 * cosT
+    ).normalize();
+
+    // Face 2 (AC) outward normal pointing into air
+    const N2 = new THREE.Vector3(
+      0.866025 * cosT - 0.5 * sinT,
+      0,
+      -0.866025 * sinT - 0.5 * cosT
+    ).normalize();
+
+    // Ray incident point on Face 1 (AB)
+    let u = (incomingPos.x - Ax) / (Bx - Ax || 1e-5);
+    if (u < 0.1 || u > 0.9) {
+      u = 0.45;
+    }
+    const pEnter = new THREE.Vector3(
+      Ax + u * (Bx - Ax),
+      apexPos.y,
+      Az + u * (Bz - Az)
+    );
+
+    const inDir = new THREE.Vector3().subVectors(pEnter, incomingPos).normalize();
+    if (inDir.lengthSq() < 1e-4) inDir.set(0, 0, 1);
 
     for (const spec of spectrumWavelengths) {
-      const n = OpticalPhysics.getCauchyIndex(spec.wl, baseIndex, 0.0075);
+      // Enhanced visual dispersion coefficient (0.016) for crisp, clear spectral separation
+      const n = OpticalPhysics.getCauchyIndex(spec.wl, baseIndex, 0.016);
       const color = OpticalPhysics.wavelengthToColor(spec.wl);
 
-      // Geometry of 60° equilateral prism
-      const apexAngle = Math.PI / 3;
-      // Angle of incidence with respect to the first prism facet
-      const face1Normal = new THREE.Vector3(-Math.sin(prismRotationY + apexAngle * 0.5), 0, Math.cos(prismRotationY + apexAngle * 0.5));
-      const r1 = OpticalPhysics.refractRay(inDir, face1Normal, 1.0, n);
+      // 1. Refract into glass at Face 1
+      const r1 = OpticalPhysics.refractRay(inDir, N1, 1.0, n);
+      const dirInside = r1.outDirection;
 
-      // Path inside prism: length approx ~0.08m
-      const pEnter = apexPos.clone().add(new THREE.Vector3(-0.02, 0, -prismSide * 0.25));
-      const pExit = pEnter.clone().add(r1.outDirection.clone().multiplyScalar(0.065));
+      // 2. Intersect Face 2 plane (passing through A with normal N2)
+      const denom = dirInside.dot(N2);
+      const tExit = Math.abs(denom) > 1e-5
+        ? (new THREE.Vector3(Ax - pEnter.x, 0, Az - pEnter.z).dot(N2)) / denom
+        : 0.045;
 
-      // Second face normal
-      const face2Normal = new THREE.Vector3(Math.sin(prismRotationY - apexAngle * 0.5), 0, Math.cos(prismRotationY - apexAngle * 0.5));
-      const r2 = OpticalPhysics.refractRay(r1.outDirection, face2Normal, n, 1.0);
+      const pExit = pEnter.clone().add(dirInside.clone().multiplyScalar(Math.max(0.01, tExit)));
+      pExit.y = apexPos.y;
 
-      // Path to screen (approx 0.55m away)
-      const pScreen = pExit.clone().add(r2.outDirection.clone().multiplyScalar(0.52));
+      // 3. Refract out of glass into air at Face 2
+      const r2 = OpticalPhysics.refractRay(dirInside, N2, n, 1.0);
+      const dirOut = r2.totalInternalReflection ? dirInside : r2.outDirection;
+
+      // 4. Intersect Detector Screen at screenZ
+      const distZ = screenZ - pExit.z;
+      const tScreen = dirOut.z > 1e-4 ? distZ / dirOut.z : 0.45;
+      const pScreen = pExit.clone().add(dirOut.clone().multiplyScalar(Math.max(0.05, tScreen)));
+      pScreen.z = screenZ;
+      pScreen.y = apexPos.y;
 
       rays.push({
         wavelengthNm: spec.wl,
         color,
         refractiveIndex: n,
-        deviationAngleRad: inDir.angleTo(r2.outDirection),
-        points: [incomingPos.clone(), pEnter, pExit, pScreen],
+        deviationAngleRad: inDir.angleTo(dirOut),
+        points: [incomingPos.clone(), pEnter.clone(), pExit, pScreen],
       });
     }
 

@@ -9,6 +9,8 @@ export class PlayerController {
     backward: false,
     left: false,
     right: false,
+    up: false,
+    down: false,
     sprint: false,
   };
 
@@ -20,9 +22,12 @@ export class PlayerController {
   public velocity = new THREE.Vector3();
   public direction = new THREE.Vector3();
   public moveSpeed = 3.8;
+  public verticalSpeed = 3.0;
   public sprintMultiplier = 1.7;
   public damping = 9.0;
-  public eyeHeight = 1.42;
+  public eyeHeight = 1.38;
+  public minHeight = 0.3;
+  public maxHeight = 4.0;
 
   public roomRadius = 7.6;
   public tableRadius = 2.25;
@@ -85,6 +90,8 @@ export class PlayerController {
     this.keys.backward = false;
     this.keys.left = false;
     this.keys.right = false;
+    this.keys.up = false;
+    this.keys.down = false;
     this.keys.sprint = false;
   }
 
@@ -156,12 +163,21 @@ export class PlayerController {
       }
     });
 
+    window.addEventListener('blur', () => {
+      this.resetKeys();
+    });
+
     window.addEventListener('keydown', (e) => this.onKey(e, true));
     window.addEventListener('keyup', (e) => this.onKey(e, false));
   }
 
-  private onKey(event: KeyboardEvent, isDown: boolean): void {
+  public onKey(event: KeyboardEvent, isDown: boolean): void {
     if (!this.enabled) return;
+    const target = event.target as HTMLElement | null;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      return;
+    }
+
     switch (event.code) {
       case 'KeyW':
       case 'ArrowUp':
@@ -179,9 +195,25 @@ export class PlayerController {
       case 'ArrowRight':
         this.keys.right = isDown;
         break;
+      case 'Space':
+        this.keys.up = isDown;
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+        break;
       case 'ShiftLeft':
       case 'ShiftRight':
-        this.keys.sprint = isDown;
+        this.keys.down = isDown;
+        break;
+      default:
+        if (event.key === ' ' || event.key === 'Spacebar') {
+          this.keys.up = isDown;
+          if (event.cancelable) {
+            event.preventDefault();
+          }
+        } else if (event.key === 'Shift') {
+          this.keys.down = isDown;
+        }
         break;
     }
   }
@@ -196,6 +228,7 @@ export class PlayerController {
     const dt = Math.min(delta, 0.1);
 
     this.velocity.x -= this.velocity.x * this.damping * dt;
+    this.velocity.y -= this.velocity.y * this.damping * dt;
     this.velocity.z -= this.velocity.z * this.damping * dt;
 
     const forwardX = -Math.sin(this.yaw);
@@ -229,7 +262,18 @@ export class PlayerController {
       this.velocity.z += this.direction.z * speed * this.damping * dt;
     }
 
+    // Vertical elevation movement (Space = ascend, Shift = descend)
+    let dirY = 0;
+    if (this.keys.up) dirY += 1;
+    if (this.keys.down) dirY -= 1;
+
+    if (dirY !== 0) {
+      const vSpeed = this.verticalSpeed * (this.keys.sprint ? this.sprintMultiplier : 1.0);
+      this.velocity.y += dirY * vSpeed * this.damping * dt;
+    }
+
     let newX = this.camera.position.x + this.velocity.x * dt;
+    let newY = this.camera.position.y + this.velocity.y * dt;
     let newZ = this.camera.position.z + this.velocity.z * dt;
 
     // Boundary constraints
@@ -247,8 +291,18 @@ export class PlayerController {
       newZ = this.tableCenter.y + Math.sin(angle) * this.tableRadius;
     }
 
+    // Vertical boundary constraints
+    if (newY < this.minHeight) {
+      newY = this.minHeight;
+      if (this.velocity.y < 0) this.velocity.y = 0;
+    } else if (newY > this.maxHeight) {
+      newY = this.maxHeight;
+      if (this.velocity.y > 0) this.velocity.y = 0;
+    }
+
     this.camera.position.x = newX;
+    this.camera.position.y = newY;
     this.camera.position.z = newZ;
-    this.camera.position.y = this.eyeHeight;
+    this.eyeHeight = newY;
   }
 }

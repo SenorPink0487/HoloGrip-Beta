@@ -16,6 +16,7 @@ export class PolarizerMesh {
     this.label = label;
     this.angleDeg = initialAngle;
     this.group.name = `PolarizerMesh_${label}`;
+    this.group.userData = { isPolarizer: true, polarizer: this };
     this.createMount();
     this.createRotatableRing();
     this.setAngleDeg(initialAngle);
@@ -110,14 +111,25 @@ export class PolarizerMesh {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.14, 24), postMat);
     post.position.y = 0.07;
     post.castShadow = true;
+    post.userData = { isPolarizer: true, polarizer: this };
     this.group.add(post);
 
-    // 2. Annular Stator Bracket (Outer ring, inner aperture Ø50mm)
-    const statorGeo = new THREE.CylinderGeometry(0.046, 0.046, 0.016, 48);
+    // 2. Annular Stator Bracket (Outer ring Ø92mm, inner aperture Ø76mm)
+    const statorShape = new THREE.Shape();
+    statorShape.absarc(0, 0, 0.046, 0, Math.PI * 2, false);
+    const holePath = new THREE.Path();
+    holePath.absarc(0, 0, 0.038, 0, Math.PI * 2, true);
+    statorShape.holes.push(holePath);
+
+    const statorGeo = new THREE.ExtrudeGeometry(statorShape, {
+      depth: 0.016,
+      bevelEnabled: false,
+    });
+    statorGeo.center();
     const stator = new THREE.Mesh(statorGeo, frameMat);
-    stator.rotation.x = Math.PI * 0.5;
     stator.position.y = 0.186;
     stator.castShadow = true;
+    stator.userData = { isPolarizerRotor: true, polarizer: this };
     this.group.add(stator);
 
     // 3. Stator top lock screw
@@ -145,6 +157,7 @@ export class PolarizerMesh {
     // 1. Rotor ring with knurled finger rim
     const rotorGeo = new THREE.TorusGeometry(0.036, 0.004, 16, 48);
     const rotor = new THREE.Mesh(rotorGeo, brassMat);
+    rotor.userData = { isPolarizerRotor: true, polarizer: this };
     this.rotatableRing.add(rotor);
 
     // 2. Dial face plate with 360 degree scale
@@ -157,6 +170,7 @@ export class PolarizerMesh {
     });
     const dialPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.076, 0.076), dialMat);
     dialPlane.position.z = 0.005;
+    dialPlane.userData = { isPolarizerRotor: true, polarizer: this };
     this.rotatableRing.add(dialPlane);
 
     // 3. Polarizing film disc (PVA dichroic crystal sheet)
@@ -173,6 +187,7 @@ export class PolarizerMesh {
     });
     const filmDisc = new THREE.Mesh(new THREE.CircleGeometry(0.026, 36), this.filmMat);
     filmDisc.position.z = 0.001;
+    filmDisc.userData = { isPolarizerRotor: true, polarizer: this };
     this.rotatableRing.add(filmDisc);
 
     // 4. Transmission polarization axis indicator needle
@@ -192,13 +207,25 @@ export class PolarizerMesh {
     arrowBottom.rotation.z = Math.PI;
     this.rotatableRing.add(arrowBottom);
 
+    this.rotatableRing.name = 'PolarizerRotor';
+    this.rotatableRing.userData = { isPolarizerRotor: true, polarizer: this };
     this.group.add(this.rotatableRing);
   }
 
   public setAngleDeg(deg: number): void {
-    this.angleDeg = deg;
-    const rad = THREE.MathUtils.degToRad(deg);
+    this.angleDeg = ((deg % 360) + 360) % 360;
+    const rad = THREE.MathUtils.degToRad(this.angleDeg);
     this.rotatableRing.rotation.z = rad;
+  }
+
+  public rotateBy(deltaDeg: number): number {
+    this.setAngleDeg(this.angleDeg + deltaDeg);
+    return this.angleDeg;
+  }
+
+  public toggleWavePlate(): boolean {
+    this.toggleQuarterWavePlate(!this.hasWavePlate);
+    return this.hasWavePlate;
   }
 
   public toggleQuarterWavePlate(enabled: boolean): void {
@@ -215,6 +242,8 @@ export class PolarizerMesh {
       });
       this.wavePlateMesh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.003), plateMat);
       this.wavePlateMesh.position.set(0, 0, 0.012);
+      this.wavePlateMesh.name = 'QuarterWavePlate';
+      this.wavePlateMesh.userData = { isWavePlate: true, polarizer: this };
       this.rotatableRing.add(this.wavePlateMesh);
     } else if (this.wavePlateMesh) {
       this.wavePlateMesh.visible = enabled;

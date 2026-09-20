@@ -9,6 +9,7 @@ import { PolarizerMesh } from '../../../scene/optics/PolarizerMesh.ts';
 import { DetectorScreenMesh } from '../../../scene/optics/DetectorScreenMesh.ts';
 import { OpticalBeamSystem } from '../../../scene/optics/OpticalBeamSystem.ts';
 import { OpticalPhysics } from '../../../scene/optics/OpticalPhysics.ts';
+import { OpticsInteractionManager } from '../../../scene/optics/OpticsInteractionManager.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 import type {
@@ -40,6 +41,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
   private pol1Saddle: THREE.Group;
   private pol2Saddle: THREE.Group;
   private screenSaddle: THREE.Group;
+  private interactionManager: OpticsInteractionManager;
 
   // Experiment State
   private currentMode: 'interference' | 'propagation' | 'diffraction' | 'polarization' = 'interference';
@@ -64,6 +66,9 @@ export default class OpticsLabExperiment extends BaseExperiment {
 
   private isWorkerDispBusy = false;
   private workerRays: WorkerDispersionRayData[] = [];
+  private lastDispersionStateHash = '';
+  private lastDiffractionStateHash = '';
+  private lastPolStateHash = '';
 
   public init(context: ExperimentContext): void {
     // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
@@ -129,24 +134,112 @@ export default class OpticsLabExperiment extends BaseExperiment {
     this.rootGroup.add(this.beamSystem.group);
     this.addDisposable(() => this.beamSystem.dispose());
 
+    // 9. Optics Interaction Manager (Saddles, Rotors, Micrometer, Power & Calibration)
+    this.interactionManager = new OpticsInteractionManager({
+      rootGroup: this.rootGroup,
+      rail: this.rail,
+      laser: this.laser,
+      laserSaddle: this.laserSaddle,
+      slitFixture: this.slitFixture,
+      slitSaddle: this.centerSaddle,
+      rotaryStage: this.rotaryStage,
+      prism: this.prism,
+      prismSaddle: this.centerSaddle,
+      polarizer1: this.polarizer1,
+      pol1Saddle: this.pol1Saddle,
+      analyzer2: this.analyzer2,
+      pol2Saddle: this.pol2Saddle,
+      detectorScreen: this.detectorScreen,
+      screenSaddle: this.screenSaddle,
+      beamSystem: this.beamSystem,
+
+      onLaserChange: (_isOn, wavelengthNm) => {
+        this.wavelength = wavelengthNm;
+        this.laser.updateWavelength(this.wavelength);
+        this.beamSystem.updateWavelength(this.wavelength);
+        context.setParameter('wavelength', this.wavelength);
+      },
+      onPolarizerChange: (id, angleDeg) => {
+        if (id === 'p1') {
+          this.pol1Angle = angleDeg;
+          context.setParameter('polarizerAngle', this.pol1Angle);
+        } else {
+          this.pol2Angle = angleDeg;
+          context.setParameter('analyzerAngle', this.pol2Angle);
+        }
+      },
+      onPrismChange: (angleDeg) => {
+        this.prismAngle = angleDeg;
+        context.setParameter('prismAngle', this.prismAngle);
+      },
+      onSlitChange: (slitType, distanceMm, widthMm, gratingDensity) => {
+        this.slitDistance = distanceMm;
+        this.slitWidth = widthMm;
+        this.gratingLinesPerMm = gratingDensity;
+        context.setParameter('slitDistance', this.slitDistance);
+        context.setParameter('slitWidth', this.slitWidth);
+        context.setParameter('gratingDensity', this.gratingLinesPerMm);
+      },
+    });
+
     // Apply initial mode configuration
     this.applyMode(this.currentMode, context);
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
-    // Optical axis is at y = 0.186
-    const startPos = new THREE.Vector3(0, 0.186, -0.40);
-    const endPos = new THREE.Vector3(0, 0.186, 0.474);
+    // Optical axis is at y = 0.186, dynamically tracked across carrier saddles
+    const startPos = new THREE.Vector3(0, 0.186, this.laserSaddle.position.z + 0.123);
+    const endPos = new THREE.Vector3(0, 0.186, this.screenSaddle.position.z - 0.006);
+    const centerPos = new THREE.Vector3(0, 0.186, this.centerSaddle.position.z - 0.008);
+    const screenDistM = Math.max(0.08, this.screenSaddle.position.z - this.centerSaddle.position.z);
+
+    // If laser power switch is OFF, extinguish beam and detector radiometer
+    if (!this.laser.isOn) {
+      this.lastDispersionStateHash = '';
+      this.lastDiffractionStateHash = '';
+      this.lastPolStateHash = '';
+      this.beamSystem.setIntensity(0);
+      this.beamSystem.clearDispersionRays();
+      this.beamSystem.clearWavefronts();
+      this.beamSystem.clearDiffractionFan();
+      this.beamSystem.clearGratingOrders();
+      this.beamSystem.clearWaveVectors();
+      this.detectorScreen.renderFringesPattern({
+        mode: this.currentMode === 'polarization' ? 'polarization' : (this.currentMode === 'propagation' ? 'spectrum' : (this.slitFixture.slitType === 'grating' ? 'grating' : 'double_slit')),
+        wavelengthNm: this.wavelength,
+        intensity: 0,
+        screenDistanceM: screenDistM,
+        slitDistanceMm: this.slitDistance,
+        slitWidthMm: this.slitWidth,
+        gratingLinesPerMm: this.gratingLinesPerMm,
+      });
+      this.detectorScreen.updateMeter({
+        intensityRatio: 0,
+        wavelengthNm: this.wavelength,
+        fringeSpacingMm: 0,
+      });
+      return;
+    }
 
     if (this.currentMode === 'propagation') {
-      // Mandatory Multi-Core Worker prism dispersion offload
-      this.dispatchWorkerDispersion(context);
+      this.beamSystem.clearWavefronts();
+      this.beamSystem.clearDiffractionFan();
+      this.beamSystem.clearGratingOrders();
+      this.beamSystem.clearWaveVectors();
+
+      // Multi-Core Worker prism dispersion offload with dirty state check
+      const screenZ = this.screenSaddle.position.z - 0.006;
+      const dispHash = `${this.centerSaddle.position.z.toFixed(4)}_${this.laserSaddle.position.z.toFixed(4)}_${this.prismAngle.toFixed(2)}_${this.prism.refractiveIndex.toFixed(4)}_${screenZ.toFixed(4)}`;
+      if (dispHash !== this.lastDispersionStateHash) {
+        this.lastDispersionStateHash = dispHash;
+        this.dispatchWorkerDispersion(context);
+      }
 
       this.detectorScreen.renderFringesPattern({
         mode: 'spectrum',
         wavelengthNm: this.wavelength,
         intensity: 1.0,
-        screenDistanceM: 0.5,
+        screenDistanceM: screenDistM,
       });
 
       this.detectorScreen.updateMeter({
@@ -155,25 +248,44 @@ export default class OpticsLabExperiment extends BaseExperiment {
       });
     } else if (this.currentMode === 'interference') {
       this.beamSystem.clearDispersionRays();
-      this.beamSystem.updateStraightBeam(startPos, endPos);
+      this.beamSystem.clearWaveVectors();
+      this.beamSystem.clearGratingOrders();
+      this.beamSystem.setIntensity(1.0);
 
-      // Render 3D spatial cylindrical wavefront ripples
+      // 1. Incoming beam stops at the slit plate
+      this.beamSystem.updateSegmentedBeam([{ start: startPos, end: centerPos, intensity: 1.0 }]);
+
+      // 2. Render 3D spatial coherent wavefront ripples expanding towards screen in +Z
       if (this.show3DWave) {
-        this.beamSystem.updateDoubleSlitWavefronts(-0.02, this.slitDistance, elapsed);
+        this.beamSystem.updateDoubleSlitWavefronts(
+          this.centerSaddle.position.z,
+          this.slitDistance,
+          elapsed,
+          this.screenSaddle.position.z
+        );
+        this.beamSystem.updateDiffractionFan(
+          this.centerSaddle.position.z,
+          this.screenSaddle.position.z,
+          0.045
+        );
       } else {
         this.beamSystem.clearWavefronts();
+        this.beamSystem.clearDiffractionFan();
       }
 
       // Compute physical fringe spacing: Delta x = lambda * L / d
-      const screenDistM = 0.5;
       const fringeSpacingM = OpticalPhysics.calculateDoubleSlitFringeSpacing(
         this.wavelength,
         this.slitDistance,
         screenDistM
       );
 
-      // Mandatory Multi-Core Worker physics computation
-      this.dispatchWorkerComputation(context, 2);
+      // Multi-Core Worker physics computation with state hash dirty checking
+      const diffHash = `inter_${this.wavelength}_${this.slitDistance.toFixed(3)}_${this.slitWidth.toFixed(3)}_${screenDistM.toFixed(3)}`;
+      if (diffHash !== this.lastDiffractionStateHash) {
+        this.lastDiffractionStateHash = diffHash;
+        this.dispatchWorkerComputation(context, 2, screenDistM);
+      }
 
       if (this.hasWorkerResult) {
         this.detectorScreen.renderFringesFromBuffer(this.workerIntensityBuffer, this.wavelength, 1.0);
@@ -195,15 +307,44 @@ export default class OpticsLabExperiment extends BaseExperiment {
       });
     } else if (this.currentMode === 'diffraction') {
       this.beamSystem.clearDispersionRays();
-      this.beamSystem.clearWavefronts();
-      this.beamSystem.updateStraightBeam(startPos, endPos);
+      this.beamSystem.clearWaveVectors();
+      this.beamSystem.setIntensity(1.0);
 
-      const screenDistM = 0.5;
+      // 1. Incoming beam stops at aperture
+      this.beamSystem.updateSegmentedBeam([{ start: startPos, end: centerPos, intensity: 1.0 }]);
+
       const isGrating = this.slitFixture.slitType === 'grating';
       const slitCount = isGrating ? 8 : (this.slitFixture.slitType === 'double' ? 2 : 1);
 
-      // Mandatory Multi-Core Worker physics computation
-      this.dispatchWorkerComputation(context, slitCount);
+      if (isGrating) {
+        this.beamSystem.clearWavefronts();
+        this.beamSystem.clearDiffractionFan();
+        this.beamSystem.updateGratingOrders(
+          this.centerSaddle.position.z,
+          this.screenSaddle.position.z,
+          this.gratingLinesPerMm
+        );
+      } else {
+        this.beamSystem.clearGratingOrders();
+        this.beamSystem.updateSingleSlitWavefronts(
+          this.centerSaddle.position.z,
+          this.slitWidth,
+          elapsed,
+          this.screenSaddle.position.z
+        );
+        this.beamSystem.updateDiffractionFan(
+          this.centerSaddle.position.z,
+          this.screenSaddle.position.z,
+          0.038
+        );
+      }
+
+      // Multi-Core Worker physics computation with state hash dirty checking
+      const diffHash = `diff_${this.wavelength}_${this.slitDistance.toFixed(3)}_${this.slitWidth.toFixed(3)}_${screenDistM.toFixed(3)}_${slitCount}_${this.gratingLinesPerMm}`;
+      if (diffHash !== this.lastDiffractionStateHash) {
+        this.lastDiffractionStateHash = diffHash;
+        this.dispatchWorkerComputation(context, slitCount, screenDistM);
+      }
 
       if (isGrating) {
         this.detectorScreen.renderFringesPattern({
@@ -234,12 +375,26 @@ export default class OpticsLabExperiment extends BaseExperiment {
     } else if (this.currentMode === 'polarization') {
       this.beamSystem.clearDispersionRays();
       this.beamSystem.clearWavefronts();
+      this.beamSystem.clearDiffractionFan();
+      this.beamSystem.clearGratingOrders();
 
-      this.beamSystem.setIntensity(this.lastMalusIntensity);
-      this.beamSystem.updateStraightBeam(startPos, endPos);
+      const p1Pos = new THREE.Vector3(0, 0.186, this.pol1Saddle.position.z);
+      const p2Pos = new THREE.Vector3(0, 0.186, this.pol2Saddle.position.z);
 
-      // Mandatory Multi-Core Worker polarization physics offload
-      this.dispatchWorkerPolarization(context, elapsed);
+      this.beamSystem.setIntensity(1.0);
+      // Segmented beam: Laser -> P1 (1.0), P1 -> P2 (1.0), P2 -> Screen (Malus)
+      this.beamSystem.updateSegmentedBeam([
+        { start: startPos, end: p1Pos, intensity: 1.0 },
+        { start: p1Pos, end: p2Pos, intensity: 1.0 },
+        { start: p2Pos, end: endPos, intensity: this.lastMalusIntensity },
+      ]);
+
+      // Multi-Core Worker polarization physics offload (continuous when 3D wave is animated, state-hashed when wave is static)
+      const polHash = `${this.pol1Angle.toFixed(1)}_${this.pol2Angle.toFixed(1)}_${this.analyzer2.hasWavePlate}_${this.wavelength}`;
+      if (this.show3DWave || polHash !== this.lastPolStateHash) {
+        this.lastPolStateHash = polHash;
+        this.dispatchWorkerPolarization(context, elapsed);
+      }
 
       if (!this.show3DWave) {
         this.beamSystem.clearWaveVectors();
@@ -268,12 +423,17 @@ export default class OpticsLabExperiment extends BaseExperiment {
     this.isWorkerDispBusy = true;
 
     try {
+      const incomingPos: [number, number, number] = [0, 0.186, this.laserSaddle.position.z + 0.123];
+      const apexPos: [number, number, number] = [0, 0.186, this.centerSaddle.position.z];
+      const screenZ = this.screenSaddle.position.z - 0.006;
+
       if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalDispersion === 'function') {
         const resp = await (context.computeBridge as any).simulateOpticalDispersion({
-          apexPos: [0, 0.186, -0.02],
+          apexPos,
           prismRotationY: THREE.MathUtils.degToRad(this.prismAngle),
           baseIndex: this.prism.refractiveIndex,
-          incomingPos: [0, 0.186, -0.40],
+          incomingPos,
+          screenZ,
         });
         if (resp && resp.rays) {
           this.workerRays = resp.rays;
@@ -282,10 +442,11 @@ export default class OpticsLabExperiment extends BaseExperiment {
       } else if (context.workerPool && context.workerPool.size > 0) {
         const resp = await context.workerPool.execute<OpticalDispersionStepResponse>({
           action: 'OPTICAL_DISPERSION_STEP',
-          apexPos: [0, 0.186, -0.02],
+          apexPos,
           prismRotationY: THREE.MathUtils.degToRad(this.prismAngle),
           baseIndex: this.prism.refractiveIndex,
-          incomingPos: [0, 0.186, -0.40],
+          incomingPos,
+          screenZ,
         });
         if (resp && resp.rays) {
           this.workerRays = resp.rays;
@@ -293,12 +454,13 @@ export default class OpticsLabExperiment extends BaseExperiment {
         }
       } else {
         // Node / unit test fallback
-        const prismWorldPos = new THREE.Vector3(0, 0.186, -0.02);
+        const prismWorldPos = new THREE.Vector3(apexPos[0], apexPos[1], apexPos[2]);
         const rays = OpticalPhysics.calculatePrismDispersionRays(
           prismWorldPos,
           THREE.MathUtils.degToRad(this.prismAngle),
           this.prism.refractiveIndex,
-          new THREE.Vector3(0, 0.186, -0.40)
+          new THREE.Vector3(incomingPos[0], incomingPos[1], incomingPos[2]),
+          screenZ
         );
         this.beamSystem.updateDispersionRays(rays);
       }
@@ -317,6 +479,11 @@ export default class OpticsLabExperiment extends BaseExperiment {
     this.isWorkerPolBusy = true;
 
     try {
+      const startZ = this.laserSaddle.position.z + 0.123;
+      const endZ = this.screenSaddle.position.z - 0.006;
+      const polZ = this.pol1Saddle.position.z;
+      const anaZ = this.pol2Saddle.position.z;
+
       if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalPolarization === 'function') {
         const resp = await (context.computeBridge as any).simulateOpticalPolarization({
           positions: this.workerPositions,
@@ -325,10 +492,10 @@ export default class OpticsLabExperiment extends BaseExperiment {
           analyzerAngleDeg: this.pol2Angle,
           hasQuarterWavePlate: this.analyzer2.hasWavePlate,
           wavelengthNm: this.wavelength,
-          startZ: -0.40,
-          endZ: 0.474,
-          polarizerZ: -0.22,
-          analyzerZ: 0.18,
+          startZ,
+          endZ,
+          polarizerZ: polZ,
+          analyzerZ: anaZ,
           numSamples: 60,
           time: elapsed,
         });
@@ -350,10 +517,10 @@ export default class OpticsLabExperiment extends BaseExperiment {
             analyzerAngleDeg: this.pol2Angle,
             hasQuarterWavePlate: this.analyzer2.hasWavePlate,
             wavelengthNm: this.wavelength,
-            startZ: -0.40,
-            endZ: 0.474,
-            polarizerZ: -0.22,
-            analyzerZ: 0.18,
+            startZ,
+            endZ,
+            polarizerZ: polZ,
+            analyzerZ: anaZ,
             numSamples: 60,
             time: elapsed,
           },
@@ -381,7 +548,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
   /**
    * Mandatory offload of interference/diffraction physics to Multi-Core WorkerPool via ComputeBridge
    */
-  private async dispatchWorkerComputation(context: ExperimentContext, slitCount: number): Promise<void> {
+  private async dispatchWorkerComputation(context: ExperimentContext, slitCount: number, screenDistM: number): Promise<void> {
     if (this.isWorkerBusy) return;
     this.isWorkerBusy = true;
 
@@ -392,7 +559,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
           wavelengthNm: this.wavelength,
           slitWidthMm: this.slitWidth,
           slitDistanceMm: this.slitDistance,
-          screenDistanceM: 0.5,
+          screenDistanceM: screenDistM,
           screenSpanMm: 80.0,
           slitCount,
           gratingLinesPerMm: this.gratingLinesPerMm,
@@ -409,7 +576,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
             wavelengthNm: this.wavelength,
             slitWidthMm: this.slitWidth,
             slitDistanceMm: this.slitDistance,
-            screenDistanceM: 0.5,
+            screenDistanceM: screenDistM,
             screenSpanMm: 80.0,
             slitCount,
             gratingLinesPerMm: this.gratingLinesPerMm,
@@ -439,6 +606,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
     // Toggle component visibility
     this.rotaryStage.group.visible = isProp;
     this.slitFixture.group.visible = isInter || isDiff;
+    this.centerSaddle.visible = isProp || isInter || isDiff;
     this.polarizer1.group.visible = isPol;
     this.analyzer2.group.visible = isPol;
     this.pol1Saddle.visible = isPol;
@@ -458,12 +626,16 @@ export default class OpticsLabExperiment extends BaseExperiment {
       });
     }
 
+    this.beamSystem.setWhiteLight(isProp);
+
     if (!isProp) {
       this.beamSystem.clearDispersionRays();
+      this.lastDispersionStateHash = '';
     }
     if (!isPol) {
       this.beamSystem.clearWaveVectors();
       this.beamSystem.setIntensity(1.0);
+      this.lastPolStateHash = '';
     }
     if (!isInter) {
       this.beamSystem.clearWavefronts();
@@ -500,65 +672,19 @@ export default class OpticsLabExperiment extends BaseExperiment {
     }
   }
 
-  public onPointerDown(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean {
-    if (!hit) return false;
+  public override onPointerDown(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean {
+    return this.interactionManager?.onPointerDown(event, hit, context) ?? false;
+  }
 
-    let obj: THREE.Object3D | null = hit.object;
-    let clickedLaser = false;
-    let clickedPrism = false;
-    let clickedPol1 = false;
-    let clickedPol2 = false;
-    let clickedSlits = false;
+  public override onPointerMove(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void {
+    this.interactionManager?.onPointerMove(event, hit, context);
+  }
 
-    while (obj && obj !== this.rootGroup) {
-      if (obj === this.laser.group) { clickedLaser = true; break; }
-      if (obj === this.rotaryStage.group || obj === this.prism.group) { clickedPrism = true; break; }
-      if (obj === this.polarizer1.group) { clickedPol1 = true; break; }
-      if (obj === this.analyzer2.group) { clickedPol2 = true; break; }
-      if (obj === this.slitFixture.group) { clickedSlits = true; break; }
-      obj = obj.parent;
-    }
+  public override onPointerUp(event: PointerEvent, context: ExperimentContext): void {
+    this.interactionManager?.onPointerUp(event, context);
+  }
 
-    if (clickedLaser) {
-      // Cycle laser wavelengths: Red (632.8) -> Green (532) -> Violet (405)
-      const wlList = [632.8, 532.0, 405.0];
-      const curIdx = wlList.indexOf(this.wavelength);
-      const nextIdx = curIdx >= 0 ? (curIdx + 1) % wlList.length : 0;
-      this.wavelength = wlList[nextIdx];
-      this.laser.updateWavelength(this.wavelength);
-      this.beamSystem.updateWavelength(this.wavelength);
-      context.setParameter('wavelength', this.wavelength);
-      return true;
-    }
-
-    if (clickedPol1) {
-      this.pol1Angle = (this.pol1Angle + 15) % 360;
-      this.polarizer1.setAngleDeg(this.pol1Angle);
-      context.setParameter('polarizerAngle', this.pol1Angle);
-      return true;
-    }
-
-    if (clickedPol2) {
-      this.pol2Angle = (this.pol2Angle + 15) % 360;
-      this.analyzer2.setAngleDeg(this.pol2Angle);
-      context.setParameter('analyzerAngle', this.pol2Angle);
-      return true;
-    }
-
-    if (clickedPrism) {
-      this.prismAngle = (this.prismAngle + 5) > 30 ? -30 : this.prismAngle + 5;
-      this.rotaryStage.setRotationAngleDeg(this.prismAngle);
-      context.setParameter('prismAngle', this.prismAngle);
-      return true;
-    }
-
-    if (clickedSlits) {
-      this.slitDistance = this.slitDistance >= 0.45 ? 0.15 : Math.round((this.slitDistance + 0.1) * 100) / 100;
-      this.slitFixture.setParameters({ slitDistanceMm: this.slitDistance });
-      context.setParameter('slitDistance', this.slitDistance);
-      return true;
-    }
-
-    return false;
+  public override getHoverTarget(raycaster: THREE.Raycaster) {
+    return this.interactionManager?.getHoverTarget(raycaster) ?? null;
   }
 }

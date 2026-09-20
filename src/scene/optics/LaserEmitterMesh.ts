@@ -11,12 +11,14 @@ export class LaserEmitterMesh {
   private ledMesh: THREE.Mesh;
   private ledMat: THREE.MeshBasicMaterial;
   private warningTexture: THREE.CanvasTexture | null = null;
-  private toggleSwitch: THREE.Mesh;
+  public toggleSwitch: THREE.Mesh;
+  public mainBarrel: THREE.Mesh;
   public isOn = true;
 
   constructor(wavelength = 632.8) {
     this.wavelengthNm = wavelength;
     this.group.name = 'LaserEmitterMesh';
+    this.group.userData = { isLaserBarrel: true, laser: this };
     this.createLaserAssembly();
     this.updateWavelength(wavelength);
   }
@@ -79,6 +81,7 @@ export class LaserEmitterMesh {
     const post = new THREE.Mesh(postGeo, brushedSilverMat);
     post.position.y = postHeight * 0.5;
     post.castShadow = true;
+    post.userData = { isLaserBarrel: true, laser: this };
     this.group.add(post);
 
     // 2. Kinematic gimbal mounting block on top of post
@@ -86,6 +89,7 @@ export class LaserEmitterMesh {
     const gimbal = new THREE.Mesh(gimbalGeo, darkAnodizedMat);
     gimbal.position.y = postHeight + 0.016;
     gimbal.castShadow = true;
+    gimbal.userData = { isLaserBarrel: true, laser: this };
     this.group.add(gimbal);
 
     // Gimbal brass micrometer screws for pitch and yaw fine tuning
@@ -109,6 +113,9 @@ export class LaserEmitterMesh {
     const mainBarrel = new THREE.Mesh(mainBarrelGeo, darkAnodizedMat);
     mainBarrel.rotation.x = Math.PI * 0.5;
     mainBarrel.castShadow = true;
+    mainBarrel.name = 'LaserBarrel';
+    mainBarrel.userData = { isLaserBarrel: true, laser: this };
+    this.mainBarrel = mainBarrel;
     barrelGroup.add(mainBarrel);
 
     // Lathed heat-sink cooling fins (6 radial grooves)
@@ -148,17 +155,21 @@ export class LaserEmitterMesh {
     const rearCap = new THREE.Mesh(rearCapGeo, brushedSilverMat);
     rearCap.rotation.x = Math.PI * 0.5;
     rearCap.position.z = -0.082;
+    rearCap.userData = { isLaserSwitch: true, laser: this };
     barrelGroup.add(rearCap);
 
     // Metal toggle switch
     const toggleBase = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.005, 16), brassMat);
     toggleBase.rotation.x = Math.PI * 0.5;
     toggleBase.position.set(-0.008, 0, -0.093);
+    toggleBase.userData = { isLaserSwitch: true, laser: this };
     barrelGroup.add(toggleBase);
 
     const toggleLever = new THREE.Mesh(new THREE.CylinderGeometry(0.0015, 0.002, 0.012, 16), brushedSilverMat);
     toggleLever.position.set(-0.008, 0.004, -0.098);
     toggleLever.rotation.x = 0.4;
+    toggleLever.name = 'LaserSwitch';
+    toggleLever.userData = { isLaserSwitch: true, laser: this };
     this.toggleSwitch = toggleLever;
     barrelGroup.add(toggleLever);
 
@@ -196,6 +207,19 @@ export class LaserEmitterMesh {
     this.isOn = on;
     this.ledLight.intensity = on ? 0.4 : 0.0;
     this.toggleSwitch.rotation.x = on ? 0.4 : -0.4;
+  }
+
+  public togglePower(): boolean {
+    this.setPower(!this.isOn);
+    return this.isOn;
+  }
+
+  public cycleWavelength(): number {
+    const list = [632.8, 532.0, 405.0, 589.0];
+    const idx = list.indexOf(this.wavelengthNm);
+    const next = idx >= 0 ? list[(idx + 1) % list.length] : 632.8;
+    this.updateWavelength(next);
+    return next;
   }
 
   public dispose(): void {

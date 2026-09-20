@@ -99,7 +99,8 @@ export class Engine {
   private raycaster = new THREE.Raycaster();
   private centerScreen = new THREE.Vector2(0, 0);
   private lastPointerPos: THREE.Vector2 | null = null;
-  private currentHoveredTarget: 'beaker-left' | 'beaker-right' | 'beaker' | null = null;
+  private currentHoveredTarget: string | null = null;
+  private isExperimentInteracting = false;
 
   public clock = new THREE.Clock();
   private lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -770,11 +771,14 @@ export class Engine {
       if (this.holoStage.activeExperiment?.onPointerDown) {
         this.raycaster.setFromCamera(mouseNDC, this.camera);
         const hits = this.raycaster.intersectObjects(this.holoStage.activeExperiment.rootGroup.children, true);
-        const hit = hits.length > 0 ? hits[0] : null;
-        if (hit) {
+        for (const hit of hits) {
           const handled = this.holoStage.activeExperiment.onPointerDown(e, hit, this.currentContext);
           if (handled) {
             e.stopPropagation();
+            this.isExperimentInteracting = true;
+            this.inputManager.player.enabled = false;
+            this.inputManager.player.allowPointerLock = false;
+            this.inputManager.player.exitLock();
             return;
           }
         }
@@ -789,6 +793,17 @@ export class Engine {
         (e.clientX / window.innerWidth) * 2 - 1,
         -(e.clientY / window.innerHeight) * 2 + 1
       );
+
+      if (this.isExperimentInteracting && this.holoStage.activeExperiment?.onPointerMove) {
+        const mouseNDC = new THREE.Vector2(
+          (e.clientX / window.innerWidth) * 2 - 1,
+          -(e.clientY / window.innerHeight) * 2 + 1
+        );
+        this.raycaster.setFromCamera(mouseNDC, this.camera);
+        const hits = this.raycaster.intersectObjects(this.holoStage.activeExperiment.rootGroup.children, true);
+        const hit = hits.length > 0 ? hits[0] : null;
+        this.holoStage.activeExperiment.onPointerMove(e, hit, this.currentContext);
+      }
 
       if (!this.beakerDragState) return;
 
@@ -845,6 +860,16 @@ export class Engine {
     });
 
     window.addEventListener('pointerup', (e: PointerEvent) => {
+      if (this.isExperimentInteracting) {
+        this.isExperimentInteracting = false;
+        this.holoStage.activeExperiment?.onPointerUp?.(e, this.currentContext);
+        this.inputManager.player.enabled = true;
+        this.inputManager.player.allowPointerLock = true;
+        if (this.crosshair && (!this.visionModal || !this.visionModal.visible)) {
+          this.crosshair.setVisible(true);
+        }
+      }
+
       if (!this.beakerDragState) return;
 
       const state = this.beakerDragState;
@@ -928,6 +953,21 @@ export class Engine {
       label = '右侧烧杯 · 单击选试剂 / 长按拖拽倾倒';
     } else if (targetType === 'beaker') {
       label = '烧杯 · 单击选试剂 / 长按拖拽倾倒';
+    }
+
+    // If not hovering a beaker, query active experiment for hoverable equipment
+    if (!hovered && this.holoStage.activeExperiment?.getHoverTarget) {
+      const screenPos = (!isPointerLocked && this.lastPointerPos) ? this.lastPointerPos : this.centerScreen;
+      this.raycaster.setFromCamera(screenPos, this.camera);
+      const expHover = this.holoStage.activeExperiment.getHoverTarget(this.raycaster);
+      if (expHover) {
+        this.currentHoveredTarget = expHover.id;
+        this.crosshair.setHovered(true, expHover.label);
+        if (this.renderer?.domElement) {
+          this.renderer.domElement.style.cursor = expHover.cursor || 'pointer';
+        }
+        return;
+      }
     }
 
     this.currentHoveredTarget = targetType;

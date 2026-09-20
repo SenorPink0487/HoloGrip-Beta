@@ -25,7 +25,7 @@ export class Crosshair {
   }
 
   public setHovered(hovered: boolean, label = '✦ 点击开启 VisionOS 实验视窗'): void {
-    if (this.isHovered === hovered) return;
+    if (this.isHovered === hovered && (!hovered || this.tooltipEl.textContent === label)) return;
     this.isHovered = hovered;
 
     if (hovered) {

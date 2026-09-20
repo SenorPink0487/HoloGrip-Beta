@@ -274,6 +274,7 @@ export class OpticalBenchRail {
     const base = new THREE.Mesh(baseGeo, saddleMat);
     base.position.y = this.railHeight * 0.5 + 0.011;
     base.castShadow = true;
+    base.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(base);
 
     // 2. Stainless steel optical post holder receptacle (立杆套筒)
@@ -281,6 +282,7 @@ export class OpticalBenchRail {
     const socket = new THREE.Mesh(socketGeo, steelMat);
     socket.position.set(0, this.railHeight * 0.5 + 0.038, 0);
     socket.castShadow = true;
+    socket.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(socket);
 
     // 3. Knurled brass thumbscrew for locking post
@@ -288,6 +290,7 @@ export class OpticalBenchRail {
     const thumbKnob = new THREE.Mesh(thumbKnobGeo, brassMat);
     thumbKnob.rotation.z = Math.PI * 0.5;
     thumbKnob.position.set(0.022, this.railHeight * 0.5 + 0.038, 0);
+    thumbKnob.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(thumbKnob);
 
     // 4. Rail lock screw with knurled grip on side
@@ -295,6 +298,7 @@ export class OpticalBenchRail {
     const railLock = new THREE.Mesh(railLockGeo, brassMat);
     railLock.rotation.z = Math.PI * 0.5;
     railLock.position.set(-saddleW * 0.5 - 0.006, this.railHeight * 0.5 + 0.008, 0);
+    railLock.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(railLock);
 
     // 5. Red vernier indicator with clean white background reading window
@@ -302,14 +306,17 @@ export class OpticalBenchRail {
     const backingMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const backing = new THREE.Mesh(backingGeo, backingMat);
     backing.position.set(saddleW * 0.5 + 0.001, this.railHeight * 0.5 + 0.008, 0);
+    backing.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(backing);
 
     const indicatorGeo = new THREE.BoxGeometry(0.003, 0.016, 0.002);
     const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xff2424 });
     const indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
     indicator.position.set(saddleW * 0.5 + 0.003, this.railHeight * 0.5 + 0.008, 0);
+    indicator.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(indicator);
 
+    saddleGroup.userData = { isSaddle: true, saddleName: name };
     this.sliders.push(saddleGroup);
     this.group.add(saddleGroup);
     return saddleGroup;

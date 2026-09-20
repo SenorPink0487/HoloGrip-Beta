@@ -17,6 +17,7 @@ export class SlitApertureMesh {
   constructor(type: SlitType = 'double') {
     this.slitType = type;
     this.group.name = 'SlitApertureMesh';
+    this.group.userData = { isSlitFixture: true, slitFixture: this };
     this.createMountAssembly();
     this.createSlide();
     this.updateSlideTexture();
@@ -45,11 +46,13 @@ export class SlitApertureMesh {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.14, 24), postMat);
     post.position.y = 0.07;
     post.castShadow = true;
+    post.userData = { isSlitFixture: true, slitFixture: this };
     this.group.add(post);
 
     // 2. Optical mount collar
     const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.024, 24), frameMat);
     collar.position.y = 0.14;
+    collar.userData = { isSlitFixture: true, slitFixture: this };
     this.group.add(collar);
 
     // 3. 50mm square blackened slide holder frame with center circular aperture (Ø25mm)
@@ -57,6 +60,7 @@ export class SlitApertureMesh {
     const frame = new THREE.Mesh(frameGeo, frameMat);
     frame.position.y = 0.186;
     frame.castShadow = true;
+    frame.userData = { isSlitSlide: true, slitFixture: this };
     this.group.add(frame);
 
     // Circular inner window cutout
@@ -85,6 +89,8 @@ export class SlitApertureMesh {
 
     this.micrometerDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.022, 24), brassMat);
     this.micrometerDrum.position.y = 0.016;
+    this.micrometerDrum.name = 'SlitMicrometer';
+    this.micrometerDrum.userData = { isSlitMicrometer: true, slitFixture: this };
     micrometerGroup.add(this.micrometerDrum);
 
     this.group.add(micrometerGroup);
@@ -204,7 +210,32 @@ export class SlitApertureMesh {
     });
     this.slideMesh = new THREE.Mesh(slideGeo, slideMat);
     this.slideMesh.position.set(0, 0.186, 0.0061);
+    this.slideMesh.name = 'SlitSlide';
+    this.slideMesh.userData = { isSlitSlide: true, slitFixture: this };
     this.group.add(this.slideMesh);
+  }
+
+  public cycleSlitType(): SlitType {
+    const list: SlitType[] = ['double', 'single', 'grating'];
+    const idx = list.indexOf(this.slitType);
+    const next = list[(idx + 1) % list.length];
+    this.setParameters({ type: next });
+    return next;
+  }
+
+  public adjustMicrometer(delta: number): void {
+    if (this.slitType === 'double') {
+      const nextD = Math.max(0.12, Math.min(0.55, Math.round((this.slitDistanceMm + delta * 0.02) * 100) / 100));
+      this.setParameters({ slitDistanceMm: nextD });
+    } else if (this.slitType === 'single') {
+      const nextW = Math.max(0.01, Math.min(0.12, Math.round((this.slitWidthMm + delta * 0.01) * 100) / 100));
+      this.setParameters({ slitWidthMm: nextW });
+    } else {
+      const list = [100, 300, 600];
+      const idx = list.indexOf(this.gratingLinesPerMm);
+      const next = list[(idx + 1) % list.length];
+      this.setParameters({ gratingLinesPerMm: next });
+    }
   }
 
   public setParameters(params: {

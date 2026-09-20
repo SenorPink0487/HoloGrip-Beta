@@ -16,6 +16,7 @@ export class PrismMesh {
     this.prismType = type;
     this.refractiveIndex = index;
     this.group.name = 'PrismMesh';
+    this.group.userData = { isPrism: true, prism: this };
     this.createGlassMaterial();
     this.createGeometries();
     this.setType(type);
@@ -65,6 +66,8 @@ export class PrismMesh {
     this.equilateralMesh.rotation.x = Math.PI * 0.5;
     this.equilateralMesh.position.y = prismHeight * 0.5;
     this.equilateralMesh.castShadow = true;
+    this.equilateralMesh.name = 'EquilateralPrism';
+    this.equilateralMesh.userData = { isPrism: true, prism: this };
     this.group.add(this.equilateralMesh);
 
     // 2. Semicircular cylindrical prism (radius 40mm)
@@ -81,6 +84,8 @@ export class PrismMesh {
     this.semicircularMesh.position.y = prismHeight * 0.5;
     this.semicircularMesh.castShadow = true;
     this.semicircularMesh.visible = false;
+    this.semicircularMesh.name = 'SemicircularPrism';
+    this.semicircularMesh.userData = { isPrism: true, prism: this };
     this.group.add(this.semicircularMesh);
   }
 
@@ -88,6 +93,12 @@ export class PrismMesh {
     this.prismType = type;
     this.equilateralMesh.visible = type === 'equilateral';
     this.semicircularMesh.visible = type === 'semicircular';
+  }
+
+  public toggleType(): PrismGeometryType {
+    const next = this.prismType === 'equilateral' ? 'semicircular' : 'equilateral';
+    this.setType(next);
+    return next;
   }
 
   public setRefractiveIndex(index: number): void {

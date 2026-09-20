@@ -6,6 +6,7 @@ import { SlitApertureMesh } from '../../../scene/optics/SlitApertureMesh.ts';
 import { DetectorScreenMesh } from '../../../scene/optics/DetectorScreenMesh.ts';
 import { OpticalBeamSystem } from '../../../scene/optics/OpticalBeamSystem.ts';
 import { OpticalPhysics } from '../../../scene/optics/OpticalPhysics.ts';
+import { OpticsInteractionManager } from '../../../scene/optics/OpticsInteractionManager.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 import type { OpticalDiffractionStepResponse } from '../../../workers/workerMessages.ts';
@@ -21,6 +22,11 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
   private detectorScreen: DetectorScreenMesh;
   private beamSystem: OpticalBeamSystem;
 
+  private laserSaddle: THREE.Group;
+  private slitSaddle: THREE.Group;
+  private screenSaddle: THREE.Group;
+  private interactionManager: OpticsInteractionManager;
+
   private wavelength = 632.8;
   private slitDistance = 0.25;
   private slitWidth = 0.04;
@@ -30,6 +36,7 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
   private workerIntensityBuffer: Float32Array = new Float32Array(512);
   private isWorkerBusy = false;
   private hasWorkerResult = false;
+  private lastStateHash = '';
 
   public init(context: ExperimentContext): void {
     // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
@@ -41,56 +48,122 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
     this.rootGroup.add(this.rail.group);
     this.addDisposable(() => this.rail.dispose());
 
-    const laserSaddle = this.rail.createCarrierSaddle('LaserSaddle');
-    laserSaddle.position.z = -0.52;
+    this.laserSaddle = this.rail.createCarrierSaddle('LaserSaddle');
+    this.laserSaddle.position.z = -0.52;
 
-    const slitSaddle = this.rail.createCarrierSaddle('SlitSaddle');
-    slitSaddle.position.z = -0.05;
+    this.slitSaddle = this.rail.createCarrierSaddle('SlitSaddle');
+    this.slitSaddle.position.z = -0.05;
 
-    const screenSaddle = this.rail.createCarrierSaddle('ScreenSaddle');
-    screenSaddle.position.z = 0.48;
+    this.screenSaddle = this.rail.createCarrierSaddle('ScreenSaddle');
+    this.screenSaddle.position.z = 0.48;
 
     // 2. Laser Emitter
     this.laser = this.track(new LaserEmitterMesh(this.wavelength));
-    laserSaddle.add(this.laser.group);
+    this.laserSaddle.add(this.laser.group);
     this.addDisposable(() => this.laser.dispose());
 
     // 3. Double Slit Fixture
     this.slitFixture = this.track(new SlitApertureMesh('double'));
-    slitSaddle.add(this.slitFixture.group);
+    this.slitSaddle.add(this.slitFixture.group);
     this.addDisposable(() => this.slitFixture.dispose());
 
     // 4. Observation Screen & Meter
     this.detectorScreen = this.track(new DetectorScreenMesh());
-    screenSaddle.add(this.detectorScreen.group);
+    this.screenSaddle.add(this.detectorScreen.group);
     this.addDisposable(() => this.detectorScreen.dispose());
 
     // 5. Beams
     this.beamSystem = this.track(new OpticalBeamSystem(this.wavelength));
     this.rootGroup.add(this.beamSystem.group);
     this.addDisposable(() => this.beamSystem.dispose());
+
+    // 6. Interaction Manager
+    this.interactionManager = new OpticsInteractionManager({
+      rootGroup: this.rootGroup,
+      rail: this.rail,
+      laser: this.laser,
+      laserSaddle: this.laserSaddle,
+      slitFixture: this.slitFixture,
+      slitSaddle: this.slitSaddle,
+      detectorScreen: this.detectorScreen,
+      screenSaddle: this.screenSaddle,
+      beamSystem: this.beamSystem,
+
+      onLaserChange: (_isOn, wavelengthNm) => {
+        this.wavelength = wavelengthNm;
+        this.laser.updateWavelength(this.wavelength);
+        this.beamSystem.updateWavelength(this.wavelength);
+        context.setParameter('wavelength', this.wavelength);
+      },
+      onSlitChange: (_slitType, distanceMm, widthMm) => {
+        this.slitDistance = distanceMm;
+        this.slitWidth = widthMm;
+        context.setParameter('slitDistance', this.slitDistance);
+        context.setParameter('slitWidth', this.slitWidth);
+      },
+    });
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
-    const startPos = new THREE.Vector3(0, 0.186, -0.40);
-    const endPos = new THREE.Vector3(0, 0.186, 0.474);
-    this.beamSystem.updateStraightBeam(startPos, endPos);
+    const startPos = new THREE.Vector3(0, 0.186, this.laserSaddle.position.z + 0.123);
+    const slitPos = new THREE.Vector3(0, 0.186, this.slitSaddle.position.z - 0.008);
+    const screenDistM = Math.max(0.08, this.screenSaddle.position.z - this.slitSaddle.position.z);
 
-    if (this.showWavefronts) {
-      this.beamSystem.updateDoubleSlitWavefronts(-0.05, this.slitDistance, elapsed);
-    } else {
+    if (!this.laser.isOn) {
+      this.lastStateHash = '';
+      this.beamSystem.setIntensity(0);
       this.beamSystem.clearWavefronts();
+      this.beamSystem.clearDiffractionFan();
+      this.detectorScreen.renderFringesPattern({
+        mode: 'double_slit',
+        wavelengthNm: this.wavelength,
+        intensity: 0,
+        slitDistanceMm: this.slitDistance,
+        slitWidthMm: this.slitWidth,
+        screenDistanceM: screenDistM,
+      });
+      this.detectorScreen.updateMeter({
+        intensityRatio: 0,
+        wavelengthNm: this.wavelength,
+        fringeSpacingMm: 0,
+      });
+      return;
     }
 
-    const screenDistM = 0.53;
+    this.beamSystem.setIntensity(1.0);
+    // 1. Incoming laser beam terminates at the double slit plate (does not penetrate)
+    this.beamSystem.updateSegmentedBeam([{ start: startPos, end: slitPos, intensity: 1.0 }]);
+
+    // 2. Coherent interference wave ripples & spreading diffracted light from slits to screen
+    if (this.showWavefronts) {
+      this.beamSystem.updateDoubleSlitWavefronts(
+        this.slitSaddle.position.z,
+        this.slitDistance,
+        elapsed,
+        this.screenSaddle.position.z
+      );
+      this.beamSystem.updateDiffractionFan(
+        this.slitSaddle.position.z,
+        this.screenSaddle.position.z,
+        0.045
+      );
+    } else {
+      this.beamSystem.clearWavefronts();
+      this.beamSystem.clearDiffractionFan();
+    }
+
     const fringeSpacingM = OpticalPhysics.calculateDoubleSlitFringeSpacing(
       this.wavelength,
       this.slitDistance,
       screenDistM
     );
 
-    // Mandatory Multi-Core Worker physics computation
-    this.dispatchWorkerComputation(context);
+    // Multi-Core Worker physics computation with state hash dirty checking
+    const stateHash = `${this.wavelength}_${this.slitDistance.toFixed(3)}_${this.slitWidth.toFixed(3)}_${screenDistM.toFixed(3)}`;
+    if (stateHash !== this.lastStateHash) {
+      this.lastStateHash = stateHash;
+      this.dispatchWorkerComputation(context, screenDistM);
+    }
 
     if (this.hasWorkerResult) {
       this.detectorScreen.renderFringesFromBuffer(this.workerIntensityBuffer, this.wavelength, 1.0);
@@ -112,7 +185,7 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
     });
   }
 
-  private async dispatchWorkerComputation(context: ExperimentContext): Promise<void> {
+  private async dispatchWorkerComputation(context: ExperimentContext, screenDistM: number): Promise<void> {
     if (this.isWorkerBusy) return;
     this.isWorkerBusy = true;
 
@@ -123,7 +196,7 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
           wavelengthNm: this.wavelength,
           slitWidthMm: this.slitWidth,
           slitDistanceMm: this.slitDistance,
-          screenDistanceM: 0.53,
+          screenDistanceM: screenDistM,
           screenSpanMm: 80.0,
           slitCount: 2,
         });
@@ -139,7 +212,7 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
             wavelengthNm: this.wavelength,
             slitWidthMm: this.slitWidth,
             slitDistanceMm: this.slitDistance,
-            screenDistanceM: 0.53,
+            screenDistanceM: screenDistM,
             screenSpanMm: 80.0,
             slitCount: 2,
           },
@@ -171,5 +244,21 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
     } else if (id === 'showWavefronts') {
       this.showWavefronts = Boolean(value);
     }
+  }
+
+  public override onPointerDown(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean {
+    return this.interactionManager?.onPointerDown(event, hit, context) ?? false;
+  }
+
+  public override onPointerMove(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void {
+    this.interactionManager?.onPointerMove(event, hit, context);
+  }
+
+  public override onPointerUp(event: PointerEvent, context: ExperimentContext): void {
+    this.interactionManager?.onPointerUp(event, context);
+  }
+
+  public override getHoverTarget(raycaster: THREE.Raycaster) {
+    return this.interactionManager?.getHoverTarget(raycaster) ?? null;
   }
 }

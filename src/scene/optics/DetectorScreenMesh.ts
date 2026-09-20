@@ -10,7 +10,7 @@ export class DetectorScreenMesh {
   private screenCanvas: HTMLCanvasElement;
   private screenCtx: CanvasRenderingContext2D;
   private screenTexture: THREE.CanvasTexture;
-  private screenMesh: THREE.Mesh;
+  public screenMesh: THREE.Mesh;
 
   private digitalDisplayCanvas: HTMLCanvasElement;
   private digitalDisplayCtx: CanvasRenderingContext2D;
@@ -19,9 +19,12 @@ export class DetectorScreenMesh {
 
   private lastRenderKey = '';
   private lastMeterKey = '';
+  public showCalipers = false;
+  private lastFringeSpacingMm = 2.53;
 
   constructor() {
     this.group.name = 'DetectorScreenMesh';
+    this.group.userData = { isDetectorScreen: true, screen: this };
     this.createMount();
     this.createScreen();
     this.createDigitalMeter();
@@ -46,6 +49,7 @@ export class DetectorScreenMesh {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.14, 24), postMat);
     post.position.y = 0.07;
     post.castShadow = true;
+    post.userData = { isDetectorScreen: true, screen: this };
     this.group.add(post);
 
     // 2. Heavy perimeter bezel frame support behind screen
@@ -55,6 +59,7 @@ export class DetectorScreenMesh {
     );
     frame.position.set(0, 0.186, 0.004);
     frame.castShadow = true;
+    frame.userData = { isDetectorScreen: true, screen: this };
     this.group.add(frame);
   }
 
@@ -77,6 +82,8 @@ export class DetectorScreenMesh {
       new THREE.PlaneGeometry(this.screenWidth, this.screenHeight),
       screenMat
     );
+    this.screenMesh.name = 'DetectorScreen';
+    this.screenMesh.userData = { isDetectorScreen: true, screen: this };
     // Face incoming laser beam directly at z = -0.001
     this.screenMesh.position.set(0, 0.186, -0.001);
     this.group.add(this.screenMesh);
@@ -103,12 +110,14 @@ export class DetectorScreenMesh {
     // Meter Housing Box
     const housing = new THREE.Mesh(new THREE.BoxGeometry(0.064, 0.082, 0.026), meterHousingMat);
     housing.castShadow = true;
+    housing.userData = { isDetectorScreen: true, screen: this };
     meterGroup.add(housing);
 
     // OLED display screen
     const dispMat = new THREE.MeshBasicMaterial({ map: this.digitalDisplayTex });
     this.digitalDisplayMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.056, 0.038), dispMat);
     this.digitalDisplayMesh.position.set(0, 0.012, 0.0132);
+    this.digitalDisplayMesh.userData = { isDetectorScreen: true, screen: this };
     meterGroup.add(this.digitalDisplayMesh);
 
     // Cable to photodiode sensor head
@@ -193,7 +202,7 @@ export class DetectorScreenMesh {
     polarizerAngle?: number;
     analyzerAngle?: number;
   }): void {
-    const key = `${params.mode}_${params.wavelengthNm}_${params.intensity.toFixed(3)}_${params.slitWidthMm || 0}_${params.slitDistanceMm || 0}_${params.gratingLinesPerMm || 0}_${params.screenDistanceM || 0}_${params.polarizerAngle || 0}_${params.analyzerAngle || 0}`;
+    const key = `${params.mode}_${params.wavelengthNm}_${params.intensity.toFixed(3)}_${params.slitWidthMm || 0}_${params.slitDistanceMm || 0}_${params.gratingLinesPerMm || 0}_${params.screenDistanceM || 0}_${params.polarizerAngle || 0}_${params.analyzerAngle || 0}_calipers_${this.showCalipers}`;
     if (key === this.lastRenderKey) return;
     this.lastRenderKey = key;
 
@@ -296,39 +305,74 @@ export class DetectorScreenMesh {
         }
       }
       ctx.putImageData(imgData, 0, 0);
-    } else if (params.mode === 'grating' || params.mode === 'spectrum') {
-      // Diffraction grating spectral orders or rainbow dispersion band
-      const wavelengths = [
-        { wl: 680, name: 'Red' },
-        { wl: 610, name: 'Orange' },
-        { wl: 575, name: 'Yellow' },
-        { wl: 530, name: 'Green' },
-        { wl: 480, name: 'Cyan' },
-        { wl: 440, name: 'Blue' },
-        { wl: 405, name: 'Violet' },
+    } else if (params.mode === 'spectrum') {
+      // Physical continuous rainbow dispersion spectrum through 60-deg equilateral prism
+      const bandCenter = cx + 90;
+      const bandWidth = 260;
+      const leftX = bandCenter - bandWidth * 0.5;
+      const rightX = bandCenter + bandWidth * 0.5;
+
+      // 1. Continuous rainbow dispersion gradient (Red to Violet)
+      const grad = ctx.createLinearGradient(leftX, 0, rightX, 0);
+      grad.addColorStop(0.00, 'rgba(255, 34, 34, 0.0)');
+      grad.addColorStop(0.08, 'rgba(255, 34, 34, 0.95)'); // Red (680nm)
+      grad.addColorStop(0.22, 'rgba(255, 120, 0, 0.92)'); // Orange (610nm)
+      grad.addColorStop(0.38, 'rgba(255, 220, 0, 0.95)'); // Yellow (575nm)
+      grad.addColorStop(0.52, 'rgba(0, 240, 60, 0.92)');  // Green (530nm)
+      grad.addColorStop(0.68, 'rgba(0, 210, 255, 0.92)'); // Cyan (480nm)
+      grad.addColorStop(0.82, 'rgba(40, 80, 255, 0.95)'); // Blue (440nm)
+      grad.addColorStop(0.94, 'rgba(140, 30, 255, 0.92)');// Violet (405nm)
+      grad.addColorStop(1.00, 'rgba(140, 30, 255, 0.0)');
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(leftX, cy - 130, bandWidth, 260);
+
+      // 2. Soft vertical boundary attenuation
+      const vGrad = ctx.createLinearGradient(0, cy - 130, 0, cy + 130);
+      vGrad.addColorStop(0, 'rgba(11, 15, 23, 0.95)');
+      vGrad.addColorStop(0.18, 'rgba(11, 15, 23, 0.0)');
+      vGrad.addColorStop(0.82, 'rgba(11, 15, 23, 0.0)');
+      vGrad.addColorStop(1, 'rgba(11, 15, 23, 0.95)');
+      ctx.fillStyle = vGrad;
+      ctx.fillRect(leftX, cy - 130, bandWidth, 260);
+    } else if (params.mode === 'grating') {
+      // Discrete monochromatic diffraction grating orders: m = 0, ±1, ±2 in laser wavelength color
+      const gratingLines = params.gratingLinesPerMm || 300;
+      const d = 1e-3 / gratingLines;
+      const lambda = params.wavelengthNm * 1e-9;
+      const L = params.screenDistanceM || 0.48;
+      const pxPerM = w / 0.16;
+
+      const orders = [
+        { m: 0, scale: 1.0 },
+        { m: 1, scale: 0.72 },
+        { m: -1, scale: 0.72 },
+        { m: 2, scale: 0.40 },
+        { m: -2, scale: 0.40 },
       ];
 
-      for (const spec of wavelengths) {
-        const c = OpticalPhysics.wavelengthToColor(spec.wl);
-        const specRgb = `rgba(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}`;
+      for (const ord of orders) {
+        const sinTheta = (ord.m * lambda) / d;
+        if (Math.abs(sinTheta) > 0.85) continue;
+        const tanTheta = Math.tan(Math.asin(sinTheta));
+        const xOffset = tanTheta * L * pxPerM;
+        const xp = cx + xOffset;
 
-        // Angular deviation for m = 1 order
-        const gratingLines = params.gratingLinesPerMm || 300;
-        const d = 1e-3 / gratingLines;
-        const sinTheta = (spec.wl * 1e-9) / d;
-        const offsetPx = (sinTheta * (params.screenDistanceM || 1.0) / (0.16 / w)) * 0.45;
+        if (xp < 10 || xp > w - 10) continue;
 
-        // Draw order +1 and -1 and center m=0
-        const xPositions = [cx, cx + offsetPx, cx - offsetPx];
-        for (const xp of xPositions) {
-          const grad = ctx.createLinearGradient(xp - 12, 0, xp + 12, 0);
-          grad.addColorStop(0, `${specRgb}, 0)`);
-          grad.addColorStop(0.5, `${specRgb}, 0.85)`);
-          grad.addColorStop(1, `${specRgb}, 0)`);
-          ctx.fillStyle = grad;
-          ctx.fillRect(xp - 12, cy - 140, 24, 280);
-        }
+        const slitGrad = ctx.createLinearGradient(xp - 14, 0, xp + 14, 0);
+        const alpha = params.intensity * ord.scale * 0.92;
+        slitGrad.addColorStop(0, `${rgbStr}, 0)`);
+        slitGrad.addColorStop(0.5, `${rgbStr}, ${alpha})`);
+        slitGrad.addColorStop(1, `${rgbStr}, 0)`);
+
+        ctx.fillStyle = slitGrad;
+        ctx.fillRect(xp - 14, cy - 140, 28, 280);
       }
+    }
+
+    if (this.showCalipers) {
+      this.drawCalipersOverlay(this.lastFringeSpacingMm);
     }
 
     this.screenTexture.needsUpdate = true;
@@ -342,7 +386,7 @@ export class DetectorScreenMesh {
     if (bLen === 0) return;
 
     // Quick sample hash to avoid redundant canvas draw if buffer hasn't changed
-    const sampleHash = `buf_${wavelengthNm}_${intensity.toFixed(2)}_${intensityBuffer[0]?.toFixed(2)}_${intensityBuffer[Math.floor(bLen * 0.5)]?.toFixed(2)}_${intensityBuffer[bLen - 1]?.toFixed(2)}`;
+    const sampleHash = `buf_${wavelengthNm}_${intensity.toFixed(2)}_${intensityBuffer[0]?.toFixed(2)}_${intensityBuffer[Math.floor(bLen * 0.5)]?.toFixed(2)}_${intensityBuffer[bLen - 1]?.toFixed(2)}_calipers_${this.showCalipers}`;
     if (sampleHash === this.lastRenderKey) return;
     this.lastRenderKey = sampleHash;
 
@@ -368,7 +412,95 @@ export class DetectorScreenMesh {
       ctx.fillRect(x, cy - 150, colW + 0.6, 300);
     }
 
+    if (this.showCalipers) {
+      this.drawCalipersOverlay(this.lastFringeSpacingMm);
+    }
+
     this.screenTexture.needsUpdate = true;
+  }
+
+  /**
+   * Toggle Virtual Vernier Caliper Measurement Tool (虚拟微米双游标测微标尺)
+   */
+  public toggleCalipers(): boolean {
+    this.showCalipers = !this.showCalipers;
+    this.lastRenderKey = '';
+    this.lastMeterKey = '';
+    return this.showCalipers;
+  }
+
+  /**
+   * Draw high precision virtual vernier calipers on the screen
+   */
+  private drawCalipersOverlay(fringeSpacingMm: number): void {
+    const ctx = this.screenCtx;
+    const w = this.screenCanvas.width;
+    const h = this.screenCanvas.height;
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+
+    // 0.16m screen width = 160mm. Screen canvas = 1024px -> 6.4 px/mm
+    const pxPerMm = w / 160.0;
+    const spanMm = Math.max(1.0, Math.min(30.0, fringeSpacingMm || this.lastFringeSpacingMm || 3.0));
+    const spanPx = spanMm * pxPerMm;
+
+    const x1 = cx - spanPx * 0.5;
+    const x2 = cx + spanPx * 0.5;
+
+    // Dual amber vernier measurement lines
+    ctx.strokeStyle = '#ff9f0a';
+    ctx.lineWidth = 2.4;
+    if (typeof ctx.setLineDash === 'function') {
+      ctx.setLineDash([8, 4]);
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(x1, 40);
+    ctx.lineTo(x1, h - 40);
+    ctx.moveTo(x2, 40);
+    ctx.lineTo(x2, h - 40);
+    ctx.stroke();
+    if (typeof ctx.setLineDash === 'function') {
+      ctx.setLineDash([]);
+    }
+
+    // Caliper horizontal dimension line with arrows
+    const arrowY = cy - 180;
+    ctx.strokeStyle = '#ff9f0a';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(x1, arrowY);
+    ctx.lineTo(x2, arrowY);
+    // Left arrow
+    ctx.moveTo(x1 + 8, arrowY - 5);
+    ctx.lineTo(x1, arrowY);
+    ctx.lineTo(x1 + 8, arrowY + 5);
+    // Right arrow
+    ctx.moveTo(x2 - 8, arrowY - 5);
+    ctx.lineTo(x2, arrowY);
+    ctx.lineTo(x2 - 8, arrowY + 5);
+    ctx.stroke();
+
+    // Measurement badge box
+    ctx.fillStyle = 'rgba(20, 24, 32, 0.88)';
+    ctx.strokeStyle = 'rgba(255, 159, 10, 0.8)';
+    ctx.lineWidth = 1.5;
+    const badgeW = 260;
+    const badgeH = 44;
+    ctx.beginPath();
+    if (typeof (ctx as any).roundRect === 'function') {
+      (ctx as any).roundRect(cx - badgeW * 0.5, arrowY - badgeH - 8, badgeW, badgeH, 8);
+    } else {
+      ctx.rect(cx - badgeW * 0.5, arrowY - badgeH - 8, badgeW, badgeH);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ff9f0a';
+    ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`Δx = ${spanMm.toFixed(2)} mm (测微游标)`, cx, arrowY - badgeH * 0.5 - 8);
   }
 
   /**
@@ -416,8 +548,15 @@ export class DetectorScreenMesh {
     ctx.font = '24px monospace';
     ctx.fillText(`λ: ${params.wavelengthNm.toFixed(1)} nm`, 24, 158);
 
+    if (params.fringeSpacingMm !== undefined) {
+      this.lastFringeSpacingMm = params.fringeSpacingMm;
+    }
+
     if (params.fringeSpacingMm) {
       ctx.fillText(`Δx: ${params.fringeSpacingMm.toFixed(2)} mm`, 24, 198);
+    } else if (this.showCalipers) {
+      ctx.fillStyle = '#ff9f0a';
+      ctx.fillText(`CALIPERS: ACTIVE`, 24, 198);
     } else {
       ctx.fillText(`STATUS: NORMAL`, 24, 198);
     }

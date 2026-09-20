@@ -281,6 +281,7 @@ export class ComputeBridge {
     prismRotationY: number;
     baseIndex: number;
     incomingPos: [number, number, number];
+    screenZ?: number;
   }): Promise<{ rays: WorkerDispersionRayData[]; computeTimeMs: number }> {
     const res = await this.workerPool.execute<OpticalDispersionStepResponse>({
       action: 'OPTICAL_DISPERSION_STEP',
@@ -288,6 +289,7 @@ export class ComputeBridge {
       prismRotationY: params.prismRotationY,
       baseIndex: params.baseIndex,
       incomingPos: params.incomingPos,
+      screenZ: params.screenZ,
     });
 
     this.recordMetrics(res.computeTimeMs);
