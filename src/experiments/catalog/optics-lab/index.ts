@@ -11,10 +11,17 @@ import { OpticalBeamSystem } from '../../../scene/optics/OpticalBeamSystem.ts';
 import { OpticalPhysics } from '../../../scene/optics/OpticalPhysics.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
-import type { OpticalDiffractionStepResponse } from '../../../workers/workerMessages.ts';
+import type {
+  OpticalDiffractionStepResponse,
+  OpticalPolarizationStepResponse,
+  OpticalDispersionStepResponse,
+  WorkerDispersionRayData,
+} from '../../../workers/workerMessages.ts';
 
 export default class OpticsLabExperiment extends BaseExperiment {
   public readonly metadata = metadata;
+  public override targetScale = 1.95;
+  public override hideCenterEmitter = true;
 
   // 3D Optical Hardware Components
   private rail: OpticalBenchRail;
@@ -45,13 +52,22 @@ export default class OpticsLabExperiment extends BaseExperiment {
   private pol2Angle = 0.0;
   private show3DWave = true;
 
-  // Multi-core Worker Buffer
-  private workerIntensityBuffer: Float32Array<any> = new Float32Array(512);
+  // Multi-core Worker State
+  private workerIntensityBuffer: Float32Array = new Float32Array(512);
   private isWorkerBusy = false;
+  private hasWorkerResult = false;
+
+  private workerPositions: Float32Array = new Float32Array(122 * 3);
+  private workerColors: Float32Array = new Float32Array(122 * 3);
+  private isWorkerPolBusy = false;
+  private lastMalusIntensity = 1.0;
+
+  private isWorkerDispBusy = false;
+  private workerRays: WorkerDispersionRayData[] = [];
 
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface and orient apparatus across the table
-    this.rootGroup.position.set(0, 0.063, 0);
+    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
     // 1. Precision Optical Rail
@@ -123,15 +139,8 @@ export default class OpticsLabExperiment extends BaseExperiment {
     const endPos = new THREE.Vector3(0, 0.186, 0.474);
 
     if (this.currentMode === 'propagation') {
-      // Calculate continuous rainbow dispersion rays through prism
-      const prismWorldPos = new THREE.Vector3(0, 0.186, -0.02);
-      const rays = OpticalPhysics.calculatePrismDispersionRays(
-        prismWorldPos,
-        THREE.MathUtils.degToRad(this.prismAngle),
-        this.prism.refractiveIndex,
-        startPos
-      );
-      this.beamSystem.updateDispersionRays(rays);
+      // Mandatory Multi-Core Worker prism dispersion offload
+      this.dispatchWorkerDispersion(context);
 
       this.detectorScreen.renderFringesPattern({
         mode: 'spectrum',
@@ -163,14 +172,21 @@ export default class OpticsLabExperiment extends BaseExperiment {
         screenDistM
       );
 
-      this.detectorScreen.renderFringesPattern({
-        mode: 'double_slit',
-        wavelengthNm: this.wavelength,
-        intensity: 1.0,
-        slitDistanceMm: this.slitDistance,
-        slitWidthMm: this.slitWidth,
-        screenDistanceM: screenDistM,
-      });
+      // Mandatory Multi-Core Worker physics computation
+      this.dispatchWorkerComputation(context, 2);
+
+      if (this.hasWorkerResult) {
+        this.detectorScreen.renderFringesFromBuffer(this.workerIntensityBuffer, this.wavelength, 1.0);
+      } else {
+        this.detectorScreen.renderFringesPattern({
+          mode: 'double_slit',
+          wavelengthNm: this.wavelength,
+          intensity: 1.0,
+          slitDistanceMm: this.slitDistance,
+          slitWidthMm: this.slitWidth,
+          screenDistanceM: screenDistM,
+        });
+      }
 
       this.detectorScreen.updateMeter({
         intensityRatio: 0.88,
@@ -182,20 +198,34 @@ export default class OpticsLabExperiment extends BaseExperiment {
       this.beamSystem.clearWavefronts();
       this.beamSystem.updateStraightBeam(startPos, endPos);
 
-      // Async multi-core worker computing for high-density diffraction field
-      this.dispatchWorkerDiffraction(context);
-
       const screenDistM = 0.5;
       const isGrating = this.slitFixture.slitType === 'grating';
+      const slitCount = isGrating ? 8 : (this.slitFixture.slitType === 'double' ? 2 : 1);
 
-      this.detectorScreen.renderFringesPattern({
-        mode: isGrating ? 'grating' : 'single_slit',
-        wavelengthNm: this.wavelength,
-        intensity: 1.0,
-        slitWidthMm: this.slitWidth,
-        gratingLinesPerMm: this.gratingLinesPerMm,
-        screenDistanceM: screenDistM,
-      });
+      // Mandatory Multi-Core Worker physics computation
+      this.dispatchWorkerComputation(context, slitCount);
+
+      if (isGrating) {
+        this.detectorScreen.renderFringesPattern({
+          mode: 'grating',
+          wavelengthNm: this.wavelength,
+          intensity: 1.0,
+          slitWidthMm: this.slitWidth,
+          gratingLinesPerMm: this.gratingLinesPerMm,
+          screenDistanceM: screenDistM,
+        });
+      } else if (this.hasWorkerResult) {
+        this.detectorScreen.renderFringesFromBuffer(this.workerIntensityBuffer, this.wavelength, 1.0);
+      } else {
+        this.detectorScreen.renderFringesPattern({
+          mode: 'single_slit',
+          wavelengthNm: this.wavelength,
+          intensity: 1.0,
+          slitWidthMm: this.slitWidth,
+          gratingLinesPerMm: this.gratingLinesPerMm,
+          screenDistanceM: screenDistM,
+        });
+      }
 
       this.detectorScreen.updateMeter({
         intensityRatio: 0.82,
@@ -205,65 +235,192 @@ export default class OpticsLabExperiment extends BaseExperiment {
       this.beamSystem.clearDispersionRays();
       this.beamSystem.clearWavefronts();
 
-      // Malus's Law calculation: I = I_0 * cos^2(theta2 - theta1)
-      const malusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
-      this.beamSystem.setIntensity(malusIntensity);
+      this.beamSystem.setIntensity(this.lastMalusIntensity);
       this.beamSystem.updateStraightBeam(startPos, endPos);
 
-      // 3D vector wave train animation
-      if (this.show3DWave) {
-        this.beamSystem.updatePolarizationWave({
-          startZ: -0.40,
-          endZ: 0.474,
-          polarizerZ: -0.22,
-          polarizerAngleDeg: this.pol1Angle,
-          analyzerZ: 0.18,
-          analyzerAngleDeg: this.pol2Angle,
-          hasQuarterWavePlate: this.analyzer2.hasWavePlate,
-          time: elapsed,
-        });
-      } else {
+      // Mandatory Multi-Core Worker polarization physics offload
+      this.dispatchWorkerPolarization(context, elapsed);
+
+      if (!this.show3DWave) {
         this.beamSystem.clearWaveVectors();
       }
 
       this.detectorScreen.renderFringesPattern({
         mode: 'polarization',
         wavelengthNm: this.wavelength,
-        intensity: malusIntensity,
+        intensity: this.lastMalusIntensity,
         polarizerAngle: this.pol1Angle,
         analyzerAngle: this.pol2Angle,
       });
 
       this.detectorScreen.updateMeter({
-        intensityRatio: malusIntensity,
+        intensityRatio: this.lastMalusIntensity,
         wavelengthNm: this.wavelength,
       });
     }
   }
 
   /**
-   * Offload diffraction field computation to WorkerPool
+   * Mandatory offload of prism dispersion ray tracing to Multi-Core WorkerPool via ComputeBridge
    */
-  private async dispatchWorkerDiffraction(context: ExperimentContext): Promise<void> {
-    if (this.isWorkerBusy || !context.workerPool || context.workerPool.size === 0) return;
+  private async dispatchWorkerDispersion(context: ExperimentContext): Promise<void> {
+    if (this.isWorkerDispBusy) return;
+    this.isWorkerDispBusy = true;
+
+    try {
+      if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalDispersion === 'function') {
+        const resp = await (context.computeBridge as any).simulateOpticalDispersion({
+          apexPos: [0, 0.186, -0.02],
+          prismRotationY: THREE.MathUtils.degToRad(this.prismAngle),
+          baseIndex: this.prism.refractiveIndex,
+          incomingPos: [0, 0.186, -0.40],
+        });
+        if (resp && resp.rays) {
+          this.workerRays = resp.rays;
+          this.beamSystem.updateDispersionRaysFromWorker(this.workerRays);
+        }
+      } else if (context.workerPool && context.workerPool.size > 0) {
+        const resp = await context.workerPool.execute<OpticalDispersionStepResponse>({
+          action: 'OPTICAL_DISPERSION_STEP',
+          apexPos: [0, 0.186, -0.02],
+          prismRotationY: THREE.MathUtils.degToRad(this.prismAngle),
+          baseIndex: this.prism.refractiveIndex,
+          incomingPos: [0, 0.186, -0.40],
+        });
+        if (resp && resp.rays) {
+          this.workerRays = resp.rays;
+          this.beamSystem.updateDispersionRaysFromWorker(this.workerRays);
+        }
+      } else {
+        // Node / unit test fallback
+        const prismWorldPos = new THREE.Vector3(0, 0.186, -0.02);
+        const rays = OpticalPhysics.calculatePrismDispersionRays(
+          prismWorldPos,
+          THREE.MathUtils.degToRad(this.prismAngle),
+          this.prism.refractiveIndex,
+          new THREE.Vector3(0, 0.186, -0.40)
+        );
+        this.beamSystem.updateDispersionRays(rays);
+      }
+    } catch {
+      // Fallback silently if worker thread is terminating
+    } finally {
+      this.isWorkerDispBusy = false;
+    }
+  }
+
+  /**
+   * Mandatory offload of polarization physics to Multi-Core WorkerPool via ComputeBridge
+   */
+  private async dispatchWorkerPolarization(context: ExperimentContext, elapsed: number): Promise<void> {
+    if (this.isWorkerPolBusy) return;
+    this.isWorkerPolBusy = true;
+
+    try {
+      if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalPolarization === 'function') {
+        const resp = await (context.computeBridge as any).simulateOpticalPolarization({
+          positions: this.workerPositions,
+          colors: this.workerColors,
+          polarizerAngleDeg: this.pol1Angle,
+          analyzerAngleDeg: this.pol2Angle,
+          hasQuarterWavePlate: this.analyzer2.hasWavePlate,
+          wavelengthNm: this.wavelength,
+          startZ: -0.40,
+          endZ: 0.474,
+          polarizerZ: -0.22,
+          analyzerZ: 0.18,
+          numSamples: 60,
+          time: elapsed,
+        });
+        if (resp) {
+          this.workerPositions = resp.positions;
+          this.workerColors = resp.colors;
+          this.lastMalusIntensity = resp.malusIntensity;
+          if (this.show3DWave) {
+            this.beamSystem.applyPolarizationWaveBuffer(this.workerPositions, this.workerColors);
+          }
+        }
+      } else if (context.workerPool && context.workerPool.size > 0) {
+        const resp = await context.workerPool.execute<OpticalPolarizationStepResponse>(
+          {
+            action: 'OPTICAL_POLARIZATION_STEP',
+            positions: this.workerPositions,
+            colors: this.workerColors,
+            polarizerAngleDeg: this.pol1Angle,
+            analyzerAngleDeg: this.pol2Angle,
+            hasQuarterWavePlate: this.analyzer2.hasWavePlate,
+            wavelengthNm: this.wavelength,
+            startZ: -0.40,
+            endZ: 0.474,
+            polarizerZ: -0.22,
+            analyzerZ: 0.18,
+            numSamples: 60,
+            time: elapsed,
+          },
+          [this.workerPositions.buffer, this.workerColors.buffer]
+        );
+        if (resp) {
+          this.workerPositions = resp.positions;
+          this.workerColors = resp.colors;
+          this.lastMalusIntensity = resp.malusIntensity;
+          if (this.show3DWave) {
+            this.beamSystem.applyPolarizationWaveBuffer(this.workerPositions, this.workerColors);
+          }
+        }
+      } else {
+        // Node / unit test fallback
+        this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
+      }
+    } catch {
+      // Fallback silently if worker thread is terminating
+    } finally {
+      this.isWorkerPolBusy = false;
+    }
+  }
+
+  /**
+   * Mandatory offload of interference/diffraction physics to Multi-Core WorkerPool via ComputeBridge
+   */
+  private async dispatchWorkerComputation(context: ExperimentContext, slitCount: number): Promise<void> {
+    if (this.isWorkerBusy) return;
     this.isWorkerBusy = true;
 
     try {
-      const resp = await context.workerPool.execute<OpticalDiffractionStepResponse>(
-        {
-          action: 'OPTICAL_DIFFRACTION_STEP',
+      if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalDiffraction === 'function') {
+        const resp = await (context.computeBridge as any).simulateOpticalDiffraction({
           intensityBuffer: this.workerIntensityBuffer,
           wavelengthNm: this.wavelength,
           slitWidthMm: this.slitWidth,
           slitDistanceMm: this.slitDistance,
           screenDistanceM: 0.5,
           screenSpanMm: 80.0,
-          slitCount: this.slitFixture.slitType === 'grating' ? 8 : (this.slitFixture.slitType === 'double' ? 2 : 1),
+          slitCount,
           gratingLinesPerMm: this.gratingLinesPerMm,
-        },
-        [this.workerIntensityBuffer.buffer]
-      );
-      this.workerIntensityBuffer = resp.intensityBuffer;
+        });
+        if (resp && resp.intensityBuffer) {
+          this.workerIntensityBuffer = resp.intensityBuffer;
+          this.hasWorkerResult = true;
+        }
+      } else if (context.workerPool && context.workerPool.size > 0) {
+        const resp = await context.workerPool.execute<OpticalDiffractionStepResponse>(
+          {
+            action: 'OPTICAL_DIFFRACTION_STEP',
+            intensityBuffer: this.workerIntensityBuffer,
+            wavelengthNm: this.wavelength,
+            slitWidthMm: this.slitWidth,
+            slitDistanceMm: this.slitDistance,
+            screenDistanceM: 0.5,
+            screenSpanMm: 80.0,
+            slitCount,
+            gratingLinesPerMm: this.gratingLinesPerMm,
+          },
+          [this.workerIntensityBuffer.buffer]
+        );
+        if (resp && resp.intensityBuffer) {
+          this.workerIntensityBuffer = resp.intensityBuffer;
+          this.hasWorkerResult = true;
+        }
+      }
     } catch {
       // Fallback silently if worker thread is terminating
     } finally {

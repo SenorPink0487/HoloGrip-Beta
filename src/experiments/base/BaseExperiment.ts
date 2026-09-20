@@ -5,6 +5,8 @@ import { ResourceTracker } from '../../core/Lifecycle.ts';
 export abstract class BaseExperiment implements IExperiment {
   public abstract readonly metadata: ExperimentMetadata;
   public readonly rootGroup: THREE.Group;
+  public targetScale = 1.0;
+  public hideCenterEmitter = false;
   protected tracker = new ResourceTracker();
 
   constructor() {

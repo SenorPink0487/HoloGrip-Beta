@@ -24,20 +24,20 @@ export class SlitApertureMesh {
 
   private createMountAssembly(): void {
     const postMat = new THREE.MeshStandardMaterial({
-      color: 0xdde3ea,
-      metalness: 0.95,
-      roughness: 0.18,
+      color: 0xe2eaf2,
+      metalness: 0.65,
+      roughness: 0.20,
     });
 
     const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x16181c,
-      metalness: 0.85,
-      roughness: 0.38,
+      color: 0x4a5464,
+      metalness: 0.22,
+      roughness: 0.35,
     });
 
     const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xd4af37,
-      metalness: 0.9,
+      color: 0xdfb43a,
+      metalness: 0.65,
       roughness: 0.25,
     });
 

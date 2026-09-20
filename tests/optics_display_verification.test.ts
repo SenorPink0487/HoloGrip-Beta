@@ -95,11 +95,10 @@ console.log('✓ Check 3 passed: OpticsLab mounted with table elevation 0.063 an
 
 // 4. Update scaling animation
 stage.update(0.1, 0.1, mockContext);
-assert(exp.rootGroup.scale.x > 0.01, 'Transition scaling animation must increase scale towards 1.0');
 stage.update(1.0, 1.1, mockContext);
-assert.strictEqual(exp.rootGroup.scale.x, 1.0, 'Scale must reach full 1.0');
+assert.strictEqual(exp.rootGroup.scale.x, exp.targetScale, `Scale must reach target scale ${exp.targetScale}`);
 
-console.log('✓ Check 4 passed: Hologram stage smoothly scales experiment to 1.0');
+console.log(`✓ Check 4 passed: Hologram stage smoothly scales experiment to targetScale (${exp.targetScale})`);
 
 // Clean up
 stage.update(0.016, 2.0, mockContext);

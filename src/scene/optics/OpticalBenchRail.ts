@@ -24,19 +24,28 @@ export class OpticalBenchRail {
     canvas.height = 128;
     const ctx = canvas.getContext('2d')!;
 
-    // Dark titanium anodized background
-    ctx.fillStyle = '#1c1f24';
+    // Scientific precision satin silver/aluminum scale background
+    ctx.fillStyle = '#f1f5f9';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Beveled accent border
-    ctx.strokeStyle = '#2d333b';
+    // Beveled accent border & baseline rail line
+    ctx.strokeStyle = '#94a3b8';
     ctx.lineWidth = 3;
-    ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+    ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
 
-    // Graduation lines and metric numbers (0 to 120 cm)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
+    // Longitudinal alignment baseline
+    ctx.beginPath();
+    ctx.moveTo(30, 64);
+    ctx.lineTo(canvas.width - 30, 64);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Graduation lines and metric numbers (0 to 120 cm) in high-contrast deep black
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#0f172a';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 26px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
 
     const totalMm = 1200;
     const paddingX = 40;
@@ -47,37 +56,43 @@ export class OpticalBenchRail {
 
       if (mm % 100 === 0) {
         // 10 cm major mark
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 3.8;
         ctx.beginPath();
-        ctx.moveTo(x, 15);
-        ctx.lineTo(x, 60);
+        ctx.moveTo(x, 8);
+        ctx.lineTo(x, 64);
         ctx.stroke();
 
         const cm = mm / 10;
-        ctx.fillText(`${cm}`, x - (cm >= 100 ? 18 : 12), 92);
+        ctx.fillText(`${cm}`, x, 98);
       } else if (mm % 50 === 0) {
         // 5 cm medium mark
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2.8;
         ctx.beginPath();
-        ctx.moveTo(x, 25);
-        ctx.lineTo(x, 56);
+        ctx.moveTo(x, 16);
+        ctx.lineTo(x, 64);
         ctx.stroke();
       } else if (mm % 10 === 0) {
         // 1 cm mark
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 2.0;
         ctx.beginPath();
-        ctx.moveTo(x, 32);
-        ctx.lineTo(x, 54);
+        ctx.moveTo(x, 26);
+        ctx.lineTo(x, 64);
         ctx.stroke();
       } else {
         // 2 mm minor mark
-        ctx.lineWidth = 1.0;
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.moveTo(x, 40);
-        ctx.lineTo(x, 52);
+        ctx.moveTo(x, 38);
+        ctx.lineTo(x, 64);
         ctx.stroke();
       }
     }
+
+    // Unit indicator
+    ctx.font = 'bold 16px monospace';
+    ctx.fillStyle = '#475569';
+    ctx.fillText('cm', paddingX + 22, 118);
+    ctx.fillText('PRECISION BENCH · 1200mm', canvas.width * 0.5, 120);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.ClampToEdgeWrapping;
@@ -120,11 +135,11 @@ export class OpticalBenchRail {
     // Center extrusion around origin
     railGeo.center();
 
-    // High quality anodized brushed aluminum material
+    // High quality scientific anodized aluminum rail material (crisp diffuse response under lab lighting)
     const railMat = new THREE.MeshStandardMaterial({
-      color: 0x22262c,
-      metalness: 0.88,
-      roughness: 0.32,
+      color: 0x647082,
+      metalness: 0.22,
+      roughness: 0.38,
       side: THREE.DoubleSide,
     });
 
@@ -154,33 +169,43 @@ export class OpticalBenchRail {
     rulerLeft.rotation.y = -Math.PI * 0.5;
     this.group.add(rulerLeft);
 
-    // Center metallic groove runner
+    // Center metallic groove runner (polished stainless steel)
     const runnerGeo = new THREE.BoxGeometry(0.018, 0.004, this.railLength);
     const runnerMat = new THREE.MeshStandardMaterial({
-      color: 0x88929e,
-      metalness: 0.95,
-      roughness: 0.18,
+      color: 0xe2eaf5,
+      metalness: 0.65,
+      roughness: 0.22,
     });
     const runner = new THREE.Mesh(runnerGeo, runnerMat);
     runner.position.set(0, h * 0.5 - 0.015, 0);
     this.group.add(runner);
+
+    // Dual upper dovetail polished guide rail strips
+    const guideGeo = new THREE.BoxGeometry(0.005, 0.003, this.railLength);
+    const guideLeft = new THREE.Mesh(guideGeo, runnerMat);
+    guideLeft.position.set(-w + 0.006, h * 0.5 - 0.001, 0);
+    this.group.add(guideLeft);
+
+    const guideRight = new THREE.Mesh(guideGeo, runnerMat);
+    guideRight.position.set(w - 0.006, h * 0.5 - 0.001, 0);
+    this.group.add(guideRight);
   }
 
   private createPedestals(): void {
     const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0x15181d,
-      metalness: 0.75,
-      roughness: 0.45,
+      color: 0x444c59,
+      metalness: 0.25,
+      roughness: 0.42,
     });
 
     const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xd4af37,
-      metalness: 0.92,
-      roughness: 0.22,
+      color: 0xdfb43a,
+      metalness: 0.65,
+      roughness: 0.25,
     });
 
     const rubberMat = new THREE.MeshStandardMaterial({
-      color: 0x0d0e11,
+      color: 0x181a1f,
       metalness: 0.1,
       roughness: 0.9,
     });
@@ -225,21 +250,21 @@ export class OpticalBenchRail {
     saddleGroup.name = name;
 
     const saddleMat = new THREE.MeshStandardMaterial({
-      color: 0x1f2329,
-      metalness: 0.85,
-      roughness: 0.35,
+      color: 0x485260,
+      metalness: 0.22,
+      roughness: 0.38,
     });
 
     const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xd4af37,
-      metalness: 0.9,
+      color: 0xdfb43a,
+      metalness: 0.65,
       roughness: 0.25,
     });
 
     const steelMat = new THREE.MeshStandardMaterial({
-      color: 0xdde3ea,
-      metalness: 0.95,
-      roughness: 0.15,
+      color: 0xe0e8f2,
+      metalness: 0.65,
+      roughness: 0.20,
     });
 
     // 1. Saddle base clamp wrapping around rail dovetail
@@ -272,11 +297,17 @@ export class OpticalBenchRail {
     railLock.position.set(-saddleW * 0.5 - 0.006, this.railHeight * 0.5 + 0.008, 0);
     saddleGroup.add(railLock);
 
-    // 5. Red vernier indicator hairline
-    const indicatorGeo = new THREE.BoxGeometry(0.003, 0.014, 0.002);
-    const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
+    // 5. Red vernier indicator with clean white background reading window
+    const backingGeo = new THREE.BoxGeometry(0.008, 0.018, 0.004);
+    const backingMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const backing = new THREE.Mesh(backingGeo, backingMat);
+    backing.position.set(saddleW * 0.5 + 0.001, this.railHeight * 0.5 + 0.008, 0);
+    saddleGroup.add(backing);
+
+    const indicatorGeo = new THREE.BoxGeometry(0.003, 0.016, 0.002);
+    const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xff2424 });
     const indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
-    indicator.position.set(saddleW * 0.5 + 0.001, this.railHeight * 0.5 + 0.008, 0);
+    indicator.position.set(saddleW * 0.5 + 0.003, this.railHeight * 0.5 + 0.008, 0);
     saddleGroup.add(indicator);
 
     this.sliders.push(saddleGroup);

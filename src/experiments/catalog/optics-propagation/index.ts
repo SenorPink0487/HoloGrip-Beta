@@ -9,9 +9,12 @@ import { OpticalBeamSystem } from '../../../scene/optics/OpticalBeamSystem.ts';
 import { OpticalPhysics } from '../../../scene/optics/OpticalPhysics.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
+import type { OpticalDispersionStepResponse, WorkerDispersionRayData } from '../../../workers/workerMessages.ts';
 
 export default class OpticsPropagationExperiment extends BaseExperiment {
   public readonly metadata = metadata;
+  public override targetScale = 1.95;
+  public override hideCenterEmitter = true;
 
   private rail: OpticalBenchRail;
   private laser: LaserEmitterMesh;
@@ -26,9 +29,13 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
   private refractiveIndex = 1.54;
   private multiSpectrum = true;
 
+  // Multi-Core Worker State
+  private isWorkerBusy = false;
+  private workerRays: WorkerDispersionRayData[] = [];
+
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface and orient apparatus across the table
-    this.rootGroup.position.set(0, 0.063, 0);
+    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
     // 1. Rail & Saddles
@@ -75,13 +82,8 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
     const prismPos = new THREE.Vector3(0, 0.186, -0.05);
 
     if (this.multiSpectrum && this.prismType === 'equilateral') {
-      const rays = OpticalPhysics.calculatePrismDispersionRays(
-        prismPos,
-        THREE.MathUtils.degToRad(this.prismAngle),
-        this.refractiveIndex,
-        startPos
-      );
-      this.beamSystem.updateDispersionRays(rays);
+      // Mandatory Multi-Core Worker ray-tracing offload
+      this.dispatchWorkerDispersion(context);
 
       this.detectorScreen.renderFringesPattern({
         mode: 'spectrum',
@@ -115,6 +117,51 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
         intensityRatio: res.totalInternalReflection ? 0.05 : 0.95,
         wavelengthNm: this.wavelength,
       });
+    }
+  }
+
+  private async dispatchWorkerDispersion(context: ExperimentContext): Promise<void> {
+    if (this.isWorkerBusy) return;
+    this.isWorkerBusy = true;
+
+    try {
+      if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalDispersion === 'function') {
+        const resp = await (context.computeBridge as any).simulateOpticalDispersion({
+          apexPos: [0, 0.186, -0.05],
+          prismRotationY: THREE.MathUtils.degToRad(this.prismAngle),
+          baseIndex: this.refractiveIndex,
+          incomingPos: [0, 0.186, -0.40],
+        });
+        if (resp && resp.rays) {
+          this.workerRays = resp.rays;
+          this.beamSystem.updateDispersionRaysFromWorker(this.workerRays);
+        }
+      } else if (context.workerPool && context.workerPool.size > 0) {
+        const resp = await context.workerPool.execute<OpticalDispersionStepResponse>({
+          action: 'OPTICAL_DISPERSION_STEP',
+          apexPos: [0, 0.186, -0.05],
+          prismRotationY: THREE.MathUtils.degToRad(this.prismAngle),
+          baseIndex: this.refractiveIndex,
+          incomingPos: [0, 0.186, -0.40],
+        });
+        if (resp && resp.rays) {
+          this.workerRays = resp.rays;
+          this.beamSystem.updateDispersionRaysFromWorker(this.workerRays);
+        }
+      } else {
+        // Fallback when workerPool is empty (e.g., node test)
+        const rays = OpticalPhysics.calculatePrismDispersionRays(
+          new THREE.Vector3(0, 0.186, -0.05),
+          THREE.MathUtils.degToRad(this.prismAngle),
+          this.refractiveIndex,
+          new THREE.Vector3(0, 0.186, -0.40)
+        );
+        this.beamSystem.updateDispersionRays(rays);
+      }
+    } catch {
+      // Fallback silently if worker thread is terminating
+    } finally {
+      this.isWorkerBusy = false;
     }
   }
 

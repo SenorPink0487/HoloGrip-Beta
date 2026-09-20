@@ -58,5 +58,16 @@ export class Lighting {
     rearFill.target.position.set(0, 2.0, 8.2);
     this.scene.add(rearFill);
     this.scene.add(rearFill.target);
+
+    // 7. High-precision workbench inspection spotlight directly highlighting the optical instruments
+    const benchSpot = new THREE.SpotLight(0xffffff, 2.2);
+    benchSpot.position.set(0, 3.4, 1.35);
+    benchSpot.target.position.set(0, 0.9, 0.95);
+    benchSpot.angle = Math.PI / 3.6;
+    benchSpot.penumbra = 0.55;
+    benchSpot.decay = 1.1;
+    benchSpot.distance = 7;
+    this.scene.add(benchSpot);
+    this.scene.add(benchSpot.target);
   }
 }

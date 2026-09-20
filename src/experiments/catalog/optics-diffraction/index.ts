@@ -11,6 +11,8 @@ import type { OpticalDiffractionStepResponse } from '../../../workers/workerMess
 
 export default class OpticsDiffractionExperiment extends BaseExperiment {
   public readonly metadata = metadata;
+  public override targetScale = 1.95;
+  public override hideCenterEmitter = true;
 
   private rail: OpticalBenchRail;
   private laser: LaserEmitterMesh;
@@ -23,12 +25,13 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
   private slitWidth = 0.05;
   private gratingLinesPerMm = 300;
 
-  private workerBuffer: Float32Array<any> = new Float32Array(512);
+  private workerBuffer: Float32Array = new Float32Array(512);
   private isWorkerBusy = false;
+  private hasWorkerResult = false;
 
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface and orient apparatus across the table
-    this.rootGroup.position.set(0, 0.063, 0);
+    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
     this.rail = this.track(new OpticalBenchRail());
@@ -70,14 +73,27 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
 
     const isGrating = this.diffractionType === 'grating';
 
-    this.detectorScreen.renderFringesPattern({
-      mode: isGrating ? 'grating' : 'single_slit',
-      wavelengthNm: this.wavelength,
-      intensity: 1.0,
-      slitWidthMm: this.slitWidth,
-      gratingLinesPerMm: this.gratingLinesPerMm,
-      screenDistanceM: 0.53,
-    });
+    if (isGrating) {
+      this.detectorScreen.renderFringesPattern({
+        mode: 'grating',
+        wavelengthNm: this.wavelength,
+        intensity: 1.0,
+        slitWidthMm: this.slitWidth,
+        gratingLinesPerMm: this.gratingLinesPerMm,
+        screenDistanceM: 0.53,
+      });
+    } else if (this.hasWorkerResult) {
+      this.detectorScreen.renderFringesFromBuffer(this.workerBuffer, this.wavelength, 1.0);
+    } else {
+      this.detectorScreen.renderFringesPattern({
+        mode: 'single_slit',
+        wavelengthNm: this.wavelength,
+        intensity: 1.0,
+        slitWidthMm: this.slitWidth,
+        gratingLinesPerMm: this.gratingLinesPerMm,
+        screenDistanceM: 0.53,
+      });
+    }
 
     this.detectorScreen.updateMeter({
       intensityRatio: 0.86,
@@ -86,13 +102,12 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
   }
 
   private async dispatchWorkerDiffraction(context: ExperimentContext): Promise<void> {
-    if (this.isWorkerBusy || !context.workerPool || context.workerPool.size === 0) return;
+    if (this.isWorkerBusy) return;
     this.isWorkerBusy = true;
 
     try {
-      const resp = await context.workerPool.execute<OpticalDiffractionStepResponse>(
-        {
-          action: 'OPTICAL_DIFFRACTION_STEP',
+      if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalDiffraction === 'function') {
+        const resp = await (context.computeBridge as any).simulateOpticalDiffraction({
           intensityBuffer: this.workerBuffer,
           wavelengthNm: this.wavelength,
           slitWidthMm: this.slitWidth,
@@ -101,10 +116,31 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
           screenSpanMm: 80.0,
           slitCount: this.diffractionType === 'grating' ? 8 : 1,
           gratingLinesPerMm: this.gratingLinesPerMm,
-        },
-        [this.workerBuffer.buffer]
-      );
-      this.workerBuffer = resp.intensityBuffer;
+        });
+        if (resp && resp.intensityBuffer) {
+          this.workerBuffer = resp.intensityBuffer;
+          this.hasWorkerResult = true;
+        }
+      } else if (context.workerPool && context.workerPool.size > 0) {
+        const resp = await context.workerPool.execute<OpticalDiffractionStepResponse>(
+          {
+            action: 'OPTICAL_DIFFRACTION_STEP',
+            intensityBuffer: this.workerBuffer,
+            wavelengthNm: this.wavelength,
+            slitWidthMm: this.slitWidth,
+            slitDistanceMm: 0.25,
+            screenDistanceM: 0.53,
+            screenSpanMm: 80.0,
+            slitCount: this.diffractionType === 'grating' ? 8 : 1,
+            gratingLinesPerMm: this.gratingLinesPerMm,
+          },
+          [this.workerBuffer.buffer]
+        );
+        if (resp && resp.intensityBuffer) {
+          this.workerBuffer = resp.intensityBuffer;
+          this.hasWorkerResult = true;
+        }
+      }
     } catch {
       // Worker silent fallback
     } finally {

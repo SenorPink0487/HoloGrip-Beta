@@ -440,9 +440,16 @@ export class ChemistryEngine {
 
   public state: ChemistryState;
   private listeners: Array<(state: ChemistryState) => void> = [];
+  private computeBridge: any = null;
+  private cachedComposition: ChemistryComposition | null = null;
+  private isCompositionWorkerBusy = false;
 
   constructor() {
     this.reset();
+  }
+
+  public setComputeBridge(bridge: any): void {
+    this.computeBridge = bridge;
   }
 
   public reset(): void {
@@ -476,9 +483,38 @@ export class ChemistryEngine {
   }
 
   private notify(): void {
+    this.cachedComposition = null;
+    this.requestWorkerComposition();
     for (const listener of this.listeners) {
       listener(this.state);
     }
+  }
+
+  private requestWorkerComposition(): void {
+    if (!this.computeBridge || this.isCompositionWorkerBusy) return;
+    this.isCompositionWorkerBusy = true;
+
+    this.computeBridge
+      .solveChemistryComposition({
+        volume: this.state.volume,
+        temperature: this.state.temperature,
+        pH: this.state.pH,
+        ions: Array.from(this.state.ions.entries()),
+        precipitates: Array.from(this.state.precipitates.entries()),
+        solids: Array.from(this.state.solids.entries()),
+        recentReaction: this.state.recentReactions.length > 0 ? this.state.recentReactions[0] : null,
+      })
+      .then((res: any) => {
+        if (res && res.composition) {
+          this.cachedComposition = res.composition;
+        }
+      })
+      .catch((err: any) => {
+        console.warn('[ChemistryEngine] Worker composition error:', err);
+      })
+      .finally(() => {
+        this.isCompositionWorkerBusy = false;
+      });
   }
 
   public static readonly REAGENT_ALIASES: Record<string, string> = {
@@ -1904,6 +1940,15 @@ export class ChemistryEngine {
   }
 
   public getCompositionAnalysis(): ChemistryComposition {
+    if (this.cachedComposition) {
+      return this.cachedComposition;
+    }
+    const comp = this.computeCompositionSync();
+    this.cachedComposition = comp;
+    return comp;
+  }
+
+  public computeCompositionSync(): ChemistryComposition {
     const components: SoluteComponent[] = [];
     const volLiters = Math.max(0.001, this.state.volume / 1000);
 

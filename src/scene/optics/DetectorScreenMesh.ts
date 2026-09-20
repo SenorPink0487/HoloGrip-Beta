@@ -17,6 +17,9 @@ export class DetectorScreenMesh {
   private digitalDisplayTex: THREE.CanvasTexture;
   private digitalDisplayMesh: THREE.Mesh;
 
+  private lastRenderKey = '';
+  private lastMeterKey = '';
+
   constructor() {
     this.group.name = 'DetectorScreenMesh';
     this.createMount();
@@ -28,14 +31,14 @@ export class DetectorScreenMesh {
 
   private createMount(): void {
     const postMat = new THREE.MeshStandardMaterial({
-      color: 0xdde3ea,
-      metalness: 0.95,
-      roughness: 0.18,
+      color: 0xe2eaf2,
+      metalness: 0.65,
+      roughness: 0.20,
     });
 
     const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x14161a,
-      metalness: 0.85,
+      color: 0x485262,
+      metalness: 0.22,
       roughness: 0.35,
     });
 
@@ -89,9 +92,9 @@ export class DetectorScreenMesh {
     this.digitalDisplayTex.colorSpace = THREE.SRGBColorSpace;
 
     const meterHousingMat = new THREE.MeshStandardMaterial({
-      color: 0x1a1d24,
-      metalness: 0.88,
-      roughness: 0.25,
+      color: 0x424c5c,
+      metalness: 0.22,
+      roughness: 0.35,
     });
 
     const meterGroup = new THREE.Group();
@@ -133,13 +136,18 @@ export class DetectorScreenMesh {
     const cx = w * 0.5;
     const cy = h * 0.5;
 
-    // Dark charcoal lab screen background
-    ctx.fillStyle = '#080a0e';
+    // Refined technical lab sensor plate background
+    ctx.fillStyle = '#0b0f17';
     ctx.fillRect(0, 0, w, h);
 
+    // Screen outer bezel accent border
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(3, 3, w - 6, h - 6);
+
     // 10mm grid lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = 1.2;
 
     const gridStep = 40; // 40px = 1cm
     for (let x = cx % gridStep; x < w; x += gridStep) {
@@ -155,9 +163,9 @@ export class DetectorScreenMesh {
       ctx.stroke();
     }
 
-    // Center Crosshair
-    ctx.strokeStyle = 'rgba(56, 139, 253, 0.6)';
-    ctx.lineWidth = 2;
+    // High-contrast Center Crosshair
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.95)';
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(cx, 0);
     ctx.lineTo(cx, h);
@@ -166,13 +174,13 @@ export class DetectorScreenMesh {
     ctx.stroke();
 
     // Scale label in corner
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-    ctx.font = '16px monospace';
-    ctx.fillText('SCALE: 1 div = 5.0 mm', 24, h - 24);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, monospace';
+    ctx.fillText('DETECTOR RETICLE · 1 div = 5.0 mm', 24, h - 24);
   }
 
   /**
-   * Render real-time optical pattern on screen
+   * Render real-time optical pattern on screen (with memoization cache to prevent unnecessary CPU redraws)
    */
   public renderFringesPattern(params: {
     mode: 'spot' | 'double_slit' | 'single_slit' | 'grating' | 'polarization' | 'spectrum';
@@ -185,6 +193,10 @@ export class DetectorScreenMesh {
     polarizerAngle?: number;
     analyzerAngle?: number;
   }): void {
+    const key = `${params.mode}_${params.wavelengthNm}_${params.intensity.toFixed(3)}_${params.slitWidthMm || 0}_${params.slitDistanceMm || 0}_${params.gratingLinesPerMm || 0}_${params.screenDistanceM || 0}_${params.polarizerAngle || 0}_${params.analyzerAngle || 0}`;
+    if (key === this.lastRenderKey) return;
+    this.lastRenderKey = key;
+
     this.drawReticleGrid();
 
     const ctx = this.screenCtx;
@@ -323,13 +335,54 @@ export class DetectorScreenMesh {
   }
 
   /**
-   * Update OLED Digital Radiometer Display
+   * Render fringe intensity pattern directly from Multi-Core Worker calculation buffer (zero CPU equation overhead)
+   */
+  public renderFringesFromBuffer(intensityBuffer: Float32Array, wavelengthNm: number, intensity = 1.0): void {
+    const bLen = intensityBuffer.length;
+    if (bLen === 0) return;
+
+    // Quick sample hash to avoid redundant canvas draw if buffer hasn't changed
+    const sampleHash = `buf_${wavelengthNm}_${intensity.toFixed(2)}_${intensityBuffer[0]?.toFixed(2)}_${intensityBuffer[Math.floor(bLen * 0.5)]?.toFixed(2)}_${intensityBuffer[bLen - 1]?.toFixed(2)}`;
+    if (sampleHash === this.lastRenderKey) return;
+    this.lastRenderKey = sampleHash;
+
+    this.drawReticleGrid();
+
+    const ctx = this.screenCtx;
+    const w = this.screenCanvas.width;
+    const h = this.screenCanvas.height;
+    const cy = h * 0.5;
+
+    const color = OpticalPhysics.wavelengthToColor(wavelengthNm);
+    const rVal = Math.round(color.r * 255);
+    const gVal = Math.round(color.g * 255);
+    const bVal = Math.round(color.b * 255);
+
+    const colW = w / bLen;
+    for (let i = 0; i < bLen; i++) {
+      const I = intensityBuffer[i] * intensity;
+      if (I < 0.008) continue;
+      const x = i * colW;
+      const alpha = Math.min(1.0, I * 0.95);
+      ctx.fillStyle = `rgba(${rVal}, ${gVal}, ${bVal}, ${alpha})`;
+      ctx.fillRect(x, cy - 150, colW + 0.6, 300);
+    }
+
+    this.screenTexture.needsUpdate = true;
+  }
+
+  /**
+   * Update OLED Digital Radiometer Display (with memoization cache)
    */
   public updateMeter(params: {
     intensityRatio: number; // 0 to 1
     wavelengthNm: number;
     fringeSpacingMm?: number;
   }): void {
+    const key = `${params.intensityRatio.toFixed(2)}_${params.wavelengthNm}_${(params.fringeSpacingMm || 0).toFixed(2)}`;
+    if (key === this.lastMeterKey) return;
+    this.lastMeterKey = key;
+
     const ctx = this.digitalDisplayCtx;
     const w = this.digitalDisplayCanvas.width;
     const h = this.digitalDisplayCanvas.height;

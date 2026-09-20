@@ -41,7 +41,7 @@ export class TextureGenerator {
   /**
    * Generates the polished epoxy microcement floor texture matching reference image
    */
-  static createFloorTexture(): THREE.CanvasTexture {
+  static createFloorTexture(prebakedFbm?: Uint8ClampedArray): THREE.CanvasTexture {
     const size = 2048;
     const canvas = document.createElement('canvas');
     canvas.width = size;
@@ -54,48 +54,52 @@ export class TextureGenerator {
     offCanvas.width = noiseRes;
     offCanvas.height = noiseRes;
     const offCtx = offCanvas.getContext('2d')!;
-    const offImg = offCtx.createImageData(noiseRes, noiseRes);
-    const offData = offImg.data;
 
-    const g1 = this.generateNoiseGrid(16, 16, 1.41);
-    const g2 = this.generateNoiseGrid(32, 32, 2.71);
-    const g3 = this.generateNoiseGrid(64, 64, 3.14);
-    const g4 = this.generateNoiseGrid(128, 128, 5.89);
+    if (prebakedFbm) {
+      const offImg = new ImageData(prebakedFbm as any, noiseRes, noiseRes);
+      offCtx.putImageData(offImg, 0, 0);
+    } else {
+      const offImg = offCtx.createImageData(noiseRes, noiseRes);
+      const offData = offImg.data;
 
-    for (let py = 0; py < noiseRes; py++) {
-      const v = py / noiseRes;
-      for (let px = 0; px < noiseRes; px++) {
-        const u = px / noiseRes;
-        const n1 = this.sampleNoise(g1, 16, 16, u * 2, v * 2);
-        const n2 = this.sampleNoise(g2, 32, 32, u * 4, v * 4);
-        const n3 = this.sampleNoise(g3, 64, 64, u * 8, v * 8);
-        const n4 = this.sampleNoise(g4, 128, 128, u * 16, v * 16);
+      const g1 = this.generateNoiseGrid(16, 16, 1.41);
+      const g2 = this.generateNoiseGrid(32, 32, 2.71);
+      const g3 = this.generateNoiseGrid(64, 64, 3.14);
+      const g4 = this.generateNoiseGrid(128, 128, 5.89);
 
-        const fbm = 0.50 * n1 + 0.28 * n2 + 0.15 * n3 + 0.07 * n4;
-        const idx = (py * noiseRes + px) * 4;
+      for (let py = 0; py < noiseRes; py++) {
+        const v = py / noiseRes;
+        for (let px = 0; px < noiseRes; px++) {
+          const u = px / noiseRes;
+          const n1 = this.sampleNoise(g1, 16, 16, u * 2, v * 2);
+          const n2 = this.sampleNoise(g2, 32, 32, u * 4, v * 4);
+          const n3 = this.sampleNoise(g3, 64, 64, u * 8, v * 8);
+          const n4 = this.sampleNoise(g4, 128, 128, u * 16, v * 16);
 
-        // Map fbm (0.0 to 1.0) to polished microcement slate gray gradient
-        // Matching sampled reference colors: #748290 (low) -> #929ea9 (mid) -> #b2bcc7 (high)
-        let r: number, g: number, b: number;
-        if (fbm < 0.5) {
-          const t = (0.5 - fbm) / 0.5;
-          r = 146 - t * 30;
-          g = 158 - t * 28;
-          b = 169 - t * 25;
-        } else {
-          const t = (fbm - 0.5) / 0.5;
-          r = 146 + t * 32;
-          g = 158 + t * 30;
-          b = 169 + t * 30;
+          const fbm = 0.50 * n1 + 0.28 * n2 + 0.15 * n3 + 0.07 * n4;
+          const idx = (py * noiseRes + px) * 4;
+
+          let r: number, g: number, b: number;
+          if (fbm < 0.5) {
+            const t = (0.5 - fbm) / 0.5;
+            r = 146 - t * 30;
+            g = 158 - t * 28;
+            b = 169 - t * 25;
+          } else {
+            const t = (fbm - 0.5) / 0.5;
+            r = 146 + t * 32;
+            g = 158 + t * 30;
+            b = 169 + t * 30;
+          }
+
+          offData[idx] = Math.round(r);
+          offData[idx + 1] = Math.round(g);
+          offData[idx + 2] = Math.round(b);
+          offData[idx + 3] = 255;
         }
-
-        offData[idx] = Math.round(r);
-        offData[idx + 1] = Math.round(g);
-        offData[idx + 2] = Math.round(b);
-        offData[idx + 3] = 255;
       }
+      offCtx.putImageData(offImg, 0, 0);
     }
-    offCtx.putImageData(offImg, 0, 0);
 
     // Draw smoothed FBM microcement base onto 2048x2048 canvas
     ctx.drawImage(offCanvas, 0, 0, size, size);
@@ -280,7 +284,7 @@ export class TextureGenerator {
   /**
    * Generates roughness map for floor with organic microcement satin finish
    */
-  static createFloorRoughnessMap(): THREE.CanvasTexture {
+  static createFloorRoughnessMap(prebaked?: Uint8ClampedArray): THREE.CanvasTexture {
     const size = 1024;
     const canvas = document.createElement('canvas');
     canvas.width = size;
@@ -296,27 +300,32 @@ export class TextureGenerator {
     off.width = 256;
     off.height = 256;
     const octx = off.getContext('2d')!;
-    const img = octx.createImageData(256, 256);
-    const d = img.data;
 
-    const g1 = this.generateNoiseGrid(16, 16, 8.11);
-    const g2 = this.generateNoiseGrid(32, 32, 4.33);
+    if (prebaked) {
+      const img = new ImageData(prebaked as any, 256, 256);
+      octx.putImageData(img, 0, 0);
+    } else {
+      const img = octx.createImageData(256, 256);
+      const d = img.data;
 
-    for (let y = 0; y < 256; y++) {
-      const v = y / 256;
-      for (let x = 0; x < 256; x++) {
-        const u = x / 256;
-        const n = 0.65 * this.sampleNoise(g1, 16, 16, u * 2, v * 2) + 0.35 * this.sampleNoise(g2, 32, 32, u * 4, v * 4);
-        // Roughness between 0.17 (43) and 0.27 (69)
-        const val = Math.round(43 + n * 26);
-        const idx = (y * 256 + x) * 4;
-        d[idx] = val;
-        d[idx + 1] = val;
-        d[idx + 2] = val;
-        d[idx + 3] = 255;
+      const g1 = this.generateNoiseGrid(16, 16, 8.11);
+      const g2 = this.generateNoiseGrid(32, 32, 4.33);
+
+      for (let y = 0; y < 256; y++) {
+        const v = y / 256;
+        for (let x = 0; x < 256; x++) {
+          const u = x / 256;
+          const n = 0.65 * this.sampleNoise(g1, 16, 16, u * 2, v * 2) + 0.35 * this.sampleNoise(g2, 32, 32, u * 4, v * 4);
+          const val = Math.round(43 + n * 26);
+          const idx = (y * 256 + x) * 4;
+          d[idx] = val;
+          d[idx + 1] = val;
+          d[idx + 2] = val;
+          d[idx + 3] = 255;
+        }
       }
+      octx.putImageData(img, 0, 0);
     }
-    octx.putImageData(img, 0, 0);
 
     ctx.drawImage(off, 0, 0, size, size);
 
@@ -329,36 +338,62 @@ export class TextureGenerator {
   /**
    * Generates micro-relief bump map for liquid epoxy surface tension
    */
-  static createFloorBumpMap(): THREE.CanvasTexture {
+  static createFloorBumpMap(prebaked?: Uint8ClampedArray): THREE.CanvasTexture {
     const size = 512;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
 
-    const img = ctx.createImageData(size, size);
-    const d = img.data;
-    const g = this.generateNoiseGrid(64, 64, 9.42);
+    if (prebaked) {
+      const img = new ImageData(prebaked as any, size, size);
+      ctx.putImageData(img, 0, 0);
+    } else {
+      const img = ctx.createImageData(size, size);
+      const d = img.data;
+      const g = this.generateNoiseGrid(64, 64, 9.42);
 
-    for (let y = 0; y < size; y++) {
-      const v = y / size;
-      for (let x = 0; x < size; x++) {
-        const u = x / size;
-        const n = this.sampleNoise(g, 64, 64, u * 8, v * 8);
-        const val = Math.round(120 + n * 16);
-        const idx = (y * size + x) * 4;
-        d[idx] = val;
-        d[idx + 1] = val;
-        d[idx + 2] = val;
-        d[idx + 3] = 255;
+      for (let y = 0; y < size; y++) {
+        const v = y / size;
+        for (let x = 0; x < size; x++) {
+          const u = x / size;
+          const n = this.sampleNoise(g, 64, 64, u * 8, v * 8);
+          const val = Math.round(120 + n * 16);
+          const idx = (y * size + x) * 4;
+          d[idx] = val;
+          d[idx + 1] = val;
+          d[idx + 2] = val;
+          d[idx + 3] = 255;
+        }
       }
+      ctx.putImageData(img, 0, 0);
     }
-    ctx.putImageData(img, 0, 0);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
     return texture;
+  }
+
+  /**
+   * Bake all floor textures concurrently in Web Worker
+   */
+  static async bakeAllTexturesAsync(computeBridge: any): Promise<{
+    floorTex: THREE.CanvasTexture;
+    roughnessMap: THREE.CanvasTexture;
+    bumpMap: THREE.CanvasTexture;
+  }> {
+    const [floorRes, roughRes, bumpRes] = await Promise.all([
+      computeBridge.bakeTextureAsync({ task: 'floor_fbm', resolution: 512 }),
+      computeBridge.bakeTextureAsync({ task: 'roughness_fbm', resolution: 256 }),
+      computeBridge.bakeTextureAsync({ task: 'bump_fbm', resolution: 512 }),
+    ]);
+
+    const floorTex = this.createFloorTexture(floorRes.pixelBuffer);
+    const roughnessMap = this.createFloorRoughnessMap(roughRes.pixelBuffer);
+    const bumpMap = this.createFloorBumpMap(bumpRes.pixelBuffer);
+
+    return { floorTex, roughnessMap, bumpMap };
   }
 
   /**

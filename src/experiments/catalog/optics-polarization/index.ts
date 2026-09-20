@@ -8,9 +8,12 @@ import { OpticalBeamSystem } from '../../../scene/optics/OpticalBeamSystem.ts';
 import { OpticalPhysics } from '../../../scene/optics/OpticalPhysics.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
+import type { OpticalPolarizationStepResponse } from '../../../workers/workerMessages.ts';
 
 export default class OpticsPolarizationExperiment extends BaseExperiment {
   public readonly metadata = metadata;
+  public override targetScale = 1.95;
+  public override hideCenterEmitter = true;
 
   private rail: OpticalBenchRail;
   private laser: LaserEmitterMesh;
@@ -25,9 +28,15 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
   private quarterWavePlate = false;
   private show3DWave = true;
 
+  // Multi-Core Worker Buffers
+  private workerPositions: Float32Array = new Float32Array(122 * 3);
+  private workerColors: Float32Array = new Float32Array(122 * 3);
+  private isWorkerBusy = false;
+  private lastMalusIntensity = 1.0;
+
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface and orient apparatus across the table
-    this.rootGroup.position.set(0, 0.063, 0);
+    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
     this.rail = this.track(new OpticalBenchRail());
@@ -71,37 +80,94 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
     const startPos = new THREE.Vector3(0, 0.186, -0.40);
     const endPos = new THREE.Vector3(0, 0.186, 0.474);
 
-    const malusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
-    this.beamSystem.setIntensity(malusIntensity);
+    this.beamSystem.setIntensity(this.lastMalusIntensity);
     this.beamSystem.updateStraightBeam(startPos, endPos);
 
-    if (this.show3DWave) {
-      this.beamSystem.updatePolarizationWave({
-        startZ: -0.40,
-        endZ: 0.474,
-        polarizerZ: -0.18,
-        polarizerAngleDeg: this.pol1Angle,
-        analyzerZ: 0.16,
-        analyzerAngleDeg: this.pol2Angle,
-        hasQuarterWavePlate: this.quarterWavePlate,
-        time: elapsed,
-      });
-    } else {
+    // Mandatory Multi-Core Worker physics offload
+    this.dispatchWorkerPolarization(context, elapsed);
+
+    if (!this.show3DWave) {
       this.beamSystem.clearWaveVectors();
     }
 
     this.detectorScreen.renderFringesPattern({
       mode: 'polarization',
       wavelengthNm: this.wavelength,
-      intensity: malusIntensity,
+      intensity: this.lastMalusIntensity,
       polarizerAngle: this.pol1Angle,
       analyzerAngle: this.pol2Angle,
     });
 
     this.detectorScreen.updateMeter({
-      intensityRatio: malusIntensity,
+      intensityRatio: this.lastMalusIntensity,
       wavelengthNm: this.wavelength,
     });
+  }
+
+  private async dispatchWorkerPolarization(context: ExperimentContext, elapsed: number): Promise<void> {
+    if (this.isWorkerBusy) return;
+    this.isWorkerBusy = true;
+
+    try {
+      if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalPolarization === 'function') {
+        const resp = await (context.computeBridge as any).simulateOpticalPolarization({
+          positions: this.workerPositions,
+          colors: this.workerColors,
+          polarizerAngleDeg: this.pol1Angle,
+          analyzerAngleDeg: this.pol2Angle,
+          hasQuarterWavePlate: this.quarterWavePlate,
+          wavelengthNm: this.wavelength,
+          startZ: -0.40,
+          endZ: 0.474,
+          polarizerZ: -0.18,
+          analyzerZ: 0.16,
+          numSamples: 60,
+          time: elapsed,
+        });
+        if (resp) {
+          this.workerPositions = resp.positions;
+          this.workerColors = resp.colors;
+          this.lastMalusIntensity = resp.malusIntensity;
+          if (this.show3DWave) {
+            this.beamSystem.applyPolarizationWaveBuffer(this.workerPositions, this.workerColors);
+          }
+        }
+      } else if (context.workerPool && context.workerPool.size > 0) {
+        const resp = await context.workerPool.execute<OpticalPolarizationStepResponse>(
+          {
+            action: 'OPTICAL_POLARIZATION_STEP',
+            positions: this.workerPositions,
+            colors: this.workerColors,
+            polarizerAngleDeg: this.pol1Angle,
+            analyzerAngleDeg: this.pol2Angle,
+            hasQuarterWavePlate: this.quarterWavePlate,
+            wavelengthNm: this.wavelength,
+            startZ: -0.40,
+            endZ: 0.474,
+            polarizerZ: -0.18,
+            analyzerZ: 0.16,
+            numSamples: 60,
+            time: elapsed,
+          },
+          [this.workerPositions.buffer, this.workerColors.buffer]
+        );
+        if (resp) {
+          this.workerPositions = resp.positions;
+          this.workerColors = resp.colors;
+          this.lastMalusIntensity = resp.malusIntensity;
+          if (this.show3DWave) {
+            this.beamSystem.applyPolarizationWaveBuffer(this.workerPositions, this.workerColors);
+          }
+        }
+      } else {
+        // Test fallback when workerPool is empty
+        this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
+      }
+    } catch {
+      // Fallback silently if worker thread is terminating
+    } finally {
+      this.isWorkerBusy = false;
+    }
   }
 
   public onParameterChange(id: string, value: any, context: ExperimentContext): void {

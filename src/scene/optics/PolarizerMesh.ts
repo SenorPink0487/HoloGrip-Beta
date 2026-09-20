@@ -89,21 +89,21 @@ export class PolarizerMesh {
 
   private createMount(): void {
     const postMat = new THREE.MeshStandardMaterial({
-      color: 0xdde3ea,
-      metalness: 0.95,
-      roughness: 0.18,
+      color: 0xe2eaf2,
+      metalness: 0.65,
+      roughness: 0.20,
     });
 
     const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x181a1f,
-      metalness: 0.88,
-      roughness: 0.32,
+      color: 0x485262,
+      metalness: 0.22,
+      roughness: 0.35,
     });
 
     const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xd4af37,
-      metalness: 0.9,
-      roughness: 0.22,
+      color: 0xdfb43a,
+      metalness: 0.65,
+      roughness: 0.25,
     });
 
     // 1. Post (Ø12mm)
@@ -135,9 +135,9 @@ export class PolarizerMesh {
 
   private createRotatableRing(): void {
     const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xd4af37,
-      metalness: 0.92,
-      roughness: 0.22,
+      color: 0xdfb43a,
+      metalness: 0.65,
+      roughness: 0.25,
     });
 
     this.rotatableRing.position.set(0, 0.186, 0);

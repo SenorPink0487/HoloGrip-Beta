@@ -4,6 +4,15 @@ import type {
   NBodyStepResponse,
   WaveStepResponse,
   LorenzStepResponse,
+  OpticalDiffractionStepResponse,
+  OpticalPolarizationStepResponse,
+  OpticalDispersionStepResponse,
+  ChemistryStepResponse,
+  WorkerDispersionRayData,
+  ParticleSimStepResponse,
+  StreamTubeStepResponse,
+  TextureBakeTaskResponse,
+  ChemistryCompositionStepResponse,
 } from '../../workers/workerMessages';
 
 export interface ComputeMetrics {
@@ -183,4 +192,253 @@ export class ComputeBridge {
     this.recordMetrics(res.computeTimeMs);
     return res.positions;
   }
+
+  /**
+   * Run optical diffraction / interference simulation across multi-core workers
+   */
+  public async simulateOpticalDiffraction(params: {
+    intensityBuffer: Float32Array;
+    wavelengthNm: number;
+    slitWidthMm: number;
+    slitDistanceMm?: number;
+    screenDistanceM: number;
+    screenSpanMm: number;
+    slitCount: number;
+    gratingLinesPerMm?: number;
+  }): Promise<{ intensityBuffer: Float32Array; computeTimeMs: number }> {
+    const res = await this.workerPool.execute<OpticalDiffractionStepResponse>(
+      {
+        action: 'OPTICAL_DIFFRACTION_STEP',
+        intensityBuffer: params.intensityBuffer,
+        wavelengthNm: params.wavelengthNm,
+        slitWidthMm: params.slitWidthMm,
+        slitDistanceMm: params.slitDistanceMm ?? 0.25,
+        screenDistanceM: params.screenDistanceM,
+        screenSpanMm: params.screenSpanMm,
+        slitCount: params.slitCount,
+        gratingLinesPerMm: params.gratingLinesPerMm,
+      },
+      [params.intensityBuffer.buffer]
+    );
+
+    this.recordMetrics(res.computeTimeMs);
+    return {
+      intensityBuffer: res.intensityBuffer,
+      computeTimeMs: res.computeTimeMs,
+    };
+  }
+
+  /**
+   * Run 3D polarization vector wave simulation across multi-core workers
+   */
+  public async simulateOpticalPolarization(params: {
+    positions: Float32Array;
+    colors: Float32Array;
+    polarizerAngleDeg: number;
+    analyzerAngleDeg: number;
+    hasQuarterWavePlate: boolean;
+    wavelengthNm: number;
+    startZ: number;
+    endZ: number;
+    polarizerZ?: number;
+    analyzerZ?: number;
+    numSamples?: number;
+    time: number;
+  }): Promise<{ positions: Float32Array; colors: Float32Array; malusIntensity: number; computeTimeMs: number }> {
+    const res = await this.workerPool.execute<OpticalPolarizationStepResponse>(
+      {
+        action: 'OPTICAL_POLARIZATION_STEP',
+        positions: params.positions,
+        colors: params.colors,
+        polarizerAngleDeg: params.polarizerAngleDeg,
+        analyzerAngleDeg: params.analyzerAngleDeg,
+        hasQuarterWavePlate: params.hasQuarterWavePlate,
+        wavelengthNm: params.wavelengthNm,
+        startZ: params.startZ,
+        endZ: params.endZ,
+        polarizerZ: params.polarizerZ ?? -0.15,
+        analyzerZ: params.analyzerZ ?? 0.25,
+        numSamples: params.numSamples ?? 60,
+        time: params.time,
+      },
+      [params.positions.buffer, params.colors.buffer]
+    );
+
+    this.recordMetrics(res.computeTimeMs);
+    return {
+      positions: res.positions,
+      colors: res.colors,
+      malusIntensity: res.malusIntensity,
+      computeTimeMs: res.computeTimeMs,
+    };
+  }
+
+  /**
+   * Run 3D prism multi-spectral dispersion ray tracing across multi-core workers
+   */
+  public async simulateOpticalDispersion(params: {
+    apexPos: [number, number, number];
+    prismRotationY: number;
+    baseIndex: number;
+    incomingPos: [number, number, number];
+  }): Promise<{ rays: WorkerDispersionRayData[]; computeTimeMs: number }> {
+    const res = await this.workerPool.execute<OpticalDispersionStepResponse>({
+      action: 'OPTICAL_DISPERSION_STEP',
+      apexPos: params.apexPos,
+      prismRotationY: params.prismRotationY,
+      baseIndex: params.baseIndex,
+      incomingPos: params.incomingPos,
+    });
+
+    this.recordMetrics(res.computeTimeMs);
+    return {
+      rays: res.rays,
+      computeTimeMs: res.computeTimeMs,
+    };
+  }
+
+  /**
+   * Run chemistry thermodynamic dissipation and decay across multi-core workers
+   */
+  public async simulateChemistryStep(params: {
+    temperature: number;
+    activeGasRate: number;
+    ambientTemp?: number;
+    dt: number;
+  }): Promise<{ temperature: number; activeGasRate: number; computeTimeMs: number }> {
+    const res = await this.workerPool.execute<ChemistryStepResponse>({
+      action: 'CHEMISTRY_STEP',
+      temperature: params.temperature,
+      activeGasRate: params.activeGasRate,
+      ambientTemp: params.ambientTemp,
+      dt: params.dt,
+    });
+
+    this.recordMetrics(res.computeTimeMs);
+    return {
+      temperature: res.temperature,
+      activeGasRate: res.activeGasRate,
+      computeTimeMs: res.computeTimeMs,
+    };
+  }
+
+  /**
+   * Simulate reaction particle physics across multi-core workers
+   */
+  public async simulateParticles(params: {
+    bubblePositions: Float32Array;
+    bubbleVelocities: Float32Array;
+    bubblePhases: Float32Array;
+    gasRate: number;
+    precipPositions: Float32Array;
+    precipSpeeds: Float32Array;
+    isPrecipitating: boolean;
+    splashPositions: Float32Array;
+    splashVelocities: Float32Array;
+    splashLifespans: Float32Array;
+    isPouring: boolean;
+    sodiumSparkPositions: Float32Array;
+    sodiumSparkVelocities: Float32Array;
+    sodiumSparkLifespans: Float32Array;
+    isSodiumBurning: boolean;
+    sodiumAngle: number;
+    liquidSurfaceLocalY: number;
+    liquidRadius: number;
+    maxLiquidHeight: number;
+    dt: number;
+  }): Promise<ParticleSimStepResponse> {
+    const res = await this.workerPool.execute<ParticleSimStepResponse>(
+      {
+        action: 'PARTICLE_SIM_STEP',
+        ...params,
+      },
+      [
+        params.bubblePositions.buffer,
+        params.bubbleVelocities.buffer,
+        params.bubblePhases.buffer,
+        params.precipPositions.buffer,
+        params.precipSpeeds.buffer,
+        params.splashPositions.buffer,
+        params.splashVelocities.buffer,
+        params.splashLifespans.buffer,
+        params.sodiumSparkPositions.buffer,
+        params.sodiumSparkVelocities.buffer,
+        params.sodiumSparkLifespans.buffer,
+      ]
+    );
+
+    this.recordMetrics(res.computeTimeMs);
+    return res;
+  }
+
+  /**
+   * Generate pour stream 3D tube geometry vertices in worker
+   */
+  public async generatePourStreamTube(params: {
+    startWorld: [number, number, number];
+    midWorld: [number, number, number];
+    endWorld: [number, number, number];
+    tubularSegments: number;
+    radialSegments: number;
+    radius: number;
+    vertexBuffer: Float32Array;
+  }): Promise<{ vertexBuffer: Float32Array; computeTimeMs: number }> {
+    const res = await this.workerPool.execute<StreamTubeStepResponse>(
+      {
+        action: 'STREAM_TUBE_STEP',
+        ...params,
+      },
+      [params.vertexBuffer.buffer]
+    );
+
+    this.recordMetrics(res.computeTimeMs);
+    return {
+      vertexBuffer: res.vertexBuffer,
+      computeTimeMs: res.computeTimeMs,
+    };
+  }
+
+  /**
+   * Bake FBM procedural texture in worker
+   */
+  public async bakeTextureAsync(params: {
+    task: 'floor_fbm' | 'roughness_fbm' | 'bump_fbm';
+    resolution: number;
+  }): Promise<{ pixelBuffer: Uint8ClampedArray; computeTimeMs: number }> {
+    const res = await this.workerPool.execute<TextureBakeTaskResponse>({
+      action: 'TEXTURE_BAKE_TASK',
+      ...params,
+    });
+
+    this.recordMetrics(res.computeTimeMs);
+    return {
+      pixelBuffer: res.pixelBuffer,
+      computeTimeMs: res.computeTimeMs,
+    };
+  }
+
+  /**
+   * Solve chemistry equilibrium composition in worker
+   */
+  public async solveChemistryComposition(params: {
+    volume: number;
+    temperature: number;
+    pH: number;
+    ions: [string, number][];
+    precipitates: [string, { formula: string; name: string; color: number; moles: number }][];
+    solids: [string, { formula: string; name: string; moles: number }][];
+    recentReaction: any;
+  }): Promise<{ composition: any; computeTimeMs: number }> {
+    const res = await this.workerPool.execute<ChemistryCompositionStepResponse>({
+      action: 'CHEMISTRY_COMPOSITION_STEP',
+      ...params,
+    });
+
+    this.recordMetrics(res.computeTimeMs);
+    return {
+      composition: res.composition,
+      computeTimeMs: res.computeTimeMs,
+    };
+  }
 }
+

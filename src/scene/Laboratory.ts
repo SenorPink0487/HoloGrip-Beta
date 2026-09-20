@@ -7,6 +7,7 @@ export class Laboratory {
   public readonly roomHeight = 4.4;
 
   public materials: Record<string, THREE.Material>;
+  private floorMesh: THREE.Mesh | null = null;
 
   constructor() {
     this.materials = {
@@ -78,7 +79,25 @@ export class Laboratory {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0;
     floor.receiveShadow = true;
+    this.floorMesh = floor;
     this.group.add(floor);
+  }
+
+  public updateFloorTextures(textures: {
+    floorTex: THREE.CanvasTexture;
+    roughnessMap: THREE.CanvasTexture;
+    bumpMap: THREE.CanvasTexture;
+  }): void {
+    if (this.floorMesh && this.floorMesh.material instanceof THREE.MeshStandardMaterial) {
+      textures.floorTex.anisotropy = 16;
+      textures.roughnessMap.anisotropy = 16;
+      textures.bumpMap.anisotropy = 16;
+
+      this.floorMesh.material.map = textures.floorTex;
+      this.floorMesh.material.roughnessMap = textures.roughnessMap;
+      this.floorMesh.material.bumpMap = textures.bumpMap;
+      this.floorMesh.material.needsUpdate = true;
+    }
   }
 
   private createCeiling(): void {

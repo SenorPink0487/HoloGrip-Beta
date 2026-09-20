@@ -8,6 +8,7 @@ import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer
 import { Laboratory } from '../scene/Laboratory';
 import { HoloTable } from '../scene/HoloTable';
 import { Lighting } from '../scene/Lighting';
+import { TextureGenerator } from '../scene/Textures';
 import { HologramStage } from './HologramStage';
 import { InputManager } from '../controls/InputManager';
 import { WorkerPool } from '../workers/WorkerPool';
@@ -222,6 +223,16 @@ export class Engine {
     this.lab = new Laboratory();
     this.scene.add(this.lab.group);
 
+    if (this.computeBridge) {
+      TextureGenerator.bakeAllTexturesAsync(this.computeBridge)
+        .then((textures) => {
+          this.lab.updateFloorTextures(textures);
+        })
+        .catch((err) => {
+          console.warn('[Engine] Async floor texture baking fallback:', err);
+        });
+    }
+
     this.holoTable = new HoloTable();
     this.scene.add(this.holoTable.group);
 
@@ -230,7 +241,9 @@ export class Engine {
 
     // Mount two chemistry beakers symmetrically on sides of table (avoiding table center!)
     this.chemistryEngineLeft = new ChemistryEngine();
+    this.chemistryEngineLeft.setComputeBridge(this.computeBridge);
     this.chemistryEngineRight = new ChemistryEngine();
+    this.chemistryEngineRight.setComputeBridge(this.computeBridge);
 
     this.beakerLeft = new BeakerMesh();
     this.beakerLeft.restingPosition.set(-0.38, 0.852, 1.10);
@@ -253,9 +266,11 @@ export class Engine {
     };
 
     this.reactionEffectsLeft = new ReactionEffects(this.beakerLeft);
+    this.reactionEffectsLeft.setComputeBridge(this.computeBridge);
     this.beakerLeft.group.add(this.reactionEffectsLeft.group);
 
     this.reactionEffectsRight = new ReactionEffects(this.beakerRight);
+    this.reactionEffectsRight.setComputeBridge(this.computeBridge);
     this.beakerRight.group.add(this.reactionEffectsRight.group);
 
     this.chemistryEngineLeft.subscribe((state) => {
@@ -276,6 +291,9 @@ export class Engine {
     this.initPourVolumeBadge();
   }
 
+  private pourStreamVertexBuffer = new Float32Array(153 * 3);
+  private isPourStreamWorkerBusy = false;
+
   private initPourStreamMesh(): void {
     this.pourStreamMat = new THREE.MeshPhysicalMaterial({
       color: 0xd7f3ff,
@@ -287,8 +305,9 @@ export class Engine {
       opacity: 0.82,
       depthWrite: false,
     });
-    const dummyGeo = new THREE.BufferGeometry();
-    this.pourStreamMesh = new THREE.Mesh(dummyGeo, this.pourStreamMat);
+    const defaultCurve = new THREE.LineCurve3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.1, 0));
+    const pooledGeo = new THREE.TubeGeometry(defaultCurve, 16, 0.007, 8, false);
+    this.pourStreamMesh = new THREE.Mesh(pooledGeo, this.pourStreamMat);
     this.pourStreamMesh.visible = false;
     this.scene.add(this.pourStreamMesh);
   }
@@ -299,11 +318,46 @@ export class Engine {
     this.pourStreamMat.color.copy(color);
 
     const midWorld = startWorld.clone().lerp(endWorld, 0.45).add(new THREE.Vector3(0, 0.025, 0));
-    const curve = new THREE.CatmullRomCurve3([startWorld, midWorld, endWorld]);
 
-    this.pourStreamMesh.geometry.dispose();
-    this.pourStreamMesh.geometry = new THREE.TubeGeometry(curve, 16, 0.007, 8, false);
-    this.pourStreamMesh.visible = true;
+    if (this.computeBridge && !this.isPourStreamWorkerBusy) {
+      this.isPourStreamWorkerBusy = true;
+      this.computeBridge
+        .generatePourStreamTube({
+          startWorld: [startWorld.x, startWorld.y, startWorld.z],
+          midWorld: [midWorld.x, midWorld.y, midWorld.z],
+          endWorld: [endWorld.x, endWorld.y, endWorld.z],
+          tubularSegments: 16,
+          radialSegments: 8,
+          radius: 0.007,
+          vertexBuffer: this.pourStreamVertexBuffer,
+        })
+        .then((res: any) => {
+          this.pourStreamVertexBuffer = res.vertexBuffer;
+          if (this.pourStreamMesh) {
+            const posAttr = this.pourStreamMesh.geometry.attributes.position as THREE.BufferAttribute;
+            if (posAttr) {
+              posAttr.copyArray(res.vertexBuffer);
+              posAttr.needsUpdate = true;
+              this.pourStreamMesh.geometry.computeVertexNormals();
+            }
+            this.pourStreamMesh.visible = true;
+          }
+        })
+        .catch((err: any) => {
+          console.warn('[Engine] Pour stream worker error:', err);
+        })
+        .finally(() => {
+          this.isPourStreamWorkerBusy = false;
+        });
+    } else if (!this.computeBridge) {
+      // Sync fallback for test environments
+      const curve = new THREE.CatmullRomCurve3([startWorld, midWorld, endWorld]);
+      this.pourStreamMesh.geometry.dispose();
+      this.pourStreamMesh.geometry = new THREE.TubeGeometry(curve, 16, 0.007, 8, false);
+      this.pourStreamMesh.visible = true;
+    } else {
+      this.pourStreamMesh.visible = true;
+    }
   }
 
   private hidePourStream(): void {
@@ -518,7 +572,7 @@ export class Engine {
 
     // Guarantee holographic stage is active and clean table surface for 3D hardware
     this.holoStage.setStageVisible(true);
-    this.holoTable.hideHologram();
+    this.holoTable.hideHologram(true);
     this.beakerLeft.setVisible(false, true);
     this.beakerRight.setVisible(false, true);
 
@@ -567,8 +621,14 @@ export class Engine {
       if (this.renderer?.shadowMap?.enabled) {
         this.renderer.shadowMap.needsUpdate = true;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[Engine] Failed to switch experiment:', err);
+      if (typeof window !== 'undefined') {
+        (window as any).__LAST_ENGINE_ERROR__ = {
+          message: err?.message || String(err),
+          stack: err?.stack || ''
+        };
+      }
     } finally {
       if (requestId === this.currentSwitchRequestId) {
         setTimeout(() => {
@@ -581,28 +641,54 @@ export class Engine {
   }
 
   private async initDefaultExperiment(): Promise<void> {
-    const registry = ExperimentRegistry.getInstance();
-    const all = registry.getAll();
-    if (all.length > 0) {
-      const defaultExp = all.find((e) => e.id === 'optics-lab') || all[0];
-      await this.switchExperiment(defaultExp.id);
+    try {
+      const registry = ExperimentRegistry.getInstance();
+      const all = registry.getAll();
+      if (typeof window !== 'undefined') {
+        (window as any).__REGISTRY_COUNT__ = all.length;
+        (window as any).__REGISTRY_ALL__ = all.map(e => e.id);
+      }
+      if (all.length > 0) {
+        const defaultExp = all.find((e) => e.id === 'optics-lab') || all[0];
+        await this.switchExperiment(defaultExp.id);
+      }
+    } catch (err: any) {
+      console.error('[Engine] Failed in initDefaultExperiment:', err);
+      if (typeof window !== 'undefined') {
+        (window as any).__INIT_ERROR__ = {
+          message: err?.message || String(err),
+          stack: err?.stack || ''
+        };
+      }
     }
   }
 
   private getInteractiveBeakerAt(screenPos: THREE.Vector2): 'left' | 'right' | null {
     this.raycaster.setFromCamera(screenPos, this.camera);
+    const ray = this.raycaster.ray;
+
     if (this.beakerLeft && this.beakerLeft.isVisible()) {
-      const leftHits = this.raycaster.intersectObjects(this.beakerLeft.getInteractiveMeshes(), true);
-      if (leftHits.length > 0 && leftHits[0].distance < 8.0) {
-        return 'left';
+      const center = this.beakerLeft.group.position.clone().add(new THREE.Vector3(0, this.beakerLeft.beakerHeight * 0.5, 0));
+      const sphere = new THREE.Sphere(center, 0.25);
+      if (ray.intersectsSphere(sphere)) {
+        const leftHits = this.raycaster.intersectObjects(this.beakerLeft.getInteractiveMeshes(), true);
+        if (leftHits.length > 0 && leftHits[0].distance < 8.0) {
+          return 'left';
+        }
       }
     }
+
     if (this.beakerRight && this.beakerRight.isVisible()) {
-      const rightHits = this.raycaster.intersectObjects(this.beakerRight.getInteractiveMeshes(), true);
-      if (rightHits.length > 0 && rightHits[0].distance < 8.0) {
-        return 'right';
+      const center = this.beakerRight.group.position.clone().add(new THREE.Vector3(0, this.beakerRight.beakerHeight * 0.5, 0));
+      const sphere = new THREE.Sphere(center, 0.25);
+      if (ray.intersectsSphere(sphere)) {
+        const rightHits = this.raycaster.intersectObjects(this.beakerRight.getInteractiveMeshes(), true);
+        if (rightHits.length > 0 && rightHits[0].distance < 8.0) {
+          return 'right';
+        }
       }
     }
+
     return null;
   }
 
@@ -900,9 +986,35 @@ export class Engine {
 
     if (this.chemistryEngineLeft) {
       this.chemistryEngineLeft.update(delta);
+      if (this.computeBridge && (this.chemistryEngineLeft.state.temperature > 22.5 || this.chemistryEngineLeft.state.activeGasRate > 0)) {
+        this.computeBridge.simulateChemistryStep({
+          temperature: this.chemistryEngineLeft.state.temperature,
+          activeGasRate: this.chemistryEngineLeft.state.activeGasRate,
+          ambientTemp: 22.5,
+          dt: delta,
+        }).then((res) => {
+          if (res) {
+            this.chemistryEngineLeft.state.temperature = res.temperature;
+            this.chemistryEngineLeft.state.activeGasRate = res.activeGasRate;
+          }
+        }).catch(() => {});
+      }
     }
     if (this.chemistryEngineRight) {
       this.chemistryEngineRight.update(delta);
+      if (this.computeBridge && (this.chemistryEngineRight.state.temperature > 22.5 || this.chemistryEngineRight.state.activeGasRate > 0)) {
+        this.computeBridge.simulateChemistryStep({
+          temperature: this.chemistryEngineRight.state.temperature,
+          activeGasRate: this.chemistryEngineRight.state.activeGasRate,
+          ambientTemp: 22.5,
+          dt: delta,
+        }).then((res) => {
+          if (res) {
+            this.chemistryEngineRight.state.temperature = res.temperature;
+            this.chemistryEngineRight.state.activeGasRate = res.activeGasRate;
+          }
+        }).catch(() => {});
+      }
     }
 
     // Beaker drag, pour stream, volume transfer & physics

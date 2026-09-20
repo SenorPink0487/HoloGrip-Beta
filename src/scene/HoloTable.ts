@@ -263,8 +263,18 @@ export class HoloTable {
     this.group.add(this.particles);
   }
 
-  public hideHologram(): void {
+  public hideHologram(immediate = false): void {
     this.targetHoloAlpha = 0.0;
+    if (immediate) {
+      this.currentHoloAlpha = 0.0;
+      if (this.mainScreenMat) this.mainScreenMat.opacity = 0;
+      if (this.mainScreen) this.mainScreen.visible = false;
+      if (this.beamConeMat) this.beamConeMat.opacity = 0;
+      if (this.beamCone) this.beamCone.visible = false;
+      if (this.particlesMat) this.particlesMat.opacity = 0;
+      if (this.particles) this.particles.visible = false;
+      if (this.holoLight) this.holoLight.intensity = 0;
+    }
   }
 
   public showHologram(): void {

@@ -150,6 +150,12 @@ export class HologramStage {
     newExperiment.mount(context);
     newExperiment.rootGroup.scale.set(0.01, 0.01, 0.01);
     this.group.add(newExperiment.rootGroup);
+
+    const hideEmitter = Boolean((newExperiment as any)?.hideCenterEmitter);
+    this.emitterRing.visible = !hideEmitter;
+    this.hologramApertureLight.visible = !hideEmitter;
+    this.transitionParticles.visible = !hideEmitter;
+
     this.setStageVisible(true);
 
     // 6. Complete transition
@@ -162,9 +168,13 @@ export class HologramStage {
 
   public setStageVisible(visible: boolean): void {
     this.group.visible = visible;
-    if (visible && this.currentExperiment && this.currentExperiment.rootGroup.scale.x < 0.1) {
-      // Prompt immediate scale-up if previously suppressed
-      this.currentExperiment.rootGroup.scale.set(0.2, 0.2, 0.2);
+    if (visible && this.currentExperiment) {
+      const targetScale = (this.currentExperiment as any).targetScale ?? 1.0;
+      if (this.currentExperiment.rootGroup.scale.x < 0.1 * targetScale) {
+        // Prompt immediate scale-up if previously suppressed
+        const initScale = 0.2 * targetScale;
+        this.currentExperiment.rootGroup.scale.set(initScale, initScale, initScale);
+      }
     }
   }
 
@@ -172,14 +182,21 @@ export class HologramStage {
     if (!this.group.visible) return;
 
     // Animate stage emitter
-    this.emitterRing.rotation.z += delta * 0.5;
-    this.hologramApertureLight.intensity = 0.8 + Math.sin(elapsed * 4.0) * 0.12;
+    if (this.emitterRing.visible) {
+      this.emitterRing.rotation.z += delta * 0.5;
+    }
+    if (this.hologramApertureLight.visible) {
+      this.hologramApertureLight.intensity = 0.8 + Math.sin(elapsed * 4.0) * 0.12;
+    }
 
     // Transition scaling animation
-    if (this.currentExperiment && this.currentExperiment.rootGroup.scale.x < 1.0) {
+    if (this.currentExperiment) {
+      const targetScale = (this.currentExperiment as any).targetScale ?? 1.0;
       const currentScale = this.currentExperiment.rootGroup.scale.x;
-      const targetScale = Math.min(1.0, currentScale + delta * 3.2);
-      this.currentExperiment.rootGroup.scale.set(targetScale, targetScale, targetScale);
+      if (currentScale < targetScale) {
+        const nextScale = Math.min(targetScale, currentScale + delta * 3.5 * Math.max(1.0, targetScale));
+        this.currentExperiment.rootGroup.scale.set(nextScale, nextScale, nextScale);
+      }
     }
 
     // Update active experiment

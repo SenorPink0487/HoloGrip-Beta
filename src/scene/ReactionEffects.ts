@@ -48,6 +48,9 @@ export class ReactionEffects {
   // Exotherm glow light
   private heatGlowLight: THREE.PointLight;
 
+  private computeBridge: any = null;
+  private isWorkerBusy = false;
+
   constructor(private beaker: BeakerMesh) {
     this.group.name = 'ReactionEffects';
 
@@ -56,6 +59,10 @@ export class ReactionEffects {
     this.initPrecipitateFlakes();
     this.initSodiumBurnEffect();
     this.initHeatGlow();
+  }
+
+  public setComputeBridge(bridge: any): void {
+    this.computeBridge = bridge;
   }
 
   private initPourEffect(): void {
@@ -310,27 +317,129 @@ export class ReactionEffects {
         const streamH = Math.max(0.05, topY - bottomY);
         this.pourStream.scale.set(1, streamH / 0.35, 1);
         this.pourStream.position.set(0.015, bottomY + streamH / 2, 0.015);
+      }
+    }
 
-        // Spawn splash particles
-        const splashPos = (this.pourSplashParticles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
-        for (let i = 0; i < this.pourSplashLifespans.length; i++) {
-          if (this.pourSplashLifespans[i] <= 0 && Math.random() < 0.4) {
-            this.pourSplashLifespans[i] = 0.3 + Math.random() * 0.2;
-            splashPos[i * 3] = 0.015 + (Math.random() - 0.5) * 0.015;
-            splashPos[i * 3 + 1] = liquidSurfaceLocalY + 0.002;
-            splashPos[i * 3 + 2] = 0.015 + (Math.random() - 0.5) * 0.015;
+    // Material opacities and timer counters
+    const gasRate = state.activeGasRate;
+    if (gasRate > 0.05) {
+      this.bubbleMat.opacity = THREE.MathUtils.lerp(this.bubbleMat.opacity, Math.min(0.85, gasRate * 0.9), delta * 4);
+    } else {
+      this.bubbleMat.opacity = THREE.MathUtils.lerp(this.bubbleMat.opacity, 0.0, delta * 3);
+    }
 
-            const angle = Math.random() * Math.PI * 2;
-            const spd = 0.06 + Math.random() * 0.08;
-            this.pourSplashVelocities[i * 3] = Math.cos(angle) * spd;
-            this.pourSplashVelocities[i * 3 + 1] = 0.08 + Math.random() * 0.08;
-            this.pourSplashVelocities[i * 3 + 2] = Math.sin(angle) * spd;
+    if (this.isPrecipitating) {
+      this.precipTimer -= delta;
+      if (this.precipTimer <= 0) {
+        this.isPrecipitating = false;
+        this.precipMat.opacity = 0;
+      } else {
+        this.precipMat.opacity = Math.min(0.85, this.precipTimer * 0.4);
+      }
+    }
+
+    if (this.isSodiumBurning) {
+      this.sodiumTimer -= delta;
+      if (this.sodiumTimer <= 0) {
+        this.isSodiumBurning = false;
+        this.sodiumBall.visible = false;
+        this.sodiumLight.intensity = 0;
+      }
+    }
+
+    // Dispatch particle physics to Multi-Core Web Worker
+    if (this.computeBridge && !this.isWorkerBusy) {
+      this.isWorkerBusy = true;
+      this.computeBridge
+        .simulateParticles({
+          bubblePositions: this.bubblePositions,
+          bubbleVelocities: this.bubbleVelocities,
+          bubblePhases: this.bubblePhases,
+          gasRate,
+          precipPositions: this.precipPositions,
+          precipSpeeds: this.precipSpeeds,
+          isPrecipitating: this.isPrecipitating,
+          splashPositions: this.pourSplashPositions,
+          splashVelocities: this.pourSplashVelocities,
+          splashLifespans: this.pourSplashLifespans,
+          isPouring: this.isPouring,
+          sodiumSparkPositions: this.sodiumSparkPositions,
+          sodiumSparkVelocities: this.sodiumSparkVelocities,
+          sodiumSparkLifespans: this.sodiumSparkLifespans,
+          isSodiumBurning: this.isSodiumBurning,
+          sodiumAngle: this.sodiumAngle,
+          liquidSurfaceLocalY,
+          liquidRadius: this.beaker.getLiquidRadius(),
+          maxLiquidHeight: this.beaker.maxLiquidHeight,
+          dt: delta,
+        })
+        .then((res: any) => {
+          this.bubblePositions = res.bubblePositions;
+          this.bubbleVelocities = res.bubbleVelocities;
+          this.bubblePhases = res.bubblePhases;
+          (this.bubbleParticles.geometry.attributes.position as THREE.BufferAttribute).copyArray(res.bubblePositions);
+          this.bubbleParticles.geometry.attributes.position.needsUpdate = true;
+
+          this.precipPositions = res.precipPositions;
+          this.precipSpeeds = res.precipSpeeds;
+          (this.precipParticles.geometry.attributes.position as THREE.BufferAttribute).copyArray(res.precipPositions);
+          this.precipParticles.geometry.attributes.position.needsUpdate = true;
+
+          this.pourSplashPositions = res.splashPositions;
+          this.pourSplashVelocities = res.splashVelocities;
+          this.pourSplashLifespans = res.splashLifespans;
+          (this.pourSplashParticles.geometry.attributes.position as THREE.BufferAttribute).copyArray(res.splashPositions);
+          this.pourSplashParticles.geometry.attributes.position.needsUpdate = true;
+
+          this.sodiumSparkPositions = res.sodiumSparkPositions;
+          this.sodiumSparkVelocities = res.sodiumSparkVelocities;
+          this.sodiumSparkLifespans = res.sodiumSparkLifespans;
+          (this.sodiumSparkParticles.geometry.attributes.position as THREE.BufferAttribute).copyArray(res.sodiumSparkPositions);
+          this.sodiumSparkParticles.geometry.attributes.position.needsUpdate = true;
+
+          if (this.isSodiumBurning && res.sodiumBallPos) {
+            this.sodiumBall.position.set(res.sodiumBallPos[0], res.sodiumBallPos[1], res.sodiumBallPos[2]);
+            this.sodiumLight.position.set(res.sodiumBallPos[0], res.sodiumBallPos[1] + 0.02, res.sodiumBallPos[2]);
+            this.sodiumLight.intensity = 1.4 + Math.sin(Date.now() * 0.03) * 0.6;
+            this.sodiumAngle = res.sodiumAngle;
           }
+        })
+        .catch((err: any) => {
+          console.warn('[ReactionEffects] Worker particle sim error:', err);
+        })
+        .finally(() => {
+          this.isWorkerBusy = false;
+        });
+    } else if (!this.computeBridge) {
+      // Local sync fallback for test environments without worker pool
+      this.updateParticlesSync(delta, liquidSurfaceLocalY, gasRate);
+    }
+
+    // Heat Glow decay
+    if (this.heatGlowLight.intensity > 0) {
+      this.heatGlowLight.intensity = Math.max(0, this.heatGlowLight.intensity - delta * 1.5);
+    }
+  }
+
+  private updateParticlesSync(delta: number, liquidSurfaceLocalY: number, gasRate: number): void {
+    if (this.isPouring) {
+      const splashPos = (this.pourSplashParticles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
+      for (let i = 0; i < this.pourSplashLifespans.length; i++) {
+        if (this.pourSplashLifespans[i] <= 0 && Math.random() < 0.4) {
+          this.pourSplashLifespans[i] = 0.3 + Math.random() * 0.2;
+          splashPos[i * 3] = 0.015 + (Math.random() - 0.5) * 0.015;
+          splashPos[i * 3 + 1] = liquidSurfaceLocalY + 0.002;
+          splashPos[i * 3 + 2] = 0.015 + (Math.random() - 0.5) * 0.015;
+
+          const angle = Math.random() * Math.PI * 2;
+          const spd = 0.06 + Math.random() * 0.08;
+          this.pourSplashVelocities[i * 3] = Math.cos(angle) * spd;
+          this.pourSplashVelocities[i * 3 + 1] = 0.08 + Math.random() * 0.08;
+          this.pourSplashVelocities[i * 3 + 2] = Math.sin(angle) * spd;
         }
       }
     }
 
-    // Update Splash Particles
     const splashPos = (this.pourSplashParticles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
     let anyActiveSplash = false;
     for (let i = 0; i < this.pourSplashLifespans.length; i++) {
@@ -339,104 +448,75 @@ export class ReactionEffects {
         this.pourSplashLifespans[i] -= delta;
         splashPos[i * 3] += this.pourSplashVelocities[i * 3] * delta;
         splashPos[i * 3 + 1] += this.pourSplashVelocities[i * 3 + 1] * delta;
-        this.pourSplashVelocities[i * 3 + 1] -= 9.8 * 0.05 * delta; // Gravity
+        this.pourSplashVelocities[i * 3 + 1] -= 9.8 * 0.05 * delta;
         splashPos[i * 3 + 2] += this.pourSplashVelocities[i * 3 + 2] * delta;
       } else {
-        splashPos[i * 3 + 1] = -10; // Hide below
+        splashPos[i * 3 + 1] = -10;
       }
     }
     if (anyActiveSplash) {
       this.pourSplashParticles.geometry.attributes.position.needsUpdate = true;
     }
 
-    // 3. Animate Gas Bubbles
-    const gasRate = state.activeGasRate;
     if (gasRate > 0.05) {
-      this.bubbleMat.opacity = THREE.MathUtils.lerp(this.bubbleMat.opacity, Math.min(0.85, gasRate * 0.9), delta * 4);
       const bPos = (this.bubbleParticles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
-
       for (let i = 0; i < this.maxBubbles; i++) {
         bPos[i * 3 + 1] += this.bubbleVelocities[i] * delta * (0.8 + gasRate * 0.8);
         this.bubblePhases[i] += delta * 5.0;
         bPos[i * 3] += Math.sin(this.bubblePhases[i]) * 0.0008;
         bPos[i * 3 + 2] += Math.cos(this.bubblePhases[i]) * 0.0008;
 
-        // Reached liquid top surface
         if (bPos[i * 3 + 1] >= liquidSurfaceLocalY) {
           this.resetBubble(i);
         }
       }
       this.bubbleParticles.geometry.attributes.position.needsUpdate = true;
-    } else {
-      this.bubbleMat.opacity = THREE.MathUtils.lerp(this.bubbleMat.opacity, 0.0, delta * 3);
     }
 
-    // 4. Animate Precipitating Flakes
     if (this.isPrecipitating) {
-      this.precipTimer -= delta;
-      if (this.precipTimer <= 0) {
-        this.isPrecipitating = false;
-        this.precipMat.opacity = 0;
-      } else {
-        this.precipMat.opacity = Math.min(0.85, this.precipTimer * 0.4);
-        const pPos = (this.precipParticles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
+      const pPos = (this.precipParticles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
+      for (let i = 0; i < this.maxPrecipFlakes; i++) {
+        pPos[i * 3 + 1] -= this.precipSpeeds[i] * delta;
+        pPos[i * 3] += (Math.random() - 0.5) * 0.0012;
+        pPos[i * 3 + 2] += (Math.random() - 0.5) * 0.0012;
 
-        for (let i = 0; i < this.maxPrecipFlakes; i++) {
-          pPos[i * 3 + 1] -= this.precipSpeeds[i] * delta;
-          // Brownian slight drift
-          pPos[i * 3] += (Math.random() - 0.5) * 0.0012;
-          pPos[i * 3 + 2] += (Math.random() - 0.5) * 0.0012;
-
-          // Reached bottom
-          if (pPos[i * 3 + 1] <= 0.012) {
-            pPos[i * 3 + 1] = 0.011;
-          }
+        if (pPos[i * 3 + 1] <= 0.012) {
+          pPos[i * 3 + 1] = 0.011;
         }
-        this.precipParticles.geometry.attributes.position.needsUpdate = true;
       }
+      this.precipParticles.geometry.attributes.position.needsUpdate = true;
     }
 
-    // 5. Animate Sodium Burn
     if (this.isSodiumBurning) {
-      this.sodiumTimer -= delta;
-      if (this.sodiumTimer <= 0) {
-        this.isSodiumBurning = false;
-        this.sodiumBall.visible = false;
-        this.sodiumLight.intensity = 0;
-      } else {
-        // Dart rapidly along perimeter of liquid
-        this.sodiumAngle += delta * 6.5;
-        const orbitR = this.beaker.getLiquidRadius() * 0.65;
-        const ballX = Math.cos(this.sodiumAngle) * orbitR;
-        const ballZ = Math.sin(this.sodiumAngle * 1.3) * orbitR;
-        const ballY = liquidSurfaceLocalY + 0.006;
+      this.sodiumAngle += delta * 6.5;
+      const orbitR = this.beaker.getLiquidRadius() * 0.65;
+      const ballX = Math.cos(this.sodiumAngle) * orbitR;
+      const ballZ = Math.sin(this.sodiumAngle * 1.3) * orbitR;
+      const ballY = liquidSurfaceLocalY + 0.006;
 
-        this.sodiumBall.position.set(ballX, ballY, ballZ);
-        this.sodiumLight.position.set(ballX, ballY + 0.02, ballZ);
-        this.sodiumLight.intensity = 1.4 + Math.sin(Date.now() * 0.03) * 0.6;
+      this.sodiumBall.position.set(ballX, ballY, ballZ);
+      this.sodiumLight.position.set(ballX, ballY + 0.02, ballZ);
+      this.sodiumLight.intensity = 1.4 + Math.sin(Date.now() * 0.03) * 0.6;
 
-        // Emit golden sparks from sodium ball
-        const sparkPos = (this.sodiumSparkParticles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
-        for (let i = 0; i < this.sodiumSparkLifespans.length; i++) {
-          if (this.sodiumSparkLifespans[i] <= 0 && Math.random() < 0.6) {
-            this.sodiumSparkLifespans[i] = 0.25 + Math.random() * 0.25;
-            sparkPos[i * 3] = ballX;
-            sparkPos[i * 3 + 1] = ballY;
-            sparkPos[i * 3 + 2] = ballZ;
+      const sparkPos = (this.sodiumSparkParticles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
+      for (let i = 0; i < this.sodiumSparkLifespans.length; i++) {
+        if (this.sodiumSparkLifespans[i] <= 0 && Math.random() < 0.6) {
+          this.sodiumSparkLifespans[i] = 0.25 + Math.random() * 0.25;
+          sparkPos[i * 3] = ballX;
+          sparkPos[i * 3 + 1] = ballY;
+          sparkPos[i * 3 + 2] = ballZ;
 
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.random() * Math.PI * 0.5; // Upwards cone
-            const spd = 0.15 + Math.random() * 0.25;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.random() * Math.PI * 0.5;
+          const spd = 0.15 + Math.random() * 0.25;
 
-            this.sodiumSparkVelocities[i * 3] = Math.sin(phi) * Math.cos(theta) * spd;
-            this.sodiumSparkVelocities[i * 3 + 1] = Math.cos(phi) * spd;
-            this.sodiumSparkVelocities[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * spd;
-          }
+          this.sodiumSparkVelocities[i * 3] = Math.sin(phi) * Math.cos(theta) * spd;
+          this.sodiumSparkVelocities[i * 3 + 1] = Math.cos(phi) * spd;
+          this.sodiumSparkVelocities[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * spd;
         }
       }
     }
 
-    // Update sodium sparks
     const sPos = (this.sodiumSparkParticles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
     let anyActiveSparks = false;
     for (let i = 0; i < this.sodiumSparkLifespans.length; i++) {
@@ -445,7 +525,7 @@ export class ReactionEffects {
         this.sodiumSparkLifespans[i] -= delta;
         sPos[i * 3] += this.sodiumSparkVelocities[i * 3] * delta;
         sPos[i * 3 + 1] += this.sodiumSparkVelocities[i * 3 + 1] * delta;
-        this.sodiumSparkVelocities[i * 3 + 1] -= 9.8 * 0.08 * delta; // Gravity
+        this.sodiumSparkVelocities[i * 3 + 1] -= 9.8 * 0.08 * delta;
         sPos[i * 3 + 2] += this.sodiumSparkVelocities[i * 3 + 2] * delta;
       } else {
         sPos[i * 3 + 1] = -10;
@@ -453,11 +533,6 @@ export class ReactionEffects {
     }
     if (anyActiveSparks) {
       this.sodiumSparkParticles.geometry.attributes.position.needsUpdate = true;
-    }
-
-    // 6. Animate Heat Glow decay
-    if (this.heatGlowLight.intensity > 0) {
-      this.heatGlowLight.intensity = Math.max(0, this.heatGlowLight.intensity - delta * 1.5);
     }
   }
 }

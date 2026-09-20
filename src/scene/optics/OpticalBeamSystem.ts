@@ -13,6 +13,17 @@ export class OpticalBeamSystem {
   private waveVectorGroup = new THREE.Group();
   private waveFrontsGroup = new THREE.Group();
 
+  // Object pool for 3D interference wavefront ripple rings (zero GC allocations during animation)
+  private wavefrontMeshes: THREE.Mesh[] = [];
+  private unitWaveArcGeo: THREE.RingGeometry | null = null;
+  private waveFrontMat: THREE.MeshBasicMaterial | null = null;
+
+  // Pre-allocated line buffer for 3D polarization vector waves
+  private waveVectorLines: THREE.LineSegments | null = null;
+  private waveVectorGeo: THREE.BufferGeometry | null = null;
+  private waveVectorPositions: Float32Array | null = null;
+  private waveVectorColors: Float32Array | null = null;
+
   public wavelengthNm = 632.8;
   public intensity = 1.0;
 
@@ -132,6 +143,68 @@ export class OpticalBeamSystem {
   }
 
   /**
+   * Apply multi-spectral dispersion rays computed by Worker (Zero Snell's Math on Main Thread)
+   */
+  public updateDispersionRaysFromWorker(raysData: Array<{
+    wavelengthNm: number;
+    colorRgb: [number, number, number];
+    points: [number, number, number][];
+  }>): void {
+    this.clearDispersionRays();
+    this.coreBeamMesh.visible = false;
+    this.glowBeamMesh.visible = false;
+
+    for (const ray of raysData) {
+      const vPoints = ray.points.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
+      const curve = new THREE.CatmullRomCurve3(vPoints, false, 'catmullrom', 0.05);
+      const tubeGeo = new THREE.TubeGeometry(curve, 24, 0.0022, 8, false);
+
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(ray.colorRgb[0], ray.colorRgb[1], ray.colorRgb[2]),
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+      });
+
+      const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+      this.dispersionGroup.add(tubeMesh);
+    }
+  }
+
+  /**
+   * Apply pre-computed 3D polarization wave vector buffers directly from Multi-Core Worker (Zero CPU Math)
+   */
+  public applyPolarizationWaveBuffer(positions: Float32Array, colors: Float32Array): void {
+    const totalVertices = positions.length / 3;
+    if (!this.waveVectorLines || !this.waveVectorGeo || !this.waveVectorPositions || this.waveVectorPositions.length !== positions.length) {
+      this.clearWaveVectors();
+      this.waveVectorPositions = new Float32Array(positions.length);
+      this.waveVectorColors = new Float32Array(colors.length);
+
+      this.waveVectorGeo = new THREE.BufferGeometry();
+      this.waveVectorGeo.setAttribute('position', new THREE.BufferAttribute(this.waveVectorPositions, 3));
+      this.waveVectorGeo.setAttribute('color', new THREE.BufferAttribute(this.waveVectorColors, 3));
+
+      const lineMat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.88,
+        blending: THREE.AdditiveBlending,
+      });
+
+      this.waveVectorLines = new THREE.LineSegments(this.waveVectorGeo, lineMat);
+      this.waveVectorGroup.add(this.waveVectorLines);
+    }
+
+    this.waveVectorPositions!.set(positions);
+    this.waveVectorColors!.set(colors);
+
+    (this.waveVectorGeo!.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+    (this.waveVectorGeo!.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
+    this.waveVectorLines!.visible = true;
+  }
+
+  /**
    * Build 3D spatial oscillating Electric Field vector waves (矢量偏振波列)
    */
   public updatePolarizationWave(params: {
@@ -144,13 +217,6 @@ export class OpticalBeamSystem {
     hasQuarterWavePlate?: boolean;
     time: number;
   }): void {
-    while (this.waveVectorGroup.children.length > 0) {
-      const child = this.waveVectorGroup.children[0] as THREE.Mesh;
-      this.waveVectorGroup.remove(child);
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) (child.material as THREE.Material).dispose();
-    }
-
     const { startZ, endZ, polarizerZ = -0.15, polarizerAngleDeg = 0, analyzerZ = 0.25, analyzerAngleDeg = 90, hasQuarterWavePlate = false, time } = params;
 
     const numSamples = 60;
@@ -162,9 +228,34 @@ export class OpticalBeamSystem {
     const polAngleRad = THREE.MathUtils.degToRad(polarizerAngleDeg);
     const anaAngleRad = THREE.MathUtils.degToRad(analyzerAngleDeg);
 
-    const positions: number[] = [];
-    const colors: number[] = [];
+    // Initialize line segments buffer once
+    const totalVertices = (numSamples + 1) * 2;
+    if (!this.waveVectorPositions || this.waveVectorPositions.length !== totalVertices * 3) {
+      this.clearWaveVectors();
+      this.waveVectorPositions = new Float32Array(totalVertices * 3);
+      this.waveVectorColors = new Float32Array(totalVertices * 3);
+
+      this.waveVectorGeo = new THREE.BufferGeometry();
+      this.waveVectorGeo.setAttribute('position', new THREE.BufferAttribute(this.waveVectorPositions, 3));
+      this.waveVectorGeo.setAttribute('color', new THREE.BufferAttribute(this.waveVectorColors, 3));
+
+      const lineMat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.88,
+        blending: THREE.AdditiveBlending,
+      });
+
+      this.waveVectorLines = new THREE.LineSegments(this.waveVectorGeo, lineMat);
+      this.waveVectorGroup.add(this.waveVectorLines);
+    }
+
+    const pos = this.waveVectorPositions!;
+    const col = this.waveVectorColors!;
     const baseColor = OpticalPhysics.wavelengthToColor(this.wavelengthNm);
+
+    let vIdx = 0;
+    let cIdx = 0;
 
     for (let i = 0; i <= numSamples; i++) {
       const z = startZ + i * dz;
@@ -172,7 +263,7 @@ export class OpticalBeamSystem {
 
       let ampX = 0;
       let ampY = 0;
-      let ampMag = 0.024; // 24mm amplitude
+      const ampMag = 0.024; // 24mm amplitude
 
       if (z < polarizerZ) {
         // Unpolarized / initial laser: linear 45° or vertical
@@ -182,8 +273,8 @@ export class OpticalBeamSystem {
         // Linearly polarized light along polarizer axis
         if (hasQuarterWavePlate) {
           // Circular / elliptical polarization after quarter wave plate!
-          ampX = ampMag * Math.cos(polAngleRad) * Math.cos(phase);
-          ampY = ampMag * Math.sin(polAngleRad) * Math.sin(phase);
+          ampX = ampMag * Math.cos(polAngleRad) * Math.sin(phase);
+          ampY = ampMag * Math.sin(polAngleRad) * Math.cos(phase);
         } else {
           ampX = ampMag * Math.cos(polAngleRad) * Math.cos(phase);
           ampY = ampMag * Math.sin(polAngleRad) * Math.cos(phase);
@@ -199,35 +290,34 @@ export class OpticalBeamSystem {
       }
 
       // Origin on beam axis
-      positions.push(0, beamY, z);
-      // Vector tip
-      positions.push(ampX, beamY + ampY, z);
+      pos[vIdx++] = 0;
+      pos[vIdx++] = beamY;
+      pos[vIdx++] = z;
 
-      colors.push(baseColor.r * 0.4, baseColor.g * 0.4, baseColor.b * 0.4);
-      colors.push(baseColor.r, baseColor.g, baseColor.b);
+      // Vector tip
+      pos[vIdx++] = ampX;
+      pos[vIdx++] = beamY + ampY;
+      pos[vIdx++] = z;
+
+      col[cIdx++] = baseColor.r * 0.4;
+      col[cIdx++] = baseColor.g * 0.4;
+      col[cIdx++] = baseColor.b * 0.4;
+
+      col[cIdx++] = baseColor.r;
+      col[cIdx++] = baseColor.g;
+      col[cIdx++] = baseColor.b;
     }
 
-    const lineGeo = new THREE.BufferGeometry();
-    lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    lineGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-    const lineMat = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.88,
-      blending: THREE.AdditiveBlending,
-    });
-
-    const lines = new THREE.LineSegments(lineGeo, lineMat);
-    this.waveVectorGroup.add(lines);
+    const posAttr = this.waveVectorGeo!.getAttribute('position') as THREE.BufferAttribute;
+    const colAttr = this.waveVectorGeo!.getAttribute('color') as THREE.BufferAttribute;
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+    this.waveVectorLines!.visible = true;
   }
 
   public clearWaveVectors(): void {
-    while (this.waveVectorGroup.children.length > 0) {
-      const child = this.waveVectorGroup.children[0] as THREE.Mesh;
-      this.waveVectorGroup.remove(child);
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) (child.material as THREE.Material).dispose();
+    if (this.waveVectorLines) {
+      this.waveVectorLines.visible = false;
     }
   }
 
@@ -235,46 +325,56 @@ export class OpticalBeamSystem {
    * Build 3D spatial cylindrical wavefronts for Young's double slit interference
    */
   public updateDoubleSlitWavefronts(slitZ: number, slitSpacingMm: number, time: number): void {
-    while (this.waveFrontsGroup.children.length > 0) {
-      const child = this.waveFrontsGroup.children[0] as THREE.Mesh;
-      this.waveFrontsGroup.remove(child);
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) (child.material as THREE.Material).dispose();
-    }
-
     const d = slitSpacingMm * 1e-3;
     const slitY = 0.186;
     const baseColor = OpticalPhysics.wavelengthToColor(this.wavelengthNm);
 
-    const waveMat = new THREE.MeshBasicMaterial({
-      color: baseColor,
-      transparent: true,
-      opacity: 0.35,
-      wireframe: true,
-      blending: THREE.AdditiveBlending,
-    });
+    // Lazily initialize 18 pooled wavefront meshes once
+    const ringsPerSlit = 9;
+    const totalMeshes = ringsPerSlit * 2;
+
+    if (this.wavefrontMeshes.length === 0) {
+      this.unitWaveArcGeo = new THREE.RingGeometry(0.98, 1.02, 32, 1, -Math.PI * 0.45, Math.PI * 0.9);
+      this.waveFrontMat = new THREE.MeshBasicMaterial({
+        color: baseColor,
+        transparent: true,
+        opacity: 0.35,
+        wireframe: true,
+        blending: THREE.AdditiveBlending,
+      });
+
+      for (let i = 0; i < totalMeshes; i++) {
+        const mesh = new THREE.Mesh(this.unitWaveArcGeo, this.waveFrontMat);
+        mesh.rotation.x = -Math.PI * 0.5;
+        this.wavefrontMeshes.push(mesh);
+        this.waveFrontsGroup.add(mesh);
+      }
+    }
+
+    if (this.waveFrontMat) {
+      this.waveFrontMat.color.copy(baseColor);
+    }
 
     const slitPositions = [-d * 0.5, d * 0.5];
 
-    // Propagating wave ripple rings
+    // Propagating wave ripple rings using pooled meshes and scale transform
+    let meshIdx = 0;
     for (const sx of slitPositions) {
       for (let r = 0.04; r <= 0.36; r += 0.04) {
         const animR = (r + (time * 0.1) % 0.04);
-        const arcGeo = new THREE.RingGeometry(animR - 0.001, animR + 0.001, 32, 1, -Math.PI * 0.45, Math.PI * 0.9);
-        const arcMesh = new THREE.Mesh(arcGeo, waveMat);
-        arcMesh.rotation.x = -Math.PI * 0.5;
+        const arcMesh = this.wavefrontMeshes[meshIdx++];
         arcMesh.position.set(sx, slitY, slitZ);
-        this.waveFrontsGroup.add(arcMesh);
+        arcMesh.scale.set(animR, animR, animR);
+        arcMesh.visible = true;
       }
     }
+    this.waveFrontsGroup.visible = true;
   }
 
   public clearWavefronts(): void {
-    while (this.waveFrontsGroup.children.length > 0) {
-      const child = this.waveFrontsGroup.children[0] as THREE.Mesh;
-      this.waveFrontsGroup.remove(child);
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) (child.material as THREE.Material).dispose();
+    this.waveFrontsGroup.visible = false;
+    for (const mesh of this.wavefrontMeshes) {
+      mesh.visible = false;
     }
   }
 
@@ -283,6 +383,21 @@ export class OpticalBeamSystem {
     this.glowBeamMat.dispose();
     this.clearDispersionRays();
     this.clearWaveVectors();
+    if (this.waveVectorLines) {
+      this.waveVectorGroup.remove(this.waveVectorLines);
+      this.waveVectorGeo?.dispose();
+      (this.waveVectorLines.material as THREE.Material).dispose();
+      this.waveVectorLines = null;
+      this.waveVectorGeo = null;
+    }
     this.clearWavefronts();
+    for (const mesh of this.wavefrontMeshes) {
+      this.waveFrontsGroup.remove(mesh);
+    }
+    this.wavefrontMeshes = [];
+    this.unitWaveArcGeo?.dispose();
+    this.unitWaveArcGeo = null;
+    this.waveFrontMat?.dispose();
+    this.waveFrontMat = null;
   }
 }

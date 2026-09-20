@@ -56,21 +56,21 @@ export class LaserEmitterMesh {
 
   private createLaserAssembly(): void {
     const darkAnodizedMat = new THREE.MeshStandardMaterial({
-      color: 0x181a1f,
-      metalness: 0.9,
-      roughness: 0.28,
+      color: 0x4e5868,
+      metalness: 0.22,
+      roughness: 0.35,
     });
 
     const brushedSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xd0d8e2,
-      metalness: 0.95,
-      roughness: 0.2,
+      color: 0xe2eaf2,
+      metalness: 0.65,
+      roughness: 0.20,
     });
 
     const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xd4af37,
-      metalness: 0.92,
-      roughness: 0.22,
+      color: 0xdfb43a,
+      metalness: 0.65,
+      roughness: 0.25,
     });
 
     // 1. Vertical mounting post (Ø12mm stainless steel)

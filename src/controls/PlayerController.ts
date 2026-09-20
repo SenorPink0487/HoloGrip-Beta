@@ -22,10 +22,10 @@ export class PlayerController {
   public moveSpeed = 3.8;
   public sprintMultiplier = 1.7;
   public damping = 9.0;
-  public eyeHeight = 1.48;
+  public eyeHeight = 1.42;
 
   public roomRadius = 7.6;
-  public tableRadius = 2.45;
+  public tableRadius = 2.25;
   public tableCenter = new THREE.Vector2(0, 0);
 
   public isLocked = false;
@@ -50,7 +50,8 @@ export class PlayerController {
     this.domElement = domElement;
 
     // Position player right at the edge of the HoloTable for natural, interactive arm's length observation
-    this.camera.position.set(0, this.eyeHeight, 2.65);
+    this.pitch = -0.28;
+    this.camera.position.set(0, 1.38, 2.32);
     this.camera.rotation.order = 'YXZ';
     this.updateCameraRotation();
 

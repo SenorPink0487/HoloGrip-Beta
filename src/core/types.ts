@@ -76,6 +76,8 @@ export interface ExperimentContext {
 export interface IExperiment {
   readonly metadata: ExperimentMetadata;
   readonly rootGroup: THREE.Group;
+  readonly targetScale?: number;
+  readonly hideCenterEmitter?: boolean;
   
   /**
    * Asynchronous preload phase (load textures, GLTF models, shaders, worker scripts).

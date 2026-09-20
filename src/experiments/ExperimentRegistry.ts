@@ -55,39 +55,39 @@ export class ExperimentRegistry {
    */
   private scanAndRegisterExperiments(): void {
     try {
-      if (typeof (import.meta as any).glob === 'function') {
-        // Eagerly scan all metadata modules across the catalog (lightweight metadata)
-        const metaModules = import.meta.glob<{ metadata?: ExperimentMetadata; default?: ExperimentMetadata }>(
-          './catalog/**/meta.ts',
-          { eager: true }
-        );
+      // Eagerly scan all metadata modules across the catalog (lightweight metadata)
+      const metaModules = import.meta.glob<{ metadata?: ExperimentMetadata; default?: ExperimentMetadata }>(
+        './catalog/**/meta.ts',
+        { eager: true }
+      );
 
-        // Lazily scan all experiment implementation classes (code-split on demand)
-        const implModules = import.meta.glob<ExperimentModule>(
-          './catalog/**/index.ts'
-        );
+      // Lazily scan all experiment implementation classes (code-split on demand)
+      const implModules = import.meta.glob<ExperimentModule>(
+        './catalog/**/index.ts'
+      );
 
-        for (const [metaPath, metaModule] of Object.entries(metaModules)) {
-          const meta = metaModule.metadata || metaModule.default;
-          if (!meta || !meta.id) {
-            console.warn(`[ExperimentRegistry] Skipped invalid metadata at: ${metaPath}`);
-            continue;
-          }
+      console.log('[ExperimentRegistry] Scanning metaModules:', Object.keys(metaModules));
 
-          // Match corresponding index.ts loader path
-          const indexPath = metaPath.replace(/meta\.ts$/, 'index.ts');
-          const loader = implModules[indexPath];
-
-          if (!loader) {
-            console.warn(`[ExperimentRegistry] No matching index.ts implementation found for ${metaPath}`);
-            continue;
-          }
-
-          this.register({
-            metadata: meta,
-            loader: loader,
-          });
+      for (const [metaPath, metaModule] of Object.entries(metaModules)) {
+        const meta = metaModule.metadata || metaModule.default;
+        if (!meta || !meta.id) {
+          console.warn(`[ExperimentRegistry] Skipped invalid metadata at: ${metaPath}`);
+          continue;
         }
+
+        // Match corresponding index.ts loader path
+        const indexPath = metaPath.replace(/meta\.ts$/, 'index.ts');
+        const loader = implModules[indexPath];
+
+        if (!loader) {
+          console.warn(`[ExperimentRegistry] No matching index.ts implementation found for ${metaPath}`);
+          continue;
+        }
+
+        this.register({
+          metadata: meta,
+          loader: loader,
+        });
       }
     } catch (err) {
       console.warn('[ExperimentRegistry] Dynamic glob scan skipped:', err);

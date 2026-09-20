@@ -8,9 +8,12 @@ import { OpticalBeamSystem } from '../../../scene/optics/OpticalBeamSystem.ts';
 import { OpticalPhysics } from '../../../scene/optics/OpticalPhysics.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
+import type { OpticalDiffractionStepResponse } from '../../../workers/workerMessages.ts';
 
 export default class OpticsInterferenceExperiment extends BaseExperiment {
   public readonly metadata = metadata;
+  public override targetScale = 1.95;
+  public override hideCenterEmitter = true;
 
   private rail: OpticalBenchRail;
   private laser: LaserEmitterMesh;
@@ -23,9 +26,14 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
   private slitWidth = 0.04;
   private showWavefronts = true;
 
+  // Multi-Core Worker Buffer
+  private workerIntensityBuffer: Float32Array = new Float32Array(512);
+  private isWorkerBusy = false;
+  private hasWorkerResult = false;
+
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface and orient apparatus across the table
-    this.rootGroup.position.set(0, 0.063, 0);
+    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
     // 1. Rail & Saddles
@@ -81,20 +89,72 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
       screenDistM
     );
 
-    this.detectorScreen.renderFringesPattern({
-      mode: 'double_slit',
-      wavelengthNm: this.wavelength,
-      intensity: 1.0,
-      slitDistanceMm: this.slitDistance,
-      slitWidthMm: this.slitWidth,
-      screenDistanceM: screenDistM,
-    });
+    // Mandatory Multi-Core Worker physics computation
+    this.dispatchWorkerComputation(context);
+
+    if (this.hasWorkerResult) {
+      this.detectorScreen.renderFringesFromBuffer(this.workerIntensityBuffer, this.wavelength, 1.0);
+    } else {
+      this.detectorScreen.renderFringesPattern({
+        mode: 'double_slit',
+        wavelengthNm: this.wavelength,
+        intensity: 1.0,
+        slitDistanceMm: this.slitDistance,
+        slitWidthMm: this.slitWidth,
+        screenDistanceM: screenDistM,
+      });
+    }
 
     this.detectorScreen.updateMeter({
       intensityRatio: 0.92,
       wavelengthNm: this.wavelength,
       fringeSpacingMm: fringeSpacingM * 1000,
     });
+  }
+
+  private async dispatchWorkerComputation(context: ExperimentContext): Promise<void> {
+    if (this.isWorkerBusy) return;
+    this.isWorkerBusy = true;
+
+    try {
+      if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalDiffraction === 'function') {
+        const resp = await (context.computeBridge as any).simulateOpticalDiffraction({
+          intensityBuffer: this.workerIntensityBuffer,
+          wavelengthNm: this.wavelength,
+          slitWidthMm: this.slitWidth,
+          slitDistanceMm: this.slitDistance,
+          screenDistanceM: 0.53,
+          screenSpanMm: 80.0,
+          slitCount: 2,
+        });
+        if (resp && resp.intensityBuffer) {
+          this.workerIntensityBuffer = resp.intensityBuffer;
+          this.hasWorkerResult = true;
+        }
+      } else if (context.workerPool && context.workerPool.size > 0) {
+        const resp = await context.workerPool.execute<OpticalDiffractionStepResponse>(
+          {
+            action: 'OPTICAL_DIFFRACTION_STEP',
+            intensityBuffer: this.workerIntensityBuffer,
+            wavelengthNm: this.wavelength,
+            slitWidthMm: this.slitWidth,
+            slitDistanceMm: this.slitDistance,
+            screenDistanceM: 0.53,
+            screenSpanMm: 80.0,
+            slitCount: 2,
+          },
+          [this.workerIntensityBuffer.buffer]
+        );
+        if (resp && resp.intensityBuffer) {
+          this.workerIntensityBuffer = resp.intensityBuffer;
+          this.hasWorkerResult = true;
+        }
+      }
+    } catch {
+      // Fallback silently if worker thread is terminating
+    } finally {
+      this.isWorkerBusy = false;
+    }
   }
 
   public onParameterChange(id: string, value: any, context: ExperimentContext): void {
