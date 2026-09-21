@@ -2268,271 +2268,377 @@
     }
 
     /* ==========================================================================
-       Apple Vision Pro Spatial Optics Lab Styling (Zero Emojis · Apple HIG Standard)
+       Apple Vision Pro Spatial Physics Two-Level Hierarchical Navigation (Apple HIG Standard)
        ========================================================================== */
     .vision-physics-discipline {
+      width: 100%;
+      height: 100%;
       display: flex;
       flex-direction: column;
-      gap: 18px;
-      padding: 6px 12px 18px 12px;
-    }
-
-    .header-breadcrumbs {
-      display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      margin-bottom: 4px;
+      justify-content: flex-start;
+      min-height: 0;
+      padding: 8px 32px 20px 32px;
+      user-select: none;
     }
 
-    .crumb-link {
-      color: var(--apple-blue);
-      cursor: pointer;
-      font-weight: 500;
-      transition: opacity 0.2s;
-    }
-
-    .crumb-link:hover {
-      text-decoration: underline;
-      opacity: 0.85;
-    }
-
-    .crumb-sep {
-      color: rgba(255, 255, 255, 0.3);
-    }
-
-    .crumb-current {
-      color: var(--text-main);
-      font-weight: 600;
-    }
-
-    .physics-branches-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-    }
-
-    .physics-branch-card {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 14px;
+    .physics-level-container {
+      width: 100%;
+      max-width: 1140px;
+      height: 100%;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      animation: appleFadeScale 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
     }
 
-    .physics-branch-card.active-card {
-      background: rgba(10, 132, 255, 0.1);
-      border: 1px solid rgba(10, 132, 255, 0.35);
-      cursor: pointer;
+    @keyframes appleFadeScale {
+      from {
+        opacity: 0;
+        transform: scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
     }
 
-    .physics-branch-card.active-card:hover {
-      background: rgba(10, 132, 255, 0.18);
-      border-color: rgba(10, 132, 255, 0.55);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(10, 132, 255, 0.2);
-    }
-
-    .physics-branch-card.disabled-card {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-
-    .branch-card-header {
+    /* Apple Minimalist Navigation Bar */
+    .physics-nav-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      width: 100%;
+      margin-bottom: 22px;
     }
 
-    .branch-badge {
-      font-size: 10px;
-      font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 980px;
-      letter-spacing: 0.3px;
-    }
-
-    .branch-badge.ready {
-      background: rgba(52, 199, 89, 0.2);
-      border: 1px solid rgba(52, 199, 89, 0.4);
-      color: #34c759;
-    }
-
-    .branch-badge.planned {
+    .physics-back-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #8b949e;
-    }
-
-    .card-icon-wrapper.active-glow {
-      background: rgba(10, 132, 255, 0.2);
-      border-color: rgba(10, 132, 255, 0.5);
-      box-shadow: 0 0 16px rgba(10, 132, 255, 0.35);
-    }
-
-    .branch-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: #ffffff;
-      margin-bottom: 3px;
-    }
-
-    .branch-desc {
-      font-size: 11px;
-      color: #8b949e;
-      line-height: 1.4;
-    }
-
-    /* Physics Discipline Empty Deck */
-    .physics-empty-deck {
-      margin-top: 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* Optics Experiments Deck */
-    .optics-experiments-deck {
-      margin-top: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .optics-deck-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0 4px;
-    }
-
-    .optics-deck-title-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .optics-deck-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: #ffffff;
-      letter-spacing: -0.1px;
-    }
-
-    .optics-count-tag {
-      font-size: 10.5px;
-      color: #34c759;
-      background: rgba(52, 199, 89, 0.15);
-      border: 1px solid rgba(52, 199, 89, 0.35);
-      padding: 2px 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.22);
       border-radius: 980px;
+      padding: 6px 14px;
+      font-size: 12.5px;
       font-weight: 500;
-    }
-
-    .optics-exp-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    }
-
-    .optics-exp-card {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-top: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 16px;
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      color: var(--apple-blue);
       cursor: pointer;
       transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
     }
 
-    .optics-exp-card:hover {
-      background: rgba(10, 132, 255, 0.12);
-      border-color: rgba(10, 132, 255, 0.45);
-      transform: translateY(-2px);
-      box-shadow: 0 10px 28px rgba(10, 132, 255, 0.22);
+    .physics-back-pill:hover {
+      background: rgba(10, 132, 255, 0.15);
+      border-color: rgba(10, 132, 255, 0.35);
+      transform: translateX(-2px);
     }
 
-    .optics-exp-top {
+    .physics-level-title {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: rgba(255, 255, 255, 0.95);
+      margin: 0;
+    }
+
+    .physics-title-group {
       display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .physics-nav-placeholder {
+      width: 80px;
+    }
+
+    /* Level 1: 4 Physics Branches Grid */
+    .physics-branches-deck {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .physics-branch-tile {
+      position: relative;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-top: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 42px 20px 38px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 18px;
+      cursor: pointer;
+      transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      outline: none;
+    }
+
+    .physics-branch-tile:hover, .physics-branch-tile:focus-visible {
+      transform: translateY(-6px) scale(1.02);
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.25);
+      border-top-color: rgba(255, 255, 255, 0.45);
+      box-shadow: 0 24px 50px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+    }
+
+    .physics-branch-tile:active {
+      transform: scale(0.98);
+      transition-duration: 0.1s;
+    }
+
+    .physics-branch-tile.planned {
+      opacity: 0.72;
+    }
+
+    .physics-branch-tile.planned:hover {
+      opacity: 0.95;
+    }
+
+    .branch-tile-icon-box {
+      width: 64px;
+      height: 64px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.9);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .physics-branch-tile:hover .branch-tile-icon-box {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #ffffff;
+      transform: scale(1.05);
+    }
+
+    .physics-branch-tile.ready:hover .branch-tile-icon-box {
+      background: rgba(10, 132, 255, 0.18);
+      border-color: rgba(10, 132, 255, 0.4);
+      color: var(--apple-blue);
+      box-shadow: 0 0 16px rgba(10, 132, 255, 0.35);
+    }
+
+    .branch-tile-svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .branch-tile-name {
+      font-size: 17px;
+      font-weight: 600;
+      color: #ffffff;
+      letter-spacing: -0.2px;
+      margin: 0;
+    }
+
+    .branch-tile-badge {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 980px;
+      letter-spacing: 0.2px;
+    }
+
+    .branch-tile-badge.ready {
+      background: rgba(52, 199, 89, 0.15);
+      border: 1px solid rgba(52, 199, 89, 0.35);
+      color: #34c759;
+    }
+
+    .branch-tile-badge.planned {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* VisionOS Dynamic Floating Toast */
+    .physics-floating-toast {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(14px);
+      background: rgba(28, 28, 32, 0.88);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 980px;
+      padding: 8px 20px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 12.5px;
+      font-weight: 500;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 100;
+    }
+
+    .physics-floating-toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Level 2: 5 Optics Experiments Grid */
+    .optics-exp-deck {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      width: 100%;
+      overflow-y: auto;
+      padding-bottom: 10px;
+    }
+
+    .optics-card {
+      position: relative;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-top: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
       justify-content: space-between;
-      align-items: center;
+      min-height: 105px;
+      gap: 14px;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+      outline: none;
     }
 
-    .optics-exp-title-row {
+    .optics-card:hover, .optics-card:focus-visible {
+      transform: translateY(-4px) scale(1.015);
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.25);
+      border-top-color: rgba(255, 255, 255, 0.45);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+
+    .optics-card:active {
+      transform: scale(0.99);
+    }
+
+    .optics-card-top {
       display: flex;
       align-items: center;
+      gap: 14px;
+    }
+
+    .optics-card-icon-box {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.9);
+      flex-shrink: 0;
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .optics-card:hover .optics-card-icon-box {
+      background: rgba(10, 132, 255, 0.18);
+      border-color: rgba(10, 132, 255, 0.38);
+      color: var(--apple-blue);
+      box-shadow: 0 0 14px rgba(10, 132, 255, 0.35);
+    }
+
+    .optics-card-header-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex: 1;
+      min-width: 0;
       gap: 8px;
     }
 
-    .optics-exp-glyph {
-      color: #0a84ff;
-    }
-
-    .optics-exp-name {
-      font-size: 13.5px;
+    .optics-card-name {
+      font-size: 15px;
       font-weight: 600;
       color: #ffffff;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin: 0;
     }
 
-    .optics-exp-badge {
-      font-size: 9.5px;
-      color: rgba(255, 255, 255, 0.7);
-      background: rgba(255, 255, 255, 0.08);
-      padding: 2px 7px;
-      border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-    }
-
-    .optics-exp-desc {
-      font-size: 11px;
-      color: #8b949e;
-      line-height: 1.45;
-    }
-
-    .optics-exp-bottom {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 2px;
-    }
-
-    .optics-exp-equation {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace;
-      font-size: 11px;
-      color: #64d2ff;
-      background: rgba(10, 132, 255, 0.12);
+    .optics-card-tag {
+      font-size: 10.5px;
+      color: rgba(255, 255, 255, 0.65);
+      background: rgba(255, 255, 255, 0.07);
       padding: 3px 8px;
       border-radius: 6px;
-      border: 1px solid rgba(10, 132, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      white-space: nowrap;
     }
 
-    .optics-launch-btn {
+    .optics-card-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .optics-formula-chip {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Mono", "SF Pro Text", monospace;
+      font-size: 11.5px;
+      color: #64d2ff;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 4px 10px;
+      border-radius: 8px;
+      letter-spacing: 0.2px;
+    }
+
+    .optics-enter-pill {
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.15);
+      border-top: 1px solid rgba(255, 255, 255, 0.25);
       color: #ffffff;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 500;
-      padding: 4px 12px;
+      padding: 5px 14px;
       border-radius: 980px;
       display: flex;
       align-items: center;
-      gap: 4px;
-      transition: all 0.2s ease;
+      gap: 5px;
+      cursor: pointer;
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .optics-exp-card:hover .optics-launch-btn {
-      background: #0a84ff;
-      border-color: #0a84ff;
-      box-shadow: 0 0 12px rgba(10, 132, 255, 0.5);
+    .optics-card:hover .optics-enter-pill {
+      background: var(--apple-blue);
+      border-color: var(--apple-blue);
+      box-shadow: 0 0 14px rgba(10, 132, 255, 0.45);
+    }
+
+    .action-arrow {
+      transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .optics-card:hover .action-arrow {
+      transform: translateX(3px);
     }
   </style>
 </head>

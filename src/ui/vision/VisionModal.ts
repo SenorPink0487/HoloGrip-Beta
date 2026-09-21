@@ -139,6 +139,12 @@ export class VisionModal {
         await this.callbacks.onSelectPhysicsExperiment?.(id);
         this.close();
       },
+      onLevelChange: (level) => {
+        const titleEl = this.element.querySelector('#vision-window-title');
+        if (titleEl && this.activeTab === 'physics') {
+          titleEl.textContent = level === 2 ? '物理学 · 光学实验' : '物理学科';
+        }
+      },
     });
 
     // Mount initial view
@@ -177,7 +183,13 @@ export class VisionModal {
 
   private bindHeaderEvents(): void {
     this.btnBack?.addEventListener('click', () => {
-      if (this.activeTab === 'physics' || this.activeTab === 'chemistry' || this.activeTab === 'math') {
+      if (this.activeTab === 'physics') {
+        if (this.physicsModal.canGoBack()) {
+          this.physicsModal.goBack();
+          return;
+        }
+        this.switchTab('disciplines');
+      } else if (this.activeTab === 'chemistry' || this.activeTab === 'math') {
         this.switchTab('disciplines');
       } else if (this.activeTab === 'beaker') {
         this.switchTab('chemistry');
@@ -295,6 +307,7 @@ export class VisionModal {
       this.bodyContainer.appendChild(this.periodicTableModal.element);
       this.callbacks.onSelectChemistry?.();
     } else if (tab === 'physics') {
+      this.physicsModal.reset();
       this.bodyContainer.appendChild(this.physicsModal.element);
     } else if (tab === 'math') {
       this.bodyContainer.appendChild(this.createMathView());
