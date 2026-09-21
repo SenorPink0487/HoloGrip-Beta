@@ -25,20 +25,20 @@ export class SlitApertureMesh {
 
   private createMountAssembly(): void {
     const postMat = new THREE.MeshStandardMaterial({
-      color: 0xe2eaf2,
-      metalness: 0.65,
-      roughness: 0.20,
+      color: 0xf1f5f9,
+      metalness: 0.90,
+      roughness: 0.16,
     });
 
     const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x4a5464,
-      metalness: 0.22,
-      roughness: 0.35,
+      color: 0xdce4ed,
+      metalness: 0.70,
+      roughness: 0.28,
     });
 
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xdfb43a,
-      metalness: 0.65,
+    const knurledMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      metalness: 0.75,
       roughness: 0.25,
     });
 
@@ -87,7 +87,7 @@ export class SlitApertureMesh {
     const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.016, 20), postMat);
     micrometerGroup.add(sleeve);
 
-    this.micrometerDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.022, 24), brassMat);
+    this.micrometerDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.022, 24), knurledMat);
     this.micrometerDrum.position.y = 0.016;
     this.micrometerDrum.name = 'SlitMicrometer';
     this.micrometerDrum.userData = { isSlitMicrometer: true, slitFixture: this };

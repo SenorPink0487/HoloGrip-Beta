@@ -389,14 +389,26 @@ export default class OpticsLabExperiment extends BaseExperiment {
         { start: p2Pos, end: endPos, intensity: this.lastMalusIntensity },
       ]);
 
-      // Multi-Core Worker polarization physics offload (continuous when 3D wave is animated, state-hashed when wave is static)
+      // Multi-Core Worker polarization physics offload (state-hashed)
       const polHash = `${this.pol1Angle.toFixed(1)}_${this.pol2Angle.toFixed(1)}_${this.analyzer2.hasWavePlate}_${this.wavelength}`;
-      if (this.show3DWave || polHash !== this.lastPolStateHash) {
+      if (polHash !== this.lastPolStateHash) {
         this.lastPolStateHash = polHash;
         this.dispatchWorkerPolarization(context, elapsed);
       }
 
-      if (!this.show3DWave) {
+      // 60+ FPS Real-time continuous 3D electric field vector wave
+      if (this.show3DWave) {
+        this.beamSystem.updatePolarizationWave({
+          startZ: startPos.z,
+          endZ: endPos.z,
+          polarizerZ: p1Pos.z,
+          polarizerAngleDeg: this.pol1Angle,
+          analyzerZ: p2Pos.z,
+          analyzerAngleDeg: this.pol2Angle,
+          hasQuarterWavePlate: this.analyzer2.hasWavePlate,
+          time: elapsed,
+        });
+      } else {
         this.beamSystem.clearWaveVectors();
       }
 

@@ -40,6 +40,13 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
   private workerRays: WorkerDispersionRayData[] = [];
   private lastDispersionStateHash = '';
 
+  // Cached scratch vectors for per-frame beam rendering
+  private readonly startPos = new THREE.Vector3();
+  private readonly prismPos = new THREE.Vector3();
+  private readonly endPos = new THREE.Vector3();
+  private readonly inDir = new THREE.Vector3(0, 0, 1);
+  private readonly faceNormal = new THREE.Vector3();
+
   public init(context: ExperimentContext): void {
     // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
     this.rootGroup.position.set(0, 0.063, 0.96);
@@ -117,8 +124,8 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
-    const startPos = new THREE.Vector3(0, 0.186, this.laserSaddle.position.z + 0.123);
-    const prismPos = new THREE.Vector3(0, 0.186, this.prismSaddle.position.z);
+    this.startPos.set(0, 0.186, this.laserSaddle.position.z + 0.123);
+    this.prismPos.set(0, 0.186, this.prismSaddle.position.z);
     const screenDistM = Math.max(0.08, this.screenSaddle.position.z - this.prismSaddle.position.z);
     const screenZ = this.screenSaddle.position.z - 0.006;
 
@@ -142,7 +149,9 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
     this.beamSystem.setIntensity(1.0);
 
     if (this.multiSpectrum && this.prismType === 'equilateral') {
-      this.beamSystem.setWhiteLight(true);
+      if (!this.beamSystem.isWhiteLight) {
+        this.beamSystem.setWhiteLight(true);
+      }
 
       const stateHash = `${this.laser.isOn}_${this.wavelength}_${this.prismAngle.toFixed(2)}_${this.refractiveIndex.toFixed(3)}_${this.laserSaddle.position.z.toFixed(4)}_${this.prismSaddle.position.z.toFixed(4)}_${screenZ.toFixed(4)}`;
       if (stateHash !== this.lastDispersionStateHash) {
@@ -162,19 +171,21 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
         wavelengthNm: this.wavelength,
       });
     } else {
-      this.beamSystem.setWhiteLight(false);
+      if (this.beamSystem.isWhiteLight) {
+        this.beamSystem.setWhiteLight(false);
+      }
       this.beamSystem.clearDispersionRays();
       this.lastDispersionStateHash = '';
 
       // Single monochromatic ray refraction & TIR reflection
-      const inDir = new THREE.Vector3(0, 0, 1);
-      const faceNormal = new THREE.Vector3(-Math.sin(THREE.MathUtils.degToRad(this.prismAngle)), 0, Math.cos(THREE.MathUtils.degToRad(this.prismAngle)));
-      const res = OpticalPhysics.refractRay(inDir, faceNormal, 1.0, this.refractiveIndex);
+      const rad = THREE.MathUtils.degToRad(this.prismAngle);
+      this.faceNormal.set(-Math.sin(rad), 0, Math.cos(rad));
+      const res = OpticalPhysics.refractRay(this.inDir, this.faceNormal, 1.0, this.refractiveIndex);
 
-      const endPos = prismPos.clone().add(res.outDirection.clone().multiplyScalar(screenDistM));
+      this.endPos.copy(this.prismPos).addScaledVector(res.outDirection, screenDistM);
       this.beamSystem.updateSegmentedBeam([
-        { start: startPos, end: prismPos, intensity: 1.0 },
-        { start: prismPos, end: endPos, intensity: 1.0 },
+        { start: this.startPos, end: this.prismPos, intensity: 1.0 },
+        { start: this.prismPos, end: this.endPos, intensity: 1.0 },
       ]);
 
       this.detectorScreen.renderFringesPattern({

@@ -33,18 +33,18 @@ export class PolarizerMesh {
     const outerR = 490;
     const innerR = 380;
 
-    ctx.fillStyle = '#14161a';
+    ctx.fillStyle = '#edf2f7';
     ctx.beginPath();
     ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
     ctx.arc(cx, cy, innerR, Math.PI * 2, 0, true);
     ctx.fill();
 
-    ctx.strokeStyle = '#388bfd';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 3;
     ctx.stroke();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#0f172a';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, monospace';
@@ -90,20 +90,20 @@ export class PolarizerMesh {
 
   private createMount(): void {
     const postMat = new THREE.MeshStandardMaterial({
-      color: 0xe2eaf2,
-      metalness: 0.65,
-      roughness: 0.20,
+      color: 0xf1f5f9,
+      metalness: 0.90,
+      roughness: 0.16,
     });
 
     const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x485262,
-      metalness: 0.22,
-      roughness: 0.35,
+      color: 0xdce4ed,
+      metalness: 0.70,
+      roughness: 0.28,
     });
 
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xdfb43a,
-      metalness: 0.65,
+    const knurledMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      metalness: 0.75,
       roughness: 0.25,
     });
 
@@ -133,30 +133,30 @@ export class PolarizerMesh {
     this.group.add(stator);
 
     // 3. Stator top lock screw
-    const lockScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.012, 16), brassMat);
+    const lockScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.012, 16), knurledMat);
     lockScrew.position.set(0, 0.235, 0);
     this.group.add(lockScrew);
 
     // 4. Zero degree vernier reading index pointer
     const ptrGeo = new THREE.BoxGeometry(0.003, 0.014, 0.002);
-    const ptrMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
+    const ptrMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
     const pointer = new THREE.Mesh(ptrGeo, ptrMat);
     pointer.position.set(0, 0.224, 0.009);
     this.group.add(pointer);
   }
 
   private createRotatableRing(): void {
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xdfb43a,
-      metalness: 0.65,
-      roughness: 0.25,
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0xd0d7de,
+      metalness: 0.80,
+      roughness: 0.22,
     });
 
     this.rotatableRing.position.set(0, 0.186, 0);
 
     // 1. Rotor ring with knurled finger rim
     const rotorGeo = new THREE.TorusGeometry(0.036, 0.004, 16, 48);
-    const rotor = new THREE.Mesh(rotorGeo, brassMat);
+    const rotor = new THREE.Mesh(rotorGeo, ringMat);
     rotor.userData = { isPolarizerRotor: true, polarizer: this };
     this.rotatableRing.add(rotor);
 
@@ -175,13 +175,14 @@ export class PolarizerMesh {
 
     // 3. Polarizing film disc (PVA dichroic crystal sheet)
     this.filmMat = new THREE.MeshPhysicalMaterial({
-      color: 0x6a7b8c,
-      roughness: 0.05,
-      metalness: 0.1,
-      transmission: 0.72,
+      color: 0x3d4b59,
+      roughness: 0.08,
+      metalness: 0.12,
+      reflectivity: 0.60,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.08,
       transparent: true,
-      opacity: 0.75,
-      clearcoat: 0.8,
+      opacity: 0.68,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
@@ -232,13 +233,16 @@ export class PolarizerMesh {
     this.hasWavePlate = enabled;
     if (enabled && !this.wavePlateMesh) {
       const plateMat = new THREE.MeshPhysicalMaterial({
-        color: 0xffe6aa,
-        roughness: 0.02,
+        color: 0xffe8b4,
+        roughness: 0.06,
         metalness: 0.05,
-        transmission: 0.88,
+        reflectivity: 0.80,
+        clearcoat: 0.9,
+        clearcoatRoughness: 0.06,
         transparent: true,
-        opacity: 0.85,
-        clearcoat: 1.0,
+        opacity: 0.65,
+        depthWrite: false,
+        side: THREE.DoubleSide,
       });
       this.wavePlateMesh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.003), plateMat);
       this.wavePlateMesh.position.set(0, 0, 0.012);
@@ -256,5 +260,13 @@ export class PolarizerMesh {
       this.dialTexture = null;
     }
     this.filmMat.dispose();
+    if (this.wavePlateMesh) {
+      this.wavePlateMesh.geometry.dispose();
+      if (Array.isArray(this.wavePlateMesh.material)) {
+        this.wavePlateMesh.material.forEach((m) => m.dispose());
+      } else {
+        this.wavePlateMesh.material.dispose();
+      }
+    }
   }
 }

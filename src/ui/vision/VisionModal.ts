@@ -142,7 +142,7 @@ export class VisionModal {
       onLevelChange: (level) => {
         const titleEl = this.element.querySelector('#vision-window-title');
         if (titleEl && this.activeTab === 'physics') {
-          titleEl.textContent = level === 2 ? '物理学 · 光学实验' : '物理学科';
+          titleEl.textContent = '物理学';
         }
       },
     });
@@ -281,7 +281,7 @@ export class VisionModal {
     this.activeTab = tab;
 
     if (this.btnBack) {
-      this.btnBack.classList.toggle('hidden', tab === 'disciplines');
+      this.btnBack.classList.toggle('hidden', tab === 'disciplines' || tab === 'physics');
     }
 
     const titleEl = this.element.querySelector('#vision-window-title');
@@ -289,7 +289,7 @@ export class VisionModal {
       disciplines: '学科领域',
       chemistry: '常用试剂 · 试剂注入',
       beaker: '烧杯组分全息分析',
-      physics: '物理学科',
+      physics: '物理学',
       math: '空间数学',
     };
     if (titleEl) {

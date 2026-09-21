@@ -25,19 +25,19 @@ export class OpticalBenchRail {
     const ctx = canvas.getContext('2d')!;
 
     // Scientific precision satin silver/aluminum scale background
-    ctx.fillStyle = '#f1f5f9';
+    ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Beveled accent border & baseline rail line
     ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2;
     ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
 
     // Longitudinal alignment baseline
     ctx.beginPath();
     ctx.moveTo(30, 64);
     ctx.lineTo(canvas.width - 30, 64);
-    ctx.strokeStyle = '#64748b';
+    ctx.strokeStyle = '#475569';
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -56,7 +56,7 @@ export class OpticalBenchRail {
 
       if (mm % 100 === 0) {
         // 10 cm major mark
-        ctx.lineWidth = 3.8;
+        ctx.lineWidth = 3.6;
         ctx.beginPath();
         ctx.moveTo(x, 8);
         ctx.lineTo(x, 64);
@@ -66,21 +66,21 @@ export class OpticalBenchRail {
         ctx.fillText(`${cm}`, x, 98);
       } else if (mm % 50 === 0) {
         // 5 cm medium mark
-        ctx.lineWidth = 2.8;
+        ctx.lineWidth = 2.6;
         ctx.beginPath();
         ctx.moveTo(x, 16);
         ctx.lineTo(x, 64);
         ctx.stroke();
       } else if (mm % 10 === 0) {
         // 1 cm mark
-        ctx.lineWidth = 2.0;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.moveTo(x, 26);
         ctx.lineTo(x, 64);
         ctx.stroke();
       } else {
         // 2 mm minor mark
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.0;
         ctx.beginPath();
         ctx.moveTo(x, 38);
         ctx.lineTo(x, 64);
@@ -92,7 +92,7 @@ export class OpticalBenchRail {
     ctx.font = 'bold 16px monospace';
     ctx.fillStyle = '#475569';
     ctx.fillText('cm', paddingX + 22, 118);
-    ctx.fillText('PRECISION BENCH · 1200mm', canvas.width * 0.5, 120);
+    ctx.fillText('OPTICAL BENCH · 1200mm', canvas.width * 0.5, 120);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.ClampToEdgeWrapping;
@@ -103,7 +103,7 @@ export class OpticalBenchRail {
   }
 
   private createRailStructure(): void {
-    // 1. Extruded cross-section shape for authentic precision optical dovetail rail
+    // Extruded cross-section shape for authentic precision optical dovetail rail
     const shape = new THREE.Shape();
     const w = this.railWidth * 0.5;
     const h = this.railHeight;
@@ -132,14 +132,13 @@ export class OpticalBenchRail {
     };
 
     const railGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    // Center extrusion around origin
     railGeo.center();
 
-    // High quality scientific anodized aluminum rail material (crisp diffuse response under lab lighting)
+    // High quality scientific satin clear-anodized natural aluminum rail
     const railMat = new THREE.MeshStandardMaterial({
-      color: 0x647082,
-      metalness: 0.22,
-      roughness: 0.38,
+      color: 0xdfe6ed,
+      metalness: 0.72,
+      roughness: 0.26,
       side: THREE.DoubleSide,
     });
 
@@ -148,7 +147,7 @@ export class OpticalBenchRail {
     this.railMesh.receiveShadow = true;
     this.group.add(this.railMesh);
 
-    // 2. Precision laser-etched metric rulers on both sides
+    // Precision laser-etched metric rulers on both sides
     const rulerTex = this.createRulerCanvas();
     const rulerMat = new THREE.MeshBasicMaterial({
       map: rulerTex,
@@ -169,12 +168,12 @@ export class OpticalBenchRail {
     rulerLeft.rotation.y = -Math.PI * 0.5;
     this.group.add(rulerLeft);
 
-    // Center metallic groove runner (polished stainless steel)
+    // Center metallic groove runner (polished chrome / stainless steel)
     const runnerGeo = new THREE.BoxGeometry(0.018, 0.004, this.railLength);
     const runnerMat = new THREE.MeshStandardMaterial({
-      color: 0xe2eaf5,
-      metalness: 0.65,
-      roughness: 0.22,
+      color: 0xf1f5f9,
+      metalness: 0.90,
+      roughness: 0.16,
     });
     const runner = new THREE.Mesh(runnerGeo, runnerMat);
     runner.position.set(0, h * 0.5 - 0.015, 0);
@@ -193,21 +192,21 @@ export class OpticalBenchRail {
 
   private createPedestals(): void {
     const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0x444c59,
-      metalness: 0.25,
-      roughness: 0.42,
+      color: 0xcbd5e1,
+      metalness: 0.65,
+      roughness: 0.32,
     });
 
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xdfb43a,
-      metalness: 0.65,
-      roughness: 0.25,
+    const levelDialMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      metalness: 0.80,
+      roughness: 0.22,
     });
 
     const rubberMat = new THREE.MeshStandardMaterial({
-      color: 0x181a1f,
+      color: 0x1e2229,
       metalness: 0.1,
-      roughness: 0.9,
+      roughness: 0.85,
     });
 
     const zOffsets = [-this.railLength * 0.44, this.railLength * 0.44];
@@ -216,7 +215,7 @@ export class OpticalBenchRail {
       const pedGroup = new THREE.Group();
       pedGroup.position.set(0, -this.railHeight * 0.5, z);
 
-      // Heavy bridge cross-beam under rail
+      // Solid satin silver bridge cross-beam under rail
       const crossBeamGeo = new THREE.BoxGeometry(this.railWidth * 1.6, 0.024, 0.07);
       const crossBeam = new THREE.Mesh(crossBeamGeo, pedestalMat);
       crossBeam.position.y = -0.012;
@@ -225,13 +224,13 @@ export class OpticalBenchRail {
       // Leveling feet on left and right
       const feetX = [-this.railWidth * 0.65, this.railWidth * 0.65];
       for (const x of feetX) {
-        // Knurled brass screw dial
+        // Knurled leveling screw dial
         const dialGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.012, 24);
-        const dial = new THREE.Mesh(dialGeo, brassMat);
+        const dial = new THREE.Mesh(dialGeo, levelDialMat);
         dial.position.set(x, -0.022, 0);
         pedGroup.add(dial);
 
-        // Heavy vibration dampening rubber pad
+        // Vibration dampening rubber pad
         const padGeo = new THREE.CylinderGeometry(0.022, 0.024, 0.01, 24);
         const pad = new THREE.Mesh(padGeo, rubberMat);
         pad.position.set(x, -0.032, 0);
@@ -249,22 +248,25 @@ export class OpticalBenchRail {
     const saddleGroup = new THREE.Group();
     saddleGroup.name = name;
 
+    // High-grade satin clear-anodized aluminum
     const saddleMat = new THREE.MeshStandardMaterial({
-      color: 0x485260,
-      metalness: 0.22,
-      roughness: 0.38,
+      color: 0xdce4ed,
+      metalness: 0.70,
+      roughness: 0.28,
     });
 
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xdfb43a,
-      metalness: 0.65,
+    // Precision dark titanium / gunmetal thumbscrew for elegant mechanical contrast
+    const knobMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      metalness: 0.75,
       roughness: 0.25,
     });
 
+    // Polished stainless steel receptacle
     const steelMat = new THREE.MeshStandardMaterial({
-      color: 0xe0e8f2,
-      metalness: 0.65,
-      roughness: 0.20,
+      color: 0xf0f4f9,
+      metalness: 0.88,
+      roughness: 0.18,
     });
 
     // 1. Saddle base clamp wrapping around rail dovetail
@@ -285,9 +287,9 @@ export class OpticalBenchRail {
     socket.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(socket);
 
-    // 3. Knurled brass thumbscrew for locking post
-    const thumbKnobGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.014, 18);
-    const thumbKnob = new THREE.Mesh(thumbKnobGeo, brassMat);
+    // 3. Knurled industrial thumbscrew for locking post
+    const thumbKnobGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.014, 20);
+    const thumbKnob = new THREE.Mesh(thumbKnobGeo, knobMat);
     thumbKnob.rotation.z = Math.PI * 0.5;
     thumbKnob.position.set(0.022, this.railHeight * 0.5 + 0.038, 0);
     thumbKnob.userData = { isSaddle: true, saddleName: name, saddleGroup };
@@ -295,7 +297,7 @@ export class OpticalBenchRail {
 
     // 4. Rail lock screw with knurled grip on side
     const railLockGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.016, 20);
-    const railLock = new THREE.Mesh(railLockGeo, brassMat);
+    const railLock = new THREE.Mesh(railLockGeo, knobMat);
     railLock.rotation.z = Math.PI * 0.5;
     railLock.position.set(-saddleW * 0.5 - 0.006, this.railHeight * 0.5 + 0.008, 0);
     railLock.userData = { isSaddle: true, saddleName: name, saddleGroup };
@@ -310,7 +312,7 @@ export class OpticalBenchRail {
     saddleGroup.add(backing);
 
     const indicatorGeo = new THREE.BoxGeometry(0.003, 0.016, 0.002);
-    const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xff2424 });
+    const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
     const indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
     indicator.position.set(saddleW * 0.5 + 0.003, this.railHeight * 0.5 + 0.008, 0);
     indicator.userData = { isSaddle: true, saddleName: name, saddleGroup };

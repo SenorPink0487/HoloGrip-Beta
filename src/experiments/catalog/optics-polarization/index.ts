@@ -42,6 +42,12 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
   private lastMalusIntensity = 1.0;
   private lastPolStateHash = '';
 
+  // Cached scratch vectors for per-frame beam rendering
+  private readonly startPos = new THREE.Vector3();
+  private readonly endPos = new THREE.Vector3();
+  private readonly p1Pos = new THREE.Vector3();
+  private readonly p2Pos = new THREE.Vector3();
+
   public init(context: ExperimentContext): void {
     // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
     this.rootGroup.position.set(0, 0.063, 0.96);
@@ -119,8 +125,10 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
-    const startPos = new THREE.Vector3(0, 0.186, this.laserSaddle.position.z + 0.123);
-    const endPos = new THREE.Vector3(0, 0.186, this.screenSaddle.position.z - 0.006);
+    this.startPos.set(0, 0.186, this.laserSaddle.position.z + 0.123);
+    this.endPos.set(0, 0.186, this.screenSaddle.position.z - 0.006);
+    this.p1Pos.set(0, 0.186, this.pol1Saddle.position.z);
+    this.p2Pos.set(0, 0.186, this.pol2Saddle.position.z);
     const screenDistM = Math.max(0.08, this.screenSaddle.position.z - this.pol2Saddle.position.z);
 
     if (!this.laser.isOn) {
@@ -142,25 +150,34 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
       return;
     }
 
-    const p1Pos = new THREE.Vector3(0, 0.186, this.pol1Saddle.position.z);
-    const p2Pos = new THREE.Vector3(0, 0.186, this.pol2Saddle.position.z);
-
     this.beamSystem.setIntensity(1.0);
     // Multi-stage polarization: Laser -> P1 (1.0), P1 -> P2 (1.0), P2 -> Screen (Malus Law)
     this.beamSystem.updateSegmentedBeam([
-      { start: startPos, end: p1Pos, intensity: 1.0 },
-      { start: p1Pos, end: p2Pos, intensity: 1.0 },
-      { start: p2Pos, end: endPos, intensity: this.lastMalusIntensity },
+      { start: this.startPos, end: this.p1Pos, intensity: 1.0 },
+      { start: this.p1Pos, end: this.p2Pos, intensity: 1.0 },
+      { start: this.p2Pos, end: this.endPos, intensity: this.lastMalusIntensity },
     ]);
 
-    // Multi-Core Worker physics offload (continuous when 3D wave is animated, state-hashed when wave is static)
+    // Multi-Core Worker physics offload for Malus Law calibration (dirty-checked on state change)
     const polHash = `${this.pol1Angle.toFixed(1)}_${this.pol2Angle.toFixed(1)}_${this.quarterWavePlate}_${this.wavelength}`;
-    if (this.show3DWave || polHash !== this.lastPolStateHash) {
+    if (polHash !== this.lastPolStateHash) {
       this.lastPolStateHash = polHash;
       this.dispatchWorkerPolarization(context, elapsed);
     }
 
-    if (!this.show3DWave) {
+    // 60+ FPS Real-time continuous 3D electric field vector wave
+    if (this.show3DWave) {
+      this.beamSystem.updatePolarizationWave({
+        startZ: this.startPos.z,
+        endZ: this.endPos.z,
+        polarizerZ: this.p1Pos.z,
+        polarizerAngleDeg: this.pol1Angle,
+        analyzerZ: this.p2Pos.z,
+        analyzerAngleDeg: this.pol2Angle,
+        hasQuarterWavePlate: this.quarterWavePlate,
+        time: elapsed,
+      });
+    } else {
       this.beamSystem.clearWaveVectors();
     }
 

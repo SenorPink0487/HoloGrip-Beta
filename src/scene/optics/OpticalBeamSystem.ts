@@ -7,6 +7,13 @@ export interface BeamSegment {
   intensity?: number;
 }
 
+// Module-level pre-allocated scratch objects to eliminate per-frame GC allocations
+const _UP_VEC = new THREE.Vector3(0, 1, 0);
+const _DIR_VEC = new THREE.Vector3();
+const _MID_VEC = new THREE.Vector3();
+const _QUAT = new THREE.Quaternion();
+const _WHITE_COLOR = new THREE.Color(0xffffff);
+
 export class OpticalBeamSystem {
   public readonly group = new THREE.Group();
 
@@ -215,8 +222,6 @@ export class OpticalBeamSystem {
   }
 
   public updateSegmentedBeam(segments: BeamSegment[]): void {
-    const up = new THREE.Vector3(0, 1, 0);
-
     for (let i = 0; i < this.maxSegments; i++) {
       const core = this.segmentCores[i];
       const glow = this.segmentGlows[i];
@@ -237,8 +242,8 @@ export class OpticalBeamSystem {
           continue;
         }
 
-        const dir = new THREE.Vector3().subVectors(seg.end, seg.start);
-        const len = dir.length();
+        _DIR_VEC.subVectors(seg.end, seg.start);
+        const len = _DIR_VEC.length();
         if (len < 1e-4) {
           core.visible = false;
           glow.visible = false;
@@ -246,20 +251,21 @@ export class OpticalBeamSystem {
           continue;
         }
 
-        const mid = new THREE.Vector3().addVectors(seg.start, seg.end).multiplyScalar(0.5);
-        const quat = new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize());
+        _MID_VEC.addVectors(seg.start, seg.end).multiplyScalar(0.5);
+        _DIR_VEC.multiplyScalar(1 / len);
+        _QUAT.setFromUnitVectors(_UP_VEC, _DIR_VEC);
 
-        core.position.copy(mid);
+        core.position.copy(_MID_VEC);
         core.scale.set(1, len, 1);
-        core.quaternion.copy(quat);
+        core.quaternion.copy(_QUAT);
 
-        glow.position.copy(mid);
+        glow.position.copy(_MID_VEC);
         glow.scale.set(1, len, 1);
-        glow.quaternion.copy(quat);
+        glow.quaternion.copy(_QUAT);
 
-        halo.position.copy(mid);
+        halo.position.copy(_MID_VEC);
         halo.scale.set(1, len, 1);
-        halo.quaternion.copy(quat);
+        halo.quaternion.copy(_QUAT);
 
         coreMat.opacity = effectiveIntensity * 0.95;
         glowMat.opacity = effectiveIntensity * 0.55;
@@ -302,11 +308,10 @@ export class OpticalBeamSystem {
   public setWhiteLight(white: boolean): void {
     this.isWhiteLight = white;
     if (white) {
-      const whiteColor = new THREE.Color(0xffffff);
       for (let i = 0; i < this.maxSegments; i++) {
-        this.segmentCoreMats[i].color.copy(whiteColor);
-        this.segmentGlowMats[i].color.copy(whiteColor);
-        this.segmentHaloMats[i].color.copy(whiteColor);
+        this.segmentCoreMats[i].color.copy(_WHITE_COLOR);
+        this.segmentGlowMats[i].color.copy(_WHITE_COLOR);
+        this.segmentHaloMats[i].color.copy(_WHITE_COLOR);
       }
     } else {
       this.updateWavelength(this.wavelengthNm);
@@ -330,8 +335,6 @@ export class OpticalBeamSystem {
    * Render multi-spectral rainbow dispersion beams through prism (Zero-allocation / Pre-allocated pool)
    */
   public updateDispersionRays(rays: DispersionRay[]): void {
-    const up = new THREE.Vector3(0, 1, 0);
-
     // If rays exist, render incoming beam to the entrance point on prism face
     if (rays.length > 0 && rays[0].points.length >= 2 && this.intensity > 0.001) {
       const pIn = rays[0].points[0];
@@ -359,43 +362,45 @@ export class OpticalBeamSystem {
           const pScreen = ray.points[3];
 
           // 1. Segment inside prism (pEnter -> pExit)
-          const dir1 = new THREE.Vector3().subVectors(pExit, pEnter);
-          const len1 = dir1.length();
+          _DIR_VEC.subVectors(pExit, pEnter);
+          const len1 = _DIR_VEC.length();
           if (len1 > 1e-4) {
-            const mid1 = new THREE.Vector3().addVectors(pEnter, pExit).multiplyScalar(0.5);
-            const q1 = new THREE.Quaternion().setFromUnitVectors(up, dir1.clone().normalize());
+            _MID_VEC.addVectors(pEnter, pExit).multiplyScalar(0.5);
+            _DIR_VEC.multiplyScalar(1 / len1);
+            _QUAT.setFromUnitVectors(_UP_VEC, _DIR_VEC);
 
             if (coreInside) {
-              coreInside.position.copy(mid1);
+              coreInside.position.copy(_MID_VEC);
               coreInside.scale.set(1, len1, 1);
-              coreInside.quaternion.copy(q1);
+              coreInside.quaternion.copy(_QUAT);
               coreInside.visible = true;
             }
             if (glowInside) {
-              glowInside.position.copy(mid1);
+              glowInside.position.copy(_MID_VEC);
               glowInside.scale.set(1, len1, 1);
-              glowInside.quaternion.copy(q1);
+              glowInside.quaternion.copy(_QUAT);
               glowInside.visible = true;
             }
           }
 
           // 2. Segment outside prism to screen (pExit -> pScreen)
-          const dir2 = new THREE.Vector3().subVectors(pScreen, pExit);
-          const len2 = dir2.length();
+          _DIR_VEC.subVectors(pScreen, pExit);
+          const len2 = _DIR_VEC.length();
           if (len2 > 1e-4) {
-            const mid2 = new THREE.Vector3().addVectors(pExit, pScreen).multiplyScalar(0.5);
-            const q2 = new THREE.Quaternion().setFromUnitVectors(up, dir2.clone().normalize());
+            _MID_VEC.addVectors(pExit, pScreen).multiplyScalar(0.5);
+            _DIR_VEC.multiplyScalar(1 / len2);
+            _QUAT.setFromUnitVectors(_UP_VEC, _DIR_VEC);
 
             if (coreOut) {
-              coreOut.position.copy(mid2);
+              coreOut.position.copy(_MID_VEC);
               coreOut.scale.set(1, len2, 1);
-              coreOut.quaternion.copy(q2);
+              coreOut.quaternion.copy(_QUAT);
               coreOut.visible = true;
             }
             if (glowOut) {
-              glowOut.position.copy(mid2);
+              glowOut.position.copy(_MID_VEC);
               glowOut.scale.set(1, len2, 1);
-              glowOut.quaternion.copy(q2);
+              glowOut.quaternion.copy(_QUAT);
               glowOut.visible = true;
             }
           }
@@ -556,8 +561,6 @@ export class OpticalBeamSystem {
     let vIdx = 0;
     let cIdx = 0;
 
-    const sampleTips: Array<{ x: number; y: number; z: number }> = [];
-
     for (let i = 0; i <= numSamples; i++) {
       const z = startZ + i * dz;
       const phase = k * z - omega * time;
@@ -588,7 +591,6 @@ export class OpticalBeamSystem {
 
       const tipX = ampX;
       const tipY = beamY + ampY;
-      sampleTips.push({ x: tipX, y: tipY, z });
 
       pos[vIdx++] = 0;
       pos[vIdx++] = beamY;
@@ -607,18 +609,19 @@ export class OpticalBeamSystem {
       col[cIdx++] = baseColor.b;
     }
 
-    // Connect adjacent tips to form continuous sinusoidal transverse wave / helix
+    // Connect adjacent tips directly from written buffer (Zero allocations!)
+    const tipStride = 6;
     for (let i = 0; i < numSamples; i++) {
-      const p1 = sampleTips[i];
-      const p2 = sampleTips[i + 1];
+      const tip1Idx = i * tipStride + 3;
+      const tip2Idx = (i + 1) * tipStride + 3;
 
-      pos[vIdx++] = p1.x;
-      pos[vIdx++] = p1.y;
-      pos[vIdx++] = p1.z;
+      pos[vIdx++] = pos[tip1Idx];
+      pos[vIdx++] = pos[tip1Idx + 1];
+      pos[vIdx++] = pos[tip1Idx + 2];
 
-      pos[vIdx++] = p2.x;
-      pos[vIdx++] = p2.y;
-      pos[vIdx++] = p2.z;
+      pos[vIdx++] = pos[tip2Idx];
+      pos[vIdx++] = pos[tip2Idx + 1];
+      pos[vIdx++] = pos[tip2Idx + 2];
 
       col[cIdx++] = baseColor.r * 1.2;
       col[cIdx++] = baseColor.g * 1.2;

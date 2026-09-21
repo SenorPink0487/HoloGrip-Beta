@@ -175,15 +175,13 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(html.includes('physics-level-2'), 'Must render Level 2 container');
   assert(html.includes('optics-exp-deck'), 'Must render optics experiments deck');
 
-  // All 5 experiments present in Level 2
-  assert(html.includes('全息光学综合实验台'), 'Must contain 全息光学综合实验台');
+  // 4 Core optics experiments present in Level 2
   assert(html.includes('光的传播与折射色散'), 'Must contain 光的传播与折射色散');
   assert(html.includes('杨氏双缝干涉'), 'Must contain 杨氏双缝干涉');
   assert(html.includes('单缝与光栅衍射'), 'Must contain 单缝与光栅衍射');
   assert(html.includes('光的偏振与马吕斯定律'), 'Must contain 光的偏振与马吕斯定律');
 
   // Academic formulas present
-  assert(html.includes('I(θ) = I₀ cos²(Δθ) sinc²(β)'), 'Must contain Lab formula');
   assert(html.includes('n₁ sinθ₁ = n₂ sinθ₂'), 'Must contain Snell formula');
   assert(html.includes('Δy = (λ L) / d'), 'Must contain Young formula');
   assert(html.includes('d sinθ = mλ'), 'Must contain Grating formula');
@@ -192,7 +190,7 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   // Back button to physics branches exists
   assert(html.includes('btn-back-to-physics'), 'Must contain back button to physics branches');
 
-  console.log('✓ Test 2 passed: Level 2 accurately reveals 5 experiments and formulas\n');
+  console.log('✓ Test 2 passed: Level 2 accurately reveals 4 core experiments and formulas\n');
 }
 
 // Test 3: Zero small-text descriptions on both Level 1 and Level 2

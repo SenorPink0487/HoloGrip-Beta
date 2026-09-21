@@ -20,27 +20,18 @@ export class PhysicsDisciplineModal {
 
   public static readonly OPTICS_EXPERIMENTS: OpticsExperimentDef[] = [
     {
-      id: 'optics-lab',
-      name: '全息光学综合实验台',
-      category: '综合套件',
-      formula: 'I(θ) = I₀ cos²(Δθ) sinc²(β)',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="m4.93 4.93 14.14 14.14"/>
-          <path d="M12 3v18"/>
-          <path d="M3 12h18"/>
-        </svg>
-      `,
-    },
-    {
       id: 'optics-propagation',
       name: '光的传播与折射色散',
       category: '几何光学',
       formula: 'n₁ sinθ₁ = n₂ sinθ₂',
       iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="12 2 22 22 2 22 12 2"/>
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="18,4 32,30 4,30" stroke-width="2.2" fill="currentColor" fill-opacity="0.08"/>
+          <line x1="2" y1="20" x2="11.5" y2="18.5" stroke-width="2.4"/>
+          <line x1="11.5" y1="18.5" x2="23" y2="20.5" stroke-width="2.2" opacity="0.9"/>
+          <line x1="23" y1="20.5" x2="34" y2="15" stroke-width="2" stroke="#ff3b30"/>
+          <line x1="23" y1="20.5" x2="34" y2="20" stroke-width="2" stroke="#ffcc00"/>
+          <line x1="23" y1="20.5" x2="34" y2="25" stroke-width="2" stroke="#007aff"/>
         </svg>
       `,
     },
@@ -50,8 +41,18 @@ export class PhysicsDisciplineModal {
       category: '波动光学',
       formula: 'Δy = (λ L) / d',
       iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 6h16M4 12h16M4 18h16"/>
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="9" y1="4" x2="9" y2="11" stroke-width="2.6"/>
+          <line x1="9" y1="15" x2="9" y2="21" stroke-width="2.6"/>
+          <line x1="9" y1="25" x2="9" y2="32" stroke-width="2.6"/>
+          <path d="M13 8 A7 7 0 0 1 18 18" stroke-width="1.8" opacity="0.85"/>
+          <path d="M16 5 A13 13 0 0 1 24 21" stroke-width="1.8" opacity="0.65"/>
+          <path d="M13 28 A7 7 0 0 0 18 18" stroke-width="1.8" opacity="0.85"/>
+          <path d="M16 31 A13 13 0 0 0 24 15" stroke-width="1.8" opacity="0.65"/>
+          <line x1="30" y1="4" x2="30" y2="32" stroke-width="2.2" opacity="0.5"/>
+          <circle cx="30" cy="18" r="2" fill="currentColor"/>
+          <circle cx="30" cy="10" r="1.5" fill="currentColor"/>
+          <circle cx="30" cy="26" r="1.5" fill="currentColor"/>
         </svg>
       `,
     },
@@ -61,10 +62,15 @@ export class PhysicsDisciplineModal {
       category: '衍射光谱',
       formula: 'd sinθ = mλ',
       iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="8" y1="4" x2="8" y2="20"/>
-          <line x1="12" y1="4" x2="12" y2="20"/>
-          <line x1="16" y1="4" x2="16" y2="20"/>
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="6" y1="6" x2="6" y2="30" stroke-width="2.2"/>
+          <line x1="10" y1="6" x2="10" y2="30" stroke-width="2.2"/>
+          <line x1="14" y1="6" x2="14" y2="30" stroke-width="2.2"/>
+          <line x1="18" y1="6" x2="18" y2="30" stroke-width="2.2"/>
+          <path d="M18 18 L32 7" stroke-width="1.8" opacity="0.85" stroke-dasharray="3 1.5"/>
+          <path d="M18 18 L34 18" stroke-width="2.4"/>
+          <path d="M18 18 L32 29" stroke-width="1.8" opacity="0.85" stroke-dasharray="3 1.5"/>
+          <path d="M28 8 Q34 18 28 28" stroke-width="1.6" opacity="0.5"/>
         </svg>
       `,
     },
@@ -74,10 +80,12 @@ export class PhysicsDisciplineModal {
       category: '矢量光学',
       formula: 'I = I₀ cos²(θ₂ - θ₁)',
       iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="2" x2="12" y2="22"/>
-          <line x1="17" y1="7" x2="7" y2="17"/>
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="18" r="14" stroke-width="2.2" fill="currentColor" fill-opacity="0.08"/>
+          <line x1="18" y1="4" x2="18" y2="32" stroke-width="2.4"/>
+          <line x1="8" y1="8" x2="28" y2="28" stroke-width="2" opacity="0.75" stroke-dasharray="4 2"/>
+          <path d="M18 10 A8 8 0 0 1 23.6 12.4" stroke-width="1.8" stroke="#ff375f"/>
+          <circle cx="18" cy="18" r="2.5" fill="currentColor"/>
         </svg>
       `,
     },
@@ -149,7 +157,6 @@ export class PhysicsDisciplineModal {
               </svg>
             </div>
             <h3 class="branch-tile-name">光学实验</h3>
-            <span class="branch-tile-badge ready">5 个实验已就绪</span>
           </div>
 
           <!-- 2. Mechanics (In planning) -->
@@ -209,40 +216,27 @@ export class PhysicsDisciplineModal {
       <div class="physics-level-container physics-level-2">
         <!-- Apple Minimalist Navigation Header with Back to Physics -->
         <div class="physics-nav-bar">
-          <button class="physics-back-pill" id="btn-back-to-physics" title="返回物理学分支">
+          <button class="physics-back-pill" id="btn-back-to-physics" title="返回物理学">
             <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
             <span>物理学</span>
           </button>
-          <div class="physics-title-group">
-            <h2 class="physics-level-title">光学实验</h2>
-            <span class="branch-tile-badge ready">5 个实验已就绪</span>
-          </div>
+          <h2 class="physics-level-title">光学实验</h2>
           <div class="physics-nav-placeholder"></div>
         </div>
 
-        <!-- 5 Optics Experiments Grid (Apple Pure Frosted Tiles) -->
+        <!-- 4 Core Optics Experiments 2x2 Spatial Grid -->
         <div class="optics-exp-deck">
           ${PhysicsDisciplineModal.OPTICS_EXPERIMENTS.map(
             (exp) => `
-            <div class="optics-card" data-exp-id="${exp.id}" role="button" tabindex="0">
-              <div class="optics-card-top">
-                <div class="optics-card-icon-box">${exp.iconSvg}</div>
-                <div class="optics-card-header-info">
-                  <h3 class="optics-card-name">${exp.name}</h3>
-                  <span class="optics-card-tag">${exp.category}</span>
-                </div>
-              </div>
-
-              <div class="optics-card-bottom">
-                <span class="optics-formula-chip">${exp.formula}</span>
-                <button class="optics-enter-pill" tabindex="-1">
-                  <span>进入实验</span>
-                  <svg class="apple-sf-icon action-arrow" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                </button>
+            <div class="optics-card" data-exp-id="${exp.id}" data-formula="${exp.formula}" title="${exp.name}&#10;${exp.formula}" role="button" tabindex="0">
+              <div class="optics-card-icon-box">${exp.iconSvg}</div>
+              <h3 class="optics-card-name">${exp.name}</h3>
+              <div class="optics-card-action">
+                <svg class="apple-sf-icon action-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
               </div>
             </div>
           `

@@ -26,16 +26,16 @@ export class RotaryStageMesh {
     const outerR = 490;
     const innerR = 360;
 
-    // Dial background ring
-    ctx.fillStyle = '#181b20';
+    // Satin silver dial background ring
+    ctx.fillStyle = '#edf2f7';
     ctx.beginPath();
     ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
     ctx.arc(cx, cy, innerR, Math.PI * 2, 0, true);
     ctx.fill();
 
     // Outer & Inner metallic bevel line
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
     ctx.stroke();
@@ -44,9 +44,9 @@ export class RotaryStageMesh {
     ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 360 Degree Ticks & Numbers
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    // 360 Degree Ticks & Numbers in high-contrast deep black
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#0f172a';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
@@ -58,9 +58,9 @@ export class RotaryStageMesh {
 
       if (deg % 30 === 0) {
         // Major 30 deg mark
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 3.6;
         ctx.beginPath();
-        ctx.moveTo(cx + cos * (outerR - 36), cy + sin * (outerR - 36));
+        ctx.moveTo(cx + cos * (outerR - 34), cy + sin * (outerR - 34));
         ctx.lineTo(cx + cos * outerR, cy + sin * outerR);
         ctx.stroke();
 
@@ -73,23 +73,23 @@ export class RotaryStageMesh {
         ctx.restore();
       } else if (deg % 10 === 0) {
         // 10 deg mark
-        ctx.lineWidth = 2.8;
+        ctx.lineWidth = 2.4;
         ctx.beginPath();
-        ctx.moveTo(cx + cos * (outerR - 26), cy + sin * (outerR - 26));
+        ctx.moveTo(cx + cos * (outerR - 24), cy + sin * (outerR - 24));
         ctx.lineTo(cx + cos * outerR, cy + sin * outerR);
         ctx.stroke();
       } else if (deg % 5 === 0) {
         // 5 deg mark
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.moveTo(cx + cos * (outerR - 18), cy + sin * (outerR - 18));
+        ctx.moveTo(cx + cos * (outerR - 16), cy + sin * (outerR - 16));
         ctx.lineTo(cx + cos * outerR, cy + sin * outerR);
         ctx.stroke();
       } else {
         // 1 deg minor mark
         ctx.lineWidth = 1.0;
         ctx.beginPath();
-        ctx.moveTo(cx + cos * (outerR - 11), cy + sin * (outerR - 11));
+        ctx.moveTo(cx + cos * (outerR - 10), cy + sin * (outerR - 10));
         ctx.lineTo(cx + cos * outerR, cy + sin * outerR);
         ctx.stroke();
       }
@@ -103,20 +103,20 @@ export class RotaryStageMesh {
 
   private createStator(): void {
     const postMat = new THREE.MeshStandardMaterial({
-      color: 0xe2eaf2,
-      metalness: 0.65,
-      roughness: 0.20,
+      color: 0xf1f5f9,
+      metalness: 0.90,
+      roughness: 0.16,
     });
 
     const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0x485262,
-      metalness: 0.22,
-      roughness: 0.35,
+      color: 0xdce4ed,
+      metalness: 0.70,
+      roughness: 0.28,
     });
 
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xdfb43a,
-      metalness: 0.65,
+    const knurledMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      metalness: 0.75,
       roughness: 0.25,
     });
 
@@ -126,7 +126,7 @@ export class RotaryStageMesh {
     post.castShadow = true;
     this.group.add(post);
 
-    // 2. Heavy stator base collar
+    // 2. Heavy stator base collar in satin silver
     const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.016, 48), bodyMat);
     collar.position.y = 0.128;
     collar.castShadow = true;
@@ -134,12 +134,12 @@ export class RotaryStageMesh {
 
     // 3. Vernier fixed reading pointer (red line on base)
     const ptrGeo = new THREE.BoxGeometry(0.004, 0.018, 0.003);
-    const ptrMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
+    const ptrMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
     const pointer = new THREE.Mesh(ptrGeo, ptrMat);
     pointer.position.set(0, 0.136, 0.049);
     this.group.add(pointer);
 
-    // 4. Side micrometer fine tangent adjustment drum (微分头)
+    // 4. Side micrometer fine tangent adjustment drum
     const micrometerGroup = new THREE.Group();
     micrometerGroup.position.set(0.056, 0.128, 0);
 
@@ -147,7 +147,7 @@ export class RotaryStageMesh {
     drumSleeve.rotation.z = Math.PI * 0.5;
     micrometerGroup.add(drumSleeve);
 
-    this.micrometerKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.018, 24), brassMat);
+    this.micrometerKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.018, 24), knurledMat);
     this.micrometerKnob.rotation.z = Math.PI * 0.5;
     this.micrometerKnob.position.x = 0.02;
     this.micrometerKnob.name = 'RotaryMicrometer';
@@ -159,15 +159,15 @@ export class RotaryStageMesh {
 
   private createRotor(): void {
     const rotorMat = new THREE.MeshStandardMaterial({
-      color: 0x505b6c,
-      metalness: 0.25,
-      roughness: 0.32,
+      color: 0xd5dde8,
+      metalness: 0.72,
+      roughness: 0.26,
     });
 
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xdfb43a,
-      metalness: 0.65,
-      roughness: 0.25,
+    const clampMat = new THREE.MeshStandardMaterial({
+      color: 0xf1f5f9,
+      metalness: 0.90,
+      roughness: 0.16,
     });
 
     this.rotorGroup.position.y = 0.144;
@@ -197,18 +197,18 @@ export class RotaryStageMesh {
     stagePlatform.userData = { isRotaryStageRotor: true, rotaryStage: this };
     this.rotorGroup.add(stagePlatform);
 
-    // 4. Spring-loaded brass clamp arms for prism (3 clamps)
+    // 4. Spring-loaded stainless steel clamp arms for prism (3 clamps)
     for (let i = 0; i < 3; i++) {
       const angle = (i / 3) * Math.PI * 2;
       const clampArm = new THREE.Group();
       clampArm.position.set(Math.cos(angle) * 0.028, 0.011, Math.sin(angle) * 0.028);
       clampArm.rotation.y = -angle;
 
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.016, 12), brassMat);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.016, 12), clampMat);
       post.position.y = 0.008;
       clampArm.add(post);
 
-      const finger = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.002, 0.004), brassMat);
+      const finger = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.002, 0.004), clampMat);
       finger.position.set(0.005, 0.016, 0);
       clampArm.add(finger);
 
