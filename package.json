@@ -9,7 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
-    "test": "node --experimental-strip-types tests/optics.test.ts && node --experimental-strip-types tests/optics_display_verification.test.ts && node --experimental-strip-types tests/optics_interaction.test.ts && node --experimental-strip-types tests/chemistry.test.ts && node --experimental-strip-types tests/vision_spatial.test.ts && node --experimental-strip-types tests/dual_beaker_mixing.test.ts && node --experimental-strip-types tests/architecture_hardening.test.ts && node --experimental-strip-types tests/player_controls.test.ts && node --experimental-strip-types tests/physics_discipline_modal.test.ts",
+    "test": "node --experimental-strip-types tests/optics.test.ts && node --experimental-strip-types tests/optics_display_verification.test.ts && node --experimental-strip-types tests/optics_interaction.test.ts && node --experimental-strip-types tests/chemistry.test.ts && node --experimental-strip-types tests/vision_spatial.test.ts && node --experimental-strip-types tests/dual_beaker_mixing.test.ts && node --experimental-strip-types tests/architecture_hardening.test.ts && node --experimental-strip-types tests/player_controls.test.ts && node --experimental-strip-types tests/physics_discipline_modal.test.ts && node --experimental-strip-types tests/whiteboard.test.ts",
     "tauri": "tauri"
   },
   "dependencies": {
