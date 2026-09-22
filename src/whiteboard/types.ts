@@ -25,16 +25,15 @@ export interface WhiteboardPage {
   createdAt: number;
 }
 
-export interface TeacherProfile {
+export interface UserProfile {
   name: string;
-  title: string;
-  institution: string;
-  avatarUrl?: string;
-  teachingHours: number;
+  className: string;
+  studentId?: string;
+  studyHours: number;
   totalExperimentsRun: number;
-  handoutPagesCount: number;
-  verifiedStatus: string;
 }
+
+export type TeacherProfile = UserProfile;
 
 export interface WhiteboardOptions {
   initialTheme?: WhiteboardTheme;

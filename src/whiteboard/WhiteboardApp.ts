@@ -1,4 +1,5 @@
 import './whiteboard.css';
+import { restoreSession } from '../account/api.ts';
 import { WhiteboardCanvas } from './WhiteboardCanvas';
 import { WhiteboardToolbar } from './WhiteboardToolbar';
 import { WhiteboardDock } from './WhiteboardDock';
@@ -65,8 +66,9 @@ export class WhiteboardApp {
       },
     });
 
-    // 4. Account Modal (Teacher profile, stats, courseware, settings)
+    // 4. Account Modal. Logged-out clicks open login / register.
     this.accountModal = new AccountModal(this.canvas, document.body);
+    void restoreSession();
   }
 
   private setupViewMode(): void {

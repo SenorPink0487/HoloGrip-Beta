@@ -1,0 +1,25 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: virtuallab
+      MYSQL_DATABASE: virtuallab
+      MYSQL_USER: virtuallab
+      MYSQL_PASSWORD: virtuallab
+      TZ: UTC
+    ports:
+      - "3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pvirtuallab"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+    volumes:
+      - account-mysql:/var/lib/mysql
+
+volumes:
+  account-mysql:

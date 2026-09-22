@@ -1,197 +1,48 @@
+import { fetchMe, joinClass, logout, messageOf, restoreSession, updateClassName, updateDisplayName } from '../account/api.ts';
+import { AuthPanel } from '../account/AuthPanel.ts';
+import { formatInviteCode, normalizeInviteCode } from '../account/invite.ts';
+import { clearSession, getUser, hasRefreshToken, readRefresh, subscribe, updateUser } from '../account/session.ts';
+import type { AccountUser, ClassStudent } from '../account/types.ts';
+import { AccountApiError } from '../account/types.ts';
 import type { WhiteboardCanvas } from './WhiteboardCanvas';
-import type { TeacherProfile, WhiteboardTheme } from './types';
+import type { WhiteboardTheme } from './types';
+
+const THEMES: { id: WhiteboardTheme; label: string; preview: string }[] = [
+  { id: 'plain', label: '经典白板', preview: 'preview-plain' },
+  { id: 'grid', label: '坐标网格', preview: 'preview-grid' },
+  { id: 'chalkboard', label: '护眼墨绿', preview: 'preview-chalkboard' },
+  { id: 'dark', label: '极客深空', preview: 'preview-dark' },
+];
 
 export class AccountModal {
   public element: HTMLDivElement;
   private canvas: WhiteboardCanvas;
   private isOpen = false;
-
-  private profile: TeacherProfile = {
-    name: '全息教辅示范组 · 授课讲师',
-    title: '物理 & 化学数字化实验教研组',
-    institution: '国家级数字化全息教育创新联合体',
-    teachingHours: 64,
-    totalExperimentsRun: 28,
-    handoutPagesCount: 1,
-    verifiedStatus: 'VIP 认证特级教师席位',
-  };
-
-  private themeButtons: HTMLButtonElement[] = [];
+  private authError = '';
+  private card: HTMLDivElement;
+  private body: HTMLDivElement;
+  private titleEl: HTMLHeadingElement;
+  private badgeEl: HTMLSpanElement;
 
   constructor(canvas: WhiteboardCanvas, parent: HTMLElement = document.body) {
     this.canvas = canvas;
-    this.initUI(parent);
-    this.bindEvents();
-  }
-
-  private initUI(parent: HTMLElement): void {
-    this.element = document.createElement('div');
-    this.element.className = 'apple-modal-backdrop';
-    this.element.id = 'account-modal-backdrop';
-
-    const card = document.createElement('div');
-    card.className = 'apple-modal-card';
-
-    // 1. Header
-    card.innerHTML = `
-      <div class="modal-header-row">
-        <div class="modal-title-group">
-          <h2 class="modal-title">账户中心</h2>
-          <span class="modal-badge">${this.profile.verifiedStatus}</span>
-        </div>
-        <button class="modal-close-btn" id="account-modal-close-btn" title="关闭 (ESC)">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Profile Card -->
-      <div class="profile-card">
-        <div class="profile-avatar-wrapper">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-            <circle cx="12" cy="7" r="4"/>
-          </svg>
-          <div class="avatar-pro-dot"></div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-name">${this.profile.name}</div>
-          <div class="profile-role">${this.profile.title} · ${this.profile.institution}</div>
-          <span class="profile-tag">✦ 教学模式已激活 · 实时板书同步</span>
-        </div>
-      </div>
-
-      <!-- Stats Grid -->
-      <div class="account-stats-grid">
-        <div class="stat-item-box">
-          <div class="stat-item-value">${this.profile.teachingHours} h</div>
-          <div class="stat-item-label">累计授课时长</div>
-        </div>
-        <div class="stat-item-box">
-          <div class="stat-item-value" id="stat-handout-pages">${this.canvas.getTotalPages()} 页</div>
-          <div class="stat-item-label">白板讲义总数</div>
-        </div>
-        <div class="stat-item-box">
-          <div class="stat-item-value">${this.profile.totalExperimentsRun} 次</div>
-          <div class="stat-item-label">演示实验开展</div>
-        </div>
-      </div>
-
-      <!-- Whiteboard Theme Selector -->
-      <div class="account-section-title">白板背景风格偏好</div>
-      <div class="theme-selector-deck" id="theme-selector-deck">
-        <button class="theme-card-btn" data-theme="plain">
-          <div class="theme-preview-box preview-plain"></div>
-          <span class="theme-label">经典白板</span>
-        </button>
-        <button class="theme-card-btn" data-theme="grid">
-          <div class="theme-preview-box preview-grid"></div>
-          <span class="theme-label">坐标网格</span>
-        </button>
-        <button class="theme-card-btn" data-theme="chalkboard">
-          <div class="theme-preview-box preview-chalkboard"></div>
-          <span class="theme-label">护眼墨绿</span>
-        </button>
-        <button class="theme-card-btn" data-theme="dark">
-          <div class="theme-preview-box preview-dark"></div>
-          <span class="theme-label">极客深空</span>
-        </button>
-      </div>
-
-      <!-- Actions -->
-      <div class="account-section-title">教学讲义快捷导出</div>
-      <div class="account-actions-row">
-        <button class="apple-pill-action-btn primary" id="btn-export-handout">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          <span>导出当前讲义 (PNG)</span>
-        </button>
-        <button class="apple-pill-action-btn secondary" id="btn-new-lesson">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          <span>新建一页板书</span>
-        </button>
-      </div>
-    `;
-
-    this.element.appendChild(card);
-    parent.appendChild(this.element);
-
-    // Collect theme buttons
-    this.themeButtons = Array.from(card.querySelectorAll('.theme-card-btn'));
-    this.updateThemeButtonStates();
-  }
-
-  private updateThemeButtonStates(): void {
-    const currentTheme = this.canvas.getTheme();
-    this.themeButtons.forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.theme === currentTheme);
+    this.buildShell(parent);
+    this.bindShell();
+    subscribe(() => {
+      if (getUser()) this.authError = '';
+      if (this.isOpen) this.render();
     });
-  }
-
-  private bindEvents(): void {
-    // Close button
-    this.element.querySelector('#account-modal-close-btn')?.addEventListener('click', () => {
-      this.close();
-    });
-
-    // Click outside card to close
-    this.element.addEventListener('click', (e) => {
-      if (e.target === this.element) {
-        this.close();
-      }
-    });
-
-    // Escape key
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.isOpen) {
-        this.close();
-      }
-    });
-
-    // Theme buttons
-    this.themeButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const theme = btn.dataset.theme as WhiteboardTheme;
-        if (theme) {
-          this.canvas.setTheme(theme);
-          this.updateThemeButtonStates();
-        }
-      });
-    });
-
-    // Export handout button
-    this.element.querySelector('#btn-export-handout')?.addEventListener('click', () => {
-      this.canvas.downloadCurrentPage();
-    });
-
-    // New lesson button
-    this.element.querySelector('#btn-new-lesson')?.addEventListener('click', () => {
-      this.canvas.addPage();
-      this.updateStats();
-      this.close();
-    });
-  }
-
-  public updateStats(): void {
-    const totalPagesEl = this.element.querySelector('#stat-handout-pages');
-    if (totalPagesEl) {
-      totalPagesEl.textContent = `${this.canvas.getTotalPages()} 页`;
-    }
+    this.render();
   }
 
   public open(): void {
     this.isOpen = true;
-    this.updateStats();
-    this.updateThemeButtonStates();
     this.element.classList.add('open');
+    this.render();
+    this.updateStats();
+    if (getUser() || hasRefreshToken()) {
+      void this.refreshFromServer();
+    }
   }
 
   public close(): void {
@@ -202,4 +53,451 @@ export class AccountModal {
   public get visible(): boolean {
     return this.isOpen;
   }
+
+  public updateStats(): void {
+    const total = this.element.querySelector('#stat-handout-pages');
+    if (total) total.textContent = `${this.canvas.getTotalPages()} 页`;
+  }
+
+  private async refreshFromServer(): Promise<void> {
+    try {
+      if (!getUser()) {
+        const status = await restoreSession();
+        if (!this.isOpen) return;
+        this.authError = status === 'offline' ? '无法连接账户服务' : '';
+        this.render();
+        return;
+      }
+      const user = await fetchMe();
+      if (!this.isOpen) return;
+      updateUser(user);
+    } catch (error) {
+      if (!this.isOpen) return;
+      if (error instanceof AccountApiError && error.status === 0) {
+        this.showAccountError('无法连接账户服务');
+      }
+    }
+  }
+
+  private buildShell(parent: HTMLElement): void {
+    this.element = document.createElement('div');
+    this.element.className = 'apple-modal-backdrop';
+    this.element.id = 'account-modal-backdrop';
+
+    this.card = document.createElement('div');
+    this.card.className = 'apple-modal-card';
+
+    const header = document.createElement('div');
+    header.className = 'modal-header-row';
+    const group = document.createElement('div');
+    group.className = 'modal-title-group';
+
+    this.titleEl = document.createElement('h2');
+    this.titleEl.className = 'modal-title';
+    this.titleEl.id = 'account-modal-title';
+    this.titleEl.textContent = '登录';
+
+    this.badgeEl = document.createElement('span');
+    this.badgeEl.className = 'modal-badge hidden';
+    this.badgeEl.id = 'account-class-badge';
+
+    group.appendChild(this.titleEl);
+    group.appendChild(this.badgeEl);
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'modal-close-btn';
+    close.id = 'account-modal-close-btn';
+    close.title = '关闭';
+    close.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+    header.appendChild(group);
+    header.appendChild(close);
+
+    this.body = document.createElement('div');
+    this.body.id = 'account-modal-body';
+    this.body.className = 'account-modal-body';
+
+    this.card.appendChild(header);
+    this.card.appendChild(this.body);
+    this.element.appendChild(this.card);
+    parent.appendChild(this.element);
+  }
+
+  private bindShell(): void {
+    this.element.querySelector('#account-modal-close-btn')?.addEventListener('click', () => this.close());
+    this.element.addEventListener('click', (event) => {
+      if (event && event.target === this.element) this.close();
+    });
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.isOpen) this.close();
+    });
+  }
+
+  private render(): void {
+    clearChildren(this.body);
+    const user = getUser();
+    if (!user) {
+      this.card.classList.add('auth-card-mode');
+      this.titleEl.textContent = '登录';
+      this.badgeEl.textContent = '';
+      this.badgeEl.classList.add('hidden');
+      const panel = new AuthPanel(this.authError, (mode) => {
+        this.titleEl.textContent = mode === 'login' ? '登录' : '注册';
+      });
+      this.body.appendChild(panel.element);
+      return;
+    }
+
+    this.card.classList.remove('auth-card-mode');
+    this.titleEl.textContent = '账户信息';
+    const badge = user.class?.name ?? (user.role === 'student' ? '未加入班级' : '');
+    this.badgeEl.textContent = badge;
+    this.badgeEl.classList.toggle('hidden', badge.length === 0);
+    this.renderAccount(user);
+    this.updateStats();
+  }
+
+  private renderAccount(user: AccountUser): void {
+    const profile = document.createElement('div');
+    profile.className = 'profile-card';
+    profile.id = 'account-profile';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'profile-avatar-wrapper';
+    avatar.innerHTML = `<img src="/hologrip-logo.png" alt="User" class="profile-avatar-img" />`;
+    profile.appendChild(avatar);
+
+    const form = document.createElement('div');
+    form.className = 'profile-form';
+
+    const email = document.createElement('div');
+    email.id = 'account-email';
+    email.className = 'account-email';
+    email.textContent = `${user.role === 'teacher' ? '老师' : '学生'} · ${user.email}`;
+    form.appendChild(fieldRow('邮箱', email));
+
+    const nameInput = document.createElement('input');
+    nameInput.id = 'profile-input-name';
+    nameInput.className = 'apple-profile-input';
+    nameInput.type = 'text';
+    nameInput.placeholder = '选填';
+    nameInput.setAttribute('autocomplete', 'nickname');
+    nameInput.value = user.displayName ?? '';
+    nameInput.addEventListener('blur', () => {
+      void this.saveName(user, nameInput.value);
+    });
+    form.appendChild(fieldRow('姓名', nameInput));
+
+    if (user.role === 'teacher' && user.class) {
+      const classInput = document.createElement('input');
+      classInput.id = 'profile-input-class';
+      classInput.className = 'apple-profile-input';
+      classInput.type = 'text';
+      classInput.value = user.class.name;
+      classInput.addEventListener('blur', () => {
+        void this.saveClass(user, classInput.value);
+      });
+      form.appendChild(fieldRow('班级', classInput));
+    } else if (user.class) {
+      const className = document.createElement('div');
+      className.id = 'class-name-readonly';
+      className.className = 'account-readonly';
+      className.textContent = user.class.name;
+      form.appendChild(fieldRow('班级', className));
+    }
+
+    profile.appendChild(form);
+    this.body.appendChild(profile);
+
+    if (user.role === 'teacher' && user.class?.inviteCode) {
+      this.body.appendChild(inviteBlock(user.class.inviteCode));
+      this.body.appendChild(rosterBlock(user.class.students ?? []));
+    }
+    if (user.role === 'student' && !user.class) {
+      this.body.appendChild(this.joinBlock());
+    }
+
+    const error = document.createElement('div');
+    error.id = 'account-error';
+    error.className = 'form-error hidden';
+    this.body.appendChild(error);
+    this.body.appendChild(this.whiteboardBlock());
+    this.body.appendChild(this.logoutButton());
+  }
+
+  private joinBlock(): HTMLElement {
+    const section = document.createElement('div');
+    section.id = 'join-section';
+    section.className = 'join-section';
+
+    const title = document.createElement('div');
+    title.className = 'account-section-title';
+    title.textContent = '加入班级';
+    const hint = document.createElement('p');
+    hint.className = 'invite-hint';
+    hint.textContent = '填写老师的邀请码后进入对应班级。';
+    const input = document.createElement('input');
+    input.id = 'join-invite-code';
+    input.className = 'apple-profile-input';
+    input.type = 'text';
+    input.placeholder = '邀请码';
+    input.setAttribute('autocomplete', 'off');
+    input.spellcheck = false;
+    input.value = '';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'btn-join-class';
+    button.className = 'apple-pill-action-btn primary auth-submit';
+    button.textContent = '加入班级';
+    button.addEventListener('click', () => {
+      void this.join(input, button);
+    });
+
+    section.appendChild(title);
+    section.appendChild(hint);
+    section.appendChild(input);
+    section.appendChild(button);
+    return section;
+  }
+
+  private whiteboardBlock(): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'account-whiteboard-block';
+
+    const pageTitle = document.createElement('div');
+    pageTitle.className = 'account-section-title';
+    pageTitle.textContent = '白板讲义';
+    const pages = document.createElement('div');
+    pages.id = 'stat-handout-pages';
+    pages.className = 'handout-stat';
+    pages.textContent = `${this.canvas.getTotalPages()} 页`;
+    wrap.appendChild(pageTitle);
+    wrap.appendChild(pages);
+
+    const themeTitle = document.createElement('div');
+    themeTitle.className = 'account-section-title';
+    themeTitle.textContent = '白板背景';
+    const deck = document.createElement('div');
+    deck.className = 'theme-selector-deck';
+    deck.id = 'theme-selector-deck';
+    const current = this.canvas.getTheme();
+    for (const theme of THEMES) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'theme-card-btn';
+      button.dataset.theme = theme.id;
+      if (theme.id === current) button.classList.add('active');
+      const preview = document.createElement('div');
+      preview.className = `theme-preview-box ${theme.preview}`;
+      const label = document.createElement('span');
+      label.className = 'theme-label';
+      label.textContent = theme.label;
+      button.appendChild(preview);
+      button.appendChild(label);
+      button.addEventListener('click', () => {
+        this.canvas.setTheme(theme.id);
+        const buttons = this.element.querySelectorAll('.theme-card-btn');
+        buttons.forEach((item) => {
+          item.classList.toggle('active', (item as HTMLElement).dataset.theme === theme.id);
+        });
+      });
+      deck.appendChild(button);
+    }
+    wrap.appendChild(themeTitle);
+    wrap.appendChild(deck);
+
+    const actionTitle = document.createElement('div');
+    actionTitle.className = 'account-section-title';
+    actionTitle.textContent = '讲义导出';
+    const actions = document.createElement('div');
+    actions.className = 'account-actions-row';
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button';
+    exportBtn.id = 'btn-export-handout';
+    exportBtn.className = 'apple-pill-action-btn primary';
+    exportBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>导出当前讲义 (PNG)</span>`;
+    exportBtn.addEventListener('click', () => this.canvas.downloadCurrentPage());
+    const newBtn = document.createElement('button');
+    newBtn.type = 'button';
+    newBtn.id = 'btn-new-lesson';
+    newBtn.className = 'apple-pill-action-btn secondary';
+    newBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>新建一页板书</span>`;
+    newBtn.addEventListener('click', () => {
+      this.canvas.addPage();
+      this.updateStats();
+      this.close();
+    });
+    actions.appendChild(exportBtn);
+    actions.appendChild(newBtn);
+    wrap.appendChild(actionTitle);
+    wrap.appendChild(actions);
+    return wrap;
+  }
+
+  private logoutButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'btn-logout';
+    button.className = 'apple-pill-action-btn secondary account-logout-btn';
+    button.textContent = '退出登录';
+    button.addEventListener('click', () => {
+      const refresh = readRefresh();
+      void logout(refresh).finally(() => clearSession());
+    });
+    return button;
+  }
+
+  private async saveName(user: AccountUser, raw: string): Promise<void> {
+    const next = raw.trim();
+    if (next === (user.displayName ?? '')) return;
+    try {
+      updateUser(await updateDisplayName(next));
+    } catch (error) {
+      this.showAccountError(messageOf(error));
+    }
+  }
+
+  private async saveClass(user: AccountUser, raw: string): Promise<void> {
+    const next = raw.trim();
+    if (!user.class || next === user.class.name) return;
+    if (!next || next.length > 64) {
+      this.showAccountError('班级名需要 1 到 64 个字');
+      return;
+    }
+    try {
+      updateUser(await updateClassName(next));
+    } catch (error) {
+      this.showAccountError(messageOf(error));
+    }
+  }
+
+  private async join(input: HTMLInputElement, button: HTMLButtonElement): Promise<void> {
+    const raw = input.value.trim();
+    if (!raw) {
+      this.showAccountError('请填写邀请码');
+      return;
+    }
+    if (!normalizeInviteCode(raw)) {
+      this.showAccountError('邀请码格式不正确');
+      return;
+    }
+    button.disabled = true;
+    try {
+      updateUser(await joinClass(raw));
+    } catch (error) {
+      this.showAccountError(messageOf(error));
+      button.disabled = false;
+    }
+  }
+
+  private showAccountError(message: string): void {
+    const el = this.element.querySelector('#account-error');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle('hidden', message.length === 0);
+  }
+}
+
+function inviteBlock(code: string): HTMLElement {
+  const section = document.createElement('div');
+  section.id = 'invite-section';
+  section.className = 'invite-section';
+  const title = document.createElement('div');
+  title.className = 'account-section-title';
+  title.textContent = '班级邀请码';
+  const row = document.createElement('div');
+  row.className = 'invite-code-row';
+  const value = document.createElement('div');
+  value.id = 'invite-code-value';
+  value.className = 'invite-code-value';
+  value.textContent = formatInviteCode(code);
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.id = 'btn-copy-invite';
+  copy.className = 'apple-pill-action-btn secondary invite-copy-btn';
+  copy.textContent = '复制';
+  copy.addEventListener('click', () => {
+    void copyInvite(formatInviteCode(code), copy);
+  });
+  const hint = document.createElement('p');
+  hint.className = 'invite-hint';
+  hint.textContent = '学生注册时填写这个邀请码，就会进入本班。';
+  row.appendChild(value);
+  row.appendChild(copy);
+  section.appendChild(title);
+  section.appendChild(row);
+  section.appendChild(hint);
+  return section;
+}
+
+async function copyInvite(text: string, button: HTMLButtonElement): Promise<void> {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+    await navigator.clipboard.writeText(text);
+    button.textContent = '已复制';
+  } catch {
+    button.textContent = '复制失败';
+  }
+}
+
+function rosterBlock(students: ClassStudent[]): HTMLElement {
+  const section = document.createElement('div');
+  section.id = 'student-roster';
+  section.className = 'roster-section';
+  const title = document.createElement('div');
+  title.className = 'account-section-title';
+  title.textContent = '班级学生';
+  section.appendChild(title);
+  if (students.length === 0) {
+    const empty = document.createElement('div');
+    empty.id = 'roster-empty';
+    empty.className = 'roster-empty';
+    empty.textContent = '还没有学生加入';
+    section.appendChild(empty);
+    return section;
+  }
+  const list = document.createElement('div');
+  list.className = 'roster-list';
+  for (const student of students) {
+    const row = document.createElement('div');
+    row.className = 'roster-row';
+    const name = document.createElement('span');
+    name.className = 'roster-name';
+    name.textContent = student.displayName?.trim() || student.email;
+    row.appendChild(name);
+    if (student.displayName?.trim()) {
+      const email = document.createElement('span');
+      email.className = 'roster-email';
+      email.textContent = student.email;
+      row.appendChild(email);
+    }
+    list.appendChild(row);
+  }
+  section.appendChild(list);
+  return section;
+}
+
+function fieldRow(label: string, control: HTMLElement): HTMLDivElement {
+  const row = document.createElement('div');
+  row.className = 'profile-field-row';
+  const caption = document.createElement('span');
+  caption.className = 'field-label';
+  caption.textContent = label;
+  row.appendChild(caption);
+  row.appendChild(control);
+  return row;
+}
+
+function clearChildren(el: HTMLElement): void {
+  const node = el as HTMLElement & { replaceChildren?: () => void; children?: ArrayLike<Node> };
+  if (typeof node.replaceChildren === 'function') {
+    node.replaceChildren();
+    return;
+  }
+  const kids = node.children;
+  if (!kids) return;
+  const copy: Node[] = [];
+  for (let i = 0; i < kids.length; i += 1) copy.push(kids[i]);
+  for (const kid of copy) el.removeChild(kid);
 }

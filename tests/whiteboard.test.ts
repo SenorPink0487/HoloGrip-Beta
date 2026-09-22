@@ -34,6 +34,12 @@ class MockElement {
     return child;
   }
 
+  setAttribute(name: string, value: string): void {
+    if (name === 'id') this.id = value;
+    if (name === 'class') this.className = value;
+    (this as any)[name] = value;
+  }
+
   addEventListener(event: string, handler: (e?: any) => void): void {
     if (!this.eventListeners[event]) {
       this.eventListeners[event] = [];
@@ -153,6 +159,7 @@ const mockBody = new MockElement('body');
 import { WhiteboardCanvas } from '../src/whiteboard/WhiteboardCanvas.ts';
 import { WhiteboardDock } from '../src/whiteboard/WhiteboardDock.ts';
 import { AccountModal } from '../src/whiteboard/AccountModal.ts';
+import { replaceSession } from '../src/account/session.ts';
 
 console.log('=== Starting Apple-Style Whiteboard & Dock Deep Verification ===\n');
 
@@ -291,17 +298,84 @@ accountBtn.dispatchEvent('click');
 assert.strictEqual(openedAccount, true, 'Clicking account button should trigger onOpenAccount');
 console.log('✓ Test 5 passed: Dock state transitions & callbacks verified');
 
-// Test 6: AccountModal open, close, and stats synchronization
-console.log('Test 6: AccountModal lifecycle & stats synchronization');
+// Test 6: Logged-out account entry, role-specific register fields, and signed-in views
+console.log('Test 6: Account gate, register fields, and signed-in class views');
+replaceSession(null);
 const modalParent = new MockElement('div');
 const accountModal = new AccountModal(canvas, modalParent as any);
 
 assert.strictEqual(accountModal.visible, false, 'Modal should initially be hidden');
 accountModal.open();
 assert.strictEqual(accountModal.visible, true, 'Modal should be visible after open()');
+assert.ok(modalParent.querySelector('#auth-panel'), 'Logged-out account button opens the auth panel');
+assert.strictEqual(modalParent.querySelector('#profile-input-name'), null, 'Logged-out view has no profile name');
+assert.strictEqual(modalParent.querySelector('#invite-code-value'), null, 'Logged-out view has no invite code');
+
+modalParent.querySelector('#auth-tab-register')!.dispatchEvent('click');
+assert.strictEqual(
+  modalParent.querySelector('#field-class-name')!.classList.contains('hidden'),
+  false,
+  'Teacher registration shows the class name',
+);
+assert.strictEqual(
+  modalParent.querySelector('#field-invite-code')!.classList.contains('hidden'),
+  true,
+  'Teacher registration hides the invite code',
+);
+
+modalParent.querySelector('#role-student')!.dispatchEvent('click');
+assert.strictEqual(
+  modalParent.querySelector('#field-class-name')!.classList.contains('hidden'),
+  true,
+  'Student registration hides the class name',
+);
+assert.strictEqual(
+  modalParent.querySelector('#field-invite-code')!.classList.contains('hidden'),
+  false,
+  'Student registration shows the optional invite code',
+);
+
+replaceSession({
+  id: 't1',
+  email: 'teacher@school.edu',
+  role: 'teacher',
+  displayName: null,
+  class: {
+    id: 'c1',
+    name: '高二 (3) 班',
+    inviteCode: 'K7MPQ2HX',
+    students: [],
+  },
+});
+assert.strictEqual(modalParent.querySelector('#invite-code-value')?.textContent, 'K7MP-Q2HX');
+assert.ok(modalParent.querySelector('#student-roster'), 'Teacher account shows the class roster');
+assert.strictEqual(modalParent.querySelector('#auth-panel'), null);
+
+replaceSession({
+  id: 's1',
+  email: 'student@school.edu',
+  role: 'student',
+  displayName: null,
+  class: { id: 'c1', name: '高二 (3) 班' },
+});
+assert.strictEqual(modalParent.querySelector('#invite-code-value'), null, 'Students do not see the invite code');
+assert.strictEqual(modalParent.querySelector('#class-name-readonly')?.textContent, '高二 (3) 班');
+assert.strictEqual(modalParent.querySelector('#join-section'), null);
+
+replaceSession({
+  id: 's2',
+  email: 'new@school.edu',
+  role: 'student',
+  displayName: null,
+  class: null,
+});
+assert.ok(modalParent.querySelector('#join-section'), 'A student without a class can enter an invite code');
+assert.strictEqual(modalParent.querySelector('#invite-code-value'), null);
+
 accountModal.close();
 assert.strictEqual(accountModal.visible, false, 'Modal should be hidden after close()');
-console.log('✓ Test 6 passed: AccountModal lifecycle verified');
+replaceSession(null);
+console.log('✓ Test 6 passed: Auth gate and role-specific account views verified');
 
 console.log('\n========================================================');
 console.log('All Apple-Style Whiteboard & Dock Tests Passed (6/6)!');

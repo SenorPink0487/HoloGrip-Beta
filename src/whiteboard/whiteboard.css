@@ -461,36 +461,41 @@
   transform: scale(0.92);
 }
 
-/* Enter Laboratory Icon Button (Apple Blue Accent) */
+/* Enter Laboratory Icon Button (Neutral idle, highlights ONLY on hover) */
 .apple-dock-icon-btn.btn-lab-enter {
-  color: var(--apple-blue);
-  background: var(--apple-blue-tint);
+  color: var(--apple-label-primary);
+  background: transparent;
 }
 
 .apple-dock-icon-btn.btn-lab-enter:hover {
-  background: rgba(0, 113, 227, 0.18);
-  box-shadow: 0 4px 16px rgba(0, 113, 227, 0.3);
+  color: var(--apple-blue);
+  background: var(--apple-blue-tint);
+  box-shadow: 0 2px 8px rgba(0, 113, 227, 0.18);
 }
 
-/* Return to Whiteboard Icon Button (Apple Green Accent) */
+/* Return to Whiteboard Icon Button (Neutral idle, highlights ONLY on hover) */
 .apple-dock-icon-btn.btn-lab-enter.in-lab-mode {
-  color: #34c759;
-  background: rgba(52, 199, 89, 0.18);
+  color: inherit;
+  background: transparent;
 }
 
 .apple-dock-icon-btn.btn-lab-enter.in-lab-mode:hover {
-  background: rgba(52, 199, 89, 0.28);
-  box-shadow: 0 4px 16px rgba(52, 199, 89, 0.35);
+  color: #34c759;
+  background: rgba(52, 199, 89, 0.14);
+  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.2);
 }
 
-/* Account Center Icon Button */
+
+/* Account Center Icon Button (Neutral idle, highlights ONLY on hover) */
 .apple-dock-icon-btn.btn-account {
-  background: var(--apple-fill-quaternary);
   color: var(--apple-label-primary);
+  background: transparent;
 }
 
 .apple-dock-icon-btn.btn-account:hover {
-  background: var(--apple-fill-tertiary);
+  color: var(--apple-blue);
+  background: var(--apple-blue-tint);
+  box-shadow: 0 2px 8px rgba(0, 113, 227, 0.18);
 }
 
 /* Dock Divider */
@@ -514,7 +519,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.32);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   z-index: 1500;
@@ -523,7 +528,7 @@
   justify-content: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s var(--apple-ease);
+  transition: opacity 0.22s ease-out;
 }
 
 .apple-modal-backdrop.open {
@@ -532,31 +537,62 @@
 }
 
 .apple-modal-card {
-  width: 580px;
+  width: 560px;
   max-width: 90vw;
   max-height: 85vh;
+  min-height: 0;
   overflow-y: auto;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(40px) saturate(190%);
-  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 24px;
+  border-radius: 22px;
   box-shadow: 
-    0 24px 64px rgba(0, 0, 0, 0.14),
-    0 4px 16px rgba(0, 0, 0, 0.04),
-    0 0 0 1px rgba(0, 0, 0, 0.05);
+    0 24px 60px rgba(0, 0, 0, 0.12),
+    0 4px 14px rgba(0, 0, 0, 0.04);
   color: var(--apple-label-primary);
   padding: 26px 28px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  transform: scale(0.95) translateY(8px);
-  transition: transform 0.3s var(--apple-ease);
+  gap: 16px;
+  transform: translateY(12px) scale(0.98);
+  opacity: 0;
+  transition: 
+    transform 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.2s ease-out,
+    width 0.26s ease;
   user-select: none;
 }
 
 .apple-modal-backdrop.open .apple-modal-card {
-  transform: scale(1) translateY(0);
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* Dedicated Apple ID Auth Dialog Specs */
+.apple-modal-card.auth-card-mode {
+  position: relative;
+  width: 390px;
+  max-width: 92vw;
+  padding: 30px 24px 28px 24px;
+  border-radius: 22px;
+  gap: 14px;
+}
+
+.apple-modal-card.auth-card-mode .modal-header-row {
+  margin: 0;
+  padding: 0;
+}
+
+.apple-modal-card.auth-card-mode .modal-title-group {
+  display: none;
+}
+
+.apple-modal-card.auth-card-mode .modal-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
 }
 
 .modal-header-row {
@@ -574,7 +610,7 @@
 .modal-title {
   font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.4px;
   color: var(--apple-label-primary);
 }
 
@@ -589,23 +625,27 @@
 }
 
 .modal-close-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: var(--apple-fill-quaternary);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
   color: var(--apple-label-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s var(--apple-ease);
+  outline: none;
+  transition: all 0.16s ease;
 }
 
 .modal-close-btn:hover {
-  background: var(--apple-fill-tertiary);
+  background: rgba(0, 0, 0, 0.1);
   color: var(--apple-label-primary);
-  transform: scale(1.08);
+}
+
+.modal-close-btn:active {
+  transform: scale(0.92);
 }
 
 .profile-card {
@@ -643,29 +683,51 @@
   border-radius: 50%;
 }
 
-.profile-info {
+.profile-form {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 8px;
+  flex: 1;
 }
 
-.profile-name {
-  font-size: 16px;
+.profile-field-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.field-label {
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: -0.2px;
-  color: var(--apple-label-primary);
-}
-
-.profile-role {
-  font-size: 12.5px;
   color: var(--apple-label-secondary);
+  min-width: 32px;
 }
 
-.profile-tag {
-  font-size: 11px;
-  color: var(--apple-blue);
-  font-weight: 500;
+.apple-profile-input {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--apple-label-primary);
+  outline: none;
+  transition: all 0.18s var(--apple-ease);
+  font-family: inherit;
 }
+
+.apple-profile-input:focus {
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.18);
+}
+
+.apple-profile-input::placeholder {
+  color: var(--apple-label-tertiary);
+  font-weight: 400;
+  font-size: 13px;
+}
+
 
 .account-stats-grid {
   display: grid;
@@ -813,6 +875,526 @@
 .apple-pill-action-btn.secondary:hover {
   background: var(--apple-fill-tertiary);
   transform: translateY(-1px);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.account-modal-body,
+.auth-panel,
+.auth-form,
+.account-whiteboard-block,
+.join-section,
+.invite-section,
+.roster-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-modal-body .account-section-title {
+  margin-bottom: 0;
+}
+
+/* ==========================================================================
+   Auth Panel - Authentic Apple iOS / macOS HIG Design System
+   ========================================================================== */
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 1. HoloGrip Hero Branding Header */
+.auth-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2px 0 10px 0;
+  user-select: none;
+}
+
+.auth-hero-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.auth-hero-brand {
+  font-size: 23px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.6px;
+  margin: 0 0 3px 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+}
+
+.auth-hero-motto {
+  font-size: 13px;
+  color: #86868b;
+  margin: 0;
+  font-weight: 450;
+  letter-spacing: -0.1px;
+}
+
+/* Subtle Apple Haptic Micro-Shake */
+@keyframes apple-haptic-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3.5px); }
+  75% { transform: translateX(3.5px); }
+}
+
+.auth-panel.auth-shake {
+  animation: apple-haptic-shake 0.26s ease-in-out;
+}
+
+/* 2. Top Segmented Controller (登录 / 注册) - Floating Capsule */
+.auth-segment.auth-mode-segment {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
+}
+
+.auth-segment.auth-mode-segment .auth-segment-glider {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.07),
+    0 0.5px 1.5px rgba(0, 0, 0, 0.04);
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.auth-segment.auth-mode-segment[data-index="1"] .auth-segment-glider {
+  transform: translateX(100%);
+}
+
+.auth-segment-btn {
+  position: relative;
+  z-index: 2;
+  height: 32px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: #86868b;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: color 0.18s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.auth-segment-btn:hover {
+  color: #1d1d1f;
+}
+
+.auth-segment-btn.active {
+  color: #1d1d1f;
+  font-weight: 600;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* 3. Identity Role Row (注册模式下的「账户身份」) */
+.auth-role-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  margin-top: 2px;
+}
+
+.auth-role-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #86868b;
+}
+
+.auth-segment.auth-role-segment {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 130px;
+  padding: 2px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.04);
+  border: none;
+  box-sizing: border-box;
+}
+
+.auth-segment.auth-role-segment .auth-segment-glider {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 
+    0 1px 4px rgba(0, 0, 0, 0.08),
+    0 0.5px 1px rgba(0, 0, 0, 0.04);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.auth-segment.auth-role-segment[data-index="1"] .auth-segment-glider {
+  transform: translateX(100%);
+}
+
+.auth-segment.auth-role-segment .auth-segment-btn {
+  height: 26px;
+  font-size: 12px;
+  border-radius: 9999px;
+}
+
+/* 4. Form Container */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+/* 5. Apple Inset Grouped Card (iOS Settings & Apple ID signature look) */
+.auth-input-group {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-input-group:focus-within {
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14);
+}
+
+.auth-field {
+  display: flex;
+  align-items: center;
+  height: 46px;
+  padding: 0 16px;
+  position: relative;
+  box-sizing: border-box;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+  background: transparent;
+}
+
+.auth-panel[data-mode="login"] #field-password {
+  border-bottom: none;
+}
+
+.auth-panel[data-mode="register"][data-role="teacher"] #field-class-name {
+  border-bottom: none;
+}
+
+.auth-panel[data-mode="register"][data-role="student"] #field-invite-code {
+  border-bottom: none;
+}
+
+.auth-field-label {
+  width: 68px;
+  flex-shrink: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #1d1d1f;
+  user-select: none;
+}
+
+.auth-field .apple-profile-input {
+  flex: 1;
+  height: 100%;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transform: none !important;
+  font-size: 14px;
+  font-family: inherit;
+  color: #1d1d1f;
+  padding: 0 !important;
+}
+
+.auth-field .apple-profile-input::placeholder {
+  color: #a1a1a6;
+  font-size: 13.5px;
+  font-weight: 400;
+}
+
+.join-section .apple-profile-input,
+.account-email,
+.account-readonly,
+.invite-code-value {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* 6. Submit Action Button - Apple Obsidian Standard (Centered Pill) */
+.auth-submit {
+  width: auto;
+  min-width: 180px;
+  height: 48px;
+  padding: 0 34px;
+  margin: 14px auto 2px auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: #1d1d1f;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  font-size: 15.5px;
+  font-weight: 550;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+  outline: none;
+}
+
+.auth-submit::after {
+  content: "";
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  background-color: #ffffff;
+  opacity: 0.8;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'%3E%3C/polyline%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'%3E%3C/polyline%3E%3C/svg%3E") no-repeat center / contain;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: #2c2c2e;
+  box-shadow: 
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+  transform: translateY(-0.5px);
+}
+
+.auth-submit:hover:not(:disabled)::after {
+  transform: translateX(2.5px);
+  opacity: 1;
+}
+
+.auth-submit:active:not(:disabled) {
+  transform: scale(0.985);
+  background: #000000;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.auth-submit.loading {
+  opacity: 0.85;
+  cursor: wait;
+  pointer-events: none;
+}
+
+.auth-submit.loading::after {
+  content: "";
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  background-color: transparent;
+  -webkit-mask: none;
+  mask: none;
+  opacity: 1;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: apple-btn-spin 0.65s linear infinite;
+  transform: none !important;
+}
+
+@keyframes apple-btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+.account-logout-btn,
+#btn-join-class {
+  width: 100%;
+  flex: none;
+}
+
+/* 7. Error Feedback */
+.form-error {
+  color: #ff3b30;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: center;
+  padding: 2px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.form-error::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background-color: #ff3b30;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+.account-email,
+.account-readonly {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--apple-label-primary);
+  padding: 7px 2px;
+  word-break: break-all;
+}
+
+.invite-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--apple-fill-quaternary);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.invite-code-value {
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--apple-label-primary);
+}
+
+.invite-copy-btn {
+  flex: none;
+  width: auto;
+  min-width: 88px;
+  height: 40px;
+}
+
+.invite-hint,
+.roster-empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--apple-label-secondary);
+}
+
+.handout-stat {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.roster-list {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: var(--apple-fill-quaternary);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.roster-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+}
+
+.roster-row + .roster-row {
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.roster-name {
+  font-weight: 650;
+  color: var(--apple-label-primary);
+}
+
+.roster-email {
+  color: var(--apple-label-secondary);
+  word-break: break-all;
+}
+
+.profile-field-row .field-label {
+  min-width: 40px;
+}
+
+@media (max-width: 640px) {
+  .apple-modal-card {
+    width: 100%;
+    padding: 18px 14px;
+    border-radius: 20px;
+  }
+
+  .profile-card,
+  .profile-field-row,
+  .account-actions-row,
+  .invite-code-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .theme-selector-deck {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .invite-code-value {
+    font-size: 22px;
+    letter-spacing: 1px;
+  }
+
+  .invite-copy-btn,
+  .apple-pill-action-btn {
+    width: 100%;
+  }
 }
 
 /* ==========================================================================
