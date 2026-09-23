@@ -20,6 +20,7 @@ export class HologramStage {
     this.group.add(this.transitionGroup);
 
     this.initTransitionEffects();
+    this.setStageVisible(false);
   }
 
   private initTransitionEffects(): void {
@@ -176,6 +177,20 @@ export class HologramStage {
         this.currentExperiment.rootGroup.scale.set(initScale, initScale, initScale);
       }
     }
+  }
+
+  public clearExperiment(context: ExperimentContext): void {
+    const oldExperiment = this.currentExperiment;
+    if (oldExperiment) {
+      oldExperiment.unmount(context);
+      this.group.remove(oldExperiment.rootGroup);
+      oldExperiment.dispose(context);
+      this.currentExperiment = null;
+    }
+    this.emitterRing.visible = false;
+    this.hologramApertureLight.visible = false;
+    this.transitionParticles.visible = false;
+    this.setStageVisible(false);
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {

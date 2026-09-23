@@ -65,6 +65,14 @@ export class HUD {
     this.drawer.setActiveExperiment(experiment.metadata.id);
   }
 
+  public clearActiveExperiment(): void {
+    const titleEl = this.topBarEl.querySelector('#topbar-exp-title');
+    if (titleEl) {
+      titleEl.textContent = '';
+    }
+    this.drawer.setActiveExperiment('');
+  }
+
   public update(delta: number): void {
     this.perfOverlay.update(delta);
   }

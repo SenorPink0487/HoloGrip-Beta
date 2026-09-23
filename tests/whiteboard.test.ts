@@ -92,6 +92,7 @@ class MockElement {
 
   getContext(type: string, options?: any) {
     return {
+      setTransform: () => {},
       save: () => {},
       restore: () => {},
       clearRect: () => {},
@@ -143,6 +144,8 @@ class MockElement {
   }
 }
 
+(global as any).requestAnimationFrame = (cb: () => void) => setTimeout(cb, 0);
+(global as any).cancelAnimationFrame = clearTimeout;
 // Setup global mock document & window
 const mockBody = new MockElement('body');
 (global as any).document = {
@@ -287,6 +290,12 @@ assert.strictEqual(enteredLab, true, 'Clicking lab button in whiteboard mode sho
 // Transition dock to 'laboratory' mode
 dock.setMode('laboratory');
 assert.strictEqual(dock.getMode(), 'laboratory');
+assert.strictEqual(dock.element.style.display, 'none', 'Dock should be hidden in laboratory mode');
+
+// Transition dock back to 'whiteboard' mode
+dock.setMode('whiteboard');
+assert.strictEqual(dock.element.style.display, '', 'Dock should be visible in whiteboard mode');
+dock.setMode('laboratory');
 
 // Simulate clicking "返回白板"
 labBtn.dispatchEvent('click');
@@ -343,11 +352,11 @@ replaceSession({
   class: {
     id: 'c1',
     name: '高二 (3) 班',
-    inviteCode: 'K7MPQ2HX',
+    inviteCode: 'A3K9P',
     students: [],
   },
 });
-assert.strictEqual(modalParent.querySelector('#invite-code-value')?.textContent, 'K7MP-Q2HX');
+assert.strictEqual(modalParent.querySelector('#invite-code-value')?.textContent, 'A3K9P');
 assert.ok(modalParent.querySelector('#student-roster'), 'Teacher account shows the class roster');
 assert.strictEqual(modalParent.querySelector('#auth-panel'), null);
 
@@ -380,3 +389,34 @@ console.log('✓ Test 6 passed: Auth gate and role-specific account views verifi
 console.log('\n========================================================');
 console.log('All Apple-Style Whiteboard & Dock Tests Passed (6/6)!');
 console.log('========================================================\n');
+
+// Actual pointer events must stream before pen-up, and clear must cancel local ink.
+const commands: any[] = [];
+const shared = new WhiteboardCanvas(new MockElement('div') as any);
+const { BoardState } = await import('../src/whiteboard/collaboration.ts');
+const state = new BoardState();
+state.snapshot({ type: 'snapshot', generation: 'test', revision: 0, pages: [{ id: 'page-1', epoch: 0, strokes: [] }], active: [] });
+shared.configureCollaboration(c => { commands.push(structuredClone(c)); return true; });
+shared.renderCollaboration(state, []);
+const surface = shared.canvas as any as MockElement;
+const pointer = (x: number, type = 'pointermove') => ({ type, pointerId: 1, button: 0, pointerType: 'pen', clientX: x, clientY: 80, pressure: 0.5 });
+surface.dispatchEvent('pointerdown', pointer(100, 'pointerdown'));
+surface.dispatchEvent('pointermove', pointer(120));
+await new Promise(resolve => setTimeout(resolve, 25));
+assert.deepEqual(commands.map(c => c.type), ['stroke_start', 'stroke_points'], 'Moving ink is sent before pen-up');
+assert.equal(commands[0].stroke.width, 4, 'Width uses logical units, not device pixels');
+assert.equal(commands[1].offset, 1);
+// Ignore a second pointer while the pen is active.
+surface.dispatchEvent('pointermove', { ...pointer(500), pointerId: 2 });
+surface.dispatchEvent('pointerup', pointer(140, 'pointerup'));
+assert.equal(commands.at(-1).type, 'stroke_commit');
+assert.equal(commands.at(-1).stroke.points.length, 3);
+assert.equal(commands.at(-1).stroke.points.at(-1).x, 140);
+surface.dispatchEvent('pointerdown', pointer(200, 'pointerdown'));
+state.apply({ type: 'canvas_clear', revision: 1, pageId: 'page-1', epoch: 1 });
+shared.renderCollaboration(state, []);
+const before = commands.length;
+surface.dispatchEvent('pointerup', pointer(220, 'pointerup'));
+assert.equal(commands.length, before, 'Clear cancels a currently held pen without resurrecting old ink');
+shared.configureCollaboration(null);
+console.log('✓ Live pointer streaming, logical coordinates and concurrent clear verified');

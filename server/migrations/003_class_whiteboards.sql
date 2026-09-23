@@ -1,0 +1,8 @@
+CREATE TABLE class_whiteboards (
+  class_id CHAR(36) NOT NULL,
+  revision BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  snapshot JSON NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (class_id),
+  CONSTRAINT fk_whiteboards_class FOREIGN KEY (class_id) REFERENCES classes (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

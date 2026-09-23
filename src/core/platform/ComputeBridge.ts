@@ -349,25 +349,10 @@ export class ComputeBridge {
     maxLiquidHeight: number;
     dt: number;
   }): Promise<ParticleSimStepResponse> {
-    const res = await this.workerPool.execute<ParticleSimStepResponse>(
-      {
-        action: 'PARTICLE_SIM_STEP',
-        ...params,
-      },
-      [
-        params.bubblePositions.buffer,
-        params.bubbleVelocities.buffer,
-        params.bubblePhases.buffer,
-        params.precipPositions.buffer,
-        params.precipSpeeds.buffer,
-        params.splashPositions.buffer,
-        params.splashVelocities.buffer,
-        params.splashLifespans.buffer,
-        params.sodiumSparkPositions.buffer,
-        params.sodiumSparkVelocities.buffer,
-        params.sodiumSparkLifespans.buffer,
-      ]
-    );
+    const res = await this.workerPool.execute<ParticleSimStepResponse>({
+      action: 'PARTICLE_SIM_STEP',
+      ...params,
+    });
 
     this.recordMetrics(res.computeTimeMs);
     return res;

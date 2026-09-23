@@ -14,11 +14,15 @@ use crate::state::AppState;
 mod auth;
 mod classes;
 mod me;
+mod whiteboard;
 
 pub fn router(state: AppState) -> Router {
     let cors = cors_layer(&state.config);
     Router::new()
         .route("/health", get(health))
+        .route("/api/v1/whiteboard/ticket", post(whiteboard::ticket))
+        .route("/api/v1/whiteboard/ws", get(whiteboard::upgrade))
+        .layer(axum::Extension(whiteboard::Hub::default()))
         .route("/api/v1/auth/register", post(auth::register))
         .route("/api/v1/auth/login", post(auth::login))
         .route("/api/v1/auth/refresh", post(auth::refresh))

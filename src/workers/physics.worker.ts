@@ -598,19 +598,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         computeTimeMs,
       };
 
-      ctx.postMessage(resp, [
-        bubblePositions.buffer,
-        bubbleVelocities.buffer,
-        bubblePhases.buffer,
-        precipPositions.buffer,
-        precipSpeeds.buffer,
-        splashPositions.buffer,
-        splashVelocities.buffer,
-        splashLifespans.buffer,
-        sodiumSparkPositions.buffer,
-        sodiumSparkVelocities.buffer,
-        sodiumSparkLifespans.buffer,
-      ]);
+      ctx.postMessage(resp);
       break;
     }
 

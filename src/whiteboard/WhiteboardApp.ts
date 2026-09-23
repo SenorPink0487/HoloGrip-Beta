@@ -1,4 +1,5 @@
 import './whiteboard.css';
+import { WhiteboardConnection } from './WhiteboardConnection.ts';
 import { restoreSession } from '../account/api.ts';
 import { WhiteboardCanvas } from './WhiteboardCanvas';
 import { WhiteboardToolbar } from './WhiteboardToolbar';
@@ -19,6 +20,7 @@ export class WhiteboardApp {
   public dock: WhiteboardDock;
   public accountModal: AccountModal;
 
+  private collaboration: WhiteboardConnection;
   private engine?: Engine;
   private currentMode: 'whiteboard' | 'laboratory' = 'whiteboard';
   private callbacks: WhiteboardAppOptions;
@@ -68,7 +70,27 @@ export class WhiteboardApp {
 
     // 4. Account Modal. Logged-out clicks open login / register.
     this.accountModal = new AccountModal(this.canvas, document.body);
+    this.collaboration = new WhiteboardConnection(this.canvas, this.root);
+    window.addEventListener('pagehide', () => this.collaboration.dispose());
+    window.addEventListener('pageshow', event => {
+      if (event.persisted) this.collaboration = new WhiteboardConnection(this.canvas, this.root);
+    });
     void restoreSession();
+
+    // Shortcut to return to whiteboard from laboratory mode: KeyB
+    window.addEventListener('keydown', (e) => {
+      if (
+        e.code === 'KeyB' &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        if (this.currentMode === 'laboratory') {
+          this.switchToWhiteboard();
+        }
+      }
+    });
   }
 
   private setupViewMode(): void {

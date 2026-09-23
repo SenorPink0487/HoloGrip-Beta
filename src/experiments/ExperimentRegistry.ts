@@ -21,6 +21,12 @@ export const CATEGORIES: CategoryInfo[] = [
     description: '几何传播、杨氏双缝干涉、光栅衍射与偏振态高精度3D实验台',
   },
   {
+    id: 'thermodynamics',
+    name: '热学物理',
+    icon: 'thermo',
+    description: '理想气体状态方程、分子动理论、卡诺热机循环与热传导精密实验台',
+  },
+  {
     id: 'physics',
     name: '前沿物理',
     icon: 'physics',

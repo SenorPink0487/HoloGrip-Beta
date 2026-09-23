@@ -34,6 +34,12 @@
       -webkit-tap-highlight-color: transparent;
     }
 
+    input:focus::placeholder,
+    textarea:focus::placeholder {
+      color: transparent !important;
+      opacity: 0 !important;
+    }
+
     html, body {
       width: 100%;
       height: 100%;
@@ -2291,19 +2297,7 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      animation: appleFadeScale 0.28s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
-    }
-
-    @keyframes appleFadeScale {
-      from {
-        opacity: 0;
-        transform: scale(0.97);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
     }
 
     /* Apple Minimalist Navigation Bar */
@@ -2330,9 +2324,7 @@
       font-weight: 500;
       color: var(--apple-blue);
       cursor: pointer;
-      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s ease, border-color 0.22s ease;
     }
 
     .physics-back-pill:hover {
@@ -2382,10 +2374,8 @@
       text-align: center;
       gap: 18px;
       cursor: pointer;
-      transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
       box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
-      backdrop-filter: blur(30px);
-      -webkit-backdrop-filter: blur(30px);
       outline: none;
     }
 
@@ -2526,9 +2516,7 @@
       text-align: center;
       gap: 18px;
       cursor: pointer;
-      transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-      backdrop-filter: blur(36px);
-      -webkit-backdrop-filter: blur(36px);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
       box-shadow: 0 16px 36px rgba(0, 0, 0, 0.26), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
       outline: none;
       user-select: none;
@@ -2617,6 +2605,136 @@
         grid-template-rows: auto;
         height: auto;
       }
+    }
+    /* Vision Thermo Status Card */
+    .vision-thermo-status-card {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      height: 100%;
+      min-height: 0;
+      overflow-y: auto;
+      box-sizing: border-box;
+      padding: 4px 6px;
+    }
+    .thermo-card-container {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .thermo-metrics-deck {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .thermo-metric-card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 14px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .thermo-metric-label {
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+    .thermo-metric-value {
+      font-size: 20px;
+      font-weight: 700;
+      font-family: -apple-system, sans-serif;
+    }
+    .thermo-metric-sub {
+      font-size: 11px;
+      color: #64748b;
+      font-family: monospace;
+    }
+    .thermo-metric-caption {
+      font-size: 10px;
+      color: #94a3b8;
+      margin-top: 4px;
+      font-family: monospace;
+    }
+    .thermo-mini-slider {
+      width: 100%;
+      margin-top: 4px;
+      accent-color: #00f5ff;
+      cursor: pointer;
+      height: 4px;
+    }
+    .thermo-gauge-bar {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .thermo-gauge-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #f59e0b, #ef4444);
+      border-radius: 2px;
+    }
+    .thermo-charts-deck {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .thermo-chart-box {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .thermo-chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .thermo-chart-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .thermo-chart-legend {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: #94a3b8;
+    }
+    .legend-dot.dot-freq {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: #0ea5e9;
+    }
+    .legend-line {
+      display: inline-block;
+      width: 12px;
+      height: 2px;
+    }
+    .legend-line.line-theory { background: #f59e0b; }
+    .legend-line.line-t200 { background: #38bdf8; }
+    .legend-line.line-t400 { background: #22c55e; }
+    .legend-line.line-t600 { background: #ef4444; }
+    .thermo-canvas-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+    .thermo-canvas-wrap canvas {
+      width: 100%;
+      height: auto;
+      max-height: 220px;
+      border-radius: 8px;
     }
   </style>
 </head>

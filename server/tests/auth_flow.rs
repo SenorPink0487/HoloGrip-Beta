@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use account_server::{connect, migrate, router, AppState, Config};
+use server::{connect, migrate, router, AppState, Config};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
@@ -15,7 +15,7 @@ static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 async fn fresh_pool() -> MySqlPool {
     let admin = connect(ADMIN_URL).await.expect(
-        "MySQL is not reachable. Start it with: docker compose -f account-server/docker-compose.yml up -d",
+        "MySQL is not reachable. Start it with: docker compose -f server/docker-compose.yml up -d",
     );
     sqlx::query(
         "CREATE DATABASE IF NOT EXISTS virtuallab_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
@@ -115,7 +115,10 @@ async fn teacher_register_exposes_invite_code_on_me() {
         .await;
         assert_eq!(status, StatusCode::CREATED);
         let invite = body["user"]["class"]["inviteCode"].as_str().unwrap();
-        assert_eq!(invite.len(), 8);
+        assert_eq!(invite.len(), 5);
+        assert!(invite
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit()));
         assert_eq!(body["user"]["email"], "teacher@school.edu");
         assert_eq!(body["user"]["role"], "teacher");
         assert_eq!(body["user"]["class"]["name"], "高二 (3) 班");
@@ -157,7 +160,7 @@ async fn student_with_invite_joins_and_cannot_see_the_code() {
                 "role": "student",
                 "email": "student@school.edu",
                 "password": "password1",
-                "inviteCode": format!("{}-{}", &invite[..4], &invite[4..])
+                "inviteCode": format!("{}-{}", &invite[..2], &invite[2..])
             })),
         )
         .await;
@@ -244,7 +247,7 @@ async fn invalid_invite_code_does_not_create_the_user() {
                 "role": "student",
                 "email": "student@school.edu",
                 "password": "password1",
-                "inviteCode": "ABCDEFGH"
+                "inviteCode": "ZZZZZ"
             })),
         )
         .await;

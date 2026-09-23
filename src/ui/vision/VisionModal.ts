@@ -2,9 +2,10 @@ import { DisciplineSelector } from './DisciplineSelector';
 import { PeriodicTableModal } from './PeriodicTableModal';
 import { ExperimentStatusCard } from './ExperimentStatusCard';
 import { PhysicsDisciplineModal } from './PhysicsDisciplineModal';
+import { ThermoStatusCard } from './ThermoStatusCard';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine';
 
-export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math';
+export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo';
 
 export interface VisionModalCallbacks {
   onClose: () => void;
@@ -15,6 +16,8 @@ export interface VisionModalCallbacks {
   onRecenter?: () => void;
   onScaleChange?: (scaleMultiplier: number) => void;
   onSelectBeaker?: (beakerId: 'left' | 'right') => void;
+  onThermoTemperatureChange?: (tempK: number) => void;
+  onThermoVolumeChange?: (volL: number) => void;
 }
 
 export class VisionModal {
@@ -33,6 +36,7 @@ export class VisionModal {
   private periodicTableModal: PeriodicTableModal;
   private statusCard: ExperimentStatusCard;
   private physicsModal: PhysicsDisciplineModal;
+  private thermoStatusCard: ThermoStatusCard;
 
   private bodyContainer: HTMLElement;
   private statusCardSlot: HTMLElement;
@@ -133,11 +137,24 @@ export class VisionModal {
       },
     });
 
+    this.thermoStatusCard = new ThermoStatusCard({
+      onTemperatureChange: (tempK) => {
+        this.callbacks.onThermoTemperatureChange?.(tempK);
+      },
+      onVolumeChange: (volL) => {
+        this.callbacks.onThermoVolumeChange?.(volL);
+      },
+    });
+
     this.physicsModal = new PhysicsDisciplineModal({
       onBackToDisciplines: () => this.switchTab('disciplines'),
       onSelectExperiment: async (id: string) => {
         await this.callbacks.onSelectPhysicsExperiment?.(id);
-        this.close();
+        if (id.startsWith('thermo-')) {
+          this.switchTab('thermo');
+        } else {
+          this.close();
+        }
       },
       onLevelChange: (level) => {
         const titleEl = this.element.querySelector('#vision-window-title');
@@ -189,6 +206,8 @@ export class VisionModal {
           return;
         }
         this.switchTab('disciplines');
+      } else if (this.activeTab === 'thermo') {
+        this.switchTab('physics');
       } else if (this.activeTab === 'chemistry' || this.activeTab === 'math') {
         this.switchTab('disciplines');
       } else if (this.activeTab === 'beaker') {
@@ -277,11 +296,15 @@ export class VisionModal {
     return this.statusCard;
   }
 
+  public get thermoCard(): ThermoStatusCard {
+    return this.thermoStatusCard;
+  }
+
   public switchTab(tab: VisionTab): void {
     this.activeTab = tab;
 
     if (this.btnBack) {
-      this.btnBack.classList.toggle('hidden', tab === 'disciplines' || tab === 'physics');
+      this.btnBack.classList.toggle('hidden', tab === 'disciplines');
     }
 
     const titleEl = this.element.querySelector('#vision-window-title');
@@ -291,6 +314,7 @@ export class VisionModal {
       beaker: '烧杯组分全息分析',
       physics: '物理学',
       math: '空间数学',
+      thermo: '热力学状态分析 (PV = nRT)',
     };
     if (titleEl) {
       titleEl.textContent = titles[tab] || '全息实验视窗';
@@ -299,6 +323,10 @@ export class VisionModal {
     this.bodyContainer.innerHTML = '';
     this.statusCardSlot.innerHTML = '';
     this.statusCardSlot.style.display = 'none';
+
+    if (this.thermoStatusCard) {
+      this.thermoStatusCard.setVisible(tab === 'thermo');
+    }
 
     if (tab === 'disciplines') {
       this.bodyContainer.appendChild(this.disciplineSelector.element);
@@ -314,6 +342,8 @@ export class VisionModal {
     } else if (tab === 'beaker') {
       this.bodyContainer.appendChild(this.statusCard.element);
       this.callbacks.onSelectChemistry?.();
+    } else if (tab === 'thermo') {
+      this.bodyContainer.appendChild(this.thermoStatusCard.element);
     }
   }
 
@@ -334,6 +364,7 @@ export class VisionModal {
     this.isOpen = false;
     this.element.classList.add('hidden');
     this.floatingLauncher.classList.remove('hidden');
+    this.thermoStatusCard?.setVisible(false);
     this.callbacks.onClose();
   }
 

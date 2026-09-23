@@ -93,6 +93,15 @@ export class WhiteboardDock {
   public setMode(mode: DockViewMode): void {
     this.currentMode = mode;
     this.updateLabButtonContent();
+    if (mode === 'laboratory') {
+      this.element.style.display = 'none';
+    } else {
+      this.element.style.display = '';
+    }
+  }
+
+  public setVisible(visible: boolean): void {
+    this.element.style.display = visible ? '' : 'none';
   }
 
   public getMode(): DockViewMode {

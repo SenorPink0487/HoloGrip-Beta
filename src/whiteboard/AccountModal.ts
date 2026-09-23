@@ -241,14 +241,16 @@ export class AccountModal {
     input.id = 'join-invite-code';
     input.className = 'apple-profile-input';
     input.type = 'text';
-    input.placeholder = '邀请码';
+    input.placeholder = '5 位字母数字';
     input.setAttribute('autocomplete', 'off');
     input.spellcheck = false;
+    input.maxLength = 5;
+    input.autocapitalize = 'characters';
     input.value = '';
     const button = document.createElement('button');
     button.type = 'button';
     button.id = 'btn-join-class';
-    button.className = 'apple-pill-action-btn primary auth-submit';
+    button.className = 'auth-submit';
     button.textContent = '加入班级';
     button.addEventListener('click', () => {
       void this.join(input, button);
@@ -307,31 +309,6 @@ export class AccountModal {
     wrap.appendChild(themeTitle);
     wrap.appendChild(deck);
 
-    const actionTitle = document.createElement('div');
-    actionTitle.className = 'account-section-title';
-    actionTitle.textContent = '讲义导出';
-    const actions = document.createElement('div');
-    actions.className = 'account-actions-row';
-    const exportBtn = document.createElement('button');
-    exportBtn.type = 'button';
-    exportBtn.id = 'btn-export-handout';
-    exportBtn.className = 'apple-pill-action-btn primary';
-    exportBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>导出当前讲义 (PNG)</span>`;
-    exportBtn.addEventListener('click', () => this.canvas.downloadCurrentPage());
-    const newBtn = document.createElement('button');
-    newBtn.type = 'button';
-    newBtn.id = 'btn-new-lesson';
-    newBtn.className = 'apple-pill-action-btn secondary';
-    newBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>新建一页板书</span>`;
-    newBtn.addEventListener('click', () => {
-      this.canvas.addPage();
-      this.updateStats();
-      this.close();
-    });
-    actions.appendChild(exportBtn);
-    actions.appendChild(newBtn);
-    wrap.appendChild(actionTitle);
-    wrap.appendChild(actions);
     return wrap;
   }
 

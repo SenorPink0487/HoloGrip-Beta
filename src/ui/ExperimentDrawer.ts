@@ -61,7 +61,7 @@ export class ExperimentDrawer {
       </div>
       <div class="drawer-list" id="drawer-list"></div>
       <div class="drawer-footer">
-        <span class="drawer-shortcut-hint">按 E 或 ESC 切换</span>
+        <span class="drawer-shortcut-hint">按 E 或 ESC 切换 · 按 B 返回白板</span>
       </div>
     `;
 

@@ -151,7 +151,7 @@ export class BeakerMesh {
       reflectivity: 0.92,
       transparent: true,
       opacity: 0.28,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       depthWrite: false,
     });
 
@@ -159,6 +159,7 @@ export class BeakerMesh {
     this.glassBody = new THREE.Mesh(latheGeo, glassMat);
     this.glassBody.castShadow = false; // Clear glass does not cast dense opaque shadow
     this.glassBody.receiveShadow = true;
+    this.glassBody.renderOrder = 5;
     this.group.add(this.glassBody);
 
     // Ground holographic interaction halo ring
@@ -167,13 +168,14 @@ export class BeakerMesh {
       color: 0xffffff,
       transparent: true,
       opacity: 0.05,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
     this.haloRing = new THREE.Mesh(haloGeo, this.haloMaterial);
     this.haloRing.rotation.x = -Math.PI / 2;
     this.haloRing.position.y = 0.002;
+    this.haloRing.renderOrder = 1;
     this.group.add(this.haloRing);
 
     // Beaker markings cylinder overlay
@@ -182,12 +184,13 @@ export class BeakerMesh {
       map: tickTexture,
       transparent: true,
       opacity: 0.85,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       depthWrite: false,
     });
     const markingsMesh = new THREE.Mesh(markingsGeo, markingsMat);
     markingsMesh.position.y = height * 0.5;
     markingsMesh.rotation.y = -Math.PI / 4;
+    markingsMesh.renderOrder = 6;
     this.group.add(markingsMesh);
   }
 
@@ -201,10 +204,8 @@ export class BeakerMesh {
 
     this.liquidMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xd7f3ff,
-      roughness: 0.08,
+      roughness: 0.06,
       metalness: 0.02,
-      clearcoat: 0.8,
-      clearcoatRoughness: 0.08,
       reflectivity: 0.85,
       transparent: true,
       opacity: 0.82,
@@ -214,25 +215,25 @@ export class BeakerMesh {
     this.liquidMesh = new THREE.Mesh(liquidGeo, this.liquidMaterial);
     this.liquidMesh.position.y = 0.009; // Just above beaker bottom
     this.liquidMesh.scale.set(1, this.currentLiquidLevel, 1);
+    this.liquidMesh.renderOrder = 3;
     this.group.add(this.liquidMesh);
 
     // Top surface disc (meniscus reflection)
     const discGeo = new THREE.CircleGeometry(liquidRadius, 64);
     const discMat = new THREE.MeshPhysicalMaterial({
       color: 0xd7f3ff,
-      roughness: 0.05,
+      roughness: 0.04,
       metalness: 0.02,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.05,
       reflectivity: 0.9,
       transparent: true,
       opacity: 0.72,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       depthWrite: false,
     });
     this.liquidTopDisc = new THREE.Mesh(discGeo, discMat);
     this.liquidTopDisc.rotation.x = -Math.PI / 2;
     this.liquidTopDisc.position.y = 0.009 + maxH * this.currentLiquidLevel;
+    this.liquidTopDisc.renderOrder = 4;
     this.group.add(this.liquidTopDisc);
   }
 
@@ -255,6 +256,7 @@ export class BeakerMesh {
     this.sedimentMesh = new THREE.Mesh(geo, this.sedimentMaterial);
     this.sedimentMesh.position.y = 0.009;
     this.sedimentMesh.scale.set(1, 0.001, 1);
+    this.sedimentMesh.renderOrder = 2;
     this.group.add(this.sedimentMesh);
   }
 
@@ -277,6 +279,10 @@ export class BeakerMesh {
   }
 
   public isVisible(): boolean {
+    return this.group.visible && (this.targetBeakerScale > 0.001 || this.currentBeakerScale > 0.001);
+  }
+
+  public isInteractive(): boolean {
     return this.group.visible && this.targetBeakerScale > 0.01;
   }
 
@@ -353,84 +359,125 @@ export class BeakerMesh {
   }
 
   public update(delta: number): void {
-    // Smooth beaker scale animation
+    // 1. Smooth beaker scale animation
     if (this.currentBeakerScale !== this.targetBeakerScale) {
       this.currentBeakerScale = THREE.MathUtils.lerp(this.currentBeakerScale, this.targetBeakerScale, delta * 5.0);
+      if (Math.abs(this.currentBeakerScale - this.targetBeakerScale) < 0.001) {
+        this.currentBeakerScale = this.targetBeakerScale;
+      }
       this.group.scale.set(this.currentBeakerScale, this.currentBeakerScale, this.currentBeakerScale);
       if (this.currentBeakerScale < 0.01 && this.targetBeakerScale === 0) {
+        this.currentBeakerScale = 0;
+        this.group.scale.set(0, 0, 0);
         this.group.visible = false;
       }
     }
 
-    // Smooth beaker tilt animation & physics
-    this.currentTiltZ = THREE.MathUtils.lerp(this.currentTiltZ, this.targetTiltZ, delta * 12.0);
-    this.group.rotation.z = this.currentTiltZ;
+    // 2. Smooth beaker tilt animation & physics
+    const tiltDiff = Math.abs(this.currentTiltZ - this.targetTiltZ);
+    if (tiltDiff > 1e-4) {
+      this.currentTiltZ = THREE.MathUtils.lerp(this.currentTiltZ, this.targetTiltZ, delta * 12.0);
+      if (Math.abs(this.currentTiltZ - this.targetTiltZ) < 1e-4) {
+        this.currentTiltZ = this.targetTiltZ;
+      }
+      this.group.rotation.z = this.currentTiltZ;
+    }
 
-    // Smooth level change
-    this.currentLiquidLevel = THREE.MathUtils.lerp(this.currentLiquidLevel, this.targetLiquidLevel, delta * 3.5);
-    this.liquidMesh.scale.set(1, this.currentLiquidLevel, 1);
+    // 3. Smooth level change
+    const levelDiff = Math.abs(this.currentLiquidLevel - this.targetLiquidLevel);
+    if (levelDiff > 1e-4) {
+      this.currentLiquidLevel = THREE.MathUtils.lerp(this.currentLiquidLevel, this.targetLiquidLevel, delta * 3.5);
+      if (Math.abs(this.currentLiquidLevel - this.targetLiquidLevel) < 1e-4) {
+        this.currentLiquidLevel = this.targetLiquidLevel;
+      }
+      this.liquidMesh.scale.set(1, this.currentLiquidLevel, 1);
+    }
 
     const surfaceY = 0.009 + this.maxLiquidHeight * this.currentLiquidLevel;
 
     // Strict fluid mechanics: liquid free surface remains horizontal in world space
-    // As beaker rotates by currentTiltZ, liquid top disc counter-rotates by -currentTiltZ
-    // and stays strictly centered within the glass walls without protruding outside
     if (Math.abs(this.currentTiltZ) > 0.001) {
       this.liquidTopDisc.rotation.z = -this.currentTiltZ;
-      this.liquidTopDisc.position.x = 0;
       this.liquidTopDisc.position.y = surfaceY;
-
-      this.liquidMesh.rotation.z = 0;
-      this.liquidMesh.position.x = 0;
     } else {
-      this.liquidTopDisc.rotation.z = 0;
-      this.liquidTopDisc.position.x = 0;
-      this.liquidTopDisc.position.y = surfaceY;
-
-      this.liquidMesh.rotation.z = 0;
-      this.liquidMesh.position.x = 0;
-
-      // Slight wave / wobble on top disc when changing level
-      const levelDiff = Math.abs(this.targetLiquidLevel - this.currentLiquidLevel);
-      if (levelDiff > 0.002) {
+      if (this.liquidTopDisc.position.y !== surfaceY || this.liquidTopDisc.rotation.z !== 0) {
+        this.liquidTopDisc.position.y = surfaceY;
+        this.liquidTopDisc.rotation.z = 0;
+      }
+      // Slight wave / wobble on top disc only during noticeable volume change
+      if (levelDiff > 0.005) {
         this.liquidTopDisc.rotation.z = Math.sin(Date.now() * 0.01) * 0.015 * Math.min(1.0, levelDiff * 20);
       }
     }
 
-    // Smooth liquid color change
-    this.currentLiquidColor.lerp(this.targetLiquidColor, delta * 5.0);
-    this.liquidMaterial.color.copy(this.currentLiquidColor);
-    (this.liquidTopDisc.material as THREE.MeshPhysicalMaterial).color.copy(this.currentLiquidColor);
-
-    // Smooth liquid opacity & roughness change (turbidity scattering)
-    this.currentLiquidOpacity = THREE.MathUtils.lerp(this.currentLiquidOpacity, this.targetLiquidOpacity, delta * 4.0);
-    this.liquidMaterial.opacity = this.currentLiquidOpacity;
-    (this.liquidTopDisc.material as THREE.MeshPhysicalMaterial).opacity = Math.min(0.92, this.currentLiquidOpacity * 0.9);
-
-    this.currentLiquidRoughness = THREE.MathUtils.lerp(this.currentLiquidRoughness, this.targetLiquidRoughness, delta * 4.0);
-    this.liquidMaterial.roughness = this.currentLiquidRoughness;
-
-    // Smooth sediment animation
-    this.currentSedimentOpacity = THREE.MathUtils.lerp(this.currentSedimentOpacity, this.targetSedimentOpacity, delta * 4.0);
-    this.sedimentMaterial.opacity = this.currentSedimentOpacity;
-
-    this.currentSedimentScale = THREE.MathUtils.lerp(this.currentSedimentScale, this.targetSedimentScale, delta * 4.0);
-    this.sedimentMesh.scale.set(1, this.currentSedimentScale, 1);
-
-    this.currentSedimentColor.lerp(this.targetSedimentColor, delta * 4.0);
-    this.sedimentMaterial.color.copy(this.currentSedimentColor);
-
-    // Smooth hover interactive feedback
-    const targetHover = this.isHovered ? 1.0 : 0.0;
-    this.hoverIntensity = THREE.MathUtils.lerp(this.hoverIntensity, targetHover, delta * 8.0);
-    if (this.glassMaterial) {
-      this.glassMaterial.emissive.set(0xffffff);
-      this.glassMaterial.emissiveIntensity = this.hoverIntensity * 0.16;
+    // 4. Smooth liquid color change
+    if (this.currentLiquidColor.getHex() !== this.targetLiquidColor.getHex()) {
+      this.currentLiquidColor.lerp(this.targetLiquidColor, delta * 5.0);
+      if (this.currentLiquidColor.getHex() === this.targetLiquidColor.getHex()) {
+        this.currentLiquidColor.copy(this.targetLiquidColor);
+      }
+      this.liquidMaterial.color.copy(this.currentLiquidColor);
+      (this.liquidTopDisc.material as THREE.MeshPhysicalMaterial).color.copy(this.currentLiquidColor);
     }
-    if (this.haloMaterial && this.haloRing) {
-      this.haloMaterial.opacity = 0.05 + this.hoverIntensity * 0.28;
-      const ringScale = 1.0 + this.hoverIntensity * 0.04;
-      this.haloRing.scale.set(ringScale, ringScale, 1.0);
+
+    // 5. Smooth liquid opacity & roughness change (turbidity scattering)
+    if (Math.abs(this.currentLiquidOpacity - this.targetLiquidOpacity) > 1e-3) {
+      this.currentLiquidOpacity = THREE.MathUtils.lerp(this.currentLiquidOpacity, this.targetLiquidOpacity, delta * 4.0);
+      if (Math.abs(this.currentLiquidOpacity - this.targetLiquidOpacity) < 1e-3) {
+        this.currentLiquidOpacity = this.targetLiquidOpacity;
+      }
+      this.liquidMaterial.opacity = this.currentLiquidOpacity;
+      (this.liquidTopDisc.material as THREE.MeshPhysicalMaterial).opacity = Math.min(0.92, this.currentLiquidOpacity * 0.9);
+    }
+
+    if (Math.abs(this.currentLiquidRoughness - this.targetLiquidRoughness) > 1e-3) {
+      this.currentLiquidRoughness = THREE.MathUtils.lerp(this.currentLiquidRoughness, this.targetLiquidRoughness, delta * 4.0);
+      if (Math.abs(this.currentLiquidRoughness - this.targetLiquidRoughness) < 1e-3) {
+        this.currentLiquidRoughness = this.targetLiquidRoughness;
+      }
+      this.liquidMaterial.roughness = this.currentLiquidRoughness;
+    }
+
+    // 6. Smooth sediment animation
+    if (Math.abs(this.currentSedimentOpacity - this.targetSedimentOpacity) > 1e-3) {
+      this.currentSedimentOpacity = THREE.MathUtils.lerp(this.currentSedimentOpacity, this.targetSedimentOpacity, delta * 4.0);
+      if (Math.abs(this.currentSedimentOpacity - this.targetSedimentOpacity) < 1e-3) {
+        this.currentSedimentOpacity = this.targetSedimentOpacity;
+      }
+      this.sedimentMaterial.opacity = this.currentSedimentOpacity;
+    }
+
+    if (Math.abs(this.currentSedimentScale - this.targetSedimentScale) > 1e-4) {
+      this.currentSedimentScale = THREE.MathUtils.lerp(this.currentSedimentScale, this.targetSedimentScale, delta * 4.0);
+      if (Math.abs(this.currentSedimentScale - this.targetSedimentScale) < 1e-4) {
+        this.currentSedimentScale = this.targetSedimentScale;
+      }
+      this.sedimentMesh.scale.set(1, this.currentSedimentScale, 1);
+    }
+
+    if (this.currentSedimentColor.getHex() !== this.targetSedimentColor.getHex()) {
+      this.currentSedimentColor.lerp(this.targetSedimentColor, delta * 4.0);
+      if (this.currentSedimentColor.getHex() === this.targetSedimentColor.getHex()) {
+        this.currentSedimentColor.copy(this.targetSedimentColor);
+      }
+      this.sedimentMaterial.color.copy(this.currentSedimentColor);
+    }
+
+    // 7. Smooth hover interactive feedback
+    const targetHover = this.isHovered ? 1.0 : 0.0;
+    if (Math.abs(this.hoverIntensity - targetHover) > 1e-3) {
+      this.hoverIntensity = THREE.MathUtils.lerp(this.hoverIntensity, targetHover, delta * 8.0);
+      if (Math.abs(this.hoverIntensity - targetHover) < 1e-3) {
+        this.hoverIntensity = targetHover;
+      }
+      if (this.glassMaterial) {
+        this.glassMaterial.emissiveIntensity = this.hoverIntensity * 0.16;
+      }
+      if (this.haloMaterial && this.haloRing) {
+        this.haloMaterial.opacity = 0.05 + this.hoverIntensity * 0.28;
+        const ringScale = 1.0 + this.hoverIntensity * 0.04;
+        this.haloRing.scale.set(ringScale, ringScale, 1.0);
+      }
     }
   }
 

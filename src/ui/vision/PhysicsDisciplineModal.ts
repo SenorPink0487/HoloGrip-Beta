@@ -16,7 +16,78 @@ export class PhysicsDisciplineModal {
   public element: HTMLElement;
   private callbacks: PhysicsDisciplineCallbacks;
   private currentLevel: 1 | 2 = 1;
+  private currentDiscipline: 'optics' | 'thermo' = 'optics';
   private toastTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  public static readonly THERMO_EXPERIMENTS: OpticsExperimentDef[] = [
+    {
+      id: 'thermo-idealgas',
+      name: '理想气体状态与分子运动论',
+      category: '统计与动理论',
+      formula: 'PV = nRT · v_rms = √(3RT/M)',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="6" width="22" height="24" rx="2" stroke-width="2.2" fill="currentColor" fill-opacity="0.06"/>
+          <line x1="18" y1="2" x2="18" y2="14" stroke-width="2.6"/>
+          <line x1="13" y1="2" x2="23" y2="2" stroke-width="2.6"/>
+          <rect x="8" y="14" width="20" height="4" rx="1" fill="currentColor" fill-opacity="0.3" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="12" cy="22" r="1.6" fill="#ff3b30"/>
+          <circle cx="17" cy="26" r="1.4" fill="#007aff"/>
+          <circle cx="23" cy="21" r="1.5" fill="#34c759"/>
+          <circle cx="21" cy="27" r="1.3" fill="#ff9500"/>
+          <circle cx="14" cy="28" r="1.2" fill="#af52de"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'thermo-carnot',
+      name: '卡诺热机与循环效率',
+      category: '工程热力学',
+      formula: 'η = 1 - T_C / T_H',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 26 Q12 12 24 10 Q28 14 26 22 Q18 28 10 26 Z" stroke-width="2.2" fill="currentColor" fill-opacity="0.08"/>
+          <path d="M16 11 L19 10 L18 13" stroke-width="1.8"/>
+          <path d="M26 17 L25 20 L22 19" stroke-width="1.8"/>
+          <path d="M19 26 L16 27 L17 24" stroke-width="1.8"/>
+          <path d="M18 4 L18 8 M16 6 L18 8 L20 6" stroke="#ff3b30" stroke-width="1.8"/>
+          <path d="M18 29 L18 33 M16 31 L18 33 L20 31" stroke="#007aff" stroke-width="1.8"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'thermo-conduction',
+      name: '热传导与傅里叶定律',
+      category: '传热物理',
+      formula: 'q = -k ∇T',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="13" width="26" height="10" rx="2" stroke-width="2" fill="currentColor" fill-opacity="0.06"/>
+          <line x1="8" y1="13" x2="8" y2="23" stroke="#ff3b30" stroke-width="2.2"/>
+          <line x1="14" y1="13" x2="14" y2="23" stroke="#ff9500" stroke-width="2"/>
+          <line x1="20" y1="13" x2="20" y2="23" stroke="#ffcc00" stroke-width="2"/>
+          <line x1="26" y1="13" x2="26" y2="23" stroke="#007aff" stroke-width="2"/>
+          <line x1="6" y1="28" x2="30" y2="28" stroke-width="1.8" stroke-dasharray="3 2"/>
+          <polyline points="26,25 30,28 26,31" stroke-width="1.8"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'thermo-phase',
+      name: '物态相变与潜热曲线',
+      category: '相变物理',
+      formula: 'Q = m · L',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="5,30 11,24 19,24 25,12 31,12" stroke-width="2.2"/>
+          <circle cx="15" cy="24" r="2" fill="#007aff"/>
+          <circle cx="28" cy="12" r="2" fill="#ff3b30"/>
+          <line x1="5" y1="6" x2="5" y2="30" stroke-width="1.6" opacity="0.6"/>
+          <line x1="5" y1="30" x2="32" y2="30" stroke-width="1.6" opacity="0.6"/>
+        </svg>
+      `,
+    },
+  ];
 
   public static readonly OPTICS_EXPERIMENTS: OpticsExperimentDef[] = [
     {
@@ -174,15 +245,14 @@ export class PhysicsDisciplineModal {
             <span class="branch-tile-badge planned">规划中</span>
           </div>
 
-          <!-- 3. Thermodynamics (In planning) -->
-          <div class="physics-branch-tile planned" id="branch-tile-thermo" role="button" tabindex="0" title="规划中">
+          <!-- 3. Thermodynamics (Ready) -->
+          <div class="physics-branch-tile ready" id="branch-tile-thermo" role="button" tabindex="0" title="进入热学实验">
             <div class="branch-tile-icon-box">
               <svg class="apple-sf-icon branch-tile-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
               </svg>
             </div>
             <h3 class="branch-tile-name">热学实验</h3>
-            <span class="branch-tile-badge planned">规划中</span>
           </div>
 
           <!-- 4. Electromagnetism (In planning) -->
@@ -206,11 +276,17 @@ export class PhysicsDisciplineModal {
   }
 
   /**
-   * Render Level 2: Optics Experiment Catalog (Only visible after clicking Optics)
+   * Render Level 2: Experiment Catalog (Optics or Thermodynamics)
    */
-  public showLevel2(): void {
+  public showLevel2(discipline: 'optics' | 'thermo' = 'optics'): void {
     this.currentLevel = 2;
-    this.callbacks.onLevelChange?.(2, '光学实验');
+    this.currentDiscipline = discipline;
+    const title = discipline === 'thermo' ? '热学实验' : '光学实验';
+    this.callbacks.onLevelChange?.(2, title);
+
+    const experiments = discipline === 'thermo'
+      ? PhysicsDisciplineModal.THERMO_EXPERIMENTS
+      : PhysicsDisciplineModal.OPTICS_EXPERIMENTS;
 
     this.element.innerHTML = `
       <div class="physics-level-container physics-level-2">
@@ -222,13 +298,13 @@ export class PhysicsDisciplineModal {
             </svg>
             <span>物理学</span>
           </button>
-          <h2 class="physics-level-title">光学实验</h2>
+          <h2 class="physics-level-title">${title}</h2>
           <div class="physics-nav-placeholder"></div>
         </div>
 
-        <!-- 4 Core Optics Experiments 2x2 Spatial Grid -->
+        <!-- 4 Core Experiments 2x2 Spatial Grid -->
         <div class="optics-exp-deck">
-          ${PhysicsDisciplineModal.OPTICS_EXPERIMENTS.map(
+          ${experiments.map(
             (exp) => `
             <div class="optics-card" data-exp-id="${exp.id}" data-formula="${exp.formula}" title="${exp.name}&#10;${exp.formula}" role="button" tabindex="0">
               <div class="optics-card-icon-box">${exp.iconSvg}</div>
@@ -266,14 +342,25 @@ export class PhysicsDisciplineModal {
       this.callbacks.onBackToDisciplines();
     });
 
-    // Optics tile -> navigate to Level 2
+    // Optics tile -> navigate to Level 2 (Optics)
     const opticsTile = this.element.querySelector('#branch-tile-optics');
     opticsTile?.addEventListener('click', () => {
-      this.showLevel2();
+      this.showLevel2('optics');
     });
     opticsTile?.addEventListener('keydown', (e) => {
       if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-        this.showLevel2();
+        this.showLevel2('optics');
+      }
+    });
+
+    // Thermo tile -> navigate to Level 2 (Thermodynamics)
+    const thermoTile = this.element.querySelector('#branch-tile-thermo');
+    thermoTile?.addEventListener('click', () => {
+      this.showLevel2('thermo');
+    });
+    thermoTile?.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+        this.showLevel2('thermo');
       }
     });
 
@@ -291,7 +378,6 @@ export class PhysicsDisciplineModal {
     };
 
     bindPlanned('#branch-tile-mechanics', '力学实验');
-    bindPlanned('#branch-tile-thermo', '热学实验');
     bindPlanned('#branch-tile-em', '电磁学');
   }
 
@@ -305,7 +391,13 @@ export class PhysicsDisciplineModal {
     this.element.querySelectorAll('.optics-card').forEach((card) => {
       const expId = (card as HTMLElement).getAttribute('data-exp-id');
       const handleSelect = () => {
-        if (expId && this.callbacks.onSelectExperiment) {
+        if (!expId) return;
+        if (expId === 'thermo-carnot' || expId === 'thermo-conduction' || expId === 'thermo-phase') {
+          const exp = PhysicsDisciplineModal.THERMO_EXPERIMENTS.find((e) => e.id === expId);
+          this.showToast(`${exp?.name || '实验'}研发规划中`);
+          return;
+        }
+        if (this.callbacks.onSelectExperiment) {
           this.callbacks.onSelectExperiment(expId);
         }
       };

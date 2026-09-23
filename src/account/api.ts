@@ -9,7 +9,7 @@ import { AccountApiError, type AccountUser, type AuthResult } from './types.ts';
 
 export type RestoreStatus = 'anonymous' | 'ready' | 'offline';
 
-function apiBase(): string {
+export function apiBase(): string {
   const configured = import.meta.env?.VITE_ACCOUNT_API_URL;
   const base = configured && configured.trim() ? configured.trim() : 'http://127.0.0.1:8080';
   return base.replace(/\/$/, '');
@@ -196,4 +196,8 @@ export async function restoreSession(): Promise<RestoreStatus> {
     clearSession();
     return 'anonymous';
   }
+}
+
+export async function createWhiteboardTicket(): Promise<{ ticket: string }> {
+  return request('/api/v1/whiteboard/ticket', { method: 'POST' }, true, true);
 }

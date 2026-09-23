@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 
-use account_server::{connect, migrate, router, AppState, Config};
+use server::{connect, migrate, router, AppState, Config};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -21,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
         config: Arc::new(config),
     });
     let listener = tokio::net::TcpListener::bind(bind).await?;
-    tracing::info!(%bind, "account server listening");
+    tracing::info!(%bind, "virtual lab backend server listening");
     axum::serve(listener, app).await?;
     Ok(())
 }

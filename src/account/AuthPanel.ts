@@ -89,8 +89,10 @@ export class AuthPanel {
     this.passwordInput = textInput('auth-password', 'password', '至少 8 位', 'current-password');
     this.confirmInput = textInput('auth-confirm', 'password', '再次输入密码', 'new-password');
     this.classInput = textInput('auth-class-name', 'text', '例如：高二 (3) 班', 'organization');
-    this.inviteInput = textInput('auth-invite', 'text', '选填（由老师提供）', 'off');
+    this.inviteInput = textInput('auth-invite', 'text', '选填，5 位字母数字', 'off');
     this.inviteInput.spellcheck = false;
+    this.inviteInput.maxLength = 5;
+    this.inviteInput.autocapitalize = 'characters';
 
     this.classField = labeledField('field-class-name', '班级', this.classInput);
     this.confirmField = labeledField('field-confirm-password', '确认密码', this.confirmInput);
@@ -110,7 +112,7 @@ export class AuthPanel {
 
     this.submitBtn = document.createElement('button');
     this.submitBtn.id = 'auth-submit';
-    this.submitBtn.className = 'apple-pill-action-btn primary auth-submit';
+    this.submitBtn.className = 'auth-submit';
     this.submitBtn.type = 'submit';
     this.submitBtn.textContent = '登录';
 

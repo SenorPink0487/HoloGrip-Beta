@@ -299,7 +299,11 @@ export class HoloTable {
   }
 
   public getInteractiveMeshes(): THREE.Object3D[] {
-    return [this.mainScreen, this.beamCone];
+    const meshes: THREE.Object3D[] = [];
+    if (this.mainScreen) meshes.push(this.mainScreen);
+    if (this.beamCone) meshes.push(this.beamCone);
+    if (this.emitterLens) meshes.push(this.emitterLens);
+    return meshes;
   }
 
   public mountBeaker(beakerGroup: THREE.Object3D, position?: THREE.Vector3): void {

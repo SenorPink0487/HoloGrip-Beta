@@ -101,6 +101,7 @@ export class Engine {
   private lastPointerPos: THREE.Vector2 | null = null;
   private currentHoveredTarget: string | null = null;
   private isExperimentInteracting = false;
+  private lastThermoTelemetrySync = 0;
 
   public clock = new THREE.Clock();
   private lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -315,6 +316,9 @@ export class Engine {
 
   private updatePourStream(startWorld: THREE.Vector3, endWorld: THREE.Vector3, color: THREE.Color): void {
     if (!this.pourStreamMesh || !this.pourStreamMat) return;
+    if (!this.pourStreamVertexBuffer || this.pourStreamVertexBuffer.byteLength === 0) {
+      this.pourStreamVertexBuffer = new Float32Array(153 * 3);
+    }
 
     this.pourStreamMat.color.copy(color);
 
@@ -530,9 +534,14 @@ export class Engine {
       },
       onSelectChemistry: () => {
         this.holoTable.hideHologram();
-        this.holoStage.setStageVisible(false);
+        this.holoStage.clearExperiment(this.currentContext);
+        this.currentExperimentId = null;
+        this.hud.clearActiveExperiment();
         this.beakerLeft.setVisible(true, true);
         this.beakerRight.setVisible(true, true);
+        if (this.renderer?.shadowMap?.enabled) {
+          this.renderer.shadowMap.needsUpdate = true;
+        }
       },
       onSelectPhysicsExperiment: async (id: string) => {
         this.beakerLeft.setVisible(false, true);
@@ -546,6 +555,26 @@ export class Engine {
       },
       onSelectBeaker: (beakerId) => {
         this.activeBeakerId = beakerId;
+      },
+      onThermoTemperatureChange: (tempK) => {
+        if (this.currentExperimentId === 'thermo-idealgas') {
+          const val = Math.round(tempK);
+          this.currentContext.setParameter('temperature', val);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.onParameterChange === 'function') {
+            exp.onParameterChange('temperature', val, this.currentContext);
+          }
+        }
+      },
+      onThermoVolumeChange: (volL) => {
+        if (this.currentExperimentId === 'thermo-idealgas') {
+          const val = parseFloat(volL.toFixed(2));
+          this.currentContext.setParameter('volume', val);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.onParameterChange === 'function') {
+            exp.onParameterChange('volume', val, this.currentContext);
+          }
+        }
       },
     });
 
@@ -576,6 +605,8 @@ export class Engine {
     this.holoTable.hideHologram(true);
     this.beakerLeft.setVisible(false, true);
     this.beakerRight.setVisible(false, true);
+    this.reactionEffectsLeft?.reset();
+    this.reactionEffectsRight?.reset();
 
     try {
       const registry = ExperimentRegistry.getInstance();
@@ -641,6 +672,22 @@ export class Engine {
     }
   }
 
+  public clearExperiment(): void {
+    if (this.holoStage) {
+      this.holoStage.clearExperiment(this.currentContext);
+    }
+    this.beakerLeft?.setVisible(false, true);
+    this.beakerRight?.setVisible(false, true);
+    this.reactionEffectsLeft?.reset();
+    this.reactionEffectsRight?.reset();
+    this.currentExperimentId = null;
+    this.holoTable?.showHologram();
+    this.hud?.clearActiveExperiment();
+    if (this.renderer?.shadowMap?.enabled) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
+  }
+
   private async initDefaultExperiment(): Promise<void> {
     try {
       const registry = ExperimentRegistry.getInstance();
@@ -649,9 +696,27 @@ export class Engine {
         (window as any).__REGISTRY_COUNT__ = all.length;
         (window as any).__REGISTRY_ALL__ = all.map(e => e.id);
       }
-      if (all.length > 0) {
-        const defaultExp = all.find((e) => e.id === 'optics-lab') || all[0];
-        await this.switchExperiment(defaultExp.id);
+      // Per user requirement: 进入实验室后，没选择实验，桌上就不要有实验器材
+      // Keep holographic stage and beakers hidden, table remains clean in standby mode.
+      this.holoStage.setStageVisible(false);
+      this.holoTable.showHologram();
+      this.beakerLeft.setVisible(false, false);
+      this.beakerRight.setVisible(false, false);
+      this.currentExperimentId = null;
+
+      // Pre-warm and compile beaker shaders and textures at startup to eliminate frame hitch on initial chemistry click
+      if (this.renderer && this.scene && this.camera && this.beakerLeft && this.beakerRight) {
+        this.beakerLeft.setVisible(true, false);
+        this.beakerRight.setVisible(true, false);
+        if (this.renderer.shadowMap.enabled) {
+          this.renderer.shadowMap.needsUpdate = true;
+        }
+        this.renderer.render(this.scene, this.camera);
+        this.beakerLeft.setVisible(false, false);
+        this.beakerRight.setVisible(false, false);
+      }
+      if (typeof window !== 'undefined') {
+        (window as any).__ENGINE_READY__ = true;
       }
     } catch (err: any) {
       console.error('[Engine] Failed in initDefaultExperiment:', err);
@@ -668,7 +733,7 @@ export class Engine {
     this.raycaster.setFromCamera(screenPos, this.camera);
     const ray = this.raycaster.ray;
 
-    if (this.beakerLeft && this.beakerLeft.isVisible()) {
+    if (this.beakerLeft && this.beakerLeft.isInteractive()) {
       const center = this.beakerLeft.group.position.clone().add(new THREE.Vector3(0, this.beakerLeft.beakerHeight * 0.5, 0));
       const sphere = new THREE.Sphere(center, 0.25);
       if (ray.intersectsSphere(sphere)) {
@@ -679,7 +744,7 @@ export class Engine {
       }
     }
 
-    if (this.beakerRight && this.beakerRight.isVisible()) {
+    if (this.beakerRight && this.beakerRight.isInteractive()) {
       const center = this.beakerRight.group.position.clone().add(new THREE.Vector3(0, this.beakerRight.beakerHeight * 0.5, 0));
       const sphere = new THREE.Sphere(center, 0.25);
       if (ray.intersectsSphere(sphere)) {
@@ -693,12 +758,22 @@ export class Engine {
     return null;
   }
 
-  private getInteractiveTargetAt(screenPos: THREE.Vector2): 'beaker-left' | 'beaker-right' | 'beaker' | null {
+  private getInteractiveTargetAt(screenPos: THREE.Vector2): 'beaker-left' | 'beaker-right' | 'beaker' | 'holo-table' | null {
     this.raycaster.setFromCamera(screenPos, this.camera);
 
     const beaker = this.getInteractiveBeakerAt(screenPos);
     if (beaker === 'left') return 'beaker-left';
     if (beaker === 'right') return 'beaker-right';
+
+    // When no experiment is mounted and beakers are hidden/non-interactive, the standby holographic table is interactive
+    if (!this.currentExperimentId && (!this.beakerLeft || !this.beakerLeft.isInteractive())) {
+      if (this.holoTable && this.holoTable.isHologramVisible()) {
+        const hits = this.raycaster.intersectObjects(this.holoTable.getInteractiveMeshes(), true);
+        if (hits.length > 0 && hits[0].distance < 8.0) {
+          return 'holo-table';
+        }
+      }
+    }
 
     return null;
   }
@@ -765,6 +840,19 @@ export class Engine {
           lastPouredVolume: 0,
         };
         return;
+      }
+
+      // If no experiment or beaker is active, clicking the holographic table opens VisionModal
+      if (!this.currentExperimentId && (!this.beakerLeft || !this.beakerLeft.isInteractive())) {
+        if (this.holoTable && this.holoTable.isHologramVisible()) {
+          this.raycaster.setFromCamera(mouseNDC, this.camera);
+          const tableHits = this.raycaster.intersectObjects(this.holoTable.getInteractiveMeshes(), true);
+          if (tableHits.length > 0 && tableHits[0].distance < 8.0) {
+            e.stopPropagation();
+            this.visionModal.open('disciplines');
+            return;
+          }
+        }
       }
 
       // Forward 3D interaction to active experiment on hologram stage
@@ -953,6 +1041,8 @@ export class Engine {
       label = '右侧烧杯 · 单击选试剂 / 长按拖拽倾倒';
     } else if (targetType === 'beaker') {
       label = '烧杯 · 单击选试剂 / 长按拖拽倾倒';
+    } else if (targetType === 'holo-table') {
+      label = '全息实验台 · 单击选择实验';
     }
 
     // If not hovering a beaker, query active experiment for hoverable equipment
@@ -981,7 +1071,7 @@ export class Engine {
       this.beakerRight.setHovered(targetType === 'beaker-right');
     }
     if (this.holoTable) {
-      this.holoTable.setHovered(false);
+      this.holoTable.setHovered(targetType === 'holo-table');
     }
 
     // Cursor feedback for interactive targets
@@ -1006,8 +1096,8 @@ export class Engine {
       this.inputManager.update(delta);
     }
 
-    // Continuously update spatial window orientation and elevation only when modal is visible
     const isModalOpen = Boolean(this.visionModal && this.visionModal.visible);
+
     if (this.spatialWindowObject && isModalOpen) {
       this.updateSpatialWindowTransform(delta, false);
     }
@@ -1022,39 +1112,23 @@ export class Engine {
 
     if (this.holoStage) {
       this.holoStage.update(delta, elapsed, this.currentContext);
+      if (isModalOpen && this.visionModal.currentTab === 'thermo') {
+        const nowMs = performance.now();
+        if (nowMs - this.lastThermoTelemetrySync >= 100) {
+          this.lastThermoTelemetrySync = nowMs;
+          const exp = this.holoStage.activeExperiment as any;
+          if (exp && typeof exp.getThermodynamicTelemetry === 'function') {
+            this.visionModal.thermoCard.updateTelemetry(exp.getThermodynamicTelemetry());
+          }
+        }
+      }
     }
 
     if (this.chemistryEngineLeft) {
       this.chemistryEngineLeft.update(delta);
-      if (this.computeBridge && (this.chemistryEngineLeft.state.temperature > 22.5 || this.chemistryEngineLeft.state.activeGasRate > 0)) {
-        this.computeBridge.simulateChemistryStep({
-          temperature: this.chemistryEngineLeft.state.temperature,
-          activeGasRate: this.chemistryEngineLeft.state.activeGasRate,
-          ambientTemp: 22.5,
-          dt: delta,
-        }).then((res) => {
-          if (res) {
-            this.chemistryEngineLeft.state.temperature = res.temperature;
-            this.chemistryEngineLeft.state.activeGasRate = res.activeGasRate;
-          }
-        }).catch(() => {});
-      }
     }
     if (this.chemistryEngineRight) {
       this.chemistryEngineRight.update(delta);
-      if (this.computeBridge && (this.chemistryEngineRight.state.temperature > 22.5 || this.chemistryEngineRight.state.activeGasRate > 0)) {
-        this.computeBridge.simulateChemistryStep({
-          temperature: this.chemistryEngineRight.state.temperature,
-          activeGasRate: this.chemistryEngineRight.state.activeGasRate,
-          ambientTemp: 22.5,
-          dt: delta,
-        }).then((res) => {
-          if (res) {
-            this.chemistryEngineRight.state.temperature = res.temperature;
-            this.chemistryEngineRight.state.activeGasRate = res.activeGasRate;
-          }
-        }).catch(() => {});
-      }
     }
 
     // Beaker drag, pour stream, volume transfer & physics
@@ -1122,16 +1196,16 @@ export class Engine {
     }
 
     // Update both beaker meshes and reaction particle systems
-    if (this.beakerLeft && this.beakerLeft.isVisible()) {
+    if (this.beakerLeft && (this.beakerLeft.group.visible || this.beakerLeft.isVisible())) {
       this.beakerLeft.update(delta);
-      if (this.reactionEffectsLeft && this.chemistryEngineLeft) {
+      if (this.reactionEffectsLeft && this.chemistryEngineLeft && this.beakerLeft.isVisible()) {
         this.reactionEffectsLeft.update(delta, this.chemistryEngineLeft.state);
       }
     }
 
-    if (this.beakerRight && this.beakerRight.isVisible()) {
+    if (this.beakerRight && (this.beakerRight.group.visible || this.beakerRight.isVisible())) {
       this.beakerRight.update(delta);
-      if (this.reactionEffectsRight && this.chemistryEngineRight) {
+      if (this.reactionEffectsRight && this.chemistryEngineRight && this.beakerRight.isVisible()) {
         this.reactionEffectsRight.update(delta, this.chemistryEngineRight.state);
       }
     }
