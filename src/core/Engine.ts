@@ -146,7 +146,7 @@ export class Engine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.02;
+    this.renderer.toneMappingExposure = 0.96;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.renderer.shadowMap.enabled = true;
@@ -179,13 +179,12 @@ export class Engine {
 
   private initScene(): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xe8eef2);
-    this.scene.fog = new THREE.FogExp2(0xe8eef2, 0.0007);
+    this.scene.background = new THREE.Color(0xf4f7f9);
   }
 
   private initCamera(): void {
     this.camera = new THREE.PerspectiveCamera(
-      55,
+      74,
       window.innerWidth / window.innerHeight,
       0.1,
       400
@@ -220,8 +219,38 @@ export class Engine {
     this.computeBridge = new ComputeBridge(this.workerPool);
   }
 
+  private initImageBasedLighting(): void {
+    const envScene = new THREE.Scene();
+    const shell = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0xf6f8fa, side: THREE.BackSide }),
+    );
+    shell.scale.set(16, 10, 16);
+    shell.position.y = 2;
+    envScene.add(shell);
+
+    const oculus = new THREE.Mesh(
+      new THREE.CircleGeometry(3.4, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    );
+    oculus.position.y = 6.4;
+    oculus.rotation.x = Math.PI / 2;
+    envScene.add(oculus);
+
+    envScene.add(new THREE.HemisphereLight(0xffffff, 0xdce3e8, 0.9));
+    const key = new THREE.DirectionalLight(0xffffff, 2.4);
+    key.position.set(0, 8, 0.4);
+    envScene.add(key);
+
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+    this.scene.environmentIntensity = 0.38;
+    pmrem.dispose();
+  }
+
   private initWorld(): void {
     this.lighting = new Lighting(this.scene);
+    this.initImageBasedLighting();
 
     this.lab = new Laboratory();
     this.scene.add(this.lab.group);

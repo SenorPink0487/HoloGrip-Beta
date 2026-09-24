@@ -179,9 +179,9 @@
       border-right: 1px solid rgba(255, 255, 255, 0.12);
       backdrop-filter: blur(40px) saturate(190%);
       -webkit-backdrop-filter: blur(40px) saturate(190%);
-      box-shadow: 16px 0 40px rgba(0, 0, 0, 0.5);
+      box-shadow: none;
       transform: translateX(-100%);
-      transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s ease;
       z-index: 1200;
       display: flex;
       flex-direction: column;
@@ -189,6 +189,7 @@
 
     #experiment-drawer.open {
       transform: translateX(0);
+      box-shadow: 16px 0 40px rgba(0, 0, 0, 0.5);
     }
 
     .drawer-header {

@@ -55,33 +55,39 @@ export class TextureGenerator {
       const offCtx = off.getContext('2d')!;
       offCtx.putImageData(new ImageData(prebakedFbm as any, 512, 512), 0, 0);
       ctx.drawImage(off, 0, 0, size, size);
-      ctx.fillStyle = 'rgba(238, 243, 246, 0.72)';
+      ctx.fillStyle = 'rgba(232, 237, 241, 0.78)';
       ctx.fillRect(0, 0, size, size);
     } else {
-      const grad = ctx.createLinearGradient(0, 0, 0, size);
-      grad.addColorStop(0, '#edf2f5');
-      grad.addColorStop(0.55, '#e5ebef');
-      grad.addColorStop(1, '#dce5ea');
-      ctx.fillStyle = grad;
+      ctx.fillStyle = '#d3dbe1';
+      ctx.fillRect(0, 0, size, size);
+      const glow = ctx.createRadialGradient(size * 0.5, size * 0.48, 40, size * 0.5, size * 0.5, size * 0.62);
+      glow.addColorStop(0, 'rgba(255,255,255,0.28)');
+      glow.addColorStop(0.55, 'rgba(255,255,255,0.05)');
+      glow.addColorStop(1, 'rgba(190, 202, 210, 0.18)');
+      ctx.fillStyle = glow;
       ctx.fillRect(0, 0, size, size);
     }
 
-    const glow = ctx.createRadialGradient(size * 0.5, size * 0.42, 80, size * 0.5, size * 0.42, 520);
-    glow.addColorStop(0, 'rgba(255,255,255,0.24)');
-    glow.addColorStop(0.7, 'rgba(255,255,255,0.06)');
-    glow.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, size, size);
-
-    ctx.save();
-    ctx.strokeStyle = 'rgba(136, 151, 160, 0.12)';
-    ctx.lineWidth = 1.2;
-    for (const radius of [170, 310, 465]) {
+    // Fine terrazzo aggregate, seeded so the floor stays stable across reloads.
+    let seed = 20260324;
+    const rand = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+    for (let i = 0; i < 2800; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const r = rand() * 2.4 + 0.6;
+      const shade = rand();
+      ctx.fillStyle = shade > 0.8
+        ? 'rgba(255,255,255,0.55)'
+        : shade > 0.25
+          ? 'rgba(98, 112, 122, 0.45)'
+          : 'rgba(70, 82, 92, 0.32)';
       ctx.beginPath();
-      ctx.arc(size / 2, size / 2, radius, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
     }
-    ctx.restore();
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.ClampToEdgeWrapping;

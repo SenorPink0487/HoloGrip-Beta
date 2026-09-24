@@ -6,62 +6,40 @@ export class Lighting {
   }
 
   private setupLights(): void {
-    // Reference image uses a neutral white architectural wash.
-    const ambientLight = new THREE.AmbientLight(0xf0f4f7, 0.78);
+    // High-key cool daylight from the oculus, with a soft floor bounce.
+    const ambientLight = new THREE.AmbientLight(0xf4f7fa, 0.34);
     this.scene.add(ambientLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xb8c4cc, 0.72);
-    hemiLight.position.set(0, 5, 0);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xc5d0d8, 0.38);
+    hemiLight.position.set(0, 6, 0);
     this.scene.add(hemiLight);
 
-    const centerSpot = new THREE.SpotLight(0xfffdf8, 1.0);
-    centerSpot.position.set(0, 4.55, 0);
-    centerSpot.angle = Math.PI / 2.8;
-    centerSpot.penumbra = 0.72;
-    centerSpot.decay = 1.2;
-    centerSpot.distance = 11;
-    centerSpot.castShadow = true;
-    centerSpot.shadow.mapSize.width = 1024;
-    centerSpot.shadow.mapSize.height = 1024;
-    centerSpot.shadow.camera.near = 0.5;
-    centerSpot.shadow.camera.far = 8;
-    centerSpot.shadow.bias = -0.0003;
-    this.scene.add(centerSpot);
+    const key = new THREE.DirectionalLight(0xfffdf8, 1.25);
+    key.position.set(0.35, 9.2, 0.55);
+    key.target.position.set(0, 0, 0);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.near = 0.5;
+    key.shadow.camera.far = 18;
+    key.shadow.camera.left = -9;
+    key.shadow.camera.right = 9;
+    key.shadow.camera.top = 9;
+    key.shadow.camera.bottom = -9;
+    key.shadow.bias = -0.00025;
+    key.shadow.normalBias = 0.035;
+    this.scene.add(key);
+    this.scene.add(key.target);
 
-    const dirLight = new THREE.DirectionalLight(0xf7fbff, 0.42);
-    dirLight.position.set(1.5, 4.5, 2.5);
-    dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 1024;
-    dirLight.shadow.mapSize.height = 1024;
-    dirLight.shadow.bias = -0.0005;
-    this.scene.add(dirLight);
+    const oculus = new THREE.SpotLight(0xfffdf8, 3.2, 12, Math.PI / 3.1, 0.65, 1);
+    oculus.position.set(0, 4.05, 0);
+    oculus.target.position.set(0, 0.9, 0);
+    this.scene.add(oculus);
+    this.scene.add(oculus.target);
 
-    const ringRadius = 4.9;
-    const ringLightCount = 6;
-    for (let i = 0; i < ringLightCount; i++) {
-      const angle = (i / ringLightCount) * Math.PI * 2;
-      const x = Math.cos(angle) * ringRadius;
-      const z = Math.sin(angle) * ringRadius;
-
-      const pLight = new THREE.PointLight(0xfffbf3, 0.14, 6.5, 1.8);
-      pLight.position.set(x, 4.2, z);
-      this.scene.add(pLight);
-    }
-
-    const rearFill = new THREE.DirectionalLight(0xf5f8fb, 0.28);
-    rearFill.position.set(0, 3.8, 1.5);
-    rearFill.target.position.set(0, 2.0, 8.2);
-    this.scene.add(rearFill);
-    this.scene.add(rearFill.target);
-
-    const benchSpot = new THREE.SpotLight(0xfffdf8, 0.72);
-    benchSpot.position.set(0, 3.8, 1.1);
-    benchSpot.target.position.set(0, 0.9, 0.25);
-    benchSpot.angle = Math.PI / 3.2;
-    benchSpot.penumbra = 0.72;
-    benchSpot.decay = 1.2;
-    benchSpot.distance = 8;
-    this.scene.add(benchSpot);
-    this.scene.add(benchSpot.target);
+    const fill = new THREE.DirectionalLight(0xf3f7fb, 0.32);
+    fill.position.set(0, 2.8, 7.5);
+    fill.target.position.set(0, 1.6, -4);
+    this.scene.add(fill);
+    this.scene.add(fill.target);
   }
 }

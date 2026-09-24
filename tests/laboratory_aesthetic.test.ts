@@ -53,10 +53,17 @@ assert.ok(walls.getObjectByName('side-niche-frame-right'), 'Right recessed niche
 assert.ok(walls.getObjectByName('side-niche-warm-shelf-left'), 'Left warm shelf must exist');
 assert.ok(walls.getObjectByName('side-niche-warm-shelf-right'), 'Right warm shelf must exist');
 assert.ok(walls.getObjectByName('upper-cyan-light-slot'), 'Upper cyan datum light must exist');
+assert.ok(walls.getObjectByName('vertical-cyan-light-left'), 'Left vertical cyan datum must exist');
+assert.ok(walls.getObjectByName('vertical-cyan-light-right'), 'Right vertical cyan datum must exist');
+assert.ok(walls.getObjectByName('right-entry-door'), 'Right glazed entry must exist');
+assert.ok(walls.getObjectByName('right-entry-door-glass'), 'Entry glazing must exist');
 
 const ceiling = lab.group.getObjectByName('reference-ceiling');
 assert.ok(ceiling instanceof THREE.Group, 'Reference ceiling group must exist');
 assert.ok(ceiling.children.some(child => child instanceof THREE.Mesh && child.geometry instanceof THREE.CircleGeometry), 'Central circular skylight must exist');
+assert.ok(ceiling.getObjectByName('central-skylight'), 'Named oculus must exist');
+assert.ok(ceiling.getObjectByName('skylight-cross'), 'Oculus cross mullion must exist');
+assert.ok(ceiling.getObjectByName('ceiling-facets'), 'Faceted ceiling coffers must exist');
 
 const floor = lab.group.children.find(child => child instanceof THREE.Mesh) as THREE.Mesh;
 assert.ok(floor?.geometry instanceof THREE.CircleGeometry, 'Floor must be circular');

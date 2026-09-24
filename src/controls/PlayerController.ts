@@ -27,10 +27,10 @@ export class PlayerController {
   public damping = 9.0;
   public eyeHeight = 1.38;
   public minHeight = 0.3;
-  public maxHeight = 4.0;
+  public maxHeight = 3.55;
 
   public roomRadius = 7.6;
-  public tableRadius = 2.25;
+  public tableRadius = 2.48;
   public tableCenter = new THREE.Vector2(0, 0);
 
   public isLocked = false;
@@ -54,10 +54,10 @@ export class PlayerController {
     this.camera = camera;
     this.domElement = domElement;
 
-    // Start at a gallery distance so the full circular room and floating platform read as one composition.
-    // Reference composition: centered, low eye line with generous foreground floor.
-    this.pitch = -0.05;
-    this.camera.position.set(0, 1.58, 5.35);
+    // Gallery view of the circular chamber: eye just above the platter, enough floor in the foreground
+    // for the concentric joints, oculus and entry door to sit in one frame.
+    this.pitch = 0.1;
+    this.camera.position.set(0, 1.42, 5.9);
     this.camera.rotation.order = 'YXZ';
     this.updateCameraRotation();
 

@@ -31,61 +31,55 @@ export class HoloTable {
   }
 
   private createTableStructure(): void {
-    const baseMat = new THREE.MeshStandardMaterial({
-      color: 0xb9c4ca, metalness: 0.42, roughness: 0.38, side: THREE.DoubleSide,
+    const pedestalMat = new THREE.MeshStandardMaterial({
+      color: 0xd5dde3, metalness: 0.08, roughness: 0.48, side: THREE.DoubleSide,
     });
     const seamMat = new THREE.MeshStandardMaterial({
-      color: 0x75838b, metalness: 0.5, roughness: 0.42, side: THREE.DoubleSide,
+      color: 0x9aabb4, metalness: 0.16, roughness: 0.46, side: THREE.DoubleSide,
     });
     const whiteMat = new THREE.MeshStandardMaterial({
-      color: 0xf4f7f8, metalness: 0.03, roughness: 0.34, side: THREE.DoubleSide,
+      color: 0xf7f8f8, metalness: 0.02, roughness: 0.42, side: THREE.DoubleSide,
     });
     const edgeMat = new THREE.MeshStandardMaterial({
-      color: 0xd5dfe4, metalness: 0.62, roughness: 0.26, side: THREE.DoubleSide,
+      color: 0xe4ebef, metalness: 0.12, roughness: 0.32, side: THREE.DoubleSide,
     });
 
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.28, 1.42, 0.08, 96), baseMat);
-    base.position.y = 0.04;
-    base.receiveShadow = true;
-    this.group.add(base);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.22, 1.32, 0.055, 96), pedestalMat);
+    foot.position.y = 0.028;
+    foot.receiveShadow = true;
+    foot.castShadow = true;
+    this.group.add(foot);
 
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.08, 1.26, 0.38, 96), baseMat);
-    pedestal.position.y = 0.27;
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.08, 1.14, 0.58, 96), pedestalMat);
+    pedestal.position.y = 0.345;
     pedestal.receiveShadow = true;
+    pedestal.castShadow = true;
     this.group.add(pedestal);
 
-    const pedestalSeam = new THREE.Mesh(new THREE.CylinderGeometry(1.085, 1.085, 0.025, 96), seamMat);
-    pedestalSeam.position.y = 0.47;
+    const pedestalSeam = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.56, 0.012), seamMat);
+    pedestalSeam.position.set(0, 0.35, 1.09);
     this.group.add(pedestalSeam);
 
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(1.64, 1.18, 0.18, 96), baseMat);
-    collar.position.y = 0.58;
-    this.group.add(collar);
-
-    const underside = new THREE.Mesh(new THREE.CylinderGeometry(2.28, 1.72, 0.11, 128, 1, true), edgeMat);
-    underside.position.y = 0.73;
-    underside.receiveShadow = true;
-    this.group.add(underside);
-
-    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(2.42, 2.42, 0.07, 128, 1, true), whiteMat);
-    skirt.position.y = 0.81;
-    skirt.receiveShadow = true;
-    this.group.add(skirt);
-
-    const bevel = new THREE.Mesh(new THREE.CylinderGeometry(2.42, 2.3, 0.12, 128, 1, true), whiteMat);
-    bevel.position.y = 0.88;
-    bevel.receiveShadow = true;
-    this.group.add(bevel);
-
-    const tabletop = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.3, 0.07, 128), whiteMat);
-    tabletop.position.y = 0.955;
+    // Thick rounded platter. Top stays at y = 0.99 so beakers and the hologram stage remain flush.
+    const profile = [
+      new THREE.Vector2(0.02, 0.99),
+      new THREE.Vector2(2.18, 0.99),
+      new THREE.Vector2(2.34, 0.968),
+      new THREE.Vector2(2.42, 0.9),
+      new THREE.Vector2(2.4, 0.82),
+      new THREE.Vector2(2.16, 0.74),
+      new THREE.Vector2(1.48, 0.67),
+      new THREE.Vector2(1.16, 0.64),
+    ];
+    const tabletop = new THREE.Mesh(new THREE.LatheGeometry(profile, 128), whiteMat);
+    tabletop.castShadow = true;
     tabletop.receiveShadow = true;
     tabletop.name = 'reference-white-tabletop';
     this.group.add(tabletop);
 
-    const topSeam = new THREE.Mesh(new THREE.TorusGeometry(2.285, 0.012, 8, 128), edgeMat);
+    const topSeam = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.01, 8, 128), edgeMat);
     topSeam.rotation.x = Math.PI / 2;
-    topSeam.position.y = 0.99;
+    topSeam.position.y = 0.992;
     this.group.add(topSeam);
   }
 
