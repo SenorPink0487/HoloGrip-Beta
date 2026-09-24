@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { BaseExperiment } from '../../base/BaseExperiment.ts';
-import { ThermoBenchPlate } from '../../../scene/thermo/ThermoBenchPlate.ts';
 import { ThermostatHeaterMesh } from '../../../scene/thermo/ThermostatHeaterMesh.ts';
 import { PistonCylinderMesh } from '../../../scene/thermo/PistonCylinderMesh.ts';
 import { PressureGaugeMesh } from '../../../scene/thermo/PressureGaugeMesh.ts';
@@ -16,7 +15,6 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
   public override hideCenterEmitter = true;
 
   // 3D Scene Components
-  private benchPlate: ThermoBenchPlate;
   private heater: ThermostatHeaterMesh;
   private cylinder: PistonCylinderMesh;
   private pressureGauge: PressureGaugeMesh;
@@ -36,48 +34,59 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
   private pressureKpa = 99.77;   // kPa
 
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96)
-    this.rootGroup.position.set(0, 0.063, 0.96);
+    // Rest experiment apparatus directly on dark circular tabletop surface (Y=0.852, HologramStage offset Y=-0.056)
+    // Positioned in front workbench interaction zone (Z=0.92)
+    this.rootGroup.position.set(0, -0.056, 0.92);
 
-    // 1. High-precision optical base plate
-    this.benchPlate = this.track(new ThermoBenchPlate());
-    this.rootGroup.add(this.benchPlate.group);
-    this.addDisposable(() => this.benchPlate.dispose());
-
-    // 2. Thermostatic Electric Heater Base (placed at x = -0.16, z = 0.02)
+    // 1. Thermostatic Electric Heater Base (placed directly on tabletop at x = 0.04, z = 0, y = 0)
     this.heater = this.track(new ThermostatHeaterMesh());
-    this.heater.group.position.set(-0.16, 0.024, 0.02);
+    this.heater.group.position.set(0.04, 0, 0);
     this.rootGroup.add(this.heater.group);
     this.addDisposable(() => this.heater.dispose());
 
-    // 3. Quartz Glass Cylinder & Movable Piston (mounted on top of heater plate, y = 0.024 + 0.062)
+    // 2. Quartz Glass Cylinder & Movable Piston (mounted directly on top of heater plate, y = 0.062)
     this.cylinder = this.track(new PistonCylinderMesh());
-    this.cylinder.group.position.set(-0.16, 0.086, 0.02);
+    this.cylinder.group.position.set(0.04, 0.0621, 0);
     this.rootGroup.add(this.cylinder.group);
     this.addDisposable(() => this.cylinder.dispose());
 
-    // 4. Bourdon-Tube Analog Pressure Gauge (placed to the left, x = -0.34, z = 0.02)
+    // 3. Bourdon-Tube Analog Pressure Gauge (placed directly on tabletop to the left, x = -0.14, z = 0, y = 0)
     this.pressureGauge = this.track(new PressureGaugeMesh());
-    this.pressureGauge.group.position.set(-0.34, 0.024, 0.02);
+    this.pressureGauge.group.position.set(-0.14, 0, 0);
     this.rootGroup.add(this.pressureGauge.group);
     this.addDisposable(() => this.pressureGauge.dispose());
 
-    // 5. Connecting Brass Pressure Line (from cylinder base to gauge stem)
-    const pipeGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.10, 16);
+    // 4. Precision Connecting Brass Pressure Line (from cylinder base into gauge stem)
+    const pipeGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.08, 16);
     const pipeMat = new THREE.MeshStandardMaterial({
-      color: 0xb45309,
+      color: 0xd97706,
       metalness: 0.92,
-      roughness: 0.25,
+      roughness: 0.22,
     });
     this.track(pipeGeo);
     this.track(pipeMat);
     this.connectPipe = new THREE.Mesh(pipeGeo, pipeMat);
     this.connectPipe.rotation.z = Math.PI * 0.5;
-    this.connectPipe.position.set(-0.25, 0.054, 0.02);
+    this.connectPipe.position.set(-0.10, 0.037, 0);
     this.connectPipe.castShadow = true;
     this.rootGroup.add(this.connectPipe);
 
-    // 6. Microscopic Molecular Kinetics System (inside cylinder)
+    // Polished stainless steel union collar at heater/cylinder junction
+    const collarGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.008, 6);
+    const collarMat = new THREE.MeshStandardMaterial({
+      color: 0xf1f5f9,
+      metalness: 0.92,
+      roughness: 0.15,
+    });
+    this.track(collarGeo);
+    this.track(collarMat);
+    const heaterCollar = new THREE.Mesh(collarGeo, collarMat);
+    heaterCollar.rotation.z = Math.PI * 0.5;
+    heaterCollar.position.set(-0.065, 0.037, 0);
+    heaterCollar.castShadow = true;
+    this.rootGroup.add(heaterCollar);
+
+    // 5. Microscopic Molecular Kinetics System (inside cylinder)
     this.molecularGas = this.track(new MolecularGasSystem());
     this.molecularGas.group.position.copy(this.cylinder.group.position);
     this.rootGroup.add(this.molecularGas.group);

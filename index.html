@@ -1665,7 +1665,7 @@
 
     /* Floating Launcher Button - Apple Vision Pro Capsule */
     #vision-floating-launcher {
-      display: none !important;
+      display: block;
       position: fixed;
       bottom: 24px;
       left: 50%;
@@ -2735,6 +2735,431 @@
       height: auto;
       max-height: 220px;
       border-radius: 8px;
+    }
+    .carnot-control-deck {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 8px 14px;
+    }
+    .carnot-btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .carnot-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #f8fafc;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .carnot-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+    .carnot-btn.active {
+      background: rgba(14, 165, 233, 0.28);
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
+    .carnot-select {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 12px;
+      padding: 5px 8px;
+      outline: none;
+      cursor: pointer;
+    }
+    .carnot-stage-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #f59e0b;
+    }
+    .legend-line.line-carnot-iso-h { background: #ef4444; }
+    .legend-line.line-carnot-adi-exp { background: #eab308; }
+    .legend-line.line-carnot-iso-c { background: #38bdf8; }
+    .legend-line.line-carnot-adi-comp { background: #a855f7; }
+
+    /* ========================================================== */
+    /* Vision Stereometry Math Status Card (Apple VisionOS Glass) */
+    /* ========================================================== */
+    .vision-math-status-card {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      overflow-y: auto;
+      box-sizing: border-box;
+      padding: 10px 14px;
+      color: #f8fafc;
+      gap: 12px;
+    }
+    .math-card-container {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .math-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .math-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .math-live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 10px #38bdf8;
+    }
+    .math-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .math-card-title {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+      color: #ffffff;
+    }
+    .math-card-subtitle {
+      font-size: 11.5px;
+      color: #94a3b8;
+    }
+    .math-euler-badge {
+      font-size: 11.5px;
+      font-weight: 600;
+      font-family: -apple-system, monospace;
+      padding: 4px 10px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 980px;
+      color: #38bdf8;
+    }
+    .math-segmented-control {
+      display: flex;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 3px;
+      gap: 3px;
+      overflow-x: auto;
+    }
+    .math-segment-btn {
+      flex: 1;
+      min-width: 72px;
+      min-height: 34px;
+      background: transparent;
+      border: none;
+      border-radius: 9px;
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .math-segment-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .math-segment-btn.active {
+      background: rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    }
+    .math-tab-content-deck {
+      display: flex;
+      flex-direction: column;
+    }
+    .math-tab-panel {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .math-tab-panel.active {
+      display: flex;
+    }
+    .math-models-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+    }
+    .math-model-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 8px 6px;
+      min-height: 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .math-model-card:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+    .math-model-card.active {
+      background: rgba(56, 189, 248, 0.16);
+      border-color: #38bdf8;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+    }
+    .model-svg-wrap {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+    }
+    .math-model-card.active .model-svg-wrap {
+      color: #38bdf8;
+    }
+    .model-diagram-svg {
+      width: 100%;
+      height: 100%;
+    }
+    .model-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: #f1f5f9;
+      text-align: center;
+    }
+    .math-controls-deck {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 12px 16px;
+    }
+    .math-slider-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .math-slider-box.full-width {
+      grid-column: 1 / -1;
+    }
+    .math-slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: #94a3b8;
+    }
+    .math-slider-val {
+      font-weight: 600;
+      color: #38bdf8;
+      font-family: -apple-system, monospace;
+    }
+    .math-range-slider {
+      width: 100%;
+      accent-color: #38bdf8;
+      cursor: pointer;
+      height: 5px;
+    }
+    .math-actions-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .math-actions-row.primary-tools .math-tool-btn,
+    .math-actions-row.primary-tools .math-action-pill {
+      min-height: 40px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .math-action-pill,
+    .math-tool-btn {
+      min-height: 38px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 980px;
+      color: #f1f5f9;
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 6px 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .math-action-pill.micro {
+      min-height: 30px;
+      font-size: 11.5px;
+      padding: 4px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    .math-action-pill:hover,
+    .math-tool-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+    .math-action-pill:active,
+    .math-tool-btn:active {
+      transform: translateY(0);
+    }
+    .math-tool-btn.active {
+      background: rgba(56, 189, 248, 0.22);
+      border-color: #38bdf8;
+      color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.28);
+    }
+    .math-action-pill.danger {
+      color: #fb7185;
+      border-color: rgba(251, 113, 133, 0.3);
+    }
+    .math-action-pill.danger:hover {
+      background: rgba(251, 113, 133, 0.16);
+    }
+    .math-picked-badge {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 6px 12px;
+      border-radius: 980px;
+      margin-left: auto;
+    }
+    .math-picked-badge.active {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+    .math-metrics-banner {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 10px 14px;
+    }
+    .metric-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .m-label {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .m-val {
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffffff;
+      font-family: -apple-system, sans-serif;
+    }
+    .m-val.highlight {
+      color: #38bdf8;
+    }
+    .math-toggle-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .math-switch-chip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11.5px;
+      color: #cbd5e1;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 980px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .math-switch-chip:hover {
+      background: rgba(255, 255, 255, 0.09);
+      color: #ffffff;
+    }
+    .math-switch-chip input[type="checkbox"] {
+      accent-color: #38bdf8;
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+    }
+    .math-presets-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .preset-card-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 12px 14px;
+      min-height: 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .preset-card-btn:hover {
+      background: rgba(56, 189, 248, 0.14);
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateY(-1px);
+    }
+    .preset-card-btn:active {
+      transform: translateY(0);
+    }
+    .preset-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #38bdf8;
+    }
+    .preset-sub {
+      font-size: 11px;
+      color: #94a3b8;
     }
   </style>
 </head>

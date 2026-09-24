@@ -11,230 +11,134 @@ export class HoloTable {
   private mainScreen: THREE.Mesh;
   private beamCone: THREE.Mesh;
   private emitterLens: THREE.Mesh;
+  private emitterAssembly = new THREE.Group();
 
   private mainScreenMat: THREE.MeshBasicMaterial;
   private particlesMat: THREE.PointsMaterial;
   private beamConeMat: THREE.MeshBasicMaterial;
   private emitterLensMat: THREE.MeshStandardMaterial;
 
-  private targetHoloAlpha = 1.0;
-  private currentHoloAlpha = 1.0;
+  private targetHoloAlpha = 0;
+  private currentHoloAlpha = 0;
+  private isHovered = false;
 
   constructor() {
     this.createTableStructure();
     this.createProjectorEmitter();
     this.createHoloScreens();
     this.createFloatingParticles();
+    this.hideHologram(true);
   }
 
   private createTableStructure(): void {
-    // Brushed metallic materials for table pedestal
-    const brushedMetalMat = new THREE.MeshStandardMaterial({
-      color: 0x9ca3ad,
-      metalness: 0.88,
-      roughness: 0.25,
-      side: THREE.DoubleSide,
+    const baseMat = new THREE.MeshStandardMaterial({
+      color: 0xb9c4ca, metalness: 0.42, roughness: 0.38, side: THREE.DoubleSide,
+    });
+    const seamMat = new THREE.MeshStandardMaterial({
+      color: 0x75838b, metalness: 0.5, roughness: 0.42, side: THREE.DoubleSide,
+    });
+    const whiteMat = new THREE.MeshStandardMaterial({
+      color: 0xf4f7f8, metalness: 0.03, roughness: 0.34, side: THREE.DoubleSide,
+    });
+    const edgeMat = new THREE.MeshStandardMaterial({
+      color: 0xd5dfe4, metalness: 0.62, roughness: 0.26, side: THREE.DoubleSide,
     });
 
-    const darkMetalMat = new THREE.MeshStandardMaterial({
-      color: 0x1e2228,
-      metalness: 0.8,
-      roughness: 0.4,
-      side: THREE.DoubleSide,
-    });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.28, 1.42, 0.08, 96), baseMat);
+    base.position.y = 0.04;
+    base.receiveShadow = true;
+    this.group.add(base);
 
-    // Clean white sci-fi outer beveled tabletop rim
-    const whiteRimMat = new THREE.MeshStandardMaterial({
-      color: 0xeff3f7,
-      metalness: 0.08,
-      roughness: 0.3,
-      side: THREE.DoubleSide,
-    });
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.08, 1.26, 0.38, 96), baseMat);
+    pedestal.position.y = 0.27;
+    pedestal.receiveShadow = true;
+    this.group.add(pedestal);
 
-    // Sunken matte dark charcoal inner tabletop disc
-    const darkTopMat = new THREE.MeshStandardMaterial({
-      color: 0x15181c,
-      metalness: 0.2,
-      roughness: 0.6,
-      side: THREE.DoubleSide,
-    });
+    const pedestalSeam = new THREE.Mesh(new THREE.CylinderGeometry(1.085, 1.085, 0.025, 96), seamMat);
+    pedestalSeam.position.y = 0.47;
+    this.group.add(pedestalSeam);
 
-    const silverRimMat = new THREE.MeshStandardMaterial({
-      color: 0xc8d8e8,
-      metalness: 0.85,
-      roughness: 0.25,
-      side: THREE.DoubleSide,
-    });
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(1.64, 1.18, 0.18, 96), baseMat);
+    collar.position.y = 0.58;
+    this.group.add(collar);
 
-    // 1. Base plinth sitting on floor
-    const basePlinthGeo = new THREE.CylinderGeometry(1.42, 1.46, 0.05, 64);
-    const basePlinth = new THREE.Mesh(basePlinthGeo, brushedMetalMat);
-    basePlinth.position.y = 0.025;
-    basePlinth.receiveShadow = true;
-    this.group.add(basePlinth);
+    const underside = new THREE.Mesh(new THREE.CylinderGeometry(2.28, 1.72, 0.11, 128, 1, true), edgeMat);
+    underside.position.y = 0.73;
+    underside.receiveShadow = true;
+    this.group.add(underside);
 
-    // 2. Inward tapering metallic pedestal base
-    const baseConeGeo = new THREE.CylinderGeometry(1.18, 1.42, 0.44, 64);
-    const baseCone = new THREE.Mesh(baseConeGeo, brushedMetalMat);
-    baseCone.position.y = 0.27;
-    baseCone.receiveShadow = true;
-    this.group.add(baseCone);
-
-    // 3. Vertical panel seam lines on base cone
-    const numSeams = 16;
-    for (let i = 0; i < numSeams; i++) {
-      const angle = (i / numSeams) * Math.PI * 2;
-      const seamGeo = new THREE.BoxGeometry(0.008, 0.44, 0.02);
-      const seam = new THREE.Mesh(seamGeo, darkMetalMat);
-      const r = 1.3 - (0.44 / 2) * (0.24 / 0.44);
-      seam.position.set(Math.cos(angle) * r, 0.27, Math.sin(angle) * r);
-      seam.rotation.y = -angle;
-      this.group.add(seam);
-    }
-
-    // 4. Middle recessed groove ring
-    const grooveGeo = new THREE.CylinderGeometry(1.16, 1.16, 0.04, 64);
-    const groove = new THREE.Mesh(grooveGeo, darkMetalMat);
-    groove.position.y = 0.51;
-    this.group.add(groove);
-
-    // 5. Flaring upper pedestal collar
-    const upperCollarGeo = new THREE.CylinderGeometry(1.85, 1.16, 0.28, 64);
-    const upperCollar = new THREE.Mesh(upperCollarGeo, brushedMetalMat);
-    upperCollar.position.y = 0.67;
-    this.group.add(upperCollar);
-
-    // 6. Outer White Tabletop Beveled Rim
-    const rimFlatGeo = new THREE.RingGeometry(1.58, 2.06, 96);
-    const rimFlat = new THREE.Mesh(rimFlatGeo, whiteRimMat);
-    rimFlat.rotation.x = -Math.PI / 2;
-    rimFlat.position.y = 0.88;
-    rimFlat.receiveShadow = true;
-    this.group.add(rimFlat);
-
-    // Beveled outer chamfer ring
-    const chamferGeo = new THREE.CylinderGeometry(2.06, 2.18, 0.06, 96, 1, true);
-    const chamfer = new THREE.Mesh(chamferGeo, whiteRimMat);
-    chamfer.position.y = 0.85;
-    chamfer.receiveShadow = true;
-    this.group.add(chamfer);
-
-    // Outer vertical skirt
-    const skirtGeo = new THREE.CylinderGeometry(2.18, 2.18, 0.06, 96, 1, true);
-    const skirt = new THREE.Mesh(skirtGeo, whiteRimMat);
-    skirt.position.y = 0.79;
+    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(2.42, 2.42, 0.07, 128, 1, true), whiteMat);
+    skirt.position.y = 0.81;
+    skirt.receiveShadow = true;
     this.group.add(skirt);
 
-    // Under-bevel connecting skirt back to upper collar
-    const underBevelGeo = new THREE.CylinderGeometry(2.18, 1.85, 0.08, 96, 1, true);
-    const underBevel = new THREE.Mesh(underBevelGeo, brushedMetalMat);
-    underBevel.position.y = 0.72;
-    this.group.add(underBevel);
+    const bevel = new THREE.Mesh(new THREE.CylinderGeometry(2.42, 2.3, 0.12, 128, 1, true), whiteMat);
+    bevel.position.y = 0.88;
+    bevel.receiveShadow = true;
+    this.group.add(bevel);
 
-    // Inner step down from white rim to dark sunken disc
-    const innerStepGeo = new THREE.CylinderGeometry(1.58, 1.58, 0.03, 80, 1, true);
-    const innerStep = new THREE.Mesh(innerStepGeo, darkMetalMat);
-    innerStep.position.y = 0.865;
-    this.group.add(innerStep);
+    const tabletop = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.3, 0.07, 128), whiteMat);
+    tabletop.position.y = 0.955;
+    tabletop.receiveShadow = true;
+    tabletop.name = 'reference-white-tabletop';
+    this.group.add(tabletop);
 
-    // 7. Sunken Dark Charcoal / Black Inner Disc
-    const darkDiscGeo = new THREE.RingGeometry(0.52, 1.58, 80);
-    const darkDisc = new THREE.Mesh(darkDiscGeo, darkTopMat);
-    darkDisc.rotation.x = -Math.PI / 2;
-    darkDisc.position.y = 0.851;
-    darkDisc.receiveShadow = true;
-    this.group.add(darkDisc);
-
-    // Refined metallic seam ring
-    const seamRingGeo = new THREE.RingGeometry(1.57, 1.585, 80);
-    const seamRing = new THREE.Mesh(seamRingGeo, silverRimMat);
-    seamRing.rotation.x = -Math.PI / 2;
-    seamRing.position.y = 0.852;
-    this.group.add(seamRing);
+    const topSeam = new THREE.Mesh(new THREE.TorusGeometry(2.285, 0.012, 8, 128), edgeMat);
+    topSeam.rotation.x = Math.PI / 2;
+    topSeam.position.y = 0.99;
+    this.group.add(topSeam);
   }
 
   private createProjectorEmitter(): void {
-    const emitterBaseGeo = new THREE.CylinderGeometry(0.52, 0.52, 0.03, 64);
+    this.emitterAssembly.name = 'hologram-emitter';
+    this.emitterAssembly.visible = false;
+
     const emitterBaseMat = new THREE.MeshStandardMaterial({
-      color: 0xc8d2dc,
-      metalness: 0.92,
-      roughness: 0.2,
-      side: THREE.DoubleSide,
+      color: 0xd4dde1, metalness: 0.7, roughness: 0.26, side: THREE.DoubleSide,
     });
-    const emitterBase = new THREE.Mesh(emitterBaseGeo, emitterBaseMat);
-    emitterBase.position.y = 0.865;
-    this.group.add(emitterBase);
+    const emitterBase = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.025, 64), emitterBaseMat);
+    emitterBase.position.y = 1.0;
+    this.emitterAssembly.add(emitterBase);
 
-    // Beveled chrome collar ring
-    const collarGeo = new THREE.CylinderGeometry(0.38, 0.48, 0.03, 64);
-    const collar = new THREE.Mesh(collarGeo, emitterBaseMat);
-    collar.position.y = 0.89;
-    this.group.add(collar);
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.46, 0.028, 64), emitterBaseMat);
+    collar.position.y = 1.026;
+    this.emitterAssembly.add(collar);
 
-    // Subtle optical frosted glass lens ring
-    const lensGeo = new THREE.RingGeometry(0.22, 0.38, 64);
     this.emitterLensMat = new THREE.MeshStandardMaterial({
-      color: 0x1a222c,
-      metalness: 0.8,
-      roughness: 0.35,
-      emissive: 0x00f7ff,
-      emissiveIntensity: 0.3,
-      side: THREE.DoubleSide,
+      color: 0xb8eaff, metalness: 0.42, roughness: 0.2, emissive: 0x8bdfff,
+      emissiveIntensity: 0, side: THREE.DoubleSide,
     });
-    this.emitterLens = new THREE.Mesh(lensGeo, this.emitterLensMat);
+    this.emitterLens = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.36, 64), this.emitterLensMat);
     this.emitterLens.rotation.x = -Math.PI / 2;
-    this.emitterLens.position.y = 0.906;
-    this.group.add(this.emitterLens);
+    this.emitterLens.position.y = 1.045;
+    this.emitterAssembly.add(this.emitterLens);
 
-    // Center dark core aperture disc
-    const coreGeo = new THREE.CircleGeometry(0.22, 64);
-    const coreMat = new THREE.MeshStandardMaterial({
-      color: 0x0a1016,
-      metalness: 0.8,
-      roughness: 0.3,
-      side: THREE.DoubleSide,
-    });
-    const core = new THREE.Mesh(coreGeo, coreMat);
-    core.rotation.x = -Math.PI / 2;
-    core.position.y = 0.907;
-    this.group.add(core);
+    this.group.add(this.emitterAssembly);
 
-    // Soft neutral optical projection light column
-    const coneGeo = new THREE.CylinderGeometry(0.58, 0.28, 1.05, 48, 1, true);
     this.beamConeMat = new THREE.MeshBasicMaterial({
-      color: 0xf0f4fa,
-      transparent: true,
-      opacity: 0.025,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+      color: 0xeaf9ff, transparent: true, opacity: 0, side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending, depthWrite: false,
     });
-    this.beamCone = new THREE.Mesh(coneGeo, this.beamConeMat);
-    this.beamCone.position.y = 0.91 + 0.525;
+    this.beamCone = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.28, 1.05, 48, 1, true), this.beamConeMat);
+    this.beamCone.position.y = 1.55;
+    this.beamCone.visible = false;
     this.group.add(this.beamCone);
 
-    // Subtle neutral optical light
-    this.holoLight = new THREE.PointLight(0xe8f0f8, 0.45, 3.5, 2.0);
-    this.holoLight.position.set(0, 1.25, 0);
+    this.holoLight = new THREE.PointLight(0xbdeeff, 0, 3.2, 2);
+    this.holoLight.position.set(0, 1.35, 0);
     this.group.add(this.holoLight);
   }
 
   private createHoloScreens(): void {
     const holoTex = TextureGenerator.createHoloScreenTexture();
-
-    const screenGeo = new THREE.PlaneGeometry(1.68, 0.84);
     this.mainScreenMat = new THREE.MeshBasicMaterial({
-      map: holoTex,
-      transparent: true,
-      opacity: 0.72,
-      side: THREE.DoubleSide,
-      blending: THREE.NormalBlending,
-      depthWrite: false,
+      map: holoTex, transparent: true, opacity: 0, side: THREE.DoubleSide,
+      blending: THREE.NormalBlending, depthWrite: false,
     });
-
-    this.mainScreen = new THREE.Mesh(screenGeo, this.mainScreenMat);
-    this.mainScreen.position.set(0, 1.68, -0.05);
+    this.mainScreen = new THREE.Mesh(new THREE.PlaneGeometry(1.68, 0.84), this.mainScreenMat);
+    this.mainScreen.position.set(0, 1.82, -0.05);
     this.mainScreen.rotation.x = -0.05;
+    this.mainScreen.visible = false;
     this.group.add(this.mainScreen);
   }
 
@@ -243,52 +147,45 @@ export class HoloTable {
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const speeds = new Float32Array(particleCount);
-
     for (let i = 0; i < particleCount; i++) {
       const radius = Math.random() * 0.4;
       const angle = Math.random() * Math.PI * 2;
       positions[i * 3] = Math.cos(angle) * radius;
-      positions[i * 3 + 1] = 0.92 + Math.random() * 0.95;
+      positions[i * 3 + 1] = 1.04 + Math.random() * 0.95;
       positions[i * 3 + 2] = Math.sin(angle) * radius;
       speeds[i] = 0.15 + Math.random() * 0.3;
     }
-
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
     this.particlesMat = new THREE.PointsMaterial({
-      color: 0xf2f6fc,
-      size: 0.008,
-      transparent: true,
-      opacity: 0.28,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+      color: 0xf2f6fc, size: 0.008, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
     });
-
     this.particles = new THREE.Points(geometry, this.particlesMat);
     this.particleSpeeds = speeds;
+    this.particles.visible = false;
     this.group.add(this.particles);
   }
 
   public hideHologram(immediate = false): void {
-    this.targetHoloAlpha = 0.0;
+    this.targetHoloAlpha = 0;
     if (immediate) {
-      this.currentHoloAlpha = 0.0;
-      if (this.mainScreenMat) this.mainScreenMat.opacity = 0;
-      if (this.mainScreen) this.mainScreen.visible = false;
-      if (this.beamConeMat) this.beamConeMat.opacity = 0;
-      if (this.beamCone) this.beamCone.visible = false;
-      if (this.particlesMat) this.particlesMat.opacity = 0;
-      if (this.particles) this.particles.visible = false;
-      if (this.holoLight) this.holoLight.intensity = 0;
-      if (this.emitterLensMat) this.emitterLensMat.emissiveIntensity = 0;
+      this.currentHoloAlpha = 0;
+      this.mainScreenMat.opacity = 0;
+      this.mainScreen.visible = false;
+      this.beamConeMat.opacity = 0;
+      this.beamCone.visible = false;
+      this.particlesMat.opacity = 0;
+      this.particles.visible = false;
+      this.holoLight.intensity = 0;
+      this.emitterLensMat.emissiveIntensity = 0;
+      this.emitterAssembly.visible = false;
     }
   }
 
   public showHologram(): void {
-    this.targetHoloAlpha = 1.0;
+    this.targetHoloAlpha = 1;
+    this.emitterAssembly.visible = true;
   }
-
-  private isHovered = false;
 
   public setHovered(hovered: boolean): void {
     this.isHovered = hovered;
@@ -299,91 +196,47 @@ export class HoloTable {
   }
 
   public getInteractiveMeshes(): THREE.Object3D[] {
-    const meshes: THREE.Object3D[] = [];
-    if (this.mainScreen) meshes.push(this.mainScreen);
-    if (this.beamCone) meshes.push(this.beamCone);
-    if (this.emitterLens) meshes.push(this.emitterLens);
-    return meshes;
+    return [this.mainScreen, this.beamCone, this.emitterLens];
   }
 
   public mountBeaker(beakerGroup: THREE.Object3D, position?: THREE.Vector3): void {
-    if (position) {
-      beakerGroup.position.copy(position);
-    } else {
-      beakerGroup.position.set(-0.38, 0.852, 1.10);
-    }
+    beakerGroup.position.copy(position ?? new THREE.Vector3(-0.38, 0.98, 1.1));
     this.group.add(beakerGroup);
   }
 
-  public mountBeakers(
-    leftGroup: THREE.Object3D,
-    rightGroup: THREE.Object3D,
-    leftPos?: THREE.Vector3,
-    rightPos?: THREE.Vector3
-  ): void {
-    if (leftPos) {
-      leftGroup.position.copy(leftPos);
-    } else {
-      leftGroup.position.set(-0.38, 0.852, 1.10);
-    }
-    if (rightPos) {
-      rightGroup.position.copy(rightPos);
-    } else {
-      rightGroup.position.set(0.38, 0.852, 1.10);
-    }
+  public mountBeakers(leftGroup: THREE.Object3D, rightGroup: THREE.Object3D, leftPos?: THREE.Vector3, rightPos?: THREE.Vector3): void {
+    leftGroup.position.copy(leftPos ?? new THREE.Vector3(-0.38, 0.98, 1.1));
+    rightGroup.position.copy(rightPos ?? new THREE.Vector3(0.38, 0.98, 1.1));
     this.group.add(leftGroup);
     this.group.add(rightGroup);
   }
 
   public update(delta: number): void {
     this.hologramTime += delta;
-    const t = this.hologramTime * 2.0;
+    const t = this.hologramTime * 2;
+    this.currentHoloAlpha = THREE.MathUtils.lerp(this.currentHoloAlpha, this.targetHoloAlpha, delta * 4);
 
-    // Smooth transition of hologram transparency
-    this.currentHoloAlpha = THREE.MathUtils.lerp(this.currentHoloAlpha, this.targetHoloAlpha, delta * 4.0);
+    const screenOpacity = (this.isHovered ? 0.9 : 0.72) * this.currentHoloAlpha;
+    this.mainScreenMat.opacity = THREE.MathUtils.lerp(this.mainScreenMat.opacity, screenOpacity, delta * 6);
+    this.mainScreen.visible = this.currentHoloAlpha > 0.01;
 
-    if (this.mainScreenMat) {
-      const targetScreenOpacity = (this.isHovered ? 0.90 : 0.72) * this.currentHoloAlpha;
-      this.mainScreenMat.opacity = THREE.MathUtils.lerp(this.mainScreenMat.opacity, targetScreenOpacity, delta * 6.0);
-      const targetScale = Math.max(0.01, this.currentHoloAlpha) * (this.isHovered ? 1.03 : 1.0);
-      const curScale = this.mainScreen.scale.x;
-      const s = THREE.MathUtils.lerp(curScale, targetScale, delta * 6.0);
-      this.mainScreen.scale.set(s, s, s);
-      this.mainScreen.visible = this.currentHoloAlpha > 0.01;
-    }
+    const beamOpacity = (this.isHovered ? 0.055 : 0.025) * this.currentHoloAlpha;
+    this.beamConeMat.opacity = THREE.MathUtils.lerp(this.beamConeMat.opacity, beamOpacity, delta * 6);
+    this.beamCone.visible = this.currentHoloAlpha > 0.01;
 
-    if (this.beamConeMat) {
-      const targetBeamOpacity = (this.isHovered ? 0.055 : 0.025) * this.currentHoloAlpha;
-      this.beamConeMat.opacity = THREE.MathUtils.lerp(this.beamConeMat.opacity, targetBeamOpacity, delta * 6.0);
-      this.beamCone.visible = this.currentHoloAlpha > 0.01;
-    }
-
-    if (this.particlesMat) {
-      this.particlesMat.opacity = 0.28 * this.currentHoloAlpha;
-      this.particles.visible = this.currentHoloAlpha > 0.01;
-    }
-
-    if (this.particles && this.currentHoloAlpha > 0.01) {
+    this.particlesMat.opacity = 0.28 * this.currentHoloAlpha;
+    this.particles.visible = this.currentHoloAlpha > 0.01;
+    if (this.particles.visible) {
       const positions = (this.particles.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
       for (let i = 0; i < positions.length / 3; i++) {
         positions[i * 3 + 1] += this.particleSpeeds[i] * delta;
-        if (positions[i * 3 + 1] > 2.0) {
-          positions[i * 3 + 1] = 0.92;
-          const radius = Math.random() * 0.4;
-          const angle = Math.random() * Math.PI * 2;
-          positions[i * 3] = Math.cos(angle) * radius;
-          positions[i * 3 + 2] = Math.sin(angle) * radius;
-        }
+        if (positions[i * 3 + 1] > 2.0) positions[i * 3 + 1] = 1.04;
       }
       this.particles.geometry.attributes.position.needsUpdate = true;
     }
 
-    if (this.holoLight) {
-      this.holoLight.intensity = (0.55 + Math.sin(t * 2.5) * 0.06) * this.currentHoloAlpha;
-    }
-
-    if (this.emitterLensMat) {
-      this.emitterLensMat.emissiveIntensity = 0.3 * this.currentHoloAlpha;
-    }
+    this.holoLight.intensity = (0.36 + Math.sin(t * 2.5) * 0.04) * this.currentHoloAlpha;
+    this.emitterLensMat.emissiveIntensity = 0.22 * this.currentHoloAlpha;
+    this.emitterAssembly.visible = this.currentHoloAlpha > 0.01;
   }
 }

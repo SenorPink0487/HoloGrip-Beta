@@ -1651,4 +1651,7 @@ textarea:focus::placeholder {
   pointer-events: none;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
+.whiteboard-sync-status:empty {
+  display: none;
+}
 .whiteboard-sync-status[data-state="connected"] { color: #237344; }

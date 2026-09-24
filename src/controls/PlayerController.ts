@@ -54,9 +54,10 @@ export class PlayerController {
     this.camera = camera;
     this.domElement = domElement;
 
-    // Position player right at the edge of the HoloTable for natural, interactive arm's length observation
-    this.pitch = -0.28;
-    this.camera.position.set(0, 1.38, 2.32);
+    // Start at a gallery distance so the full circular room and floating platform read as one composition.
+    // Reference composition: centered, low eye line with generous foreground floor.
+    this.pitch = -0.05;
+    this.camera.position.set(0, 1.58, 5.35);
     this.camera.rotation.order = 'YXZ';
     this.updateCameraRotation();
 

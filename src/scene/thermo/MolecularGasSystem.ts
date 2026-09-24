@@ -24,7 +24,7 @@ export class MolecularGasSystem {
 
   // Cylindrical container dimensions
   private readonly cylinderRadius = 0.076; // Inner boundary radius
-  private readonly bottomY = 0.022;        // Cylinder bottom plate top face
+  private readonly bottomY = 0.023;        // Cylinder bottom plate top face
   private currentPistonY = 0.15;            // Dynamic piston bottom face
 
   // Thermal physics parameters

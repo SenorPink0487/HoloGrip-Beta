@@ -17,36 +17,83 @@ export class PressureGaugeMesh {
   }
 
   private build(): void {
-    // 1. Brass inlet stem / pipe connector
-    const pipeGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.06, 16);
-    const pipeMat = new THREE.MeshStandardMaterial({
-      color: 0xb45309,
-      metalness: 0.9,
-      roughness: 0.25,
+    // 1. Rubber non-slip bottom pad rim (y = 0 to 0.0015)
+    const rubberGeo = new THREE.CylinderGeometry(0.042, 0.042, 0.0015, 32);
+    const rubberMat = new THREE.MeshStandardMaterial({
+      color: 0x111317,
+      roughness: 0.9,
     });
-    this.disposables.push(pipeGeo, pipeMat);
+    this.disposables.push(rubberGeo, rubberMat);
+    const rubberMesh = new THREE.Mesh(rubberGeo, rubberMat);
+    rubberMesh.position.y = 0.00075;
+    this.group.add(rubberMesh);
 
-    const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
-    pipeMesh.position.y = 0.03;
-    pipeMesh.castShadow = true;
-    this.group.add(pipeMesh);
+    // 2. Polished stainless steel base bevel ring (y = 0.0015 to 0.004)
+    const baseRimGeo = new THREE.CylinderGeometry(0.040, 0.042, 0.0025, 32);
+    const stainlessMat = new THREE.MeshStandardMaterial({
+      color: 0xf1f5f9,
+      metalness: 0.92,
+      roughness: 0.15,
+    });
+    this.disposables.push(baseRimGeo, stainlessMat);
+    const baseRimMesh = new THREE.Mesh(baseRimGeo, stainlessMat);
+    baseRimMesh.position.y = 0.00275;
+    this.group.add(baseRimMesh);
 
-    // 2. Chrome cylindrical casing (diameter 0.08m, depth 0.024m)
+    // 3. High-precision satin clear-anodized aluminum plinth (y = 0.004 to 0.012)
+    const baseGeo = new THREE.CylinderGeometry(0.036, 0.040, 0.008, 32);
+    const satinSilverMat = new THREE.MeshStandardMaterial({
+      color: 0xdfe6ed,
+      metalness: 0.76,
+      roughness: 0.24,
+    });
+    this.disposables.push(baseGeo, satinSilverMat);
+
+    const baseMesh = new THREE.Mesh(baseGeo, satinSilverMat);
+    baseMesh.position.y = 0.008;
+    baseMesh.castShadow = true;
+    baseMesh.receiveShadow = true;
+    this.group.add(baseMesh);
+
+    // 4. Polished stainless steel vertical support post (y = 0.012 to 0.062, Ø10mm)
+    const postGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.050, 16);
+    this.disposables.push(postGeo);
+
+    const postMesh = new THREE.Mesh(postGeo, stainlessMat);
+    postMesh.position.y = 0.037;
+    postMesh.castShadow = true;
+    this.group.add(postMesh);
+
+    // Hexagonal brass pipe fitting collar (where side pipe connects at y = 0.037)
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      metalness: 0.92,
+      roughness: 0.22,
+    });
+    this.disposables.push(brassMat);
+
+    const fittingGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.010, 6);
+    this.disposables.push(fittingGeo);
+    const fittingMesh = new THREE.Mesh(fittingGeo, brassMat);
+    fittingMesh.position.y = 0.037;
+    this.group.add(fittingMesh);
+
+    // 5. Mirror polished chrome casing (center y = 0.104)
     const caseGeo = new THREE.CylinderGeometry(0.042, 0.042, 0.022, 36);
     const caseMat = new THREE.MeshStandardMaterial({
-      color: 0x94a3b8,
+      color: 0xf1f5f9,
       metalness: 0.95,
-      roughness: 0.15,
+      roughness: 0.12,
     });
     this.disposables.push(caseGeo, caseMat);
 
     const caseMesh = new THREE.Mesh(caseGeo, caseMat);
     caseMesh.rotation.x = Math.PI * 0.5;
-    caseMesh.position.set(0, 0.06 + 0.042, 0);
+    caseMesh.position.set(0, 0.104, 0);
     caseMesh.castShadow = true;
     this.group.add(caseMesh);
 
-    // 3. Dial Face Disc with crisp metric scale
+    // 4. Dial Face Disc with crisp metric scale
     this.dialCanvas = document.createElement('canvas');
     this.dialCanvas.width = 512;
     this.dialCanvas.height = 512;
@@ -63,12 +110,12 @@ export class PressureGaugeMesh {
     this.disposables.push(dialGeo, dialMat);
 
     const dialMesh = new THREE.Mesh(dialGeo, dialMat);
-    dialMesh.position.set(0, 0.06 + 0.042, 0.0115);
+    dialMesh.position.set(0, 0.104, 0.0115);
     this.group.add(dialMesh);
 
-    // 4. Rotating Pointer Needle
+    // 5. Rotating Pointer Needle
     const pointerGroup = new THREE.Group();
-    pointerGroup.position.set(0, 0.06 + 0.042, 0.0125);
+    pointerGroup.position.set(0, 0.104, 0.0125);
     this.group.add(pointerGroup);
 
     const needleGeo = new THREE.ConeGeometry(0.0022, 0.032, 16);

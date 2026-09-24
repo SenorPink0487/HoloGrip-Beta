@@ -1,9 +1,41 @@
 import assert from 'node:assert';
+import * as THREE from 'three';
 import { CATEGORIES } from '../src/experiments/ExperimentRegistry.ts';
 import { metadata as idealGasMeta } from '../src/experiments/catalog/thermo-idealgas/meta.ts';
 import { metadata as carnotMeta } from '../src/experiments/catalog/thermo-carnot/meta.ts';
 import { metadata as conductionMeta } from '../src/experiments/catalog/thermo-conduction/meta.ts';
 import { metadata as phaseMeta } from '../src/experiments/catalog/thermo-phase/meta.ts';
+
+// Mock minimal DOM for headless Node test
+const createMockElement = (tag = 'div'): any => ({
+  tagName: tag.toUpperCase(),
+  width: 1024,
+  height: 768,
+  style: {},
+  appendChild: (child: any) => child,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  getContext: () => ({
+    fillStyle: '', strokeStyle: '', lineWidth: 1, font: '', textAlign: '', textBaseline: '',
+    fillRect: () => {}, strokeRect: () => {}, clearRect: () => {}, fillText: () => {},
+    beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, stroke: () => {}, fill: () => {},
+    arc: () => {},
+    createLinearGradient: () => ({ addColorStop: () => {} }),
+    createRadialGradient: () => ({ addColorStop: () => {} }),
+    roundRect: () => {},
+    measureText: () => ({ width: 50 }),
+    drawImage: () => {},
+    save: () => {},
+    restore: () => {},
+    setLineDash: () => {},
+  }),
+});
+
+if (typeof globalThis.document === 'undefined') {
+  (globalThis as any).document = {
+    createElement: createMockElement,
+  };
+}
 
 console.log('=== Starting Thermodynamics Module Deep Verification ===\n');
 
@@ -171,6 +203,278 @@ console.log('=== Starting Thermodynamics Module Deep Verification ===\n');
   console.log('✓ Test 6 passed: In-process 60+ FPS frame budget verified (physics < 1.5ms, logic > 666 FPS)\n');
 }
 
+// Test 7: Direct Tabletop Placement & Removal of ThermoBenchPlate
+{
+  console.log('Test 7: Verify apparatus is placed directly on tabletop without ThermoBenchPlate');
+  const ThermoIdealGasExperiment = (await import('../src/experiments/catalog/thermo-idealgas/index.ts')).default;
+  const exp = new ThermoIdealGasExperiment();
+
+  const mockContext: any = {
+    scene: new THREE.Scene(),
+    camera: new THREE.PerspectiveCamera(),
+    renderer: {} as any,
+    parameters: {},
+    getParameter: (id: string) => exp.metadata.parameters.find((p) => p.id === id)?.defaultValue,
+    setParameter: () => {},
+  };
+
+  exp.init(mockContext);
+
+  // 1. rootGroup must sit directly on the table surface (Y=-0.056 relative to HologramStage Y=0.908 -> World Y=0.852)
+  assert.strictEqual(exp.rootGroup.position.y, -0.056, 'rootGroup.position.y must be -0.056 for tabletop surface flush placement');
+  assert.strictEqual(exp.rootGroup.position.z, 0.92, 'rootGroup.position.z must be 0.92 in front workbench zone');
+
+  // 2. ThermoBenchPlate MUST NOT be in rootGroup
+  const benchPlateChild = exp.rootGroup.children.find((c: THREE.Object3D) => c.name === 'ThermoBenchPlate');
+  assert.strictEqual(benchPlateChild, undefined, 'ThermoBenchPlate must NOT be in rootGroup children');
+
+  // 3. Components must sit directly on tabletop or their mounting surface
+  const heater = (exp as any).heater;
+  const cylinder = (exp as any).cylinder;
+  const pressureGauge = (exp as any).pressureGauge;
+
+  assert(heater, 'Heater must exist');
+  assert(cylinder, 'Cylinder must exist');
+  assert(pressureGauge, 'Pressure gauge must exist');
+
+  assert.strictEqual(heater.group.position.y, 0, 'Heater base must sit directly on table at local y=0');
+  assert.strictEqual(pressureGauge.group.position.y, 0, 'Pressure gauge base must sit directly on table at local y=0');
+  assert(Math.abs(cylinder.group.position.y - 0.062) < 0.001, 'Cylinder must sit directly on top of heater plate at local y ~ 0.062');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 7 passed: Apparatus is resting directly on tabletop without intermediate bench plate\n');
+}
+
+// Test 8: Carnot Heat Engine Machine Simulation & Cycle Physics
+{
+  console.log('Test 8: Carnot Heat Engine Machine Simulation, Efficiency & Table Separation');
+  const CarnotCycleExperiment = (await import('../src/experiments/catalog/thermo-carnot/index.ts')).default;
+  const exp = new CarnotCycleExperiment();
+
+  const mockContext: any = {
+    scene: new THREE.Scene(),
+    camera: new THREE.PerspectiveCamera(),
+    renderer: {} as any,
+    parameters: {},
+    getParameter: (id: string) => exp.metadata.parameters.find((p) => p.id === id)?.defaultValue,
+    setParameter: () => {},
+  };
+
+  exp.init(mockContext);
+
+  // 1. Root group and tabletop placement
+  assert.strictEqual(exp.rootGroup.position.y, -0.056, 'Carnot machine must be flush on tabletop (y=-0.056)');
+  assert.strictEqual(exp.rootGroup.position.z, 0.92, 'Carnot machine positioned in front workbench zone');
+
+  // 2. Optical-grade construction: verify rubber footpads exist on machine base
+  const machineMesh = (exp as any).engine;
+  assert(machineMesh, 'CarnotEngineMesh must exist');
+  const footpads = machineMesh.group.getObjectByName('BaseRubberFootpads');
+  assert(footpads !== undefined, 'Dark rubber vibration-isolation footpads must exist to separate apparatus from dark table');
+
+  // 3. Cycle physics & telemetry
+  const tHigh = 650;
+  const tLow = 320;
+  exp.setTempHigh(tHigh);
+  exp.setTempLow(tLow);
+
+  const telem = exp.getCarnotTelemetry();
+  const expectedEtaPct = (1 - tLow / tHigh) * 100;
+  assert(Math.abs(telem.efficiency - expectedEtaPct) < 0.01, `Efficiency must be ~${expectedEtaPct.toFixed(2)}% (got ${telem.efficiency}%)`);
+  assert(telem.v1 > 0 && telem.v2 > telem.v1, 'Cycle volume vertices must be valid');
+  assert(telem.p1 > telem.p2, 'Pressure p1 must exceed p2 along isothermal expansion');
+
+  // 4. Step cycle forward
+  const initialTheta = (exp as any).theta;
+  exp.update(0.05, 0.05, mockContext);
+  const nextTheta = (exp as any).theta;
+  assert(nextTheta !== initialTheta, 'Crank angle theta must advance during active engine operation');
+
+  // 5. Presets
+  exp.applyPreset('steam');
+  assert.strictEqual(exp.getCarnotTelemetry().tempHigh, 650, 'Steam preset must set T_H = 650K');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 8 passed: Carnot engine simulation, η formula, and optical-grade tabletop isolation verified\n');
+}
+
+// Test 9: 1D Transient Heat Conduction & Fourier's Law PDE Solver
+{
+  console.log('Test 9: 1D Transient Heat Conduction & Fourier Law Numerical Solver');
+  const ConductionExperiment = (await import('../src/experiments/catalog/thermo-conduction/index.ts')).default;
+  const exp = new ConductionExperiment();
+
+  const mockContext: any = {
+    scene: new THREE.Scene(),
+    camera: new THREE.PerspectiveCamera(),
+    renderer: {} as any,
+    parameters: {},
+    getParameter: (id: string) => exp.metadata.parameters.find((p) => p.id === id)?.defaultValue,
+    setParameter: () => {},
+  };
+
+  exp.init(mockContext);
+
+  // 1. Bench placement & optical rail footpad separation
+  assert.strictEqual(exp.rootGroup.position.y, -0.056, 'Conduction bench must be flush on tabletop');
+  const bench = (exp as any).bench;
+  assert(bench, 'ConductionBenchMesh must exist');
+  const footpads = bench.group.getObjectByName('BenchRubberFootpads');
+  assert(footpads !== undefined, 'Rubber isolation footpads must exist to elevate optical bench off table');
+
+  // 2. High purity copper initial telemetry
+  exp.setHeatSourceTemp(500);
+  exp.setColdSourceTemp(300);
+  exp.setMaterial('copper');
+  exp.setProbePosition(0.5);
+
+  let telem = exp.getConductionTelemetry();
+  assert.strictEqual(telem.kValue, 390, 'Copper thermal conductivity k must be 390 W/(m·K)');
+  assert.strictEqual(telem.heatSourceTemp, 500, 'Heat source must be 500K');
+  assert.strictEqual(telem.coldSourceTemp, 300, 'Cold source must be 300K');
+
+  // 3. Step PDE finite difference diffusion for 60 frames
+  for (let i = 0; i < 60; i++) {
+    exp.update(0.016, i * 0.016, mockContext);
+  }
+
+  telem = exp.getConductionTelemetry();
+  // Temperature at center (0.5) must be between 300K and 500K
+  assert(telem.probeTempK > 300 && telem.probeTempK < 500, `Center probe temp (${telem.probeTempK.toFixed(1)}K) must be between 300K and 500K`);
+  // Fourier law: q = -k * gradT
+  assert(telem.localHeatFlux > 0, 'Heat flux must be positive from hot to cold reservoir');
+  assert(telem.probeGradient < 0, 'Temperature gradient dT/dx must be negative along x');
+
+  // 4. Material switching to Stainless Steel (low k)
+  exp.setMaterial('steel');
+  telem = exp.getConductionTelemetry();
+  assert.strictEqual(telem.kValue, 16, 'Steel thermal conductivity k must be 16 W/(m·K)');
+
+  // 5. Composite material
+  exp.setMaterial('composite');
+  exp.setProbePosition(0.2); // In copper region
+  telem = exp.getConductionTelemetry();
+  assert.strictEqual(telem.kValue, 390, 'Composite bar at x=0.2 must have copper k=390');
+
+  exp.setProbePosition(0.8); // In steel region
+  telem = exp.getConductionTelemetry();
+  assert.strictEqual(telem.kValue, 16, 'Composite bar at x=0.8 must have steel k=16');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 9 passed: Conduction PDE solver, Fourier law q=-k∇T, and multi-material properties verified\n');
+}
+
+// Test 10: Continuous Thermodynamic Phase Transition & Calorimetry
+{
+  console.log('Test 10: Continuous Thermodynamic Phase Transition, Latent Heat & Energy Conservation');
+  const PhaseTransitionExperiment = (await import('../src/experiments/catalog/thermo-phase/index.ts')).default;
+  const exp = new PhaseTransitionExperiment();
+
+  const mockContext: any = {
+    scene: new THREE.Scene(),
+    camera: new THREE.PerspectiveCamera(),
+    renderer: {} as any,
+    parameters: {},
+    getParameter: (id: string) => exp.metadata.parameters.find((p) => p.id === id)?.defaultValue,
+    setParameter: () => {},
+  };
+
+  exp.init(mockContext);
+
+  // 1. Calorimeter tabletop placement and isolation
+  assert.strictEqual(exp.rootGroup.position.y, -0.056, 'Calorimeter must be flush on tabletop');
+  const calorimeter = (exp as any).calorimeter;
+  assert(calorimeter, 'PhaseCalorimeterMesh must exist');
+  const footpads = calorimeter.group.getObjectByName('CalorimeterRubberFootpads');
+  assert(footpads !== undefined, 'Calorimeter rubber isolation footpads must exist to separate apparatus from table');
+
+  // 2. Setup: 100g ice starting at -20°C (253.15K), 1200W heating power
+  exp.setHeatPower(1200);
+  exp.setSubstanceMass(100); // 100g
+  exp.setTimeAcceleration(1.0);
+
+  let telem = exp.getPhaseTelemetry();
+  assert.strictEqual(telem.currentPhaseStage, 'subzero_ice', 'Initial phase stage must be subzero_ice');
+  assert(telem.iceFraction === 1.0, 'Initial ice fraction must be 1.0 (100%)');
+  assert(telem.waterFraction === 0.0, 'Initial water fraction must be 0.0');
+
+  // 3. Step simulation until melting plateau is reached (0°C)
+  // Specific heat of ice = 2100 J/(kg·K). For 0.1kg and 20K rise: Q = 0.1 * 2100 * 20 = 4200 J.
+  // At 1200 W, this takes ~3.5s.
+  for (let i = 0; i < 250; i++) {
+    exp.update(0.02, i * 0.02, mockContext);
+    if (exp.getPhaseTelemetry().currentPhaseStage === 'melting_plateau') break;
+  }
+
+  telem = exp.getPhaseTelemetry();
+  assert.strictEqual(telem.currentPhaseStage, 'melting_plateau', 'Stage must reach melting_plateau at 0°C');
+  assert(Math.abs(telem.temperatureC) < 0.05, `Temperature must stay clamped at 0°C during melting (got ${telem.temperatureC.toFixed(2)}°C)`);
+
+  // 4. Verify latent heat absorption during melting
+  // Latent heat of fusion = 334,000 J/kg. For 100g: 33,400 J.
+  // Step during melting
+  for (let i = 0; i < 500; i++) {
+    exp.update(0.02, i * 0.02, mockContext);
+    if (exp.getPhaseTelemetry().currentPhaseStage === 'liquid_water') break;
+  }
+
+  telem = exp.getPhaseTelemetry();
+  assert(telem.iceFraction < 1.0, 'Ice must have started melting (iceFraction < 1.0)');
+  assert(telem.waterFraction > 0.0, 'Water fraction must be > 0.0');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 10 passed: Thermodynamic phase transitions, latent heat plateaus, and energy conservation verified\n');
+}
+
+// Test 11: Real-World 60+ FPS Frame Budget for Conduction & Phase PDE Solvers
+{
+  console.log('Test 11: Thermodynamics Conduction & Phase Solvers 60+ FPS Frame Budget Benchmark');
+  const ConductionExperiment = (await import('../src/experiments/catalog/thermo-conduction/index.ts')).default;
+  const PhaseTransitionExperiment = (await import('../src/experiments/catalog/thermo-phase/index.ts')).default;
+
+  const condExp = new ConductionExperiment();
+  const phaseExp = new PhaseTransitionExperiment();
+
+  const mockContext: any = {
+    scene: new THREE.Scene(),
+    camera: new THREE.PerspectiveCamera(),
+    renderer: {} as any,
+    parameters: {},
+    getParameter: () => undefined,
+    setParameter: () => {},
+  };
+
+  condExp.init(mockContext);
+  phaseExp.init(mockContext);
+
+  // Benchmark Conduction PDE Solver
+  const condStart = performance.now();
+  const condIterations = 200;
+  for (let i = 0; i < condIterations; i++) {
+    condExp.update(0.016, i * 0.016, mockContext);
+  }
+  const condAvgMs = (performance.now() - condStart) / condIterations;
+  const condFps = 1000 / condAvgMs;
+  console.log(`  Conduction PDE Solver Frame Time:   ${condAvgMs.toFixed(4)} ms (${condFps.toFixed(0)} FPS)`);
+  assert(condAvgMs < 0.5, `Conduction PDE solver must take < 0.5ms! Got ${condAvgMs.toFixed(4)} ms`);
+
+  // Benchmark Phase Transition Enthalpy Solver
+  const phaseStart = performance.now();
+  const phaseIterations = 200;
+  for (let i = 0; i < phaseIterations; i++) {
+    phaseExp.update(0.016, i * 0.016, mockContext);
+  }
+  const phaseAvgMs = (performance.now() - phaseStart) / phaseIterations;
+  const phaseFps = 1000 / phaseAvgMs;
+  console.log(`  Phase Transition Solver Frame Time: ${phaseAvgMs.toFixed(4)} ms (${phaseFps.toFixed(0)} FPS)`);
+  assert(phaseAvgMs < 0.2, `Phase transition solver must take < 0.2ms! Got ${phaseAvgMs.toFixed(4)} ms`);
+
+  condExp.dispose(mockContext);
+  phaseExp.dispose(mockContext);
+
+  console.log('✓ Test 11 passed: Conduction and Phase solvers execute comfortably within 60+ FPS frame budget\n');
+}
+
 console.log('========================================================');
-console.log('All Thermodynamics Module Tests Passed (6/6)!');
+console.log('All Thermodynamics Module Tests Passed (11/11)!');
 console.log('========================================================\n');

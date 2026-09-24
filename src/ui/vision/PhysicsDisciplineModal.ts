@@ -392,11 +392,6 @@ export class PhysicsDisciplineModal {
       const expId = (card as HTMLElement).getAttribute('data-exp-id');
       const handleSelect = () => {
         if (!expId) return;
-        if (expId === 'thermo-carnot' || expId === 'thermo-conduction' || expId === 'thermo-phase') {
-          const exp = PhysicsDisciplineModal.THERMO_EXPERIMENTS.find((e) => e.id === expId);
-          this.showToast(`${exp?.name || '实验'}研发规划中`);
-          return;
-        }
         if (this.callbacks.onSelectExperiment) {
           this.callbacks.onSelectExperiment(expId);
         }

@@ -30,6 +30,7 @@ export class WhiteboardConnection {
     this.status.className = 'whiteboard-sync-status';
     this.status.setAttribute('role', 'status');
     this.status.setAttribute('aria-live', 'polite');
+    if (this.status.style) this.status.style.display = 'none';
     parent.appendChild(this.status);
     this.unsubscribe = subscribe(() => this.sessionChanged());
     window.addEventListener('online', this.onOnline);
@@ -39,12 +40,23 @@ export class WhiteboardConnection {
   private sessionChanged(): void {
     const user = getUser();
     const identity = user?.class ? `${user.id}:${user.class.id}` : '';
-    if (identity === this.identity) { if (!identity) this.setStatus('个人白板 · 加入班级后开启协作'); return; }
+    if (identity === this.identity) {
+      if (!identity) {
+        this.status.textContent = '';
+        if (this.status.style) this.status.style.display = 'none';
+      }
+      return;
+    }
     this.stop();
     this.identity = identity;
     this.state = new BoardState(); this.synced = false; this.pending = []; this.warning = '';
     this.canvas.configureCollaboration(identity ? command => this.submit(command) : null);
-    if (!identity) { this.setStatus('个人白板 · 加入班级后开启协作'); return; }
+    if (!identity) {
+      this.status.textContent = '';
+      if (this.status.style) this.status.style.display = 'none';
+      return;
+    }
+    if (this.status.style) this.status.style.display = '';
     try {
       const saved = JSON.parse(sessionStorage.getItem(this.storageKey()) || '[]');
       if (Array.isArray(saved) && saved.length <= 100) this.pending = saved.filter(c => c && typeof c.opId === 'string' && typeof c.pageId === 'string' && durable(c));
@@ -60,6 +72,12 @@ export class WhiteboardConnection {
     } catch { this.warning = '暂存空间不足，请保持页面打开直到同步完成'; }
   }
   private setStatus(text?: string): void {
+    if (!this.identity && !text) {
+      this.status.textContent = '';
+      if (this.status.style) this.status.style.display = 'none';
+      return;
+    }
+    if (this.status.style) this.status.style.display = '';
     this.status.textContent = text || this.warning || (this.ready
       ? this.pending.length ? `班级白板 · ${this.pending.length} 项正在保存` : '班级白板 · 已同步'
       : this.synced ? '班级白板 · 正在重连，笔迹暂存本机' : '班级白板 · 连接中');

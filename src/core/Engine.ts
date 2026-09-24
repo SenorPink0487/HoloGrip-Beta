@@ -146,13 +146,14 @@ export class Engine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.92;
+    this.renderer.toneMappingExposure = 1.02;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.shadowMap.needsUpdate = true;
+    this.renderer.localClippingEnabled = true;
 
     this.container.appendChild(this.renderer.domElement);
   }
@@ -178,13 +179,13 @@ export class Engine {
 
   private initScene(): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x020409);
-    this.scene.fog = new THREE.FogExp2(0x020409, 0.002);
+    this.scene.background = new THREE.Color(0xe8eef2);
+    this.scene.fog = new THREE.FogExp2(0xe8eef2, 0.0007);
   }
 
   private initCamera(): void {
     this.camera = new THREE.PerspectiveCamera(
-      60,
+      55,
       window.innerWidth / window.innerHeight,
       0.1,
       400
@@ -203,7 +204,7 @@ export class Engine {
 
     // Half-resolution bloom resolution to prevent 4K fragment shading bottlenecks
     const bloomSize = new THREE.Vector2(Math.max(256, Math.floor(width * 0.5)), Math.max(256, Math.floor(height * 0.5)));
-    this.bloomPass = new UnrealBloomPass(bloomSize, 0.28, 0.32, 0.91);
+    this.bloomPass = new UnrealBloomPass(bloomSize, 0.08, 0.22, 0.96);
     this.composer.addPass(this.bloomPass);
 
     const outputPass = new OutputPass();
@@ -248,11 +249,11 @@ export class Engine {
     this.chemistryEngineRight.setComputeBridge(this.computeBridge);
 
     this.beakerLeft = new BeakerMesh();
-    this.beakerLeft.restingPosition.set(-0.38, 0.852, 1.10);
+    this.beakerLeft.restingPosition.set(-0.38, 0.998, 1.10);
     this.beakerLeft.setVisible(false, false);
 
     this.beakerRight = new BeakerMesh();
-    this.beakerRight.restingPosition.set(0.38, 0.852, 1.10);
+    this.beakerRight.restingPosition.set(0.38, 0.998, 1.10);
     this.beakerRight.setVisible(false, false);
 
     this.holoTable.mountBeakers(
@@ -446,7 +447,7 @@ export class Engine {
       } else {
         if (!this.visionModal || !this.visionModal.visible) {
           this.inputManager.player.allowPointerLock = true;
-          this.crosshair.setVisible(true);
+          this.crosshair.setVisible(false);
         }
       }
     };
@@ -515,7 +516,7 @@ export class Engine {
       onClose: () => {
         this.spatialWindowObject.visible = false;
         this.inputManager.player.allowPointerLock = true;
-        this.crosshair.setVisible(true);
+        this.crosshair.setVisible(false);
       },
       onOpen: () => {
         this.positionWindowInFrontOfCamera(true);
@@ -576,6 +577,261 @@ export class Engine {
           }
         }
       },
+      onCarnotTempHighChange: (tempK) => {
+        if (this.currentExperimentId === 'thermo-carnot') {
+          const val = Math.round(tempK);
+          this.currentContext.setParameter('tempHigh', val);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setTempHigh === 'function') {
+            exp.setTempHigh(val);
+          }
+        }
+      },
+      onCarnotTempLowChange: (tempK) => {
+        if (this.currentExperimentId === 'thermo-carnot') {
+          const val = Math.round(tempK);
+          this.currentContext.setParameter('tempLow', val);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setTempLow === 'function') {
+            exp.setTempLow(val);
+          }
+        }
+      },
+      onCarnotToggleRunning: () => {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (exp && typeof exp.toggleRunning === 'function') {
+          exp.toggleRunning();
+        }
+      },
+      onCarnotToggleDirection: () => {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (exp && typeof exp.toggleDirection === 'function') {
+          exp.toggleDirection();
+        }
+      },
+      onCarnotStepStage: (step) => {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (exp && typeof exp.stepStage === 'function') {
+          exp.stepStage(step);
+        }
+      },
+      onCarnotApplyPreset: (preset) => {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (exp && typeof exp.applyPreset === 'function') {
+          exp.applyPreset(preset);
+        }
+      },
+      // Thermo Conduction
+      onCondTempHChange: (tempK: number) => {
+        if (this.currentExperimentId === 'thermo-conduction') {
+          const val = Math.round(tempK);
+          this.currentContext.setParameter('heatSourceTemp', val);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setHeatSourceTemp === 'function') {
+            exp.setHeatSourceTemp(val);
+          }
+        }
+      },
+      onCondTempCChange: (tempK: number) => {
+        if (this.currentExperimentId === 'thermo-conduction') {
+          const val = Math.round(tempK);
+          this.currentContext.setParameter('coldSourceTemp', val);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setColdSourceTemp === 'function') {
+            exp.setColdSourceTemp(val);
+          }
+        }
+      },
+      onCondMaterialChange: (material: string) => {
+        if (this.currentExperimentId === 'thermo-conduction') {
+          this.currentContext.setParameter('material', material);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setMaterial === 'function') {
+            exp.setMaterial(material);
+          }
+        }
+      },
+      onCondInsulationChange: (insulated: boolean) => {
+        if (this.currentExperimentId === 'thermo-conduction') {
+          this.currentContext.setParameter('lateralInsulation', insulated);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setLateralInsulation === 'function') {
+            exp.setLateralInsulation(insulated);
+          }
+        }
+      },
+      onCondProbeChange: (normX: number) => {
+        if (this.currentExperimentId === 'thermo-conduction') {
+          this.currentContext.setParameter('probePosition', normX);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setProbePosition === 'function') {
+            exp.setProbePosition(normX);
+          }
+        }
+      },
+      onCondResetTransient: () => {
+        if (this.currentExperimentId === 'thermo-conduction') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.resetTransient === 'function') {
+            exp.resetTransient();
+          }
+        }
+      },
+      // Thermo Phase Transition
+      onPhasePowerChange: (powerW: number) => {
+        if (this.currentExperimentId === 'thermo-phase') {
+          const val = Math.round(powerW);
+          this.currentContext.setParameter('heatPower', val);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setHeatPower === 'function') {
+            exp.setHeatPower(val);
+          }
+        }
+      },
+      onPhaseMassChange: (massG: number) => {
+        if (this.currentExperimentId === 'thermo-phase') {
+          const val = Math.round(massG);
+          this.currentContext.setParameter('substanceMass', val);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setSubstanceMass === 'function') {
+            exp.setSubstanceMass(val);
+          }
+        }
+      },
+      onPhaseToggleHeating: () => {
+        if (this.currentExperimentId === 'thermo-phase') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.toggleHeating === 'function') {
+            exp.toggleHeating();
+          }
+        }
+      },
+      onPhaseReset: () => {
+        if (this.currentExperimentId === 'thermo-phase') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.resetExperiment === 'function') {
+            exp.resetExperiment();
+          }
+        }
+      },
+      onPhaseAccelChange: (scale: number) => {
+        if (this.currentExperimentId === 'thermo-phase') {
+          this.currentContext.setParameter('timeAcceleration', scale);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setTimeAcceleration === 'function') {
+            exp.setTimeAcceleration(scale);
+          }
+        }
+      },
+      // Stereometry Math Callbacks
+      onMathModelChange: (type) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setModelType?.(type);
+        }
+      },
+      onMathDimensionChange: (dims) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setDimensions?.(dims);
+        }
+      },
+      onMathInteractionModeChange: (mode) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setInteractionMode?.(mode);
+        }
+      },
+      onMathResetView: (view) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.resetView?.(view);
+        }
+      },
+      onMathClearSegments: () => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.clearAllSegments?.();
+        }
+      },
+      onMathToggleDashedLines: (show) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleDashedLines?.(show);
+        }
+      },
+      onMathToggleCoordinateSystem: (show) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleCoordinateSystem?.(show);
+        }
+      },
+      onMathToggleEmbeddingBox: (show) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleEmbeddingBox?.(show);
+        }
+      },
+      onMathToggleCircumSphere: (show) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleCircumSphere?.(show);
+        }
+      },
+      onMathToggleInSphere: (show) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleInSphere?.(show);
+        }
+      },
+      onMathToggleClipping: (enabled) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleClipping?.(enabled);
+        }
+      },
+      onMathExplodeDistanceChange: (dist) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setExplodeDistance?.(dist);
+        }
+      },
+      onMathUnfoldProgressChange: (progress) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setUnfoldProgress?.(progress);
+        }
+      },
+      onMathToggleThreeViews: (show) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleThreeViews?.(show);
+        }
+      },
+      onMathToggleMidpoints: (show) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleMidpoints?.(show);
+        }
+      },
+      onMathToggleFaceCenters: (show) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleFaceCenters?.(show);
+        }
+      },
+      onMathToggleLabels: (show) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.toggleLabels?.(show);
+        }
+      },
+      onMathApplyPreset: (preset) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.applyClassicPreset?.(preset);
+        }
+      },
     });
 
     this.visionModal.setEngines(this.chemistryEngineLeft, this.chemistryEngineRight, 'left');
@@ -591,7 +847,7 @@ export class Engine {
       const isDrawerOpen = this.hud?.drawer?.open ?? false;
       const isModalOpen = this.visionModal?.visible ?? false;
       if (!isLocked && !isModalOpen && !isDrawerOpen) {
-        this.crosshair.setVisible(true);
+      this.crosshair.setVisible(false);
       }
     };
   }
@@ -648,6 +904,7 @@ export class Engine {
       }
 
       this.currentExperimentId = id;
+      this.visionModal.setCurrentExperimentId(id);
       this.hud.setActiveExperiment(experiment, this.currentContext);
       this.holoStage.setStageVisible(true);
       if (this.renderer?.shadowMap?.enabled) {
@@ -681,7 +938,7 @@ export class Engine {
     this.reactionEffectsLeft?.reset();
     this.reactionEffectsRight?.reset();
     this.currentExperimentId = null;
-    this.holoTable?.showHologram();
+    this.holoTable?.hideHologram(true);
     this.hud?.clearActiveExperiment();
     if (this.renderer?.shadowMap?.enabled) {
       this.renderer.shadowMap.needsUpdate = true;
@@ -699,7 +956,7 @@ export class Engine {
       // Per user requirement: 进入实验室后，没选择实验，桌上就不要有实验器材
       // Keep holographic stage and beakers hidden, table remains clean in standby mode.
       this.holoStage.setStageVisible(false);
-      this.holoTable.showHologram();
+      this.holoTable.hideHologram(true);
       this.beakerLeft.setVisible(false, false);
       this.beakerRight.setVisible(false, false);
       this.currentExperimentId = null;
@@ -954,7 +1211,7 @@ export class Engine {
         this.inputManager.player.enabled = true;
         this.inputManager.player.allowPointerLock = true;
         if (this.crosshair && (!this.visionModal || !this.visionModal.visible)) {
-          this.crosshair.setVisible(true);
+          this.crosshair.setVisible(false);
         }
       }
 
@@ -964,7 +1221,7 @@ export class Engine {
       this.beakerDragState = null;
       this.inputManager.player.enabled = true;
       if (this.crosshair && (!this.visionModal || !this.visionModal.visible)) {
-        this.crosshair.setVisible(true);
+        this.crosshair.setVisible(false);
       }
 
       if (!state.isDragging) {
@@ -1114,11 +1371,26 @@ export class Engine {
       this.holoStage.update(delta, elapsed, this.currentContext);
       if (isModalOpen && this.visionModal.currentTab === 'thermo') {
         const nowMs = performance.now();
-        if (nowMs - this.lastThermoTelemetrySync >= 100) {
+        if (nowMs - this.lastThermoTelemetrySync >= 50) {
           this.lastThermoTelemetrySync = nowMs;
           const exp = this.holoStage.activeExperiment as any;
-          if (exp && typeof exp.getThermodynamicTelemetry === 'function') {
+          if (this.currentExperimentId === 'thermo-carnot' && typeof exp?.getCarnotTelemetry === 'function') {
+            this.visionModal.carnotCard.updateTelemetry(exp.getCarnotTelemetry());
+          } else if (this.currentExperimentId === 'thermo-conduction' && typeof exp?.getConductionTelemetry === 'function') {
+            this.visionModal.conductionCard.updateTelemetry(exp.getConductionTelemetry());
+          } else if (this.currentExperimentId === 'thermo-phase' && typeof exp?.getPhaseTelemetry === 'function') {
+            this.visionModal.phaseCard.updateTelemetry(exp.getPhaseTelemetry());
+          } else if (exp && typeof exp.getThermodynamicTelemetry === 'function') {
             this.visionModal.thermoCard.updateTelemetry(exp.getThermodynamicTelemetry());
+          }
+        }
+      } else if (isModalOpen && this.visionModal.currentTab === 'math') {
+        const nowMs = performance.now();
+        if (nowMs - this.lastThermoTelemetrySync >= 50) {
+          this.lastThermoTelemetrySync = nowMs;
+          const exp = this.holoStage.activeExperiment as any;
+          if (this.currentExperimentId === 'math-stereometry' && typeof exp?.getStereometryTelemetry === 'function') {
+            this.visionModal.stereometryCard.updateTelemetry(exp.getStereometryTelemetry());
           }
         }
       }

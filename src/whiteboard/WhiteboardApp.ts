@@ -148,6 +148,7 @@ export class WhiteboardApp {
 
       const perfOverlay = document.getElementById('perf-overlay');
       if (perfOverlay) {
+        // Keep the idle laboratory frame free of diagnostics; P can reveal it.
         perfOverlay.style.display = '';
       }
 
@@ -157,9 +158,7 @@ export class WhiteboardApp {
           this.engine.inputManager.player.enabled = true;
           this.engine.inputManager.player.allowPointerLock = true;
         }
-        if (this.engine.crosshair) {
-          this.engine.crosshair.setVisible(true);
-        }
+        if (this.engine.crosshair) this.engine.crosshair.setVisible(false);
       }
     }
   }

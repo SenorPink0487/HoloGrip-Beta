@@ -3,7 +3,13 @@ import { PeriodicTableModal } from './PeriodicTableModal';
 import { ExperimentStatusCard } from './ExperimentStatusCard';
 import { PhysicsDisciplineModal } from './PhysicsDisciplineModal';
 import { ThermoStatusCard } from './ThermoStatusCard';
+import { CarnotStatusCard } from './CarnotStatusCard';
+import { ConductionStatusCard } from './ConductionStatusCard';
+import { PhaseStatusCard } from './PhaseStatusCard';
+import { StereometryStatusCard } from './StereometryStatusCard';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine';
+import type { HighSchoolModelType } from '../../scene/math/GeometrySolver';
+import type { InteractionMode } from '../../scene/math/StereometryInteractionManager';
 
 export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo';
 
@@ -18,6 +24,44 @@ export interface VisionModalCallbacks {
   onSelectBeaker?: (beakerId: 'left' | 'right') => void;
   onThermoTemperatureChange?: (tempK: number) => void;
   onThermoVolumeChange?: (volL: number) => void;
+  onCarnotTempHighChange?: (tempK: number) => void;
+  onCarnotTempLowChange?: (tempK: number) => void;
+  onCarnotToggleRunning?: () => void;
+  onCarnotToggleDirection?: () => void;
+  onCarnotStepStage?: (step: 1 | -1) => void;
+  onCarnotApplyPreset?: (preset: 'steam' | 'extreme' | 'stirling' | 'refrig') => void;
+  // Conduction Callbacks
+  onCondTempHChange?: (tempK: number) => void;
+  onCondTempCChange?: (tempK: number) => void;
+  onCondMaterialChange?: (material: string) => void;
+  onCondInsulationChange?: (insulated: boolean) => void;
+  onCondProbeChange?: (normX: number) => void;
+  onCondResetTransient?: () => void;
+  // Phase Callbacks
+  onPhasePowerChange?: (powerW: number) => void;
+  onPhaseMassChange?: (massG: number) => void;
+  onPhaseToggleHeating?: () => void;
+  onPhaseReset?: () => void;
+  onPhaseAccelChange?: (scale: number) => void;
+  // Stereometry Math Callbacks
+  onMathModelChange?: (type: HighSchoolModelType) => void;
+  onMathDimensionChange?: (dims: { a?: number; h?: number }) => void;
+  onMathInteractionModeChange?: (mode: InteractionMode) => void;
+  onMathResetView?: (view: 'iso' | 'front' | 'side' | 'top') => void;
+  onMathClearSegments?: () => void;
+  onMathToggleDashedLines?: (show: boolean) => void;
+  onMathToggleCoordinateSystem?: (show: boolean) => void;
+  onMathToggleEmbeddingBox?: (show: boolean) => void;
+  onMathToggleCircumSphere?: (show: boolean) => void;
+  onMathToggleInSphere?: (show: boolean) => void;
+  onMathToggleClipping?: (enabled: boolean) => void;
+  onMathExplodeDistanceChange?: (dist: number) => void;
+  onMathUnfoldProgressChange?: (progress: number) => void;
+  onMathToggleThreeViews?: (show: boolean) => void;
+  onMathToggleMidpoints?: (show: boolean) => void;
+  onMathToggleFaceCenters?: (show: boolean) => void;
+  onMathToggleLabels?: (show: boolean) => void;
+  onMathApplyPreset?: (preset: any) => void;
 }
 
 export class VisionModal {
@@ -37,6 +81,11 @@ export class VisionModal {
   private statusCard: ExperimentStatusCard;
   private physicsModal: PhysicsDisciplineModal;
   private thermoStatusCard: ThermoStatusCard;
+  private carnotStatusCard: CarnotStatusCard;
+  private conductionStatusCard: ConductionStatusCard;
+  private phaseStatusCard: PhaseStatusCard;
+  private stereometryStatusCard: StereometryStatusCard;
+  private currentExperimentId = '';
 
   private bodyContainer: HTMLElement;
   private statusCardSlot: HTMLElement;
@@ -146,9 +195,70 @@ export class VisionModal {
       },
     });
 
+    this.carnotStatusCard = new CarnotStatusCard({
+      onTempHighChange: (tempK) => {
+        this.callbacks.onCarnotTempHighChange?.(tempK);
+      },
+      onTempLowChange: (tempK) => {
+        this.callbacks.onCarnotTempLowChange?.(tempK);
+      },
+      onToggleRunning: () => {
+        this.callbacks.onCarnotToggleRunning?.();
+      },
+      onToggleDirection: () => {
+        this.callbacks.onCarnotToggleDirection?.();
+      },
+      onStepStage: (step) => {
+        this.callbacks.onCarnotStepStage?.(step);
+      },
+      onApplyPreset: (preset) => {
+        this.callbacks.onCarnotApplyPreset?.(preset);
+      },
+    });
+
+    this.conductionStatusCard = new ConductionStatusCard({
+      onHeatSourceTempChange: (tempK) => {
+        this.callbacks.onCondTempHChange?.(tempK);
+      },
+      onColdSourceTempChange: (tempK) => {
+        this.callbacks.onCondTempCChange?.(tempK);
+      },
+      onMaterialChange: (material) => {
+        this.callbacks.onCondMaterialChange?.(material);
+      },
+      onLateralInsulationChange: (insulated) => {
+        this.callbacks.onCondInsulationChange?.(insulated);
+      },
+      onProbePositionChange: (normX) => {
+        this.callbacks.onCondProbeChange?.(normX);
+      },
+      onResetTransient: () => {
+        this.callbacks.onCondResetTransient?.();
+      },
+    });
+
+    this.phaseStatusCard = new PhaseStatusCard({
+      onHeatPowerChange: (powerW) => {
+        this.callbacks.onPhasePowerChange?.(powerW);
+      },
+      onMassChange: (massG) => {
+        this.callbacks.onPhaseMassChange?.(massG);
+      },
+      onToggleHeating: () => {
+        this.callbacks.onPhaseToggleHeating?.();
+      },
+      onResetExperiment: () => {
+        this.callbacks.onPhaseReset?.();
+      },
+      onTimeAccelerationChange: (scale) => {
+        this.callbacks.onPhaseAccelChange?.(scale);
+      },
+    });
+
     this.physicsModal = new PhysicsDisciplineModal({
       onBackToDisciplines: () => this.switchTab('disciplines'),
       onSelectExperiment: async (id: string) => {
+        this.currentExperimentId = id;
         await this.callbacks.onSelectPhysicsExperiment?.(id);
         if (id.startsWith('thermo-')) {
           this.switchTab('thermo');
@@ -164,6 +274,27 @@ export class VisionModal {
       },
     });
 
+    this.stereometryStatusCard = new StereometryStatusCard({
+      onModelChange: (type) => this.callbacks.onMathModelChange?.(type),
+      onDimensionChange: (dims) => this.callbacks.onMathDimensionChange?.(dims),
+      onInteractionModeChange: (mode) => this.callbacks.onMathInteractionModeChange?.(mode),
+      onResetView: (view) => this.callbacks.onMathResetView?.(view),
+      onClearSegments: () => this.callbacks.onMathClearSegments?.(),
+      onToggleDashedLines: (show) => this.callbacks.onMathToggleDashedLines?.(show),
+      onToggleCoordinateSystem: (show) => this.callbacks.onMathToggleCoordinateSystem?.(show),
+      onToggleEmbeddingBox: (show) => this.callbacks.onMathToggleEmbeddingBox?.(show),
+      onToggleCircumSphere: (show) => this.callbacks.onMathToggleCircumSphere?.(show),
+      onToggleInSphere: (show) => this.callbacks.onMathToggleInSphere?.(show),
+      onToggleClipping: (enabled) => this.callbacks.onMathToggleClipping?.(enabled),
+      onExplodeDistanceChange: (dist) => this.callbacks.onMathExplodeDistanceChange?.(dist),
+      onUnfoldProgressChange: (progress) => this.callbacks.onMathUnfoldProgressChange?.(progress),
+      onToggleThreeViews: (show) => this.callbacks.onMathToggleThreeViews?.(show),
+      onToggleMidpoints: (show) => this.callbacks.onMathToggleMidpoints?.(show),
+      onToggleFaceCenters: (show) => this.callbacks.onMathToggleFaceCenters?.(show),
+      onToggleLabels: (show) => this.callbacks.onMathToggleLabels?.(show),
+      onApplyPreset: (preset) => this.callbacks.onMathApplyPreset?.(preset),
+    });
+
     // Mount initial view
     this.switchTab('disciplines');
 
@@ -173,7 +304,25 @@ export class VisionModal {
   private createFloatingLauncher(parent: HTMLElement): void {
     this.floatingLauncher = document.createElement('div');
     this.floatingLauncher.id = 'vision-floating-launcher';
-    this.floatingLauncher.style.display = 'none';
+    this.floatingLauncher.className = 'vision-floating-launcher hidden';
+    this.floatingLauncher.innerHTML = `
+      <div class="launcher-inner">
+        <span class="launcher-glyph">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="9" y1="3" x2="9" y2="21"/>
+          </svg>
+        </span>
+        <span class="launcher-text">全息实验视窗</span>
+        <span class="launcher-kbd">V</span>
+      </div>
+    `;
+    this.floatingLauncher.addEventListener('click', () => {
+      this.open();
+    });
+    if (parent && typeof parent.appendChild === 'function') {
+      parent.appendChild(this.floatingLauncher);
+    }
   }
 
   private createMathView(): HTMLElement {
@@ -300,11 +449,49 @@ export class VisionModal {
     return this.thermoStatusCard;
   }
 
+  public get carnotCard(): CarnotStatusCard {
+    return this.carnotStatusCard;
+  }
+
+  public get conductionCard(): ConductionStatusCard {
+    return this.conductionStatusCard;
+  }
+
+  public get phaseCard(): PhaseStatusCard {
+    return this.phaseStatusCard;
+  }
+
+  public get stereometryCard(): StereometryStatusCard {
+    return this.stereometryStatusCard;
+  }
+
+  public setCurrentExperimentId(id: string): void {
+    this.currentExperimentId = id;
+    if (id === 'math-stereometry') {
+      this.activeTab = 'math';
+    } else if (id.startsWith('thermo-')) {
+      this.activeTab = 'thermo';
+    }
+  }
+
   public switchTab(tab: VisionTab): void {
     this.activeTab = tab;
 
     if (this.btnBack) {
       this.btnBack.classList.toggle('hidden', tab === 'disciplines');
+    }
+
+    const isCarnot = this.currentExperimentId === 'thermo-carnot';
+    const isConduction = this.currentExperimentId === 'thermo-conduction';
+    const isPhase = this.currentExperimentId === 'thermo-phase';
+
+    let thermoTitle = '热力学状态分析 (PV = nRT)';
+    if (isCarnot) {
+      thermoTitle = '卡诺热机与循环效率 (η = 1 - T_C / T_H)';
+    } else if (isConduction) {
+      thermoTitle = '热传导与傅里叶定律 (q = -k ∇T)';
+    } else if (isPhase) {
+      thermoTitle = '物态相变与潜热动力学 (Q = mcΔT + mL)';
     }
 
     const titleEl = this.element.querySelector('#vision-window-title');
@@ -313,8 +500,8 @@ export class VisionModal {
       chemistry: '常用试剂 · 试剂注入',
       beaker: '烧杯组分全息分析',
       physics: '物理学',
-      math: '空间数学',
-      thermo: '热力学状态分析 (PV = nRT)',
+      math: '立体几何与空间解析实验室',
+      thermo: thermoTitle,
     };
     if (titleEl) {
       titleEl.textContent = titles[tab] || '全息实验视窗';
@@ -325,7 +512,19 @@ export class VisionModal {
     this.statusCardSlot.style.display = 'none';
 
     if (this.thermoStatusCard) {
-      this.thermoStatusCard.setVisible(tab === 'thermo');
+      this.thermoStatusCard.setVisible(tab === 'thermo' && !isCarnot && !isConduction && !isPhase);
+    }
+    if (this.carnotStatusCard) {
+      this.carnotStatusCard.setVisible(tab === 'thermo' && isCarnot);
+    }
+    if (this.conductionStatusCard) {
+      this.conductionStatusCard.setVisible(tab === 'thermo' && isConduction);
+    }
+    if (this.phaseStatusCard) {
+      this.phaseStatusCard.setVisible(tab === 'thermo' && isPhase);
+    }
+    if (this.stereometryStatusCard) {
+      this.stereometryStatusCard.setVisible(tab === 'math');
     }
 
     if (tab === 'disciplines') {
@@ -338,33 +537,62 @@ export class VisionModal {
       this.physicsModal.reset();
       this.bodyContainer.appendChild(this.physicsModal.element);
     } else if (tab === 'math') {
-      this.bodyContainer.appendChild(this.createMathView());
+      if (this.currentExperimentId !== 'math-stereometry') {
+        this.currentExperimentId = 'math-stereometry';
+        this.callbacks.onSelectPhysicsExperiment?.('math-stereometry');
+      }
+      this.stereometryStatusCard.setVisible(true);
+      this.bodyContainer.appendChild(this.stereometryStatusCard.element);
     } else if (tab === 'beaker') {
       this.bodyContainer.appendChild(this.statusCard.element);
       this.callbacks.onSelectChemistry?.();
     } else if (tab === 'thermo') {
-      this.bodyContainer.appendChild(this.thermoStatusCard.element);
+      if (isCarnot) {
+        this.carnotStatusCard.setVisible(true);
+        this.bodyContainer.appendChild(this.carnotStatusCard.element);
+      } else if (isConduction) {
+        this.conductionStatusCard.setVisible(true);
+        this.bodyContainer.appendChild(this.conductionStatusCard.element);
+      } else if (isPhase) {
+        this.phaseStatusCard.setVisible(true);
+        this.bodyContainer.appendChild(this.phaseStatusCard.element);
+      } else {
+        this.thermoStatusCard.setVisible(true);
+        this.bodyContainer.appendChild(this.thermoStatusCard.element);
+      }
     }
   }
 
   public open(tab?: VisionTab, beakerId?: 'left' | 'right'): void {
-    if (tab) {
-      this.switchTab(tab);
-    }
+    const targetTab =
+      tab ||
+      (this.currentExperimentId === 'math-stereometry'
+        ? 'math'
+        : this.currentExperimentId?.startsWith('thermo-')
+        ? 'thermo'
+        : this.activeTab) ||
+      'disciplines';
+
+    this.switchTab(targetTab);
+
     if (beakerId) {
       this.setActiveBeaker(beakerId);
     }
     this.isOpen = true;
     this.element.classList.remove('hidden');
-    this.floatingLauncher.classList.add('hidden');
+    this.floatingLauncher?.classList.add('hidden');
     this.callbacks.onOpen();
   }
 
   public close(): void {
     this.isOpen = false;
     this.element.classList.add('hidden');
-    this.floatingLauncher.classList.remove('hidden');
+    this.floatingLauncher?.classList.remove('hidden');
     this.thermoStatusCard?.setVisible(false);
+    this.carnotStatusCard?.setVisible(false);
+    this.conductionStatusCard?.setVisible(false);
+    this.phaseStatusCard?.setVisible(false);
+    this.stereometryStatusCard?.setVisible(false);
     this.callbacks.onClose();
   }
 
