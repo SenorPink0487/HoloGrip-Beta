@@ -21,6 +21,8 @@ pub(super) struct RegisterBody {
     email: String,
     password: String,
     #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
     class_name: Option<String>,
     #[serde(default)]
     invite_code: Option<String>,
@@ -67,6 +69,7 @@ pub async fn register(
 ) -> Result<(StatusCode, Json<AuthResponse>), AppError> {
     let role = parse_role(&body.role)?;
     let email = normalize_email(&body.email)?;
+    let display_name = require_display_name(body.display_name.as_deref().unwrap_or(""))?;
     validate_password(&body.password)?;
     let class_name = match role {
         "teacher" => Some(normalize_class_name(
@@ -90,17 +93,17 @@ pub async fn register(
     let mut tx = state.pool.begin().await?;
     if let Some(code) = invite_code.as_deref() {
         let class_id = find_class_id(&mut tx, code).await?;
-        insert_user(&mut tx, &user_id, &email, &password_hash, role).await?;
+        insert_user(&mut tx, &user_id, &email, &password_hash, role, &display_name).await?;
         sqlx::query("INSERT INTO class_members (class_id, user_id) VALUES (?, ?)")
             .bind(class_id)
             .bind(&user_id)
             .execute(&mut *tx)
             .await?;
     } else if let Some(name) = class_name.as_deref() {
-        insert_user(&mut tx, &user_id, &email, &password_hash, role).await?;
+        insert_user(&mut tx, &user_id, &email, &password_hash, role, &display_name).await?;
         insert_class(&mut tx, &user_id, name).await?;
     } else {
-        insert_user(&mut tx, &user_id, &email, &password_hash, role).await?;
+        insert_user(&mut tx, &user_id, &email, &password_hash, role, &display_name).await?;
     }
     tx.commit().await?;
 
@@ -219,14 +222,16 @@ async fn insert_user(
     email: &str,
     password_hash: &str,
     role: &str,
+    display_name: &str,
 ) -> Result<(), AppError> {
     sqlx::query(
-        "INSERT INTO users (id, email, password_hash, role, display_name) VALUES (?, ?, ?, ?, NULL)",
+        "INSERT INTO users (id, email, password_hash, role, display_name) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(email)
     .bind(password_hash)
     .bind(role)
+    .bind(display_name)
     .execute(&mut **tx)
     .await?;
     Ok(())
@@ -376,7 +381,14 @@ pub fn normalize_display_name(raw: &str) -> Result<Option<String>, AppError> {
         return Ok(None);
     }
     if name.chars().count() > 64 {
-        return Err(AppError::validation("姓名不能超过 64 个字"));
+        return Err(AppError::validation("用户名不能超过 64 个字"));
     }
     Ok(Some(name.to_string()))
+}
+
+fn require_display_name(raw: &str) -> Result<String, AppError> {
+    match normalize_display_name(raw)? {
+        Some(name) => Ok(name),
+        None => Err(AppError::validation("请填写用户名")),
+    }
 }

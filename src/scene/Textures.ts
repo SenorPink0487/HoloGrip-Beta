@@ -55,35 +55,37 @@ export class TextureGenerator {
       const offCtx = off.getContext('2d')!;
       offCtx.putImageData(new ImageData(prebakedFbm as any, 512, 512), 0, 0);
       ctx.drawImage(off, 0, 0, size, size);
-      ctx.fillStyle = 'rgba(232, 237, 241, 0.78)';
+      ctx.fillStyle = 'rgba(232, 238, 244, 0.85)';
       ctx.fillRect(0, 0, size, size);
     } else {
-      ctx.fillStyle = '#d3dbe1';
+      ctx.fillStyle = '#cfdbe3';
       ctx.fillRect(0, 0, size, size);
-      const glow = ctx.createRadialGradient(size * 0.5, size * 0.48, 40, size * 0.5, size * 0.5, size * 0.62);
-      glow.addColorStop(0, 'rgba(255,255,255,0.28)');
-      glow.addColorStop(0.55, 'rgba(255,255,255,0.05)');
-      glow.addColorStop(1, 'rgba(190, 202, 210, 0.18)');
+      // Soft radial illumination gradient matching the oculus light cone
+      const glow = ctx.createRadialGradient(size * 0.5, size * 0.5, 30, size * 0.5, size * 0.5, size * 0.60);
+      glow.addColorStop(0, 'rgba(245, 248, 252, 0.75)');
+      glow.addColorStop(0.45, 'rgba(235, 240, 246, 0.45)');
+      glow.addColorStop(0.85, 'rgba(215, 225, 232, 0.15)');
+      glow.addColorStop(1, 'rgba(195, 208, 218, 0.25)');
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, size, size);
     }
 
-    // Fine terrazzo aggregate, seeded so the floor stays stable across reloads.
+    // Micro-fine clean terrazzo pearlescent flecks (subtle, clean, not dirty splotches)
     let seed = 20260324;
     const rand = () => {
       seed = (seed * 16807) % 2147483647;
       return (seed - 1) / 2147483646;
     };
-    for (let i = 0; i < 2800; i++) {
+    for (let i = 0; i < 3500; i++) {
       const x = rand() * size;
       const y = rand() * size;
-      const r = rand() * 2.4 + 0.6;
+      const r = rand() * 0.9 + 0.3;
       const shade = rand();
-      ctx.fillStyle = shade > 0.8
+      ctx.fillStyle = shade > 0.6
         ? 'rgba(255,255,255,0.55)'
         : shade > 0.25
-          ? 'rgba(98, 112, 122, 0.45)'
-          : 'rgba(70, 82, 92, 0.32)';
+          ? 'rgba(155, 170, 180, 0.18)'
+          : 'rgba(120, 135, 145, 0.10)';
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
@@ -105,8 +107,8 @@ export class TextureGenerator {
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
 
-    // Base satin roughness: 0.22 (56 in 0-255 grayscale)
-    ctx.fillStyle = '#383838';
+    // Refined satin-gloss roughness (~0.18 base roughness) to prevent blown-out specular glare
+    ctx.fillStyle = '#2c2c2c';
     ctx.fillRect(0, 0, size, size);
 
     // Correlated micro-roughness variations
@@ -1173,6 +1175,507 @@ export class TextureGenerator {
       ctx.lineTo(x, rulerY - tickH);
       ctx.stroke();
     }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  /**
+   * High-Resolution Futuristic Holographic Tabletop Display Interface (2048 x 1400)
+   * Inspired by high-tech sci-fi workstations (Image 1 reference)
+   */
+  static createTabletopHoloTexture(): THREE.CanvasTexture {
+    const width = 2048;
+    const height = 1400;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // 1. Semi-translucent dark sapphire base
+    const baseGrad = ctx.createRadialGradient(width / 2, height / 2, 80, width / 2, height / 2, width * 0.65);
+    baseGrad.addColorStop(0, 'rgba(12, 32, 54, 0.72)');
+    baseGrad.addColorStop(0.6, 'rgba(8, 22, 38, 0.85)');
+    baseGrad.addColorStop(1, 'rgba(4, 14, 24, 0.95)');
+    ctx.fillStyle = baseGrad;
+    this.drawRoundRect(ctx, 30, 30, width - 60, height - 60, 48);
+    ctx.fill();
+
+    // 2. Exterior cyan glow boundary and precision corner brackets
+    ctx.strokeStyle = 'rgba(77, 208, 225, 0.75)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Corner brackets
+    const bracketLen = 80;
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 4;
+    // Top-Left
+    ctx.beginPath();
+    ctx.moveTo(30, 30 + bracketLen);
+    ctx.lineTo(30, 30);
+    ctx.lineTo(30 + bracketLen, 30);
+    ctx.stroke();
+    // Top-Right
+    ctx.beginPath();
+    ctx.moveTo(width - 30 - bracketLen, 30);
+    ctx.lineTo(width - 30, 30);
+    ctx.lineTo(width - 30, 30 + bracketLen);
+    ctx.stroke();
+    // Bottom-Left
+    ctx.beginPath();
+    ctx.moveTo(30, height - 30 - bracketLen);
+    ctx.lineTo(30, height - 30);
+    ctx.lineTo(30 + bracketLen, height - 30);
+    ctx.stroke();
+    // Bottom-Right
+    ctx.beginPath();
+    ctx.moveTo(width - 30 - bracketLen, height - 30);
+    ctx.lineTo(width - 30, height - 30);
+    ctx.lineTo(width - 30, height - 30 - bracketLen);
+    ctx.stroke();
+
+    // 3. Subtle Isometric/Technical Coordinate Grid
+    ctx.strokeStyle = 'rgba(77, 208, 225, 0.08)';
+    ctx.lineWidth = 1.0;
+    const gridStep = 48;
+    for (let x = 60; x < width - 60; x += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(x, 60);
+      ctx.lineTo(x, height - 60);
+      ctx.stroke();
+    }
+    for (let y = 60; y < height - 60; y += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(60, y);
+      ctx.lineTo(width - 60, y);
+      ctx.stroke();
+    }
+
+    // 4. Center Molecular / Spatial Targeting HUD Reticle
+    const cx = width / 2;
+    const cy = height / 2;
+
+    // Outer concentric circle with tick marks
+    ctx.strokeStyle = 'rgba(100, 225, 255, 0.55)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 320, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(100, 225, 255, 0.28)';
+    ctx.setLineDash([6, 8]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 360, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Degree Ticks
+    for (let deg = 0; deg < 360; deg += 15) {
+      const rad = (deg * Math.PI) / 180;
+      const isMajor = deg % 45 === 0;
+      const r1 = 320;
+      const r2 = isMajor ? 342 : 330;
+      ctx.strokeStyle = isMajor ? '#40c4ff' : 'rgba(100, 225, 255, 0.4)';
+      ctx.lineWidth = isMajor ? 2.0 : 1.0;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(rad) * r1, cy + Math.sin(rad) * r1);
+      ctx.lineTo(cx + Math.cos(rad) * r2, cy + Math.sin(rad) * r2);
+      ctx.stroke();
+    }
+
+    // Inner reticle rings
+    ctx.strokeStyle = 'rgba(77, 208, 225, 0.8)';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 210, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.4)';
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 140, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Central 3D Hexagonal / Molecular Wireframe
+    const hexRadius = 88;
+    ctx.strokeStyle = '#80d8ff';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      const hx = cx + Math.cos(a) * hexRadius;
+      const hy = cy + Math.sin(a) * hexRadius;
+      if (i === 0) ctx.moveTo(hx, hy);
+      else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Nodes at vertices
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      const hx = cx + Math.cos(a) * hexRadius;
+      const hy = cy + Math.sin(a) * hexRadius;
+      ctx.fillStyle = '#00e5ff';
+      ctx.beginPath();
+      ctx.arc(hx, hy, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Connecting inner struts
+      ctx.strokeStyle = 'rgba(128, 216, 255, 0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(hx, hy);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 5. Left Instrumentation & Waveform Telemetry Panel
+    const leftX = 120;
+    ctx.fillStyle = '#00e5ff';
+    ctx.font = '600 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('SPECTRUM & HARMONIC OSCILLATION', leftX, 160);
+
+    ctx.fillStyle = '#78909c';
+    ctx.font = '400 14px "SF Pro Text", monospace';
+    ctx.fillText('FOURIER DECOMPOSITION // SAMPLING RATE: 192 kHz // REALTIME', leftX, 190);
+
+    // Telemetry Waveform Box
+    const waveBoxW = 480;
+    const waveBoxH = 220;
+    const waveBoxY = 220;
+    ctx.fillStyle = 'rgba(8, 24, 40, 0.6)';
+    ctx.beginPath();
+    this.drawRoundRect(ctx, leftX, waveBoxY, waveBoxW, waveBoxH, 16);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(77, 208, 225, 0.3)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Glowing sine wave
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    for (let wx = 0; wx < waveBoxW - 40; wx += 4) {
+      const t = wx / (waveBoxW - 40);
+      const wy = waveBoxY + waveBoxH / 2 + Math.sin(t * Math.PI * 6) * 45 * Math.sin(t * Math.PI) + Math.cos(t * Math.PI * 14) * 15;
+      if (wx === 0) ctx.moveTo(leftX + 20 + wx, wy);
+      else ctx.lineTo(leftX + 20 + wx, wy);
+    }
+    ctx.stroke();
+
+    // Harmonic frequency bars below waveform
+    const barStartY = 480;
+    const numBars = 28;
+    const barWidth = 12;
+    const barGap = 5;
+    for (let b = 0; b < numBars; b++) {
+      const bh = 20 + Math.sin(b * 0.45) * 40 + Math.cos(b * 0.8) * 35 + ((b * 7) % 30);
+      const bx = leftX + b * (barWidth + barGap);
+      const by = barStartY + 110 - bh;
+      const barGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
+      barGrad.addColorStop(0, '#00e5ff');
+      barGrad.addColorStop(1, 'rgba(0, 150, 255, 0.25)');
+      ctx.fillStyle = barGrad;
+      ctx.fillRect(bx, by, barWidth, bh);
+    }
+
+    // Coordinates Readout Box
+    const coordY = 640;
+    ctx.fillStyle = 'rgba(8, 24, 40, 0.6)';
+    ctx.beginPath();
+    this.drawRoundRect(ctx, leftX, coordY, 480, 160, 16);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(77, 208, 225, 0.3)';
+    ctx.stroke();
+
+    ctx.fillStyle = '#b0bec5';
+    ctx.font = '500 15px monospace';
+    ctx.fillText('SPATIAL ORIGIN [STAGE ELEVATION: 0.990 m]', leftX + 24, coordY + 36);
+    ctx.fillStyle = '#80d8ff';
+    ctx.font = '700 18px monospace';
+    ctx.fillText('ΔX: +0.0000 m  •  ΔY: +0.0000 m  •  ΔZ: +0.0000 m', leftX + 24, coordY + 72);
+    ctx.fillStyle = '#4dd0e1';
+    ctx.font = '400 14px monospace';
+    ctx.fillText('STATUS: STATIONARY // KINEMATICS DAMPED // READY', leftX + 24, coordY + 108);
+
+    // 6. Right Instrumentation Panel: Chemistry & Quantum Metrology
+    const rightX = width - 600;
+    ctx.fillStyle = '#00e5ff';
+    ctx.font = '600 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", monospace';
+    ctx.fillText('QUANTUM METROLOGY & REAGENT MATRIX', rightX, 160);
+
+    ctx.fillStyle = '#78909c';
+    ctx.font = '400 14px "SF Pro Text", monospace';
+    ctx.fillText('MOLECULAR ORBITAL SIMULATION // EQUILIBRIUM', rightX, 190);
+
+    // Right Chemistry Status Box
+    const rightBoxW = 480;
+    const rightBoxH = 220;
+    const rightBoxY = 220;
+    ctx.fillStyle = 'rgba(8, 24, 40, 0.6)';
+    ctx.beginPath();
+    this.drawRoundRect(ctx, rightX, rightBoxY, rightBoxW, rightBoxH, 16);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(77, 208, 225, 0.3)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Progress gauges on right
+    const gauges = [
+      { label: 'LASER COHERENCE (Nd:YAG 532nm)', val: 0.98, color: '#00e5ff' },
+      { label: 'CHAMBER PRESSURE (101.325 kPa)', val: 0.88, color: '#40c4ff' },
+      { label: 'THERMAL FLUX EQUILIBRIUM', val: 0.76, color: '#80d8ff' },
+      { label: 'ELECTROLYTIC CONDUCTIVITY', val: 0.94, color: '#00e5ff' },
+    ];
+    gauges.forEach((g, i) => {
+      const gy = rightBoxY + 35 + i * 44;
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '500 13px monospace';
+      ctx.fillText(g.label, rightX + 24, gy);
+
+      // Track
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.fillRect(rightX + 24, gy + 8, rightBoxW - 48, 8);
+      // Progress
+      ctx.fillStyle = g.color;
+      ctx.fillRect(rightX + 24, gy + 8, (rightBoxW - 48) * g.val, 8);
+    });
+
+    // Molecular compound matrix box
+    const molBoxY = 480;
+    ctx.fillStyle = 'rgba(8, 24, 40, 0.6)';
+    ctx.beginPath();
+    this.drawRoundRect(ctx, rightX, molBoxY, rightBoxW, 320, 16);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(77, 208, 225, 0.3)';
+    ctx.stroke();
+
+    ctx.fillStyle = '#00e5ff';
+    ctx.font = '600 16px monospace';
+    ctx.fillText('STRUCTURAL ISOMERS & LATTICE PARAMETERS', rightX + 24, molBoxY + 38);
+
+    const params = [
+      ['UNIT CELL VOLUME', '164.28 Å³'],
+      ['BRAVAIS LATTICE', 'FACE-CENTERED CUBIC (FCC)'],
+      ['SPACE GROUP', 'Fm-3m (#225)'],
+      ['BOND ANGLE θ', '109.47° (TETRAHEDRAL)'],
+      ['GIBBS FREE ENERGY ΔG', '-32.4 kJ/mol (EXERGONIC)'],
+      ['REACTION QUOTIENT Q', '1.000 (STEADY-STATE)'],
+    ];
+    params.forEach((p, idx) => {
+      const py = molBoxY + 76 + idx * 36;
+      ctx.fillStyle = '#78909c';
+      ctx.font = '500 13px monospace';
+      ctx.fillText(p[0], rightX + 24, py);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '600 13px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(p[1], rightX + rightBoxW - 24, py);
+      ctx.textAlign = 'left';
+    });
+
+    // 7. Top & Bottom System Header Bars
+    // Top Bar
+    ctx.strokeStyle = 'rgba(77, 208, 225, 0.4)';
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.moveTo(60, 110);
+    ctx.lineTo(width - 60, 110);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 22px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.fillText('  HOLOGRIP SPATIAL LABORATORY', 80, 85);
+
+    ctx.fillStyle = '#40c4ff';
+    ctx.font = '500 15px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('WORKSTATION 01 // AUTONOMOUS METROLOGY SYSTEM // ONLINE', width - 80, 85);
+    ctx.textAlign = 'left';
+
+    // Bottom Bar
+    ctx.strokeStyle = 'rgba(77, 208, 225, 0.4)';
+    ctx.beginPath();
+    ctx.moveTo(60, height - 100);
+    ctx.lineTo(width - 60, height - 100);
+    ctx.stroke();
+
+    ctx.fillStyle = '#78909c';
+    ctx.font = '500 14px monospace';
+    ctx.fillText('SPATIAL CALIBRATION: ACTIVE  •  OPTICAL ALIGNMENT: 0.002 mrad  •  SAFETY INTERLOCK: ENGAGED', 80, height - 65);
+
+    ctx.fillStyle = '#00e5ff';
+    ctx.textAlign = 'right';
+    ctx.fillText('SYSTEM CLOCK: 2026.09.24 // PROTOCOL v3.8.0', width - 80, height - 65);
+    ctx.textAlign = 'left';
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  /**
+   * Floating Translucent Holographic HUD Texture for Wall Niche (1024 x 600)
+   * Matches the floating HUD screen visible in the left niche of Image 1
+   */
+  static createNicheHudTexture(): THREE.CanvasTexture {
+    const width = 1024;
+    const height = 600;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Frosted glass background
+    ctx.fillStyle = 'rgba(6, 20, 36, 0.45)';
+    this.drawRoundRect(ctx, 12, 12, width - 24, height - 24, 28);
+    ctx.fill();
+
+    // Delicate cyan border
+    ctx.strokeStyle = 'rgba(100, 217, 255, 0.65)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // Top Header
+    ctx.fillStyle = '#f4f6fa';
+    ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.fillText('LABORATORY ENVIRONMENTAL TELEMETRY', 48, 56);
+
+    ctx.fillStyle = '#40c4ff';
+    ctx.font = '500 13px monospace';
+    ctx.fillText('SYS.01 // DIAGNOSTIC: NORMAL', 48, 80);
+
+    // Left Circular Gauges
+    const gaugeX1 = 140;
+    const gaugeY = 220;
+    ctx.strokeStyle = 'rgba(100, 225, 255, 0.3)';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(gaugeX1, gaugeY, 70, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#00e5ff';
+    ctx.beginPath();
+    ctx.arc(gaugeX1, gaugeY, 70, -Math.PI / 2, Math.PI * 0.85);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 28px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('94%', gaugeX1, gaugeY + 10);
+    ctx.fillStyle = '#78909c';
+    ctx.font = '500 12px monospace';
+    ctx.fillText('EFFICIENCY', gaugeX1, gaugeY + 36);
+
+    const gaugeX2 = 330;
+    ctx.strokeStyle = 'rgba(100, 225, 255, 0.3)';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(gaugeX2, gaugeY, 70, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#40c4ff';
+    ctx.beginPath();
+    ctx.arc(gaugeX2, gaugeY, 70, -Math.PI / 2, Math.PI * 0.62);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 28px monospace';
+    ctx.fillText('21.5°C', gaugeX2, gaugeY + 10);
+    ctx.fillStyle = '#78909c';
+    ctx.font = '500 12px monospace';
+    ctx.fillText('CHAMBER TEMP', gaugeX2, gaugeY + 36);
+    ctx.textAlign = 'left';
+
+    // Right Data Metrics
+    const rx = 480;
+    ctx.fillStyle = '#78909c';
+    ctx.font = '500 13px monospace';
+    ctx.fillText('AIR PURITY: CLASS 10 CLEANROOM (ISO 4)', rx, 150);
+    ctx.fillText('PRESSURE: 101.325 kPa (1.000 atm)', rx, 185);
+    ctx.fillText('RELATIVE HUMIDITY: 42.0% RH', rx, 220);
+    ctx.fillText('O₂ CONCENTRATION: 20.95%', rx, 255);
+    ctx.fillText('ACOUSTIC NOISE FLOOR: < 18 dBA', rx, 290);
+
+    // Miniature Graph at Bottom
+    const graphX = 48;
+    const graphY = 380;
+    const graphW = width - 96;
+    const graphH = 150;
+    ctx.fillStyle = 'rgba(4, 16, 28, 0.5)';
+    this.drawRoundRect(ctx, graphX, graphY, graphW, graphH, 12);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(100, 217, 255, 0.25)';
+    ctx.lineWidth = 1.0;
+    ctx.stroke();
+
+    // Wave in mini graph
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    for (let x = 0; x < graphW - 20; x += 6) {
+      const t = x / (graphW - 20);
+      const gy = graphY + graphH / 2 + Math.sin(t * Math.PI * 8) * 35 * Math.sin(t * Math.PI) + Math.cos(t * Math.PI * 4) * 15;
+      if (x === 0) ctx.moveTo(graphX + 10 + x, gy);
+      else ctx.lineTo(graphX + 10 + x, gy);
+    }
+    ctx.stroke();
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  /**
+   * Soft Panoramic Cleanroom Observation Backdrop (1024 x 512)
+   * Renders inside the center observation window for authentic sci-fi depth
+   */
+  static createWindowObservationTexture(): THREE.CanvasTexture {
+    const width = 1024;
+    const height = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+
+    // Soft gradient daylight into cleanroom void
+    const grad = ctx.createLinearGradient(0, 0, 0, height);
+    grad.addColorStop(0, '#cce0ec');
+    grad.addColorStop(0.4, '#d8e8f2');
+    grad.addColorStop(0.7, '#e4eff6');
+    grad.addColorStop(1, '#bcd0dc');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Subtle horizontal architectural mullions and perspective grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.35);
+    ctx.lineTo(width, height * 0.35);
+    ctx.moveTo(0, height * 0.65);
+    ctx.lineTo(width, height * 0.65);
+    ctx.stroke();
+
+    // Distant soft light cove
+    const lightGrad = ctx.createRadialGradient(width / 2, height * 0.35, 20, width / 2, height * 0.35, width * 0.5);
+    lightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+    lightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = lightGrad;
+    ctx.fillRect(0, 0, width, height);
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.anisotropy = 4;

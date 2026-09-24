@@ -22,36 +22,72 @@ export class HoloTable {
   private currentHoloAlpha = 0;
   private isHovered = false;
 
+  private tabletopDisplayLight: THREE.PointLight;
+
   constructor() {
     this.createTableStructure();
+    this.createTabletopDisplay();
     this.createProjectorEmitter();
     this.createHoloScreens();
     this.createFloatingParticles();
     this.hideHologram(true);
   }
 
+  private roundedShape(width: number, height: number, radius: number): THREE.Shape {
+    const shape = new THREE.Shape();
+    const r = Math.min(radius, width / 2 - 0.001, height / 2 - 0.001);
+    const x = -width / 2;
+    const y = -height / 2;
+    shape.moveTo(x + r, y);
+    shape.lineTo(x + width - r, y);
+    shape.quadraticCurveTo(x + width, y, x + width, y + r);
+    shape.lineTo(x + width, y + height - r);
+    shape.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    shape.lineTo(x + r, y + height);
+    shape.quadraticCurveTo(x, y + height, x, y + height - r);
+    shape.lineTo(x, y + r);
+    shape.quadraticCurveTo(x, y, x + r, y);
+    return shape;
+  }
+
   private createTableStructure(): void {
     const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0xd5dde3, metalness: 0.08, roughness: 0.48, side: THREE.DoubleSide,
+      color: 0xdbe3e8, metalness: 0.12, roughness: 0.38, side: THREE.DoubleSide,
     });
     const seamMat = new THREE.MeshStandardMaterial({
-      color: 0x9aabb4, metalness: 0.16, roughness: 0.46, side: THREE.DoubleSide,
+      color: 0x90a2ac, metalness: 0.22, roughness: 0.40, side: THREE.DoubleSide,
     });
-    const whiteMat = new THREE.MeshStandardMaterial({
-      color: 0xf7f8f8, metalness: 0.02, roughness: 0.42, side: THREE.DoubleSide,
+    // Sleek white satin composite tabletop with specular sheen matching Image 1
+    const whiteMat = new THREE.MeshPhysicalMaterial({
+      color: 0xf2f6f9,
+      metalness: 0.02,
+      roughness: 0.28,
+      clearcoat: 0.70,
+      clearcoatRoughness: 0.16,
+      reflectivity: 0.82,
+      side: THREE.DoubleSide,
     });
     const edgeMat = new THREE.MeshStandardMaterial({
-      color: 0xe4ebef, metalness: 0.12, roughness: 0.32, side: THREE.DoubleSide,
+      color: 0xdde5ec, metalness: 0.25, roughness: 0.28, side: THREE.DoubleSide,
+    });
+    const basePlinthMat = new THREE.MeshStandardMaterial({
+      color: 0x1e2428, metalness: 0.65, roughness: 0.35, side: THREE.DoubleSide,
     });
 
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.22, 1.32, 0.055, 96), pedestalMat);
-    foot.position.y = 0.028;
+    // Dark recessed reveal shadow plinth at floor
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(1.26, 1.28, 0.024, 96), basePlinthMat);
+    plinth.position.y = 0.012;
+    plinth.receiveShadow = true;
+    this.group.add(plinth);
+
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.20, 1.26, 0.045, 96), pedestalMat);
+    foot.position.y = 0.042;
     foot.receiveShadow = true;
     foot.castShadow = true;
     this.group.add(foot);
 
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.08, 1.14, 0.58, 96), pedestalMat);
-    pedestal.position.y = 0.345;
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.06, 1.14, 0.58, 96), pedestalMat);
+    pedestal.position.y = 0.355;
     pedestal.receiveShadow = true;
     pedestal.castShadow = true;
     this.group.add(pedestal);
@@ -60,13 +96,13 @@ export class HoloTable {
     pedestalSeam.position.set(0, 0.35, 1.09);
     this.group.add(pedestalSeam);
 
-    // Thick rounded platter. Top stays at y = 0.99 so beakers and the hologram stage remain flush.
+    // Thick aerodynamic rounded saucer platter. Top stays at y = 0.99 for flush alignment.
     const profile = [
       new THREE.Vector2(0.02, 0.99),
       new THREE.Vector2(2.18, 0.99),
       new THREE.Vector2(2.34, 0.968),
-      new THREE.Vector2(2.42, 0.9),
-      new THREE.Vector2(2.4, 0.82),
+      new THREE.Vector2(2.42, 0.90),
+      new THREE.Vector2(2.40, 0.82),
       new THREE.Vector2(2.16, 0.74),
       new THREE.Vector2(1.48, 0.67),
       new THREE.Vector2(1.16, 0.64),
@@ -77,10 +113,63 @@ export class HoloTable {
     tabletop.name = 'reference-white-tabletop';
     this.group.add(tabletop);
 
-    const topSeam = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.01, 8, 128), edgeMat);
+    const topSeam = new THREE.Mesh(new THREE.TorusGeometry(2.20, 0.01, 8, 128), edgeMat);
     topSeam.rotation.x = Math.PI / 2;
     topSeam.position.y = 0.992;
     this.group.add(topSeam);
+  }
+
+  /**
+   * Embedded Futuristic Holographic Tabletop Surface (Image 1 reference!)
+   */
+  private createTabletopDisplay(): void {
+    const holoTex = TextureGenerator.createTabletopHoloTexture();
+    const displayW = 2.18;
+    const displayH = 1.48;
+    const shape = this.roundedShape(displayW, displayH, 0.22);
+    const geom = new THREE.ShapeGeometry(shape, 16);
+
+    // 1. Recessed aluminum bezel frame
+    const bezelMat = new THREE.MeshStandardMaterial({
+      color: 0xc8d4dc, metalness: 0.45, roughness: 0.28, side: THREE.DoubleSide,
+    });
+    const bezel = new THREE.Mesh(new THREE.RingGeometry(1.08, 1.12, 64), bezelMat);
+    bezel.rotation.x = -Math.PI / 2;
+    bezel.position.y = 0.991;
+
+    // 2. Glowing Holographic Display Screen
+    const screenMat = new THREE.MeshBasicMaterial({
+      map: holoTex,
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide,
+    });
+    const screenMesh = new THREE.Mesh(geom, screenMat);
+    screenMesh.rotation.x = -Math.PI / 2;
+    screenMesh.position.y = 0.993;
+    screenMesh.name = 'tabletop-holo-screen';
+    this.group.add(screenMesh);
+
+    // 3. Specular glass protective cover sheet
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xdaf2ff,
+      transmission: 0.60,
+      roughness: 0.08,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.06,
+      transparent: true,
+      opacity: 0.75,
+      side: THREE.DoubleSide,
+    });
+    const glassSheet = new THREE.Mesh(geom, glassMat);
+    glassSheet.rotation.x = -Math.PI / 2;
+    glassSheet.position.y = 0.994;
+    this.group.add(glassSheet);
+
+    // 4. Soft cyan ambient emission from the display
+    this.tabletopDisplayLight = new THREE.PointLight(0x40d5ff, 0.40, 2.2, 2);
+    this.tabletopDisplayLight.position.set(0, 1.15, 0);
+    this.group.add(this.tabletopDisplayLight);
   }
 
   private createProjectorEmitter(): void {
@@ -232,5 +321,9 @@ export class HoloTable {
     this.holoLight.intensity = (0.36 + Math.sin(t * 2.5) * 0.04) * this.currentHoloAlpha;
     this.emitterLensMat.emissiveIntensity = 0.22 * this.currentHoloAlpha;
     this.emitterAssembly.visible = this.currentHoloAlpha > 0.01;
+
+    if (this.tabletopDisplayLight) {
+      this.tabletopDisplayLight.intensity = 0.40 + Math.sin(t * 0.8) * 0.05;
+    }
   }
 }

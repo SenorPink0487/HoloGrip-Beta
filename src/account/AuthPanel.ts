@@ -21,9 +21,11 @@ export class AuthPanel {
   private readonly roleGlider: HTMLDivElement;
   private readonly teacherBtn: HTMLButtonElement;
   private readonly studentBtn: HTMLButtonElement;
+  private readonly nameField: HTMLDivElement;
   private readonly classField: HTMLDivElement;
   private readonly confirmField: HTMLDivElement;
   private readonly inviteField: HTMLDivElement;
+  private readonly nameInput: HTMLInputElement;
   private readonly emailInput: HTMLInputElement;
   private readonly passwordInput: HTMLInputElement;
   private readonly confirmInput: HTMLInputElement;
@@ -85,6 +87,8 @@ export class AuthPanel {
     this.roleRow.appendChild(this.roleSwitch);
 
     // 4. Form Fields & Inset Grouped Card
+    this.nameInput = textInput('auth-display-name', 'text', '你的用户名', 'nickname');
+    this.nameInput.maxLength = 64;
     this.emailInput = textInput('auth-email', 'email', 'name@school.edu', 'username');
     this.passwordInput = textInput('auth-password', 'password', '至少 8 位', 'current-password');
     this.confirmInput = textInput('auth-confirm', 'password', '再次输入密码', 'new-password');
@@ -94,12 +98,14 @@ export class AuthPanel {
     this.inviteInput.maxLength = 5;
     this.inviteInput.autocapitalize = 'characters';
 
+    this.nameField = labeledField('field-display-name', '用户名', this.nameInput);
     this.classField = labeledField('field-class-name', '班级', this.classInput);
     this.confirmField = labeledField('field-confirm-password', '确认密码', this.confirmInput);
     this.inviteField = labeledField('field-invite-code', '邀请码', this.inviteInput);
 
     const inputGroup = document.createElement('div');
     inputGroup.className = 'auth-input-group';
+    inputGroup.appendChild(this.nameField);
     inputGroup.appendChild(labeledField('field-email', '邮箱', this.emailInput));
     inputGroup.appendChild(labeledField('field-password', '密码', this.passwordInput));
     inputGroup.appendChild(this.confirmField);
@@ -138,6 +144,7 @@ export class AuthPanel {
         this.showError('');
       }
     };
+    this.nameInput.addEventListener('input', clearErr);
     this.emailInput.addEventListener('input', clearErr);
     this.passwordInput.addEventListener('input', clearErr);
     this.confirmInput.addEventListener('input', clearErr);
@@ -175,6 +182,7 @@ export class AuthPanel {
 
     this.roleSwitch.classList.toggle('hidden', !register);
     this.roleRow.classList.toggle('hidden', !register);
+    this.nameField.classList.toggle('hidden', !register);
     this.confirmField.classList.toggle('hidden', !register);
     this.classField.classList.toggle('hidden', !(register && this.role === 'teacher'));
     this.inviteField.classList.toggle('hidden', !(register && this.role === 'student'));
@@ -207,6 +215,15 @@ export class AuthPanel {
     if (this.busy) return;
     const email = this.emailInput.value.trim();
     const password = this.passwordInput.value;
+    const displayName = this.nameInput.value.trim();
+    if (this.mode === 'register' && !displayName) {
+      this.showError('请填写用户名');
+      return;
+    }
+    if (this.mode === 'register' && displayName.length > 64) {
+      this.showError('用户名不能超过 64 个字');
+      return;
+    }
     if (!looksLikeEmail(email)) {
       this.showError('请输入有效邮箱');
       return;
@@ -241,6 +258,7 @@ export class AuthPanel {
             role: this.role,
             email,
             password,
+            displayName,
             className: this.classInput.value.trim(),
             inviteCode: this.inviteInput.value.trim(),
           });

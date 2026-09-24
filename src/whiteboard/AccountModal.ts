@@ -181,13 +181,13 @@ export class AccountModal {
     nameInput.id = 'profile-input-name';
     nameInput.className = 'apple-profile-input';
     nameInput.type = 'text';
-    nameInput.placeholder = '选填';
+    nameInput.placeholder = '你的用户名';
     nameInput.setAttribute('autocomplete', 'nickname');
     nameInput.value = user.displayName ?? '';
     nameInput.addEventListener('blur', () => {
       void this.saveName(user, nameInput.value);
     });
-    form.appendChild(fieldRow('姓名', nameInput));
+    form.appendChild(fieldRow('用户名', nameInput));
 
     if (user.role === 'teacher' && user.class) {
       const classInput = document.createElement('input');

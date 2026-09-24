@@ -319,8 +319,23 @@ assert.strictEqual(accountModal.visible, true, 'Modal should be visible after op
 assert.ok(modalParent.querySelector('#auth-panel'), 'Logged-out account button opens the auth panel');
 assert.strictEqual(modalParent.querySelector('#profile-input-name'), null, 'Logged-out view has no profile name');
 assert.strictEqual(modalParent.querySelector('#invite-code-value'), null, 'Logged-out view has no invite code');
+assert.strictEqual(
+  modalParent.querySelector('#field-display-name')!.classList.contains('hidden'),
+  true,
+  'Login hides the username',
+);
 
 modalParent.querySelector('#auth-tab-register')!.dispatchEvent('click');
+assert.strictEqual(
+  modalParent.querySelector('#field-display-name')!.classList.contains('hidden'),
+  false,
+  'Registration requires a username',
+);
+assert.strictEqual(
+  (modalParent.querySelector('#auth-display-name') as { maxLength?: number } | null)?.maxLength,
+  64,
+  'Username input is limited to 64 characters',
+);
 assert.strictEqual(
   modalParent.querySelector('#field-class-name')!.classList.contains('hidden'),
   false,
@@ -342,6 +357,11 @@ assert.strictEqual(
   modalParent.querySelector('#field-invite-code')!.classList.contains('hidden'),
   false,
   'Student registration shows the optional invite code',
+);
+assert.strictEqual(
+  modalParent.querySelector('#field-display-name')!.classList.contains('hidden'),
+  false,
+  'Student registration also requires a username',
 );
 
 replaceSession({

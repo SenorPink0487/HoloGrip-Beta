@@ -146,7 +146,7 @@ export class Engine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.96;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.renderer.shadowMap.enabled = true;
@@ -179,18 +179,20 @@ export class Engine {
 
   private initScene(): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xf4f7f9);
+    this.scene.background = new THREE.Color(0xecf1f5);
   }
 
   private initCamera(): void {
+    // 60° FOV gives natural, distortion-free cinematic perspective matching Image 1
     this.camera = new THREE.PerspectiveCamera(
-      74,
+      60,
       window.innerWidth / window.innerHeight,
       0.1,
       400
     );
   }
 
+  // Use clean, crisp native WebGL pipeline with hardware MSAA to prevent overexposed bloom fog
   public isPostProcessingActive = false;
 
   private initPostProcessing(): void {
@@ -201,9 +203,9 @@ export class Engine {
     const renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(renderPass);
 
-    // Half-resolution bloom resolution to prevent 4K fragment shading bottlenecks
+    // High threshold (1.15) ensures ONLY ultra-bright emissives bloom, never white architecture
     const bloomSize = new THREE.Vector2(Math.max(256, Math.floor(width * 0.5)), Math.max(256, Math.floor(height * 0.5)));
-    this.bloomPass = new UnrealBloomPass(bloomSize, 0.08, 0.22, 0.96);
+    this.bloomPass = new UnrealBloomPass(bloomSize, 0.16, 0.22, 1.15);
     this.composer.addPass(this.bloomPass);
 
     const outputPass = new OutputPass();
@@ -219,32 +221,79 @@ export class Engine {
     this.computeBridge = new ComputeBridge(this.workerPool);
   }
 
+  /**
+   * Balanced image-based reflection environment matching the circular chamber architecture.
+   * Generates photorealistic specular reflections of the oculus, cove light, and neon lines onto the glossy epoxy floor.
+   */
   private initImageBasedLighting(): void {
     const envScene = new THREE.Scene();
+
+    // 1. Surrounding cylindrical white room shell
     const shell = new THREE.Mesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0xf6f8fa, side: THREE.BackSide }),
+      new THREE.CylinderGeometry(8.2, 8.2, 5.0, 32, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xd9e2e8, side: THREE.BackSide }),
     );
-    shell.scale.set(16, 10, 16);
-    shell.position.y = 2;
+    shell.position.y = 2.2;
     envScene.add(shell);
 
+    // 2. Radiant circular oculus skylight disc at ceiling
     const oculus = new THREE.Mesh(
-      new THREE.CircleGeometry(3.4, 24),
+      new THREE.CircleGeometry(2.4, 32),
       new THREE.MeshBasicMaterial({ color: 0xffffff }),
     );
-    oculus.position.y = 6.4;
+    oculus.position.y = 4.4;
     oculus.rotation.x = Math.PI / 2;
     envScene.add(oculus);
 
-    envScene.add(new THREE.HemisphereLight(0xffffff, 0xdce3e8, 0.9));
-    const key = new THREE.DirectionalLight(0xffffff, 2.4);
-    key.position.set(0, 8, 0.4);
-    envScene.add(key);
+    // 3. Recessed circular cove halo ring
+    const coveRing = new THREE.Mesh(
+      new THREE.RingGeometry(2.8, 3.3, 32),
+      new THREE.MeshBasicMaterial({ color: 0xfff2e0, side: THREE.DoubleSide }),
+    );
+    coveRing.position.y = 4.3;
+    coveRing.rotation.x = Math.PI / 2;
+    envScene.add(coveRing);
+
+    // 4. Vertical cyan light strips on walls
+    for (const phi of [0.66, -0.66, 1.20, -1.22]) {
+      const strip = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.08, 3.2),
+        new THREE.MeshBasicMaterial({ color: 0x64e5ff, side: THREE.DoubleSide }),
+      );
+      strip.position.set(Math.sin(phi) * 8.1, 2.1, -Math.cos(phi) * 8.1);
+      strip.rotation.y = -phi;
+      envScene.add(strip);
+    }
+
+    // 5. Warm wall niche glow pads
+    for (const phi of [0.92, -0.92]) {
+      const pad = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.0, 1.2),
+        new THREE.MeshBasicMaterial({ color: 0xffeedd, side: THREE.DoubleSide }),
+      );
+      pad.position.set(Math.sin(phi) * 8.0, 2.15, -Math.cos(phi) * 8.0);
+      pad.rotation.y = -phi;
+      envScene.add(pad);
+    }
+
+    // 6. Central glowing cyan table disc
+    const tableDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(1.2, 32),
+      new THREE.MeshBasicMaterial({ color: 0x40d5ff, side: THREE.DoubleSide }),
+    );
+    tableDisc.position.y = 1.0;
+    tableDisc.rotation.x = -Math.PI / 2;
+    envScene.add(tableDisc);
+
+    // 7. Balanced soft environmental fill
+    envScene.add(new THREE.HemisphereLight(0xffffff, 0xc5d2dc, 0.45));
+    const downKey = new THREE.DirectionalLight(0xffffff, 0.85);
+    downKey.position.set(0, 7.0, 0.2);
+    envScene.add(downKey);
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(envScene, 0.04).texture;
-    this.scene.environmentIntensity = 0.38;
+    this.scene.environmentIntensity = 0.52;
     pmrem.dispose();
   }
 

@@ -69,7 +69,7 @@ try {
   await start();
   const suffix = crypto.randomUUID();
   const register = async (body: any) => {
-    const r = await fetch(`${base}/api/v1/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'Whiteboard-test-123!', ...body }) });
+    const r = await fetch(`${base}/api/v1/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'Whiteboard-test-123!', displayName: '协作用户', ...body }) });
     const v = await r.json(); assert(r.ok, JSON.stringify(v)); return v;
   };
   const teacher = await register({ role: 'teacher', email: `t-${suffix}@test.example`, className: '协作验证班' });

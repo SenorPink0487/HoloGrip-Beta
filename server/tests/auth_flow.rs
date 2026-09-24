@@ -107,6 +107,7 @@ async fn teacher_register_exposes_invite_code_on_me() {
             None,
             Some(json!({
                 "role": "teacher",
+                "displayName": "王老师",
                 "email": "Teacher@School.edu",
                 "password": "password1",
                 "className": "高二 (3) 班"
@@ -121,6 +122,7 @@ async fn teacher_register_exposes_invite_code_on_me() {
             .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit()));
         assert_eq!(body["user"]["email"], "teacher@school.edu");
         assert_eq!(body["user"]["role"], "teacher");
+        assert_eq!(body["user"]["displayName"], "王老师");
         assert_eq!(body["user"]["class"]["name"], "高二 (3) 班");
         assert!(body["user"]["class"]["students"].as_array().unwrap().is_empty());
 
@@ -142,6 +144,7 @@ async fn student_with_invite_joins_and_cannot_see_the_code() {
             None,
             Some(json!({
                 "role": "teacher",
+                "displayName": "王老师",
                 "email": "teacher@school.edu",
                 "password": "password1",
                 "className": "高二 (3) 班"
@@ -158,6 +161,7 @@ async fn student_with_invite_joins_and_cannot_see_the_code() {
             None,
             Some(json!({
                 "role": "student",
+                "displayName": "李同学",
                 "email": "student@school.edu",
                 "password": "password1",
                 "inviteCode": format!("{}-{}", &invite[..2], &invite[2..])
@@ -165,6 +169,7 @@ async fn student_with_invite_joins_and_cannot_see_the_code() {
         )
         .await;
         assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(student["user"]["displayName"], "李同学");
         assert_eq!(student["user"]["class"]["id"], class_id);
         assert_eq!(student["user"]["class"]["name"], "高二 (3) 班");
         assert!(student["user"]["class"].get("inviteCode").is_none());
@@ -173,6 +178,7 @@ async fn student_with_invite_joins_and_cannot_see_the_code() {
         let teacher_token = teacher["accessToken"].as_str().unwrap();
         let (_, me) = call(&app, "GET", "/api/v1/me", Some(teacher_token), None).await;
         assert_eq!(me["class"]["students"][0]["email"], "student@school.edu");
+        assert_eq!(me["class"]["students"][0]["displayName"], "李同学");
 
         let student_token = student["accessToken"].as_str().unwrap();
         let (status, _) = call(
@@ -198,6 +204,7 @@ async fn student_can_skip_invite_code_and_join_later() {
             None,
             Some(json!({
                 "role": "teacher",
+                "displayName": "王老师",
                 "email": "teacher@school.edu",
                 "password": "password1",
                 "className": "高二 (3) 班"
@@ -211,6 +218,7 @@ async fn student_can_skip_invite_code_and_join_later() {
             None,
             Some(json!({
                 "role": "student",
+                "displayName": "李同学",
                 "email": "student@school.edu",
                 "password": "password1"
             })),
@@ -245,6 +253,7 @@ async fn invalid_invite_code_does_not_create_the_user() {
             None,
             Some(json!({
                 "role": "student",
+                "displayName": "李同学",
                 "email": "student@school.edu",
                 "password": "password1",
                 "inviteCode": "ZZZZZ"
@@ -274,12 +283,48 @@ async fn invalid_invite_code_does_not_create_the_user() {
             None,
             Some(json!({
                 "role": "student",
+                "displayName": "李同学",
                 "email": "student@school.edu",
                 "password": "password1"
             })),
         )
         .await;
         assert_eq!(status, StatusCode::CREATED);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn register_requires_a_display_name() {
+    with_app(|app| async move {
+        let (status, body) = call(
+            &app,
+            "POST",
+            "/api/v1/auth/register",
+            None,
+            Some(json!({
+                "role": "student",
+                "email": "student@school.edu",
+                "password": "password1",
+                "displayName": "   "
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(error_message(&body), "请填写用户名");
+
+        let (status, _) = call(
+            &app,
+            "POST",
+            "/api/v1/auth/login",
+            None,
+            Some(json!({
+                "email": "student@school.edu",
+                "password": "password1"
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
     })
     .await;
 }
@@ -294,6 +339,7 @@ async fn duplicate_email_and_wrong_password() {
             None,
             Some(json!({
                 "role": "teacher",
+                "displayName": "王老师",
                 "email": "teacher@school.edu",
                 "password": "password1",
                 "className": "一班"
@@ -307,6 +353,7 @@ async fn duplicate_email_and_wrong_password() {
             None,
             Some(json!({
                 "role": "student",
+                "displayName": "李同学",
                 "email": "TEACHER@school.edu",
                 "password": "password1"
             })),
@@ -342,6 +389,7 @@ async fn refresh_rotates_and_logout_revokes() {
             None,
             Some(json!({
                 "role": "student",
+                "displayName": "李同学",
                 "email": "student@school.edu",
                 "password": "password1"
             })),

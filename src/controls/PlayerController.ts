@@ -54,10 +54,10 @@ export class PlayerController {
     this.camera = camera;
     this.domElement = domElement;
 
-    // Gallery view of the circular chamber: eye just above the platter, enough floor in the foreground
-    // for the concentric joints, oculus and entry door to sit in one frame.
-    this.pitch = 0.1;
-    this.camera.position.set(0, 1.42, 5.9);
+    // Gallery view of the circular chamber matching Image 1:
+    // Positioned directly in front of the table so the workstation is prominent, framing oculus dome at top, table in center, glossy floor in foreground
+    this.pitch = -0.07;
+    this.camera.position.set(0, 1.38, 4.25);
     this.camera.rotation.order = 'YXZ';
     this.updateCameraRotation();
 

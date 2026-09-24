@@ -1405,7 +1405,7 @@ textarea:focus::placeholder {
 }
 
 .profile-field-row .field-label {
-  min-width: 40px;
+  min-width: 52px;
 }
 
 @media (max-width: 640px) {

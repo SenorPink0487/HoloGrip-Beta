@@ -103,6 +103,7 @@ export async function register(input: {
   role: 'teacher' | 'student';
   email: string;
   password: string;
+  displayName: string;
   className?: string;
   inviteCode?: string;
 }): Promise<AuthResult> {
@@ -110,6 +111,7 @@ export async function register(input: {
     role: input.role,
     email: input.email,
     password: input.password,
+    displayName: input.displayName.trim(),
   };
   if (input.role === 'teacher' && input.className) body.className = input.className;
   if (input.role === 'student' && input.inviteCode) {
