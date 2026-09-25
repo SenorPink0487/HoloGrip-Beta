@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { PlayerController } from './PlayerController';
-import { TouchController } from './TouchController';
+import { PlayerController } from './PlayerController.ts';
+import { TouchController } from './TouchController.ts';
 
 export class InputManager {
   public player: PlayerController;

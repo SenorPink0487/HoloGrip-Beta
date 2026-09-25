@@ -1,11 +1,11 @@
 import './whiteboard.css';
 import { WhiteboardConnection } from './WhiteboardConnection.ts';
 import { restoreSession } from '../account/api.ts';
-import { WhiteboardCanvas } from './WhiteboardCanvas';
-import { WhiteboardToolbar } from './WhiteboardToolbar';
-import { WhiteboardDock } from './WhiteboardDock';
-import { AccountModal } from './AccountModal';
-import type { Engine } from '../core/Engine';
+import { WhiteboardCanvas } from './WhiteboardCanvas.ts';
+import { WhiteboardToolbar } from './WhiteboardToolbar.ts';
+import { WhiteboardDock } from './WhiteboardDock.ts';
+import { AccountModal } from './AccountModal.ts';
+import type { Engine } from '../core/Engine.ts';
 
 export interface WhiteboardAppOptions {
   engine?: Engine;
@@ -126,20 +126,21 @@ export class WhiteboardApp {
         if (this.engine.crosshair) {
           this.engine.crosshair.setVisible(false);
         }
+        this.engine.setViewMode('whiteboard');
       }
 
-      // Hide performance HUD overlay on whiteboard to preserve minimalist Apple aesthetics
+      // Ensure performance HUD overlay remains visible in top-left corner
       const perfOverlay = document.getElementById('perf-overlay');
       if (perfOverlay) {
-        perfOverlay.style.display = 'none';
+        perfOverlay.style.display = '';
       }
 
       // Re-render canvas in case of DPI/container change
       setTimeout(() => {
         this.canvas.resize();
         const overlay = document.getElementById('perf-overlay');
-        if (overlay && this.currentMode === 'whiteboard') {
-          overlay.style.display = 'none';
+        if (overlay) {
+          overlay.style.display = '';
         }
       }, 50);
     } else {
@@ -148,7 +149,6 @@ export class WhiteboardApp {
 
       const perfOverlay = document.getElementById('perf-overlay');
       if (perfOverlay) {
-        // Keep the idle laboratory frame free of diagnostics; P can reveal it.
         perfOverlay.style.display = '';
       }
 
@@ -158,7 +158,14 @@ export class WhiteboardApp {
           this.engine.inputManager.player.enabled = true;
           this.engine.inputManager.player.allowPointerLock = true;
         }
-        if (this.engine.crosshair) this.engine.crosshair.setVisible(false);
+        if (this.engine.crosshair) {
+          const isModalOpen = this.engine.visionModal?.visible ?? false;
+          const isDrawerOpen = this.engine.hud?.drawer?.open ?? false;
+          if (!isModalOpen && !isDrawerOpen) {
+            this.engine.crosshair.setVisible(true);
+          }
+        }
+        this.engine.setViewMode('laboratory');
       }
     }
   }

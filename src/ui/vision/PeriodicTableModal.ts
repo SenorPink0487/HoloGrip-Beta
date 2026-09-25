@@ -208,10 +208,6 @@ export class PeriodicTableModal {
           </button>
         </div>
 
-        <!-- Mode Badge -->
-        <div class="periodic-mode-badge" title="常用实验试剂元素 (28种)">
-          <span>常用试剂 (28)</span>
-        </div>
 
         <!-- Trailing Action: View Beaker Analysis -->
         <button class="periodic-analysis-action-btn" id="btn-periodic-view-analysis" title="查看烧杯组分全息分析">

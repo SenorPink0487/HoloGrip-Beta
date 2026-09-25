@@ -1,0 +1,77 @@
+import type { ExperimentMetadata } from '../../../core/types.ts';
+
+export const metadata: ExperimentMetadata = {
+  id: 'em-hall',
+  name: '霍尔效应原理与载流子动力学',
+  category: 'electromagnetism',
+  categoryName: '电磁学',
+  description: '经典科研级双极靴电磁铁霍尔效应实验台。融合宏观高精度双通道数字电表测量与半透明芯片微观透视。实时展示电子与空穴在洛伦兹力作用下的横向偏转偏折、侧壁电势差积累建立与霍尔平衡状态。支持n型半导体、p型半导体及金属材质切换与载流子全自由科研参数定制。',
+  tags: ['电磁学', '霍尔效应', '洛伦兹力', '载流子动力学', '半导体物理', '霍尔系数', '电磁铁'],
+  icon: 'physics',
+  equation: 'V_H = R_H \\frac{I B}{d} = \\frac{1}{n q} \\frac{I B}{d} \\quad \\vec{F}_L = q (\\vec{v} \\times \\vec{B})',
+  computeIntensity: 'medium',
+  parameters: [
+    {
+      id: 'magField',
+      name: '气隙磁感应强度 B',
+      type: 'range',
+      defaultValue: 0.5,
+      min: -1.5,
+      max: 1.5,
+      step: 0.05,
+      unit: 'T',
+      description: '双极靴之间垂直穿透试样的匀强磁感应强度（正负代表N/S极取向）',
+    },
+    {
+      id: 'current',
+      name: '激励工作电流 I',
+      type: 'range',
+      defaultValue: 10.0,
+      min: -20.0,
+      max: 20.0,
+      step: 0.5,
+      unit: 'mA',
+      description: '沿试样纵向通入的恒定工作电流（正负代表电流流向）',
+    },
+    {
+      id: 'material',
+      name: '试样材质类型',
+      type: 'select',
+      defaultValue: 'n-gaas',
+      options: [
+        { label: 'n型砷化镓晶片 (n-GaAs, 电子导电, 高灵敏)', value: 'n-gaas' },
+        { label: 'p型单晶硅片 (p-Si, 空穴导电, 正霍尔电势)', value: 'p-silicon' },
+        { label: '高纯金属紫铜薄膜 (Copper, 电子浓度极高)', value: 'copper' },
+        { label: '自定义科研参数 (Custom Parameters)', value: 'custom' },
+      ],
+      description: '切换不同载流子类型与浓度的导体/半导体材料',
+    },
+    {
+      id: 'thickness',
+      name: '薄片厚度 d',
+      type: 'range',
+      defaultValue: 0.5,
+      min: 0.05,
+      max: 1.5,
+      step: 0.05,
+      unit: 'mm',
+      description: '霍尔试样沿磁场方向的物理厚度',
+    },
+    {
+      id: 'showVectors',
+      name: '3D力矢量指示',
+      type: 'boolean',
+      defaultValue: true,
+      description: '显示漂移速度v、磁场B、洛伦兹力F_L与霍尔电场E_H矢量箭头',
+    },
+    {
+      id: 'showParticles',
+      name: '载流子粒子流透视',
+      type: 'boolean',
+      defaultValue: true,
+      description: '展示薄片内部微观载流子动态流动与侧壁发光势垒',
+    },
+  ],
+};
+
+export default metadata;

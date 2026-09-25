@@ -488,6 +488,29 @@ class MockShaderExperiment extends BaseExperiment {
   console.log('✓ Test 7 passed: WebGL Context Loss & Recovery handler verified\n');
 }
 
+// --------------------------------------------------------------------------
+// Test 8: Top-Left FPS & Latency Overlay Visibility & Positioning
+// --------------------------------------------------------------------------
+{
+  console.log('Test 8: Top-Left FPS & Latency Overlay Visibility & Positioning');
+
+  const hudPath = path.resolve(process.cwd(), 'src/ui/HUD.ts');
+  const hudCode = fs.readFileSync(hudPath, 'utf-8');
+  assert(!hudCode.includes('this.perfOverlay.toggle(false);'), 'HUD must not hide perfOverlay on startup');
+
+  const wbPath = path.resolve(process.cwd(), 'src/whiteboard/WhiteboardApp.ts');
+  const wbCode = fs.readFileSync(wbPath, 'utf-8');
+  assert(!wbCode.includes("perfOverlay.style.display = 'none';"), 'WhiteboardApp must not hide perfOverlay');
+
+  const htmlPath = path.resolve(process.cwd(), 'index.html');
+  const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
+  assert(htmlContent.includes('#perf-overlay {'), 'index.html must define #perf-overlay');
+  assert(htmlContent.includes('top: calc(16px + env(safe-area-inset-top, 0px));'), '#perf-overlay must be positioned at top');
+  assert(htmlContent.includes('left: calc(18px + env(safe-area-inset-left, 0px));'), '#perf-overlay must be positioned at left');
+
+  console.log('✓ Test 8 passed: Top-Left FPS & Latency overlay visibility and positioning verified\n');
+}
+
 console.log('========================================================');
-console.log('All Architecture Hardening Tests Passed (7/7)!');
+console.log('All Architecture Hardening Tests Passed (8/8)!');
 console.log('========================================================\n');

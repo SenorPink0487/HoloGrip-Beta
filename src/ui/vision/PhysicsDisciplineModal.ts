@@ -16,8 +16,76 @@ export class PhysicsDisciplineModal {
   public element: HTMLElement;
   private callbacks: PhysicsDisciplineCallbacks;
   private currentLevel: 1 | 2 = 1;
-  private currentDiscipline: 'optics' | 'thermo' = 'optics';
+  private currentDiscipline: 'optics' | 'thermo' | 'em' = 'optics';
   private toastTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  public static readonly EM_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
+    {
+      id: 'em-hall',
+      name: '霍尔效应原理',
+      category: '电磁感应与载流子动力学',
+      formula: 'V_H = R_H · (I B / d)',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="11" width="22" height="14" rx="2" stroke-width="2.2" fill="currentColor" fill-opacity="0.08"/>
+          <line x1="2" y1="18" x2="7" y2="18" stroke="#facc15" stroke-width="2.4"/>
+          <line x1="29" y1="18" x2="34" y2="18" stroke="#facc15" stroke-width="2.4"/>
+          <line x1="18" y1="3" x2="18" y2="11" stroke="#06b6d4" stroke-width="2.2"/>
+          <polyline points="15,7 18,3 21,7" stroke="#06b6d4" stroke-width="2"/>
+          <rect x="13" y="9" width="10" height="2.5" rx="1" fill="#ef4444"/>
+          <rect x="13" y="24.5" width="10" height="2.5" rx="1" fill="#3b82f6"/>
+          <path d="M8 18 Q 18 19 27 24" stroke="#38bdf8" stroke-width="1.8" stroke-dasharray="3 1.5"/>
+          <circle cx="27" cy="24" r="1.8" fill="#38bdf8"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'em-induction',
+      name: '法拉第电磁感应与楞次定律',
+      category: '电磁感应',
+      formula: 'ℰ = - dΦ_B / dt',
+      planned: true,
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="18" cy="18" rx="12" ry="7" stroke-width="2.2"/>
+          <path d="M18 4 L18 14" stroke="#ef4444" stroke-width="2.2"/>
+          <polyline points="15,8 18,4 21,8" stroke="#ef4444" stroke-width="2"/>
+          <path d="M12 18 A6 4 0 0 1 24 18" stroke="#38bdf8" stroke-width="1.8"/>
+          <polyline points="22,16 24,18 22,20" stroke="#38bdf8" stroke-width="1.6"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'em-mass-spec',
+      name: '磁聚焦与带电粒子质谱仪',
+      category: '带电粒子运动',
+      formula: 'r = mv / (qB) · q/m',
+      planned: true,
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="18" r="13" stroke-width="2" stroke-dasharray="2 2" opacity="0.4"/>
+          <path d="M9 27 A11 11 0 0 1 27 15" stroke="#facc15" stroke-width="2.2"/>
+          <polyline points="25,12 27,15 24,17" stroke="#facc15" stroke-width="2"/>
+          <circle cx="9" cy="27" r="2.2" fill="#38bdf8"/>
+          <rect x="24" y="23" width="8" height="3" fill="#64748b"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'em-hysteresis',
+      name: '铁磁材料磁化与磁滞回线',
+      category: '磁介质物理',
+      formula: 'B = μ₀ (H + M)',
+      planned: true,
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="18" x2="31" y2="18" stroke-width="1.5" opacity="0.5"/>
+          <line x1="18" y1="5" x2="18" y2="31" stroke-width="1.5" opacity="0.5"/>
+          <path d="M8 24 C14 24 16 12 28 12 C22 12 20 24 8 24 Z" stroke="#a855f7" stroke-width="2.2" fill="currentColor" fill-opacity="0.08"/>
+        </svg>
+      `,
+    },
+  ];
 
   public static readonly THERMO_EXPERIMENTS: OpticsExperimentDef[] = [
     {
@@ -255,15 +323,14 @@ export class PhysicsDisciplineModal {
             <h3 class="branch-tile-name">热学实验</h3>
           </div>
 
-          <!-- 4. Electromagnetism (In planning) -->
-          <div class="physics-branch-tile planned" id="branch-tile-em" role="button" tabindex="0" title="规划中">
+          <!-- 4. Electromagnetism (Ready -> Click to enter Level 2) -->
+          <div class="physics-branch-tile ready" id="branch-tile-em" role="button" tabindex="0" title="进入电磁学实验">
             <div class="branch-tile-icon-box">
               <svg class="apple-sf-icon branch-tile-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
               </svg>
             </div>
             <h3 class="branch-tile-name">电磁学</h3>
-            <span class="branch-tile-badge planned">规划中</span>
           </div>
         </div>
 
@@ -276,16 +343,22 @@ export class PhysicsDisciplineModal {
   }
 
   /**
-   * Render Level 2: Experiment Catalog (Optics or Thermodynamics)
+   * Render Level 2: Experiment Catalog (Optics, Thermodynamics, or Electromagnetism)
    */
-  public showLevel2(discipline: 'optics' | 'thermo' = 'optics'): void {
+  public showLevel2(discipline: 'optics' | 'thermo' | 'em' = 'optics'): void {
     this.currentLevel = 2;
     this.currentDiscipline = discipline;
-    const title = discipline === 'thermo' ? '热学实验' : '光学实验';
+    const title = discipline === 'thermo'
+      ? '热学实验'
+      : discipline === 'em'
+      ? '电磁学实验'
+      : '光学实验';
     this.callbacks.onLevelChange?.(2, title);
 
     const experiments = discipline === 'thermo'
       ? PhysicsDisciplineModal.THERMO_EXPERIMENTS
+      : discipline === 'em'
+      ? PhysicsDisciplineModal.EM_EXPERIMENTS
       : PhysicsDisciplineModal.OPTICS_EXPERIMENTS;
 
     this.element.innerHTML = `
@@ -306,14 +379,15 @@ export class PhysicsDisciplineModal {
         <div class="optics-exp-deck">
           ${experiments.map(
             (exp) => `
-            <div class="optics-card" data-exp-id="${exp.id}" data-formula="${exp.formula}" title="${exp.name}&#10;${exp.formula}" role="button" tabindex="0">
+            <div class="optics-card ${(exp as any).planned ? 'planned-card' : ''}" data-exp-id="${exp.id}" data-planned="${(exp as any).planned ? 'true' : 'false'}" data-formula="${exp.formula}" title="${exp.name}&#10;${exp.formula}" role="button" tabindex="0">
               <div class="optics-card-icon-box">${exp.iconSvg}</div>
               <h3 class="optics-card-name">${exp.name}</h3>
+              ${(exp as any).planned ? '<span class="branch-tile-badge planned" style="margin-top: 4px;">规划中</span>' : `
               <div class="optics-card-action">
                 <svg class="apple-sf-icon action-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
-              </div>
+              </div>`}
             </div>
           `
           ).join('')}
@@ -364,6 +438,17 @@ export class PhysicsDisciplineModal {
       }
     });
 
+    // Electromagnetism tile -> navigate to Level 2 (Electromagnetism)
+    const emTile = this.element.querySelector('#branch-tile-em');
+    emTile?.addEventListener('click', () => {
+      this.showLevel2('em');
+    });
+    emTile?.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+        this.showLevel2('em');
+      }
+    });
+
     // Planned tiles -> Apple visionOS toast
     const bindPlanned = (selector: string, name: string) => {
       const tile = this.element.querySelector(selector);
@@ -378,7 +463,6 @@ export class PhysicsDisciplineModal {
     };
 
     bindPlanned('#branch-tile-mechanics', '力学实验');
-    bindPlanned('#branch-tile-em', '电磁学');
   }
 
   private bindLevel2Events(): void {
@@ -390,8 +474,13 @@ export class PhysicsDisciplineModal {
     // Experiment cards click
     this.element.querySelectorAll('.optics-card').forEach((card) => {
       const expId = (card as HTMLElement).getAttribute('data-exp-id');
+      const isPlanned = (card as HTMLElement).getAttribute('data-planned') === 'true';
       const handleSelect = () => {
         if (!expId) return;
+        if (isPlanned) {
+          this.showToast('该实验正在规划中，即将上线');
+          return;
+        }
         if (this.callbacks.onSelectExperiment) {
           this.callbacks.onSelectExperiment(expId);
         }

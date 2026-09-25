@@ -13,7 +13,10 @@ export class TouchController {
   private lookTouchId: number | null = null;
   private lastLookPos = { x: 0, y: 0 };
 
-  constructor(private player: PlayerController) {
+  private player: PlayerController;
+
+  constructor(player: PlayerController) {
+    this.player = player;
     this.container = document.body;
     this.initTouchUI();
     this.bindEvents();

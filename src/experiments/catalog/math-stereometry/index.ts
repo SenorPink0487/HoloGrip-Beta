@@ -60,9 +60,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
   private mesh: StereometryMesh;
   private interactionManager: StereometryInteractionManager;
 
-  // Studio lighting for Apple crystal glass reflections
-  private studioKeyLight?: THREE.DirectionalLight;
-  private studioRimLight?: THREE.DirectionalLight;
+  // Localized pedestal upward fill light (gentle aura, zero room light bleed)
   private stageUpFill?: THREE.PointLight;
 
   // State cache
@@ -77,28 +75,18 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   public init(context: ExperimentContext): void {
-    // Rest experiment apparatus directly on dark circular tabletop surface (Y=0.852, HologramStage offset Y=-0.055)
-    // Positioned directly in front workbench interaction zone (Z=0.92)
-    this.rootGroup.position.set(0, -0.055, 0.92);
+    // Rest experiment apparatus flush on the white tabletop surface (table surface at Y=0.990, HologramStage offset Y=+0.082)
+    // Positioned in front workbench interaction zone (Z=0.88)
+    this.rootGroup.position.set(0, 0.082, 0.88);
 
     // Guarantee local clipping is enabled on renderer
     if (context.renderer) {
       context.renderer.localClippingEnabled = true;
     }
 
-    // Dedicated Apple Studio Lighting for pristine crystal glass refraction & specular glints
-    this.studioKeyLight = new THREE.DirectionalLight(0xffffff, 2.2);
-    this.studioKeyLight.position.set(0.7, 1.4, 0.8);
-    this.rootGroup.add(this.studioKeyLight);
-    this.addDisposable(() => this.studioKeyLight?.dispose());
-
-    this.studioRimLight = new THREE.DirectionalLight(0xbae6fd, 1.5);
-    this.studioRimLight.position.set(-0.8, 0.9, -0.7);
-    this.rootGroup.add(this.studioRimLight);
-    this.addDisposable(() => this.studioRimLight?.dispose());
-
-    this.stageUpFill = new THREE.PointLight(0x38bdf8, 0.85, 1.4, 2.0);
-    this.stageUpFill.position.set(0, 0.04, 0);
+    // Localized subtle pedestal uplight (bounded distance falloff so it never affects lab room illumination)
+    this.stageUpFill = new THREE.PointLight(0x38bdf8, 0.5, 0.75, 2.0);
+    this.stageUpFill.position.set(0, 0.03, 0);
     this.rootGroup.add(this.stageUpFill);
     this.addDisposable(() => this.stageUpFill?.dispose());
 
@@ -449,6 +437,22 @@ export default class MathStereometryExperiment extends BaseExperiment {
         ? this.interactionManager.getSelectedCutPoints().map((p) => p.label)
         : [],
     };
+  }
+
+  public override getHoverTarget(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null {
+    if (!this.mesh) return null;
+    const hits = raycaster.intersectObjects(this.mesh.getKeyPointMeshes(), false);
+    if (hits.length > 0) {
+      const kp = hits[0].object.userData.keyPoint as KeyPoint;
+      if (kp) {
+        return {
+          id: `math_${kp.id}`,
+          label: `几何顶点 ${kp.label}`,
+          cursor: 'pointer',
+        };
+      }
+    }
+    return null;
   }
 
   public dispose(_context: ExperimentContext): void {

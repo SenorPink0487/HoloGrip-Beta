@@ -340,40 +340,52 @@ export class StereometryStatusCard {
   public updateTelemetry(data: StereometryTelemetryData): void {
     if (!this.isVisible) return;
 
-    // Header info
-    if (this.modelTitleEl) this.modelTitleEl.textContent = data.modelName;
-    if (this.modelSubtitleEl) this.modelSubtitleEl.textContent = data.modelSubtitle;
-    if (this.eulerEl) {
-      this.eulerEl.textContent = `V: ${data.vertexCount} · E: ${data.edgeCount} · F: ${data.faceCount}`;
+    // Header info (dirty checked)
+    if (this.modelTitleEl && this.modelTitleEl.textContent !== data.modelName) {
+      this.modelTitleEl.textContent = data.modelName;
+    }
+    if (this.modelSubtitleEl && this.modelSubtitleEl.textContent !== data.modelSubtitle) {
+      this.modelSubtitleEl.textContent = data.modelSubtitle;
+    }
+    const eulerStr = `V: ${data.vertexCount} · E: ${data.edgeCount} · F: ${data.faceCount}`;
+    if (this.eulerEl && this.eulerEl.textContent !== eulerStr) {
+      this.eulerEl.textContent = eulerStr;
     }
 
     // Interactive Mode badge
     if (this.cutPickedBadge) {
+      let badgeText = '自由旋转模式';
+      let isBadgeActive = false;
       if (data.interactionMode === 'three-point-cut') {
         const count = data.selectedCutPoints.length;
-        this.cutPickedBadge.textContent = `剖切模式: 已选 ${count}/3 点`;
-        this.cutPickedBadge.classList.add('active');
+        badgeText = `剖切模式: 已选 ${count}/3 点`;
+        isBadgeActive = true;
       } else if (data.interactionMode === 'connect-line') {
-        this.cutPickedBadge.textContent = '两点连线模式';
+        badgeText = '两点连线模式';
+        isBadgeActive = true;
+      }
+      if (this.cutPickedBadge.textContent !== badgeText) {
+        this.cutPickedBadge.textContent = badgeText;
+      }
+      if (isBadgeActive) {
         this.cutPickedBadge.classList.add('active');
       } else {
-        this.cutPickedBadge.textContent = '自由旋转视角';
         this.cutPickedBadge.classList.remove('active');
       }
     }
 
     // Cross section metrics
-    if (data.activeCrossSection) {
-      if (this.cutShapeEl) this.cutShapeEl.textContent = data.activeCrossSection.polygonType;
-      if (this.cutAreaEl) this.cutAreaEl.textContent = `${data.activeCrossSection.area.toFixed(3)}`;
-      if (this.cutDihedralEl) this.cutDihedralEl.textContent = `${data.activeCrossSection.dihedralAngleDeg.toFixed(1)}°`;
-    } else {
-      if (this.cutShapeEl) this.cutShapeEl.textContent = '未剖切';
-      if (this.cutAreaEl) this.cutAreaEl.textContent = '--';
-      if (this.cutDihedralEl) this.cutDihedralEl.textContent = '--';
-    }
+    const cutShape = data.activeCrossSection ? data.activeCrossSection.polygonType : '未剖切';
+    const cutArea = data.activeCrossSection ? data.activeCrossSection.area.toFixed(3) : '--';
+    const cutDihedral = data.activeCrossSection ? `${data.activeCrossSection.dihedralAngleDeg.toFixed(1)}°` : '--';
+    if (this.cutShapeEl && this.cutShapeEl.textContent !== cutShape) this.cutShapeEl.textContent = cutShape;
+    if (this.cutAreaEl && this.cutAreaEl.textContent !== cutArea) this.cutAreaEl.textContent = cutArea;
+    if (this.cutDihedralEl && this.cutDihedralEl.textContent !== cutDihedral) this.cutDihedralEl.textContent = cutDihedral;
 
     // Lines & Angles metrics
+    let linesRel = '请点击连线';
+    let linesAngle = '--';
+    let linesDist = '--';
     if (data.twoLineAngle) {
       const typeDesc =
         data.twoLineAngle.type === 'skew'
@@ -381,38 +393,29 @@ export class StereometryStatusCard {
           : data.twoLineAngle.type === 'parallel'
           ? '互相平行'
           : '相交直线';
-      if (this.linesRelEl) this.linesRelEl.textContent = `${data.twoLineAngle.lineA} 与 ${data.twoLineAngle.lineB} (${typeDesc})`;
-      if (this.linesAngleEl) this.linesAngleEl.textContent = `${data.twoLineAngle.angleDeg.toFixed(1)}° (${typeDesc})`;
-      if (this.linesDistEl) this.linesDistEl.textContent = `${data.twoLineAngle.skewDistance.toFixed(3)}`;
+      linesRel = `${data.twoLineAngle.lineA} 与 ${data.twoLineAngle.lineB} (${typeDesc})`;
+      linesAngle = `${data.twoLineAngle.angleDeg.toFixed(1)}° (${typeDesc})`;
+      linesDist = `${data.twoLineAngle.skewDistance.toFixed(3)}`;
     } else if (data.drawnSegments.length > 0) {
       const lastSeg = data.drawnSegments[data.drawnSegments.length - 1];
-      if (this.linesRelEl) this.linesRelEl.textContent = `已绘制 ${data.drawnSegments.length} 条线段`;
-      if (this.linesAngleEl) this.linesAngleEl.textContent = `线段 ${lastSeg.label} = ${lastSeg.length.toFixed(2)}`;
-      if (this.linesDistEl) this.linesDistEl.textContent = '--';
-    } else {
-      if (this.linesRelEl) this.linesRelEl.textContent = '请点击连线';
-      if (this.linesAngleEl) this.linesAngleEl.textContent = '--';
-      if (this.linesDistEl) this.linesDistEl.textContent = '--';
+      linesRel = `已绘制 ${data.drawnSegments.length} 条线段`;
+      linesAngle = `线段 ${lastSeg.label} = ${lastSeg.length.toFixed(2)}`;
     }
+    if (this.linesRelEl && this.linesRelEl.textContent !== linesRel) this.linesRelEl.textContent = linesRel;
+    if (this.linesAngleEl && this.linesAngleEl.textContent !== linesAngle) this.linesAngleEl.textContent = linesAngle;
+    if (this.linesDistEl && this.linesDistEl.textContent !== linesDist) this.linesDistEl.textContent = linesDist;
 
     // Spheres metrics
-    if (data.sphereAnalysis.hasCircumSphere) {
-      if (this.sphereDiameterEl) this.sphereDiameterEl.textContent = `${(data.sphereAnalysis.circumRadius * 2).toFixed(2)}`;
-      if (this.sphereRadiusEl) this.sphereRadiusEl.textContent = `${data.sphereAnalysis.circumRadius.toFixed(2)}`;
-    } else {
-      if (this.sphereDiameterEl) this.sphereDiameterEl.textContent = '无外接球';
-      if (this.sphereRadiusEl) this.sphereRadiusEl.textContent = '--';
-    }
-
-    if (data.sphereAnalysis.hasInSphere) {
-      if (this.inRadiusEl) this.inRadiusEl.textContent = `${data.sphereAnalysis.inRadius.toFixed(2)}`;
-    } else {
-      if (this.inRadiusEl) this.inRadiusEl.textContent = '--';
-    }
+    const sphere2r = data.sphereAnalysis.hasCircumSphere ? (data.sphereAnalysis.circumRadius * 2).toFixed(2) : '无外接球';
+    const sphereR = data.sphereAnalysis.hasCircumSphere ? data.sphereAnalysis.circumRadius.toFixed(2) : '--';
+    const inR = data.sphereAnalysis.hasInSphere ? data.sphereAnalysis.inRadius.toFixed(2) : '--';
+    if (this.sphereDiameterEl && this.sphereDiameterEl.textContent !== sphere2r) this.sphereDiameterEl.textContent = sphere2r;
+    if (this.sphereRadiusEl && this.sphereRadiusEl.textContent !== sphereR) this.sphereRadiusEl.textContent = sphereR;
+    if (this.inRadiusEl && this.inRadiusEl.textContent !== inR) this.inRadiusEl.textContent = inR;
 
     // Signature-based cached DOM coordinates update
     if (this.coordsListEl && data.vertexCoords) {
-      const sig = data.vertexCoords.map((v) => `${v.id}:${v.coords.join(',')}`).join('|');
+      const sig = data.vertexCoords.map((v) => `${v.id}:${v.coords.join(',')}`).join('|') + `|${data.originPointId}`;
       if (sig !== this.lastCoordsSignature) {
         this.lastCoordsSignature = sig;
         this.coordsListEl.innerHTML = data.vertexCoords

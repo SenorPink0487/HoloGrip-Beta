@@ -33,6 +33,12 @@ export const CATEGORIES: CategoryInfo[] = [
     description: '经典天体力学、非线性动力系统与波动场论空间模拟',
   },
   {
+    id: 'electromagnetism',
+    name: '电磁学',
+    icon: 'physics',
+    description: '霍尔效应、载流子动力学、电磁感应与电磁相互作用精密实验台',
+  },
+  {
     id: 'math',
     name: '空间数学',
     icon: 'math',

@@ -1,6 +1,6 @@
-import type { WhiteboardCanvas } from './WhiteboardCanvas';
-import type { WhiteboardTool } from './types';
-import { AppleColorPicker } from './AppleColorPicker';
+import type { WhiteboardCanvas } from './WhiteboardCanvas.ts';
+import type { WhiteboardTool } from './types.ts';
+import { AppleColorPicker } from './AppleColorPicker.ts';
 
 export class WhiteboardToolbar {
   public element: HTMLDivElement;

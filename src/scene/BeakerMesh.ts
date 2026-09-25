@@ -44,6 +44,19 @@ export class BeakerMesh {
   private glassMaterial: THREE.MeshPhysicalMaterial;
   private haloRing: THREE.Mesh;
   private haloMaterial: THREE.MeshBasicMaterial;
+  private surfaceDisturbance = 0;
+  private heatPulse = 0;
+  private surfacePhase = 0;
+
+  /** Fizz, pour, or precipitation disturbing the free surface. Amount is 0–1. */
+  public disturbSurface(amount: number): void {
+    this.surfaceDisturbance = Math.min(1, Math.max(this.surfaceDisturbance, amount));
+  }
+
+  /** Warm the glass while an exothermic reaction is running. Amount is 0–1. */
+  public pulseHeat(amount: number): void {
+    this.heatPulse = Math.min(1, Math.max(this.heatPulse, amount));
+  }
 
   constructor() {
     this.group.name = 'ChemistryBeaker';
@@ -410,6 +423,16 @@ export class BeakerMesh {
       }
     }
 
+    // Bubble packets and impacts rock the meniscus. Applied after the fill wobble so fizz wins.
+    this.surfacePhase += delta;
+    if (this.surfaceDisturbance > 0.001 && Math.abs(this.currentTiltZ) <= 0.001) {
+      const wobble = Math.sin(this.surfacePhase * 28) * 0.022 * this.surfaceDisturbance;
+      this.liquidTopDisc.rotation.z = wobble;
+      this.liquidTopDisc.position.y = surfaceY + Math.sin(this.surfacePhase * 17) * 0.0032 * this.surfaceDisturbance;
+    }
+    this.surfaceDisturbance = Math.max(0, this.surfaceDisturbance - delta * 0.7);
+    this.heatPulse = Math.max(0, this.heatPulse - delta * 0.45);
+
     // 4. Smooth liquid color change
     if (this.currentLiquidColor.getHex() !== this.targetLiquidColor.getHex()) {
       this.currentLiquidColor.lerp(this.targetLiquidColor, delta * 5.0);
@@ -478,6 +501,20 @@ export class BeakerMesh {
         const ringScale = 1.0 + this.hoverIntensity * 0.04;
         this.haloRing.scale.set(ringScale, ringScale, 1.0);
       }
+    }
+
+    // Exotherm reads on the glass itself; hover glow returns once the beaker cools.
+    const hoverEmissive = this.hoverIntensity * 0.16;
+    if (this.heatPulse > 0.02) {
+      this.glassMaterial.emissive.setHex(0xff7043);
+      this.glassMaterial.emissiveIntensity = hoverEmissive * 0.35 + this.heatPulse * 0.7;
+      this.liquidMaterial.emissive.setHex(0xff8a65);
+      this.liquidMaterial.emissiveIntensity = this.heatPulse * 0.28;
+    } else if (this.heatPulse <= 0.02 && (this.glassMaterial.emissiveIntensity > hoverEmissive + 0.001 || this.liquidMaterial.emissiveIntensity > 0)) {
+      this.glassMaterial.emissive.setHex(0xffffff);
+      this.glassMaterial.emissiveIntensity = hoverEmissive;
+      this.liquidMaterial.emissive.setHex(0x000000);
+      this.liquidMaterial.emissiveIntensity = 0;
     }
   }
 

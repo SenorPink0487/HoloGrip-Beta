@@ -22,32 +22,12 @@ export class HoloTable {
   private currentHoloAlpha = 0;
   private isHovered = false;
 
-  private tabletopDisplayLight: THREE.PointLight;
-
   constructor() {
     this.createTableStructure();
-    this.createTabletopDisplay();
     this.createProjectorEmitter();
     this.createHoloScreens();
     this.createFloatingParticles();
     this.hideHologram(true);
-  }
-
-  private roundedShape(width: number, height: number, radius: number): THREE.Shape {
-    const shape = new THREE.Shape();
-    const r = Math.min(radius, width / 2 - 0.001, height / 2 - 0.001);
-    const x = -width / 2;
-    const y = -height / 2;
-    shape.moveTo(x + r, y);
-    shape.lineTo(x + width - r, y);
-    shape.quadraticCurveTo(x + width, y, x + width, y + r);
-    shape.lineTo(x + width, y + height - r);
-    shape.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-    shape.lineTo(x + r, y + height);
-    shape.quadraticCurveTo(x, y + height, x, y + height - r);
-    shape.lineTo(x, y + r);
-    shape.quadraticCurveTo(x, y, x + r, y);
-    return shape;
   }
 
   private createTableStructure(): void {
@@ -119,58 +99,7 @@ export class HoloTable {
     this.group.add(topSeam);
   }
 
-  /**
-   * Embedded Futuristic Holographic Tabletop Surface (Image 1 reference!)
-   */
-  private createTabletopDisplay(): void {
-    const holoTex = TextureGenerator.createTabletopHoloTexture();
-    const displayW = 2.18;
-    const displayH = 1.48;
-    const shape = this.roundedShape(displayW, displayH, 0.22);
-    const geom = new THREE.ShapeGeometry(shape, 16);
 
-    // 1. Recessed aluminum bezel frame
-    const bezelMat = new THREE.MeshStandardMaterial({
-      color: 0xc8d4dc, metalness: 0.45, roughness: 0.28, side: THREE.DoubleSide,
-    });
-    const bezel = new THREE.Mesh(new THREE.RingGeometry(1.08, 1.12, 64), bezelMat);
-    bezel.rotation.x = -Math.PI / 2;
-    bezel.position.y = 0.991;
-
-    // 2. Glowing Holographic Display Screen
-    const screenMat = new THREE.MeshBasicMaterial({
-      map: holoTex,
-      transparent: true,
-      opacity: 0.88,
-      side: THREE.DoubleSide,
-    });
-    const screenMesh = new THREE.Mesh(geom, screenMat);
-    screenMesh.rotation.x = -Math.PI / 2;
-    screenMesh.position.y = 0.993;
-    screenMesh.name = 'tabletop-holo-screen';
-    this.group.add(screenMesh);
-
-    // 3. Specular glass protective cover sheet
-    const glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xdaf2ff,
-      transmission: 0.60,
-      roughness: 0.08,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.06,
-      transparent: true,
-      opacity: 0.75,
-      side: THREE.DoubleSide,
-    });
-    const glassSheet = new THREE.Mesh(geom, glassMat);
-    glassSheet.rotation.x = -Math.PI / 2;
-    glassSheet.position.y = 0.994;
-    this.group.add(glassSheet);
-
-    // 4. Soft cyan ambient emission from the display
-    this.tabletopDisplayLight = new THREE.PointLight(0x40d5ff, 0.40, 2.2, 2);
-    this.tabletopDisplayLight.position.set(0, 1.15, 0);
-    this.group.add(this.tabletopDisplayLight);
-  }
 
   private createProjectorEmitter(): void {
     this.emitterAssembly.name = 'hologram-emitter';
@@ -321,9 +250,5 @@ export class HoloTable {
     this.holoLight.intensity = (0.36 + Math.sin(t * 2.5) * 0.04) * this.currentHoloAlpha;
     this.emitterLensMat.emissiveIntensity = 0.22 * this.currentHoloAlpha;
     this.emitterAssembly.visible = this.currentHoloAlpha > 0.01;
-
-    if (this.tabletopDisplayLight) {
-      this.tabletopDisplayLight.intensity = 0.40 + Math.sin(t * 0.8) * 0.05;
-    }
   }
 }

@@ -33,6 +33,7 @@ export class AuthPanel {
   private readonly inviteInput: HTMLInputElement;
   private readonly errorEl: HTMLDivElement;
   private readonly submitBtn: HTMLButtonElement;
+  private readonly submitBtnText: HTMLSpanElement;
   private readonly onMode: (mode: AuthMode) => void;
 
   constructor(initialError: string, onMode: (mode: AuthMode) => void) {
@@ -120,7 +121,10 @@ export class AuthPanel {
     this.submitBtn.id = 'auth-submit';
     this.submitBtn.className = 'auth-submit';
     this.submitBtn.type = 'submit';
-    this.submitBtn.textContent = '登录';
+    this.submitBtnText = document.createElement('span');
+    this.submitBtnText.className = 'auth-submit-label';
+    this.submitBtnText.textContent = '登录';
+    this.submitBtn.appendChild(this.submitBtnText);
 
     const form = document.createElement('form');
     form.id = 'auth-form';
@@ -162,13 +166,18 @@ export class AuthPanel {
   }
 
   private setMode(mode: AuthMode): void {
+    if (this.mode === mode) return;
     this.mode = mode;
     this.passwordInput.setAttribute('autocomplete', mode === 'login' ? 'current-password' : 'new-password');
+    if (!this.errorEl.classList.contains('hidden')) {
+      this.showError('');
+    }
     this.apply();
     this.onMode(mode);
   }
 
   private setRole(role: AccountRole): void {
+    if (this.role === role) return;
     this.role = role;
     this.apply();
   }
@@ -190,7 +199,19 @@ export class AuthPanel {
     this.registerTab.classList.toggle('active', register);
     this.teacherBtn.classList.toggle('active', this.role === 'teacher');
     this.studentBtn.classList.toggle('active', this.role === 'student');
-    this.submitBtn.textContent = register ? '注册' : '登录';
+
+    const targetText = register ? '注册' : '登录';
+    if (this.submitBtnText) {
+      if (this.submitBtnText.textContent !== targetText) {
+        this.submitBtnText.classList.add('swapping');
+        setTimeout(() => {
+          this.submitBtnText.textContent = targetText;
+          this.submitBtnText.classList.remove('swapping');
+        }, 90);
+      }
+    } else {
+      this.submitBtn.textContent = targetText;
+    }
   }
 
   private showError(message: string): void {

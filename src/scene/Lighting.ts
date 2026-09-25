@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 
 export class Lighting {
-  constructor(private scene: THREE.Scene) {
+  private scene: THREE.Scene;
+
+  constructor(scene: THREE.Scene) {
+    this.scene = scene;
     this.setupLights();
   }
 

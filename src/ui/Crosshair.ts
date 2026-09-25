@@ -42,11 +42,16 @@ export class Crosshair {
     if (this.isVisible === visible) return;
     this.isVisible = visible;
 
+    if (!this.element) return;
     if (visible) {
       this.element.classList.remove('hidden');
     } else {
       this.element.classList.add('hidden');
     }
+  }
+
+  public getVisible(): boolean {
+    return this.isVisible;
   }
 
   public destroy(): void {
@@ -55,3 +60,4 @@ export class Crosshair {
     }
   }
 }
+

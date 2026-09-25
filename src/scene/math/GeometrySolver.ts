@@ -149,14 +149,14 @@ export class GeometrySolver {
       [0, 4], [1, 5], [2, 6], [3, 7], // Vertical: AA1, BB1, CC1, DD1
     ];
 
-    // 6 faces
+    // 6 faces (counter-clockwise outward winding)
     const faces: PolygonFace[] = [
-      { id: 'bottom', label: '底面 ABCD', vertexIndices: [0, 1, 2, 3], normal: new THREE.Vector3(0, -1, 0) },
-      { id: 'top', label: '顶面 A₁B₁C₁D₁', vertexIndices: [4, 7, 6, 5], normal: new THREE.Vector3(0, 1, 0) },
-      { id: 'front', label: '侧面 AA₁D₁D', vertexIndices: [0, 3, 7, 4], normal: new THREE.Vector3(0, 0, 1) },
-      { id: 'back', label: '侧面 BB₁C₁C', vertexIndices: [1, 5, 6, 2], normal: new THREE.Vector3(0, 0, -1) },
-      { id: 'right', label: '侧面 ABB₁A₁', vertexIndices: [0, 4, 5, 1], normal: new THREE.Vector3(1, 0, 0) },
-      { id: 'left', label: '侧面 DCC₁D₁', vertexIndices: [3, 2, 6, 7], normal: new THREE.Vector3(-1, 0, 0) },
+      { id: 'bottom', label: '底面 ABCD', vertexIndices: [0, 3, 2, 1], normal: new THREE.Vector3(0, -1, 0) },
+      { id: 'top', label: '顶面 A₁B₁C₁D₁', vertexIndices: [4, 5, 6, 7], normal: new THREE.Vector3(0, 1, 0) },
+      { id: 'front', label: '侧面 AA₁D₁D', vertexIndices: [0, 4, 7, 3], normal: new THREE.Vector3(0, 0, 1) },
+      { id: 'back', label: '侧面 BB₁C₁C', vertexIndices: [1, 2, 6, 5], normal: new THREE.Vector3(0, 0, -1) },
+      { id: 'right', label: '侧面 ABB₁A₁', vertexIndices: [0, 1, 5, 4], normal: new THREE.Vector3(1, 0, 0) },
+      { id: 'left', label: '侧面 DCC₁D₁', vertexIndices: [3, 7, 6, 2], normal: new THREE.Vector3(-1, 0, 0) },
     ];
 
     const keyPoints: KeyPoint[] = [];
@@ -242,7 +242,7 @@ export class GeometrySolver {
     ];
 
     const faces: PolygonFace[] = [
-      { id: 'base', label: '底面 ABC', vertexIndices: [1, 2, 3], normal: new THREE.Vector3(b * c, a * b, a * c).normalize() },
+      { id: 'base', label: '底面 ABC', vertexIndices: [1, 3, 2], normal: new THREE.Vector3(b * c, a * b, a * c).normalize() },
       { id: 'pab', label: '侧面 PAB', vertexIndices: [0, 1, 2], normal: new THREE.Vector3(0, -1, 0) },
       { id: 'pbc', label: '侧面 PBC', vertexIndices: [0, 2, 3], normal: new THREE.Vector3(-1, 0, 0) },
       { id: 'pca', label: '侧面 PCA', vertexIndices: [0, 3, 1], normal: new THREE.Vector3(0, 0, -1) },
@@ -319,7 +319,7 @@ export class GeometrySolver {
     ];
 
     const faces: PolygonFace[] = [
-      { id: 'bcd', label: '底面 BCD', vertexIndices: [1, 2, 3], normal: new THREE.Vector3(-1, -1, -1).normalize() },
+      { id: 'bcd', label: '底面 BCD', vertexIndices: [1, 3, 2], normal: new THREE.Vector3(-1, -1, -1).normalize() },
       { id: 'abc', label: '侧面 ABC', vertexIndices: [0, 1, 2], normal: new THREE.Vector3(1, 1, -1).normalize() },
       { id: 'acd', label: '侧面 ACD', vertexIndices: [0, 2, 3], normal: new THREE.Vector3(-1, 1, 1).normalize() },
       { id: 'adb', label: '侧面 ADB', vertexIndices: [0, 3, 1], normal: new THREE.Vector3(1, -1, 1).normalize() },
@@ -578,10 +578,27 @@ export class GeometrySolver {
       {
         id: 'base',
         label: '底面圆',
-        vertexIndices: Array.from({ length: segments }, (_, i) => i + 1),
+        vertexIndices: Array.from({ length: segments }, (_, i) => segments - i),
         normal: new THREE.Vector3(0, -1, 0),
       },
     ];
+
+    // Lateral cone faces connecting apex S (0) with circle points
+    for (let i = 1; i <= segments; i++) {
+      const next = i === segments ? 1 : i + 1;
+      const p1 = vertices[i];
+      const p2 = vertices[next];
+      const n = new THREE.Vector3().crossVectors(
+        new THREE.Vector3().subVectors(p1, vertices[0]),
+        new THREE.Vector3().subVectors(p2, vertices[0])
+      ).normalize();
+      faces.push({
+        id: `cone_side_${i}`,
+        label: `侧面 ${i}`,
+        vertexIndices: [0, i, next],
+        normal: n,
+      });
+    }
 
     const keyPoints: KeyPoint[] = [];
     keyPoints.push({

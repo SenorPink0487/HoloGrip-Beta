@@ -61,53 +61,53 @@ export class ExperimentStatusCard {
 
   private createUI(): void {
     this.element = document.createElement('div');
-    this.element.className = 'vision-status-card hud-interactive';
+    this.element.className = 'vision-status-card apple-redesign hud-interactive';
 
     this.element.innerHTML = `
-      <div class="status-card-header">
-        <div class="beaker-selector-tabs" role="tablist" aria-label="烧杯切换">
-          <button class="beaker-tab-btn active" id="btn-select-beaker-left" role="tab" title="查看左侧烧杯">
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 4h14a1 1 0 0 1 1 1v14a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5a1 1 0 0 1 1-1z"/>
-              <line x1="4" y1="4" x2="2" y2="4"/>
-              <line x1="7" y1="13" x2="17" y2="13"/>
-            </svg>
+      <!-- 1. Apple-Style Clean Top Navigation & Status Bar -->
+      <div class="apple-nav-bar">
+        <!-- Segmented Picker: 左侧烧杯 / 右侧烧杯 -->
+        <div class="apple-segmented-picker" role="tablist" aria-label="烧杯切换">
+          <button class="seg-btn active" id="btn-select-beaker-left" role="tab" title="切换左侧烧杯">
             <span>左侧烧杯</span>
           </button>
-          <button class="beaker-tab-btn" id="btn-select-beaker-right" role="tab" title="查看右侧烧杯">
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10 2v7.31L5.5 17.5A2 2 0 0 0 7.2 21h9.6a2 2 0 0 0 1.7-3.5L14 9.31V2"/>
-              <line x1="8.5" y1="2" x2="15.5" y2="2"/>
-              <line x1="7.5" y1="16" x2="16.5" y2="16"/>
-            </svg>
+          <button class="seg-btn" id="btn-select-beaker-right" role="tab" title="切换右侧烧杯">
             <span>右侧烧杯</span>
           </button>
         </div>
 
-        <div class="status-quick-actions">
-          <button class="status-action-btn" id="btn-to-periodic" title="选择试剂注入当前烧杯">
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-              <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-              <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-              <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <!-- Quiet Ambient Status Capsule -->
+        <div class="apple-status-capsule">
+          <span class="capsule-val" id="summary-volume">60 mL</span>
+          <span class="capsule-sep">·</span>
+          <span class="capsule-val" id="summary-ph">pH 7.00</span>
+          <span class="capsule-sep">·</span>
+          <span class="capsule-val" id="summary-temp">22.5 °C</span>
+        </div>
+
+        <!-- Action Pills -->
+        <div class="apple-action-group">
+          <button class="apple-pill-btn primary" id="btn-to-periodic" title="注入试剂">
+            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span>选试剂</span>
+            <span>加试剂</span>
           </button>
-          <button class="status-action-btn" id="btn-add-water" title="加入去离子水 50mL">
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+          <button class="apple-pill-btn" id="btn-add-water" title="加入去离子水 50mL">
+            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
               <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
             </svg>
-            <span>加水 50mL</span>
+            <span>加水</span>
           </button>
-          <button class="status-action-btn" id="btn-stir" title="搅拌混匀">
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <button class="apple-pill-btn" id="btn-stir" title="搅拌混合">
+            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"/>
             </svg>
             <span>搅拌</span>
           </button>
-          <button class="status-action-btn" id="btn-clean-beaker" title="清空并重置为纯水">
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <button class="apple-pill-btn destructive" id="btn-clean-beaker" title="清空烧杯">
+            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
             </svg>
@@ -116,118 +116,37 @@ export class ExperimentStatusCard {
         </div>
       </div>
 
-      <!-- Top Solution Overview (体积、温度、pH三大教学核心指标) -->
-      <div class="status-metrics-row">
-        <!-- 1. Total Volume -->
-        <div class="metric-box">
-          <div class="metric-label">溶液总体积</div>
-          <div class="metric-value-row">
-            <span class="metric-val" id="metric-volume">60</span>
-            <span class="metric-unit">mL / 250</span>
-          </div>
-          <div class="metric-progress-bar">
-            <div class="metric-progress-fill" id="metric-vol-fill" style="width: 24%;"></div>
-          </div>
-        </div>
-
-        <!-- 2. Temperature -->
-        <div class="metric-box">
-          <div class="metric-label">反应温度</div>
-          <div class="metric-value-row">
-            <span class="metric-val" id="metric-temp">22.5</span>
-            <span class="metric-unit">°C</span>
-          </div>
-          <div class="metric-badge-tag normal" id="metric-temp-badge">室温平衡</div>
-        </div>
-
-        <!-- 3. pH -->
-        <div class="metric-box">
-          <div class="metric-label">酸碱度 (pH)</div>
-          <div class="metric-value-row">
-            <span class="metric-val" id="metric-ph">7.00</span>
-            <span class="metric-badge-tag neutral" id="metric-ph-badge">中性</span>
-          </div>
-          <div class="ph-gradient-bar">
-            <div class="ph-marker" id="ph-marker" style="left: 50%;"></div>
-          </div>
-        </div>
+      <!-- 2. Apple VisionOS Minimalist Breakdown Strip (全景成分占比条) -->
+      <div class="apple-breakdown-bar-wrap">
+        <div class="apple-meter-bar" id="comp-segmented-bar"></div>
+        <div class="apple-legend-chips" id="comp-legend-container"></div>
       </div>
 
-      <!-- Two-Column Teaching Layout (左侧：实验现象与化学反应；右侧：烧杯主要成分与浓度) -->
-      <div class="status-workspace-columns">
-        <!-- Left Column: 实验现象与化学反应 -->
-        <div class="workspace-col-left">
-          <div class="reactions-log-card glass-card">
-            <div class="card-section-header">
-              <div class="card-title-group">
-                <svg class="apple-sf-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M10 2v7.31L5.5 17.5A2 2 0 0 0 7.2 21h9.6a2 2 0 0 0 1.7-3.5L14 9.31V2"/>
-                  <line x1="8.5" y1="2" x2="15.5" y2="2"/>
-                </svg>
-                <span class="card-section-title">实验现象与化学反应</span>
-              </div>
-              <span class="reactions-count-tag" id="reactions-count-tag">实时记录</span>
-            </div>
-
-            <div class="reactions-log-list" id="reactions-list">
-              <div class="reaction-item empty">
-                <div class="notice-icon-wrapper">
-                  <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="9"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                </div>
-                <div class="empty-notice-title">当前体系稳定 · 尚未发生反应</div>
-                <div class="empty-notice-desc">在右上角点击“选试剂”注入酸、碱或金属，或长按拖拽烧杯倾倒混合触发化学反应</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: 烧杯主要成分与浓度 -->
-        <div class="workspace-col-right">
-          <div class="ranked-solutes-card glass-card">
-            <div class="card-section-header">
-              <div class="card-title-group">
-                <svg class="apple-sf-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="8" y1="6" x2="21" y2="6"/>
-                  <line x1="8" y1="12" x2="21" y2="12"/>
-                  <line x1="8" y1="18" x2="21" y2="18"/>
-                  <line x1="3" y1="6" x2="3.01" y2="6"/>
-                  <line x1="3" y1="12" x2="3.01" y2="12"/>
-                  <line x1="3" y1="18" x2="3.01" y2="18"/>
-                </svg>
-                <span class="card-section-title">烧杯主要成分与浓度</span>
-              </div>
-              <span class="ranked-count-tag" id="ranked-count-tag">纯水相</span>
-            </div>
-
-            <div class="ranked-components-scroll" id="ranked-components-container">
-              <div class="empty-solute-notice">
-                <div class="notice-icon-wrapper">
-                  <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-                  </svg>
-                </div>
-                <div class="notice-title">高纯去离子水体系</div>
-                <div class="notice-desc">溶剂为水 (H₂O)，未检测到溶解离子或固相沉淀。单击右上角“选试剂”加入溶质。</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- 3. Solutes Showcase Grid (大字号、通透、呼吸感) -->
+      <div class="apple-solutes-grid" id="solutes-cards-container"></div>
 
       <!-- Hidden fallbacks for legacy/test compatibility -->
       <div style="display: none;">
         <span id="beaker-title-label">左侧烧杯 · 组分全息分析</span>
+        <span id="metric-volume"></span>
+        <div id="metric-vol-fill"></div>
         <span id="metric-water"></span>
         <span id="metric-water-sub"></span>
+        <span id="metric-temp"></span>
+        <div id="metric-temp-badge"></div>
+        <span id="metric-ph"></span>
+        <div id="metric-ph-badge"></div>
+        <div id="ph-marker"></div>
+        <div id="reactions-list"></div>
+        <span id="reactions-count-tag"></span>
+        <div id="ranked-components-container"></div>
+        <span id="ranked-count-tag"></span>
         <span id="chart-total-moles-tag"></span>
         <div id="pie-chart-container"></div>
         <div id="pie-chart-legend"></div>
         <div id="ions-container"></div>
         <div id="precip-container"></div>
+        <span id="summary-solute-count"></span>
       </div>
     `;
 
@@ -289,113 +208,158 @@ export class ExperimentStatusCard {
     const engine = this.getCurrentEngine();
     const comp: ChemistryComposition = engine.getCompositionAnalysis();
 
-    // 1. Total Volume
-    const volEl = this.element.querySelector('#metric-volume');
-    const volFill = this.element.querySelector('#metric-vol-fill') as HTMLElement;
-    if (volEl && volFill) {
-      volEl.textContent = Math.round(comp.totalVolumeMl).toString();
-      const pct = Math.min(100, (comp.totalVolumeMl / 250) * 100);
-      volFill.style.width = `${pct}%`;
-      volFill.style.background = 'rgba(255, 255, 255, 0.7)';
+    // 1. Ambient Status Capsule: Volume, pH, Temp
+    const volSummary = this.element.querySelector('#summary-volume');
+    if (volSummary) {
+      volSummary.textContent = `${Math.round(comp.totalVolumeMl)} mL`;
     }
 
-    // 2. Solvent Water (H2O) separately in Top Banner
-    const waterEl = this.element.querySelector('#metric-water');
-    const waterSub = this.element.querySelector('#metric-water-sub');
-    if (waterEl && waterSub) {
-      waterEl.textContent = Math.round(comp.waterVolumeMl).toString();
-      waterSub.textContent = `mL (${comp.waterMoles.toFixed(2)} mol)`;
+    const phSummary = this.element.querySelector('#summary-ph');
+    if (phSummary) {
+      phSummary.textContent = `pH ${comp.pH.toFixed(2)}`;
     }
 
-    // 3. Temperature
-    const tempEl = this.element.querySelector('#metric-temp');
-    const tempBadge = this.element.querySelector('#metric-temp-badge');
-    if (tempEl && tempBadge) {
-      tempEl.textContent = comp.temperature.toFixed(1);
-      if (comp.temperature > 50) {
-        tempBadge.textContent = '剧烈放热';
-        tempBadge.className = 'metric-badge-tag danger';
-      } else if (comp.temperature > 30) {
-        tempBadge.textContent = '温和放热';
-        tempBadge.className = 'metric-badge-tag warning';
-      } else {
-        tempBadge.textContent = '室温平衡';
-        tempBadge.className = 'metric-badge-tag normal';
+    const tempSummary = this.element.querySelector('#summary-temp');
+    if (tempSummary) {
+      tempSummary.textContent = `${comp.temperature.toFixed(1)} °C`;
+    }
+
+    // 2. Apple Minimalist Breakdown Strip
+    const compBar = this.element.querySelector('#comp-segmented-bar');
+    const compLegend = this.element.querySelector('#comp-legend-container');
+
+    if (comp.components.length === 0) {
+      if (compBar) {
+        compBar.innerHTML = `<div class="bar-seg" style="width: 100%; background: rgba(100, 210, 255, 0.4);"></div>`;
+      }
+      if (compLegend) {
+        compLegend.innerHTML = `
+          <div class="legend-chip">
+            <span class="chip-dot" style="background: #64d2ff;"></span>
+            <span class="chip-name">去离子水 H₂O</span>
+            <span class="chip-pct">100%</span>
+          </div>
+        `;
+      }
+    } else {
+      if (compBar) {
+        compBar.innerHTML = comp.components
+          .map(
+            (c) => `<div class="bar-seg" style="width: ${Math.max(2, c.percentage)}%; background: ${c.color};" title="${c.name} ${c.percentage.toFixed(1)}%"></div>`
+          )
+          .join('');
+      }
+      if (compLegend) {
+        compLegend.innerHTML = comp.components
+          .map(
+            (c) => `
+          <div class="legend-chip">
+            <span class="chip-dot" style="background: ${c.color};"></span>
+            <span class="chip-name">${c.formula} ${c.name}</span>
+            <span class="chip-pct">${c.percentage.toFixed(1)}%</span>
+          </div>
+        `
+          )
+          .join('');
       }
     }
 
-    // 4. pH
-    const phEl = this.element.querySelector('#metric-ph');
-    const phBadge = this.element.querySelector('#metric-ph-badge');
-    const phMarker = this.element.querySelector('#ph-marker') as HTMLElement;
-    if (phEl && phBadge && phMarker) {
-      phEl.textContent = comp.pH.toFixed(2);
-      const phRatio = Math.max(0, Math.min(1, comp.pH / 14));
-      phMarker.style.left = `${phRatio * 100}%`;
-
-      if (comp.pH < 2.0) {
-        phBadge.textContent = '强酸性';
-        phBadge.className = 'metric-badge-tag acid-strong';
-      } else if (comp.pH < 6.0) {
-        phBadge.textContent = '弱酸性';
-        phBadge.className = 'metric-badge-tag acid-weak';
-      } else if (comp.pH <= 8.0) {
-        phBadge.textContent = '中性溶剂';
-        phBadge.className = 'metric-badge-tag neutral';
-      } else if (comp.pH <= 12.0) {
-        phBadge.textContent = '弱碱性';
-        phBadge.className = 'metric-badge-tag base-weak';
-      } else {
-        phBadge.textContent = '强碱性';
-        phBadge.className = 'metric-badge-tag base-strong';
-      }
-    }
-
-    // 4. Substances & Solutes List (烧杯主要化学成分与浓度)
-    const rankedContainer = this.element.querySelector('#ranked-components-container');
-    const countTag = this.element.querySelector('#ranked-count-tag');
-    if (countTag) {
-      countTag.textContent = comp.components.length > 0 ? `${comp.components.length} 种主要成分` : '纯水相';
-    }
-
-    if (rankedContainer) {
+    // 3. Apple Solutes Cards
+    const cardsContainer = this.element.querySelector('#solutes-cards-container');
+    if (cardsContainer) {
       if (comp.components.length === 0) {
-        rankedContainer.innerHTML = `
-          <div class="empty-solute-notice">
-            <div class="notice-icon-wrapper">
-              <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+        cardsContainer.innerHTML = `
+          <div class="apple-empty-state">
+            <div class="empty-icon-bubble">
+              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#64d2ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
               </svg>
             </div>
-            <div class="notice-title">高纯去离子水体系</div>
-            <div class="notice-desc">溶剂为水 (H₂O)，未检测到溶解离子或固相沉淀。单击右上角“选试剂”加入溶质。</div>
+            <div class="empty-title">纯水相体系</div>
+            <div class="empty-desc">当前烧杯仅有去离子水溶剂，未检测到溶解溶质</div>
+            <button class="apple-pill-btn primary large-cta" id="btn-empty-select-reagent">
+              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>注入试剂</span>
+            </button>
           </div>
         `;
+
+        cardsContainer.querySelector('#btn-empty-select-reagent')?.addEventListener('click', () => {
+          this.callbacks.onOpenPeriodicTable?.();
+        });
       } else {
-        rankedContainer.innerHTML = comp.components
+        const maxConc = Math.max(1.0, ...comp.components.map((c) => c.concentration || 0));
+
+        cardsContainer.innerHTML = comp.components
           .map((c) => {
-            let concDisplay = '';
-            if (c.category === 'precipitate') {
-              concDisplay = `${c.massGrams.toFixed(3)} g 沉淀`;
-            } else if (c.category === 'solid') {
-              concDisplay = `${c.massGrams.toFixed(3)} g 固态`;
-            } else if (c.concentration !== undefined) {
-              concDisplay = `${c.concentration.toFixed(3)} mol/L`;
+            const isPrecipitate = c.category === 'precipitate';
+            const isSolid = c.category === 'solid';
+
+            let categoryLabel = '可溶离子';
+            if (isPrecipitate) categoryLabel = '沉淀';
+            else if (isSolid) categoryLabel = '固态单质';
+            else if (c.formula.includes('⁺') || c.formula.includes('+')) categoryLabel = '阳离子';
+            else if (c.formula.includes('⁻') || c.formula.includes('-')) categoryLabel = '阴离子';
+
+            let heroVal = '';
+            let heroUnit = '';
+            let gaugeWidth = 0;
+
+            if (isPrecipitate || isSolid) {
+              heroVal = c.massGrams < 0.01 ? (c.massGrams * 1000).toFixed(1) : c.massGrams.toFixed(2);
+              heroUnit = c.massGrams < 0.01 ? 'mg' : 'g';
+              gaugeWidth = Math.min(100, Math.max(8, (c.massGrams / 3.0) * 100));
             } else {
-              concDisplay = `${c.massGrams.toFixed(3)} g`;
+              const conc = c.concentration ?? 0;
+              heroVal = conc.toFixed(3);
+              heroUnit = 'mol/L';
+              gaugeWidth = Math.min(100, Math.max(8, (conc / maxConc) * 100));
             }
 
+            const massDisplay = c.massGrams < 0.01 
+              ? `${(c.massGrams * 1000).toFixed(1)} mg` 
+              : `${c.massGrams.toFixed(2)} g`;
+
             return `
-              <div class="teaching-solute-row">
-                <div class="solute-badge-col">
-                  <span class="solute-dot" style="background: ${c.color}; box-shadow: 0 0 6px ${c.color};"></span>
-                  <span class="solute-formula">${c.formula}</span>
-                  <span class="solute-name">${c.name}</span>
-                  <span class="comp-category-tag ${c.category}">${c.categoryLabel}</span>
+              <div class="apple-solute-card" style="--tint: ${c.color}">
+                <!-- Card Top: Identity & Share -->
+                <div class="card-identity-row">
+                  <div class="ion-avatar" style="color: ${c.color}; background: ${c.color}1c; border-color: ${c.color}40;">
+                    ${c.formula}
+                  </div>
+                  <div class="ion-info">
+                    <span class="ion-name">${c.name}</span>
+                    <span class="ion-category">${categoryLabel}</span>
+                  </div>
+                  <div class="ion-share-pill" style="color: ${c.color}; background: ${c.color}15;">
+                    ${c.percentage.toFixed(1)}%
+                  </div>
                 </div>
-                <div class="solute-metrics-col">
-                  <span class="solute-conc-val">${concDisplay}</span>
-                  <span class="solute-moles-val">${c.millimoles.toFixed(2)} mmol</span>
+
+                <!-- Card Hero: Big Bold Concentration & Smooth Gauge -->
+                <div class="card-hero-block">
+                  <div class="hero-metric-line">
+                    <span class="hero-num">${heroVal}</span>
+                    <span class="hero-unit">${heroUnit}</span>
+                  </div>
+                  <div class="hero-bar-track">
+                    <div class="hero-bar-fill" style="width: ${gaugeWidth}%; background: ${c.color}; box-shadow: 0 0 10px ${c.color}66;"></div>
+                  </div>
+                </div>
+
+                <!-- Card Bottom: Clean Secondary Stat Line -->
+                <div class="card-stat-line">
+                  <div class="stat-col">
+                    <span class="stat-lbl">物质的量</span>
+                    <span class="stat-num">${c.millimoles.toFixed(2)} mmol</span>
+                  </div>
+                  <div class="stat-col">
+                    <span class="stat-lbl">${isPrecipitate ? '沉淀质量' : '质量'}</span>
+                    <span class="stat-num">${massDisplay}</span>
+                  </div>
                 </div>
               </div>
             `;
@@ -404,45 +368,45 @@ export class ExperimentStatusCard {
       }
     }
 
-    // 5. Reactions Log (实验现象与化学反应)
-    const reactionsList = this.element.querySelector('#reactions-list');
+    // 4. Update Legacy Fallbacks for Tests & Compatibility
+    this.updateFallbackDOM(comp, state);
+  }
+
+  private updateFallbackDOM(comp: ChemistryComposition, state: ChemistryState): void {
+    const volEl = this.element.querySelector('#metric-volume');
+    const volFill = this.element.querySelector('#metric-vol-fill') as HTMLElement;
+    if (volEl && volFill) {
+      volEl.textContent = Math.round(comp.totalVolumeMl).toString();
+      const pct = Math.min(100, (comp.totalVolumeMl / 250) * 100);
+      volFill.style.width = `${pct}%`;
+    }
+
+    const waterEl = this.element.querySelector('#metric-water');
+    const waterSub = this.element.querySelector('#metric-water-sub');
+    if (waterEl && waterSub) {
+      waterEl.textContent = Math.round(comp.waterVolumeMl).toString();
+      waterSub.textContent = `mL (${comp.waterMoles.toFixed(2)} mol)`;
+    }
+
+    const tempEl = this.element.querySelector('#metric-temp');
+    if (tempEl) tempEl.textContent = comp.temperature.toFixed(1);
+
+    const phEl = this.element.querySelector('#metric-ph');
+    const phMarker = this.element.querySelector('#ph-marker') as HTMLElement;
+    if (phEl) phEl.textContent = comp.pH.toFixed(2);
+    if (phMarker) {
+      const phRatio = Math.max(0, Math.min(1, comp.pH / 14));
+      phMarker.style.left = `${phRatio * 100}%`;
+    }
+
+    const countTag = this.element.querySelector('#ranked-count-tag');
+    if (countTag) {
+      countTag.textContent = comp.components.length > 0 ? `${comp.components.length} 种主要成分` : '纯水相';
+    }
+
     const rxCountTag = this.element.querySelector('#reactions-count-tag');
     if (rxCountTag) {
       rxCountTag.textContent = state.recentReactions.length > 0 ? `${state.recentReactions.length} 个反应` : '实时记录';
-    }
-
-    if (reactionsList) {
-      if (state.recentReactions.length === 0) {
-        reactionsList.innerHTML = `
-          <div class="reaction-item empty">
-            <div class="notice-icon-wrapper">
-              <svg class="apple-sf-icon notice-svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="9"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </div>
-            <div class="empty-notice-title">当前体系稳定 · 尚未发生反应</div>
-            <div class="empty-notice-desc">在右上角点击“选试剂”注入酸、碱或金属，或长按拖拽烧杯倾倒混合触发化学反应</div>
-          </div>
-        `;
-      } else {
-        reactionsList.innerHTML = state.recentReactions
-          .map(
-            (r, index) => `
-          <div class="reaction-item ${index === 0 ? 'latest' : ''}">
-            <div class="rx-header">
-              <span class="rx-title">${r.title}</span>
-              <span class="rx-type-tag">${r.type}</span>
-            </div>
-            <div class="rx-equation">${r.equation}</div>
-            <div class="rx-phenomenon"><strong>实验现象：</strong>${r.phenomenon}</div>
-            <div class="rx-desc"><strong>反应原理：</strong>${r.description}</div>
-          </div>
-        `
-          )
-          .join('');
-      }
     }
   }
 

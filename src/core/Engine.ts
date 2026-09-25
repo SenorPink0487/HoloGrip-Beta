@@ -5,22 +5,22 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 
-import { Laboratory } from '../scene/Laboratory';
-import { HoloTable } from '../scene/HoloTable';
-import { Lighting } from '../scene/Lighting';
-import { TextureGenerator } from '../scene/Textures';
-import { HologramStage } from './HologramStage';
-import { InputManager } from '../controls/InputManager';
-import { WorkerPool } from '../workers/WorkerPool';
-import { ComputeBridge } from './platform/ComputeBridge';
-import { ExperimentRegistry } from '../experiments/ExperimentRegistry';
-import { HUD } from '../ui/HUD';
-import { Crosshair } from '../ui/Crosshair';
-import { ChemistryEngine } from '../chemistry/ChemistryEngine';
-import { BeakerMesh } from '../scene/BeakerMesh';
-import { ReactionEffects } from '../scene/ReactionEffects';
-import { VisionModal } from '../ui/vision/VisionModal';
-import type { ExperimentContext, IExperiment } from './types';
+import { Laboratory } from '../scene/Laboratory.ts';
+import { HoloTable } from '../scene/HoloTable.ts';
+import { Lighting } from '../scene/Lighting.ts';
+import { TextureGenerator } from '../scene/Textures.ts';
+import { HologramStage } from './HologramStage.ts';
+import { InputManager } from '../controls/InputManager.ts';
+import { WorkerPool } from '../workers/WorkerPool.ts';
+import { ComputeBridge } from './platform/ComputeBridge.ts';
+import { ExperimentRegistry } from '../experiments/ExperimentRegistry.ts';
+import { HUD } from '../ui/HUD.ts';
+import { Crosshair } from '../ui/Crosshair.ts';
+import { ChemistryEngine } from '../chemistry/ChemistryEngine.ts';
+import { BeakerMesh } from '../scene/BeakerMesh.ts';
+import { ReactionEffects } from '../scene/ReactionEffects.ts';
+import { VisionModal } from '../ui/vision/VisionModal.ts';
+import type { ExperimentContext, IExperiment } from './types.ts';
 
 export class Engine {
   public container: HTMLElement;
@@ -144,6 +144,8 @@ export class Engine {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     // Limit pixel ratio to 1.5 on high-DPI displays to eliminate fillrate starvation
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    // Downscale transmission render target by 50% (75% less GPU fillrate/mipmaps)
+    (this.renderer as any).transmissionResolutionScale = 0.5;
 
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -525,7 +527,9 @@ export class Engine {
       } else {
         if (!this.visionModal || !this.visionModal.visible) {
           this.inputManager.player.allowPointerLock = true;
-          this.crosshair.setVisible(false);
+          if (!this.isWhiteboardMode) {
+            this.crosshair.setVisible(true);
+          }
         }
       }
     };
@@ -594,7 +598,9 @@ export class Engine {
       onClose: () => {
         this.spatialWindowObject.visible = false;
         this.inputManager.player.allowPointerLock = true;
-        this.crosshair.setVisible(false);
+        if (!this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
+          this.crosshair.setVisible(true);
+        }
       },
       onOpen: () => {
         this.positionWindowInFrontOfCamera(true);
@@ -801,6 +807,99 @@ export class Engine {
           }
         }
       },
+      // Electromagnetism Hall Effect Callbacks
+      onHallMagFieldChange: (bTesla: number) => {
+        if (this.currentExperimentId === 'em-hall') {
+          this.currentContext.setParameter('magField', bTesla);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setMagField === 'function') {
+            exp.setMagField(bTesla);
+          }
+        }
+      },
+      onHallCurrentChange: (currentMa: number) => {
+        if (this.currentExperimentId === 'em-hall') {
+          this.currentContext.setParameter('current', currentMa);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setCurrent === 'function') {
+            exp.setCurrent(currentMa);
+          }
+        }
+      },
+      onHallThicknessChange: (thicknessMm: number) => {
+        if (this.currentExperimentId === 'em-hall') {
+          this.currentContext.setParameter('thickness', thicknessMm);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setThickness === 'function') {
+            exp.setThickness(thicknessMm);
+          }
+        }
+      },
+      onHallMaterialChange: (materialKey: string) => {
+        if (this.currentExperimentId === 'em-hall') {
+          this.currentContext.setParameter('material', materialKey);
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.applyMaterial === 'function') {
+            exp.applyMaterial(materialKey);
+          }
+        }
+      },
+      onHallCarrierConcentrationChange: (n: number) => {
+        if (this.currentExperimentId === 'em-hall') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setCarrierConcentration === 'function') {
+            exp.setCarrierConcentration(n);
+          }
+        }
+      },
+      onHallCarrierChargeToggle: () => {
+        if (this.currentExperimentId === 'em-hall') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.toggleCarrierCharge === 'function') {
+            exp.toggleCarrierCharge();
+          }
+        }
+      },
+      onHallMobilityChange: (mu: number) => {
+        if (this.currentExperimentId === 'em-hall') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setMobility === 'function') {
+            exp.setMobility(mu);
+          }
+        }
+      },
+      onHallToggleFieldPolarity: () => {
+        if (this.currentExperimentId === 'em-hall') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.toggleFieldPolarity === 'function') {
+            exp.toggleFieldPolarity();
+          }
+        }
+      },
+      onHallToggleCurrentPolarity: () => {
+        if (this.currentExperimentId === 'em-hall') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.toggleCurrentPolarity === 'function') {
+            exp.toggleCurrentPolarity();
+          }
+        }
+      },
+      onHallToggleVectors: (show: boolean) => {
+        if (this.currentExperimentId === 'em-hall') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setToggles === 'function') {
+            exp.setToggles(show, exp.getTelemetryData().showParticles);
+          }
+        }
+      },
+      onHallToggleParticles: (show: boolean) => {
+        if (this.currentExperimentId === 'em-hall') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.setToggles === 'function') {
+            exp.setToggles(exp.getTelemetryData().showVectors, show);
+          }
+        }
+      },
       // Stereometry Math Callbacks
       onMathModelChange: (type) => {
         if (this.currentExperimentId === 'math-stereometry') {
@@ -924,8 +1023,10 @@ export class Engine {
     this.inputManager.player.onLockChange = (isLocked: boolean) => {
       const isDrawerOpen = this.hud?.drawer?.open ?? false;
       const isModalOpen = this.visionModal?.visible ?? false;
-      if (!isLocked && !isModalOpen && !isDrawerOpen) {
-      this.crosshair.setVisible(false);
+      if (!this.isWhiteboardMode && !isModalOpen && !isDrawerOpen) {
+        this.crosshair.setVisible(true);
+      } else {
+        this.crosshair.setVisible(false);
       }
     };
   }
@@ -1143,7 +1244,8 @@ export class Engine {
         if (e.target !== canvas) return;
       }
 
-      const mouseNDC = new THREE.Vector2(
+      const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
+      const mouseNDC = isPointerLocked ? this.centerScreen : new THREE.Vector2(
         (e.clientX / window.innerWidth) * 2 - 1,
         -(e.clientY / window.innerHeight) * 2 + 1
       );
@@ -1288,8 +1390,8 @@ export class Engine {
         this.holoStage.activeExperiment?.onPointerUp?.(e, this.currentContext);
         this.inputManager.player.enabled = true;
         this.inputManager.player.allowPointerLock = true;
-        if (this.crosshair && (!this.visionModal || !this.visionModal.visible)) {
-          this.crosshair.setVisible(false);
+        if (this.crosshair && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
+          this.crosshair.setVisible(true);
         }
       }
 
@@ -1298,8 +1400,8 @@ export class Engine {
       const state = this.beakerDragState;
       this.beakerDragState = null;
       this.inputManager.player.enabled = true;
-      if (this.crosshair && (!this.visionModal || !this.visionModal.visible)) {
-        this.crosshair.setVisible(false);
+      if (this.crosshair && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
+        this.crosshair.setVisible(true);
       }
 
       if (!state.isDragging) {
@@ -1415,6 +1517,30 @@ export class Engine {
     }
   }
 
+  public isWhiteboardMode = false; // Default engine mode is laboratory (3D scene active)
+
+  public setViewMode(mode: 'whiteboard' | 'laboratory'): void {
+    const wasWhiteboard = this.isWhiteboardMode;
+    this.isWhiteboardMode = mode === 'whiteboard';
+
+    if (wasWhiteboard && !this.isWhiteboardMode) {
+      if (this.renderer?.shadowMap?.enabled) {
+        this.renderer.shadowMap.needsUpdate = true;
+      }
+      if (this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open)) {
+        this.crosshair.setVisible(true);
+      }
+    } else if (this.isWhiteboardMode) {
+      if (this.crosshair) {
+        this.crosshair.setVisible(false);
+      }
+    }
+  }
+
+  public getViewMode(): 'whiteboard' | 'laboratory' {
+    return this.isWhiteboardMode ? 'whiteboard' : 'laboratory';
+  }
+
   private animate(): void {
     requestAnimationFrame(() => this.animate());
 
@@ -1426,6 +1552,16 @@ export class Engine {
     const delta = Math.min(0.1, (now - this.lastFrameTime) / 1000);
     this.lastFrameTime = now;
     const elapsed = (now - this.startTime) / 1000;
+
+    // When whiteboard is in focus, the 3D scene is completely hidden beneath the whiteboard layer.
+    // Skip 3D scene updates, physics, raycasting, and WebGL render calls to eliminate GPU/CPU waste.
+    // Only update HUD / perf overlay so user sees 60+ FPS with 0% GPU waste!
+    if (this.isWhiteboardMode) {
+      if (this.hud) {
+        this.hud.update(delta);
+      }
+      return;
+    }
 
     if (this.inputManager) {
       this.inputManager.update(delta);
@@ -1464,11 +1600,20 @@ export class Engine {
         }
       } else if (isModalOpen && this.visionModal.currentTab === 'math') {
         const nowMs = performance.now();
-        if (nowMs - this.lastThermoTelemetrySync >= 50) {
+        if (nowMs - this.lastThermoTelemetrySync >= 100) {
           this.lastThermoTelemetrySync = nowMs;
           const exp = this.holoStage.activeExperiment as any;
           if (this.currentExperimentId === 'math-stereometry' && typeof exp?.getStereometryTelemetry === 'function') {
             this.visionModal.stereometryCard.updateTelemetry(exp.getStereometryTelemetry());
+          }
+        }
+      } else if (isModalOpen && this.visionModal.currentTab === 'em') {
+        const nowMs = performance.now();
+        if (nowMs - this.lastThermoTelemetrySync >= 50) {
+          this.lastThermoTelemetrySync = nowMs;
+          const exp = this.holoStage.activeExperiment as any;
+          if (this.currentExperimentId === 'em-hall' && typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.hallCard.updateTelemetry(exp.getTelemetryData());
           }
         }
       }

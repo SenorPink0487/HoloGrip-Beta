@@ -1,4 +1,4 @@
-import { PlatformBridge } from './PlatformBridge';
+import { PlatformBridge } from './PlatformBridge.ts';
 import type { WorkerPool } from '../../workers/WorkerPool';
 import type {
   NBodyStepResponse,
@@ -30,7 +30,10 @@ export class ComputeBridge {
   };
   private computeTimeSamples: number[] = [];
 
-  constructor(private workerPool: WorkerPool) {
+  private workerPool: WorkerPool;
+
+  constructor(workerPool: WorkerPool) {
+    this.workerPool = workerPool;
     this.metrics.mode = this.platform.info.isTauri ? 'rust-rayon' : 'web-worker';
   }
 

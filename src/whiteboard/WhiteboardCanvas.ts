@@ -82,7 +82,8 @@ export class WhiteboardCanvas {
     const rect = this.element.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
 
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2.5); // Crisp on high-DPI Retina
+    // Limit pixel ratio to 1.5 on high-DPI displays to eliminate fillrate starvation
+    this.dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     this.canvas.width = Math.floor(rect.width * this.dpr);
     this.canvas.height = Math.floor(rect.height * this.dpr);
 

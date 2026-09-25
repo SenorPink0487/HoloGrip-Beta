@@ -17,11 +17,18 @@ export class PerfOverlay {
   private fps = 60;
   private frameTime = 16.6;
 
+  private computeBridge: ComputeBridge;
+  private platform: PlatformBridge;
+  private container: HTMLElement;
+
   constructor(
-    private computeBridge: ComputeBridge,
-    private platform: PlatformBridge,
-    private container: HTMLElement = document.body
+    computeBridge: ComputeBridge,
+    platform: PlatformBridge,
+    container: HTMLElement = document.body
   ) {
+    this.computeBridge = computeBridge;
+    this.platform = platform;
+    this.container = container;
     this.initDOM();
     this.bindEvents();
   }
@@ -29,7 +36,6 @@ export class PerfOverlay {
   private initDOM(): void {
     this.element = document.createElement('div');
     this.element.id = 'perf-overlay';
-    this.element.className = 'hud-interactive';
     this.element.innerHTML = `
       <div class="perf-pill-capsule" id="perf-pill-toggle" title="点击查看性能详情 (P)">
         <span class="perf-status-dot" id="perf-status-dot"></span>
@@ -81,7 +87,14 @@ export class PerfOverlay {
 
   private bindEvents(): void {
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'KeyP' && !e.ctrlKey && !e.metaKey && document.activeElement?.tagName !== 'INPUT') {
+      if (
+        e.code === 'KeyP' &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA' &&
+        !(document.activeElement as HTMLElement)?.isContentEditable
+      ) {
         this.toggle();
       }
     });

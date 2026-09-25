@@ -1,17 +1,18 @@
-import { DisciplineSelector } from './DisciplineSelector';
-import { PeriodicTableModal } from './PeriodicTableModal';
-import { ExperimentStatusCard } from './ExperimentStatusCard';
-import { PhysicsDisciplineModal } from './PhysicsDisciplineModal';
-import { ThermoStatusCard } from './ThermoStatusCard';
-import { CarnotStatusCard } from './CarnotStatusCard';
-import { ConductionStatusCard } from './ConductionStatusCard';
-import { PhaseStatusCard } from './PhaseStatusCard';
-import { StereometryStatusCard } from './StereometryStatusCard';
-import type { ChemistryEngine } from '../../chemistry/ChemistryEngine';
-import type { HighSchoolModelType } from '../../scene/math/GeometrySolver';
-import type { InteractionMode } from '../../scene/math/StereometryInteractionManager';
+import { DisciplineSelector } from './DisciplineSelector.ts';
+import { PeriodicTableModal } from './PeriodicTableModal.ts';
+import { ExperimentStatusCard } from './ExperimentStatusCard.ts';
+import { PhysicsDisciplineModal } from './PhysicsDisciplineModal.ts';
+import { ThermoStatusCard } from './ThermoStatusCard.ts';
+import { CarnotStatusCard } from './CarnotStatusCard.ts';
+import { ConductionStatusCard } from './ConductionStatusCard.ts';
+import { PhaseStatusCard } from './PhaseStatusCard.ts';
+import { StereometryStatusCard } from './StereometryStatusCard.ts';
+import { HallStatusCard } from './HallStatusCard.ts';
+import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
+import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
+import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 
-export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo';
+export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo' | 'em';
 
 export interface VisionModalCallbacks {
   onClose: () => void;
@@ -43,6 +44,18 @@ export interface VisionModalCallbacks {
   onPhaseToggleHeating?: () => void;
   onPhaseReset?: () => void;
   onPhaseAccelChange?: (scale: number) => void;
+  // Hall Effect Callbacks
+  onHallMagFieldChange?: (tesla: number) => void;
+  onHallCurrentChange?: (ma: number) => void;
+  onHallThicknessChange?: (thicknessMm: number) => void;
+  onHallMaterialChange?: (materialKey: string) => void;
+  onHallCarrierConcentrationChange?: (n: number) => void;
+  onHallCarrierChargeToggle?: () => void;
+  onHallMobilityChange?: (mu: number) => void;
+  onHallToggleFieldPolarity?: () => void;
+  onHallToggleCurrentPolarity?: () => void;
+  onHallToggleVectors?: (show: boolean) => void;
+  onHallToggleParticles?: (show: boolean) => void;
   // Stereometry Math Callbacks
   onMathModelChange?: (type: HighSchoolModelType) => void;
   onMathDimensionChange?: (dims: { a?: number; h?: number }) => void;
@@ -85,6 +98,7 @@ export class VisionModal {
   private conductionStatusCard: ConductionStatusCard;
   private phaseStatusCard: PhaseStatusCard;
   private stereometryStatusCard: StereometryStatusCard;
+  private hallStatusCard: HallStatusCard;
   private currentExperimentId = '';
 
   private bodyContainer: HTMLElement;
@@ -93,11 +107,16 @@ export class VisionModal {
   private scaleIndicatorEl: HTMLElement | null = null;
   private scaleIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  private engine: ChemistryEngine;
+  private callbacks: VisionModalCallbacks;
+
   constructor(
-    private engine: ChemistryEngine,
-    private callbacks: VisionModalCallbacks,
+    engine: ChemistryEngine,
+    callbacks: VisionModalCallbacks,
     parent: HTMLElement = document.body
   ) {
+    this.engine = engine;
+    this.callbacks = callbacks;
     this.createUI();
     this.createFloatingLauncher(parent);
     this.bindKeyboardShortcuts();
@@ -262,6 +281,8 @@ export class VisionModal {
         await this.callbacks.onSelectPhysicsExperiment?.(id);
         if (id.startsWith('thermo-')) {
           this.switchTab('thermo');
+        } else if (id.startsWith('em-')) {
+          this.switchTab('em');
         } else {
           this.close();
         }
@@ -293,6 +314,20 @@ export class VisionModal {
       onToggleFaceCenters: (show) => this.callbacks.onMathToggleFaceCenters?.(show),
       onToggleLabels: (show) => this.callbacks.onMathToggleLabels?.(show),
       onApplyPreset: (preset) => this.callbacks.onMathApplyPreset?.(preset),
+    });
+
+    this.hallStatusCard = new HallStatusCard({
+      onMagFieldChange: (b) => this.callbacks.onHallMagFieldChange?.(b),
+      onCurrentChange: (i) => this.callbacks.onHallCurrentChange?.(i),
+      onThicknessChange: (d) => this.callbacks.onHallThicknessChange?.(d),
+      onMaterialChange: (m) => this.callbacks.onHallMaterialChange?.(m),
+      onCarrierConcentrationChange: (n) => this.callbacks.onHallCarrierConcentrationChange?.(n),
+      onCarrierChargeToggle: () => this.callbacks.onHallCarrierChargeToggle?.(),
+      onMobilityChange: (mu) => this.callbacks.onHallMobilityChange?.(mu),
+      onToggleFieldPolarity: () => this.callbacks.onHallToggleFieldPolarity?.(),
+      onToggleCurrentPolarity: () => this.callbacks.onHallToggleCurrentPolarity?.(),
+      onToggleVectors: (v) => this.callbacks.onHallToggleVectors?.(v),
+      onToggleParticles: (p) => this.callbacks.onHallToggleParticles?.(p),
     });
 
     // Mount initial view
@@ -465,12 +500,18 @@ export class VisionModal {
     return this.stereometryStatusCard;
   }
 
+  public get hallCard(): HallStatusCard {
+    return this.hallStatusCard;
+  }
+
   public setCurrentExperimentId(id: string): void {
     this.currentExperimentId = id;
     if (id === 'math-stereometry') {
       this.activeTab = 'math';
     } else if (id.startsWith('thermo-')) {
       this.activeTab = 'thermo';
+    } else if (id.startsWith('em-')) {
+      this.activeTab = 'em';
     }
   }
 
@@ -498,10 +539,11 @@ export class VisionModal {
     const titles: Record<VisionTab, string> = {
       disciplines: '学科领域',
       chemistry: '常用试剂 · 试剂注入',
-      beaker: '烧杯组分全息分析',
+      beaker: '烧杯主要成分与浓度',
       physics: '物理学',
       math: '立体几何与空间解析实验室',
       thermo: thermoTitle,
+      em: '霍尔效应原理与载流子动力学 (V_H = R_H · I B / d)',
     };
     if (titleEl) {
       titleEl.textContent = titles[tab] || '全息实验视窗';
@@ -525,6 +567,9 @@ export class VisionModal {
     }
     if (this.stereometryStatusCard) {
       this.stereometryStatusCard.setVisible(tab === 'math');
+    }
+    if (this.hallStatusCard) {
+      this.hallStatusCard.setVisible(tab === 'em');
     }
 
     if (tab === 'disciplines') {
@@ -560,6 +605,9 @@ export class VisionModal {
         this.thermoStatusCard.setVisible(true);
         this.bodyContainer.appendChild(this.thermoStatusCard.element);
       }
+    } else if (tab === 'em') {
+      this.hallStatusCard.setVisible(true);
+      this.bodyContainer.appendChild(this.hallStatusCard.element);
     }
   }
 
@@ -570,6 +618,8 @@ export class VisionModal {
         ? 'math'
         : this.currentExperimentId?.startsWith('thermo-')
         ? 'thermo'
+        : this.currentExperimentId?.startsWith('em-')
+        ? 'em'
         : this.activeTab) ||
       'disciplines';
 

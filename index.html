@@ -411,13 +411,15 @@
       left: calc(18px + env(safe-area-inset-left, 0px));
       bottom: auto;
       z-index: 1000;
-      pointer-events: auto;
+      pointer-events: none;
       opacity: 1;
       transform: translateY(0);
       transition: opacity 0.22s ease, transform 0.22s ease;
       display: flex;
       flex-direction: column;
       user-select: none;
+      width: fit-content;
+      height: fit-content;
     }
 
     #perf-overlay.hidden {
@@ -433,6 +435,7 @@
     body.has-touch-controls #perf-overlay {
       top: calc(16px + env(safe-area-inset-top, 0px));
       bottom: calc(165px + env(safe-area-inset-bottom, 0px));
+      height: fit-content;
     }
 
     @media (pointer: coarse), (max-width: 768px) {
@@ -440,6 +443,7 @@
         top: calc(14px + env(safe-area-inset-top, 0px));
         left: calc(14px + env(safe-area-inset-left, 0px));
         bottom: calc(165px + env(safe-area-inset-bottom, 0px));
+        height: fit-content;
       }
     }
 
@@ -456,6 +460,7 @@
       border-top: 1px solid rgba(255, 255, 255, 0.24);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
       cursor: pointer;
+      pointer-events: auto;
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -1809,346 +1814,419 @@
     }
 
     /* ========================================================== */
-    /* VisionOS Two-Column Pedagogical Workspace Layout */
+    /* VisionOS Beaker Main Components & Concentrations (Apple HIG) */
     /* ========================================================== */
-    .status-workspace-columns {
-      flex: 1;
-      min-height: 0;
-      display: grid;
-      grid-template-columns: 1.1fr 1fr;
-      gap: 14px;
-      overflow: hidden;
-      width: 100%;
-    }
-
-    .workspace-col-left,
-    .workspace-col-right {
-      min-width: 0;
-      min-height: 0;
-      height: 100%;
+    .vision-status-card.apple-redesign {
       display: flex;
       flex-direction: column;
-    }
-
-    /* Left Column: Chemical Reactions & Phenomena Card */
-    .reactions-log-card {
+      gap: 16px;
       height: 100%;
       min-height: 0;
-      display: flex;
-      flex-direction: column;
-      padding: 14px 16px;
       overflow: hidden;
+      box-sizing: border-box;
     }
 
-    /* Right Column: Substances & Solutes Card */
-    .ranked-solutes-card {
-      height: 100%;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      padding: 14px 16px;
-      overflow: hidden;
-    }
-
-    .card-section-header {
+    /* 1. Apple-Style Clean Top Navigation & Status Bar */
+    .apple-nav-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
+      gap: 16px;
+      padding-bottom: 4px;
       flex-shrink: 0;
     }
 
-    .card-title-group {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      color: rgba(255, 255, 255, 0.92);
+    /* Segmented Picker */
+    .apple-segmented-picker {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 980px;
+      padding: 3px;
+      gap: 2px;
     }
 
-    .card-section-title {
-      font-size: 13px;
-      font-weight: 600;
+    .seg-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.65);
+      padding: 5px 14px;
+      border-radius: 980px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .seg-btn:hover {
       color: #ffffff;
+    }
+
+    .seg-btn.active {
+      background: rgba(255, 255, 255, 0.22);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      font-weight: 600;
+    }
+
+    /* Quiet Ambient Status Capsule */
+    .apple-status-capsule {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 16px;
+      border-radius: 980px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    .capsule-val {
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
       letter-spacing: -0.1px;
     }
 
-    .ranked-count-tag,
-    .reactions-count-tag {
-      font-size: 10px;
-      color: #86868b;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 2px 7px;
-      border-radius: 6px;
-      font-weight: 500;
+    .capsule-sep {
+      color: rgba(255, 255, 255, 0.25);
+      font-size: 12px;
     }
 
-    /* Solutes & Substances List */
-    .ranked-components-scroll {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
+    /* Action Buttons Group */
+    .apple-action-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .apple-pill-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(255, 255, 255, 0.24);
+      color: rgba(255, 255, 255, 0.9);
+      padding: 6px 14px;
+      border-radius: 980px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .apple-pill-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    .apple-pill-btn:active {
+      transform: translateY(0);
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .apple-pill-btn.primary {
+      background: rgba(10, 132, 255, 0.2);
+      border-color: rgba(10, 132, 255, 0.35);
+      color: #64d2ff;
+    }
+
+    .apple-pill-btn.primary:hover {
+      background: rgba(10, 132, 255, 0.32);
+      border-color: rgba(10, 132, 255, 0.55);
+      color: #ffffff;
+      box-shadow: 0 4px 16px rgba(10, 132, 255, 0.35);
+    }
+
+    .apple-pill-btn.destructive:hover {
+      background: rgba(255, 69, 58, 0.22);
+      border-color: rgba(255, 69, 58, 0.4);
+      color: #ff453a;
+    }
+
+    /* 2. Apple VisionOS Minimalist Breakdown Strip */
+    .apple-breakdown-bar-wrap {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      padding-right: 4px;
+      gap: 8px;
+      flex-shrink: 0;
+      padding: 0 2px;
     }
 
-    .teaching-solute-row {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 10px;
-      padding: 8px 12px;
+    .apple-meter-bar {
+      width: 100%;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
       display: flex;
-      justify-content: space-between;
+      gap: 2px;
+    }
+
+    .bar-seg {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .apple-legend-chips {
+      display: flex;
       align-items: center;
-      gap: 10px;
-      transition: all 0.2s ease;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .legend-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .chip-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
       flex-shrink: 0;
     }
 
-    .teaching-solute-row:hover {
-      background: rgba(255, 255, 255, 0.07);
-      border-color: rgba(255, 255, 255, 0.16);
-      transform: translateX(2px);
+    .chip-name {
+      color: #ffffff;
+      font-weight: 500;
     }
 
-    .solute-badge-col {
+    .chip-pct {
+      color: rgba(255, 255, 255, 0.45);
+      font-family: -apple-system, BlinkMacSystemFont, monospace;
+      font-size: 11px;
+    }
+
+    /* 3. Solutes Showcase Grid */
+    .apple-solutes-grid {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+      padding-right: 2px;
+      align-content: start;
+    }
+
+    /* Apple Solute Card */
+    .apple-solute-card {
+      position: relative;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 20px;
+      padding: 24px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 20px;
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-sizing: border-box;
+    }
+
+    .apple-solute-card:hover {
+      transform: translateY(-2px);
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Top Identity Row */
+    .card-identity-row {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
+    }
+
+    .ion-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace;
+      flex-shrink: 0;
+      letter-spacing: -0.2px;
+    }
+
+    .ion-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
       min-width: 0;
     }
 
-    .solute-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
+    .ion-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #ffffff;
+      letter-spacing: -0.2px;
+    }
+
+    .ion-category {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
+      font-weight: 500;
+    }
+
+    .ion-share-pill {
+      padding: 3px 10px;
+      border-radius: 980px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: -apple-system, BlinkMacSystemFont, monospace;
       flex-shrink: 0;
     }
 
-    .solute-formula {
-      font-size: 13.5px;
-      font-weight: 600;
-      color: #ffffff;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace;
+    /* Hero Metric Block: Big Number & Clean Bar */
+    .card-hero-block {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
 
-    .solute-name {
-      font-size: 11.5px;
-      color: #a1a1a6;
-    }
-
-    .comp-category-tag {
-      font-size: 8.5px;
-      padding: 1.5px 5.5px;
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.08);
-      color: rgba(255, 255, 255, 0.75);
-    }
-
-    .comp-category-tag.ion {
-      background: rgba(10, 132, 255, 0.15);
-      color: #64d2ff;
-    }
-
-    .comp-category-tag.precipitate {
-      background: rgba(255, 159, 10, 0.15);
-      color: #ffd60a;
-    }
-
-    .comp-category-tag.solid {
-      background: rgba(175, 82, 222, 0.15);
-      color: #bf5af2;
-    }
-
-    .solute-metrics-col {
+    .hero-metric-line {
       display: flex;
       align-items: baseline;
       gap: 8px;
-      flex-shrink: 0;
     }
 
-    .solute-conc-val {
-      font-size: 13px;
-      font-weight: 600;
+    .hero-num {
+      font-size: 40px;
+      font-weight: 700;
       color: #ffffff;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", monospace;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      letter-spacing: -1.2px;
+      line-height: 1;
     }
 
-    .solute-moles-val {
-      font-size: 10px;
-      color: #86868b;
+    .hero-unit {
+      font-size: 15px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.45);
+    }
+
+    .hero-bar-track {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.07);
+      overflow: hidden;
+    }
+
+    .hero-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Bottom Secondary Line */
+    .card-stat-line {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .stat-col {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-lbl {
+      font-size: 10.5px;
+      color: rgba(255, 255, 255, 0.4);
+      font-weight: 500;
+    }
+
+    .stat-num {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.88);
+      font-weight: 600;
       font-family: -apple-system, BlinkMacSystemFont, monospace;
     }
 
-    .empty-solute-notice {
+    /* Empty State */
+    .apple-empty-state {
+      grid-column: 1 / -1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 36px 16px;
       text-align: center;
-      gap: 8px;
+      padding: 56px 24px;
+      gap: 14px;
     }
 
-    .notice-icon-wrapper {
-      width: 44px;
-      height: 44px;
+    .empty-icon-bubble {
+      width: 64px;
+      height: 64px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(100, 210, 255, 0.08);
+      border: 1px solid rgba(100, 210, 255, 0.2);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: rgba(100, 210, 255, 0.9);
-      margin-bottom: 2px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 0 28px rgba(10, 132, 255, 0.2);
     }
 
-    .notice-title {
-      font-size: 12.5px;
+    .empty-title {
+      font-size: 18px;
       font-weight: 600;
       color: #ffffff;
+      letter-spacing: -0.2px;
     }
 
-    .notice-desc {
-      font-size: 10.5px;
-      color: #86868b;
-      line-height: 1.5;
-      max-width: 280px;
-    }
-
-    /* Reactions Log Card */
-    .reactions-log-list {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding-right: 4px;
-    }
-
-    .reaction-item {
-      background: rgba(255, 255, 255, 0.035);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 12px;
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      flex-shrink: 0;
-      transition: all 0.2s ease;
-    }
-
-    .reaction-item:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.14);
-    }
-
-    .reaction-item.latest {
-      border-color: rgba(255, 255, 255, 0.2);
-      background: rgba(255, 255, 255, 0.055);
-    }
-
-    .reaction-item.empty {
-      padding: 36px 16px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .empty-notice-title {
-      font-size: 12.5px;
-      font-weight: 600;
-      color: #ffffff;
-    }
-
-    .empty-notice-desc {
-      font-size: 10.5px;
-      color: #86868b;
-      line-height: 1.5;
-      max-width: 280px;
-    }
-
-    .rx-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .rx-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: #ffffff;
-    }
-
-    .rx-type-tag {
-      font-size: 9px;
-      font-weight: 500;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: rgba(255, 255, 255, 0.85);
-      padding: 1.5px 6.5px;
-      border-radius: 4px;
-    }
-
-    .rx-equation {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace;
+    .empty-desc {
       font-size: 13px;
-      font-weight: 600;
-      color: #ffffff;
-      padding: 6px 12px;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
-      letter-spacing: 0.2px;
+      color: rgba(255, 255, 255, 0.5);
+      max-width: 360px;
+      line-height: 1.5;
     }
 
-    .rx-phenomenon {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.88);
-      line-height: 1.45;
+    .large-cta {
+      margin-top: 6px;
+      padding: 8px 20px !important;
+      font-size: 13px !important;
     }
 
-    .rx-phenomenon strong {
-      color: #64d2ff;
+    .apple-solutes-grid::-webkit-scrollbar {
+      width: 5px;
     }
 
-    .rx-desc {
-      font-size: 10.5px;
-      color: #86868b;
-      line-height: 1.45;
-    }
-
-    .rx-desc strong {
-      color: #a1a1a6;
-    }
-
-    /* Custom Apple VisionOS Thin Glass Scrollbar */
-    .ranked-components-scroll::-webkit-scrollbar,
-    .reactions-log-list::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .ranked-components-scroll::-webkit-scrollbar-track,
-    .reactions-log-list::-webkit-scrollbar-track {
+    .apple-solutes-grid::-webkit-scrollbar-track {
       background: transparent;
     }
 
-    .ranked-components-scroll::-webkit-scrollbar-thumb,
-    .reactions-log-list::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.18);
+    .apple-solutes-grid::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.16);
       border-radius: 4px;
     }
 
-    .ranked-components-scroll::-webkit-scrollbar-thumb:hover,
-    .reactions-log-list::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.35);
+    .apple-solutes-grid::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
     }
 
     /* ========================================================== */

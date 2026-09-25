@@ -7,7 +7,10 @@ export interface DisciplineCallbacks {
 export class DisciplineSelector {
   public element: HTMLElement;
 
-  constructor(private callbacks: DisciplineCallbacks) {
+  private callbacks: DisciplineCallbacks;
+
+  constructor(callbacks: DisciplineCallbacks) {
+    this.callbacks = callbacks;
     this.createUI();
   }
 

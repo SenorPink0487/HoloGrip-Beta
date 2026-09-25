@@ -1,8 +1,8 @@
-import { ExperimentDrawer } from './ExperimentDrawer';
-import { PerfOverlay } from './PerfOverlay';
-import { PlatformBridge } from '../core/platform/PlatformBridge';
-import type { ComputeBridge } from '../core/platform/ComputeBridge';
-import type { IExperiment, ExperimentContext } from '../core/types';
+import { ExperimentDrawer } from './ExperimentDrawer.ts';
+import { PerfOverlay } from './PerfOverlay.ts';
+import { PlatformBridge } from '../core/platform/PlatformBridge.ts';
+import type { ComputeBridge } from '../core/platform/ComputeBridge.ts';
+import type { IExperiment, ExperimentContext } from '../core/types.ts';
 
 export class HUD {
   public drawer: ExperimentDrawer;
@@ -10,19 +10,22 @@ export class HUD {
   private platform = PlatformBridge.getInstance();
   private topBarEl: HTMLElement;
   private transitionToast: HTMLElement;
+  private computeBridge: ComputeBridge;
+  private onSwitchExperiment: (id: string) => Promise<void>;
 
   constructor(
-    private computeBridge: ComputeBridge,
-    private onSwitchExperiment: (id: string) => Promise<void>
+    computeBridge: ComputeBridge,
+    onSwitchExperiment: (id: string) => Promise<void>
   ) {
+    this.computeBridge = computeBridge;
+    this.onSwitchExperiment = onSwitchExperiment;
     this.initTopBar();
     this.initTransitionToast();
 
     this.drawer = new ExperimentDrawer(document.body, this.onSwitchExperiment);
     this.perfOverlay = new PerfOverlay(this.computeBridge, this.platform, document.body);
-    // The reference idle frame is an unobstructed architectural view. P can
-    // still toggle the diagnostics when the user explicitly asks for them.
-    this.perfOverlay.toggle(false);
+    // Display FPS and latency overlay in the top-left corner by default
+    this.perfOverlay.toggle(true);
 
     // Bind F key to fullscreen
     window.addEventListener('keydown', (e) => {

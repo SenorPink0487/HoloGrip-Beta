@@ -75,8 +75,8 @@ export class StereometryMesh {
   private sharedMidpointGeo = new THREE.SphereGeometry(0.0035, 12, 12);
   private sharedCenterGeo = new THREE.SphereGeometry(0.0035, 12, 12);
 
-  // Materials - Apple VisionOS Crystal Glass Aesthetics (Two-Pass Physical Refraction)
-  private solidBackMaterial: THREE.MeshPhysicalMaterial;
+  // Materials - Apple VisionOS Crystal Glass Aesthetics (Depth-Tested Hidden Lines)
+  private depthMaskMaterial: THREE.MeshBasicMaterial;
   private solidFrontMaterial: THREE.MeshPhysicalMaterial;
   private solidCutMaterial: THREE.MeshPhysicalMaterial;
   private solidEdgeMaterial: THREE.LineBasicMaterial;
@@ -127,69 +127,65 @@ export class StereometryMesh {
   }
 
   private initMaterials(): void {
-    // Apple VisionOS Two-Pass Crystal Glass
-    // Pass 1: Back faces pass (creates authentic volumetric internal depth)
-    this.solidBackMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xc7d2fe,
-      roughness: 0.06,
-      metalness: 0.04,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.04,
-      reflectivity: 0.95,
-      transparent: true,
-      opacity: 0.16,
-      side: THREE.BackSide,
-      depthWrite: false,
+    // 1. Depth mask pass: writes front face depth without writing color
+    // This allows occluded rear edges to accurately test with GreaterDepth!
+    this.depthMaskMaterial = new THREE.MeshBasicMaterial({
+      colorWrite: false,
+      depthWrite: true,
+      side: THREE.FrontSide,
     });
 
-    // Pass 2: Front faces pass (crisp specular highlights, diamond clearcoat reflection)
+    // 2. Crystal glass front faces: pristine Apple VisionOS glass sheen without dark absorption
     this.solidFrontMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xf8fafc,
-      roughness: 0.03,
-      metalness: 0.05,
+      color: 0xeaf4fc,
+      roughness: 0.04,
+      metalness: 0.02,
       clearcoat: 1.0,
-      clearcoatRoughness: 0.02,
-      reflectivity: 0.98,
-      ior: 1.54,
+      clearcoatRoughness: 0.03,
+      reflectivity: 0.92,
       transparent: true,
-      opacity: 0.44,
+      opacity: 0.28,
       side: THREE.FrontSide,
       depthWrite: false,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.06, // subtle volumetric internal blue-white luminosity
-    });
-
-    this.solidCutMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x60a5fa,
-      roughness: 0.08,
-      metalness: 0.08,
-      clearcoat: 0.95,
-      clearcoatRoughness: 0.05,
-      transparent: true,
-      opacity: 0.46,
-      side: THREE.FrontSide,
-      depthWrite: false,
+      depthFunc: THREE.LessEqualDepth,
       emissive: 0x0284c7,
       emissiveIntensity: 0.08,
     });
 
-    // Visible edges: luminous crisp white seam
+    this.solidCutMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x60a5fa,
+      roughness: 0.06,
+      metalness: 0.04,
+      clearcoat: 0.95,
+      clearcoatRoughness: 0.04,
+      transparent: true,
+      opacity: 0.42,
+      side: THREE.FrontSide,
+      depthWrite: false,
+      depthFunc: THREE.LessEqualDepth,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.10,
+    });
+
+    // 3. Visible front edges: crisp luminous white seam
     this.solidEdgeMaterial = new THREE.LineBasicMaterial({
       color: 0xffffff,
       linewidth: 2,
       transparent: true,
       opacity: 0.95,
+      depthFunc: THREE.LessEqualDepth,
+      depthWrite: false,
     });
 
-    // Hidden occluded edges: refined subtle dashed line
+    // 4. Hidden occluded edges: textbook subtle dashed line
     this.dashedEdgeMaterial = new THREE.LineDashedMaterial({
       color: 0x38bdf8,
-      dashSize: 0.018,
-      gapSize: 0.014,
+      dashSize: 0.016,
+      gapSize: 0.012,
       depthFunc: THREE.GreaterDepth,
       depthWrite: false,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.45,
     });
 
     // Cross section: glowing amber glass with neon border
@@ -347,8 +343,8 @@ export class StereometryMesh {
   }
 
   private assembleGroups(): void {
-    // Model container hovers 3cm above the pedestal plate (y = 0.20)
-    this.modelContainer.position.y = 0.20;
+    // Model container hovers cleanly above the pedestal plate (y = 0.22, bottom of model at y ~ 0.03)
+    this.modelContainer.position.y = 0.22;
 
     this.modelContainer.add(this.solidGroup);
     this.modelContainer.add(this.edgesSolidGroup);
@@ -471,24 +467,24 @@ export class StereometryMesh {
   }
 
   // -------------------------------------------------------------
-  // 1. Two-Pass Crystal Glass Solid Mesh
+  // 1. Crystal Glass Solid Mesh with Depth Pre-Pass
   // -------------------------------------------------------------
   private rebuildSolidMesh(): void {
     const geo = new THREE.BufferGeometry();
     const positions: number[] = [];
-    const normals: number[] = [];
 
     if (this.currentOptions.clippingEnabled && this.currentCrossSection) {
+      this.depthMaskMaterial.clippingPlanes = [this.currentCrossSection.plane];
       this.solidCutMaterial.clippingPlanes = [this.currentCrossSection.plane];
       this.solidCutMaterial.clipShadows = true;
     } else {
+      this.depthMaskMaterial.clippingPlanes = [];
       this.solidCutMaterial.clippingPlanes = [];
     }
 
     for (const face of this.currentModelDef.faces) {
       const vIndices = face.vertexIndices;
       const v0 = this.currentModelDef.vertices[vIndices[0]];
-      const norm = face.normal;
 
       for (let i = 1; i < vIndices.length - 1; i++) {
         const v1 = this.currentModelDef.vertices[vIndices[i]];
@@ -497,35 +493,30 @@ export class StereometryMesh {
         positions.push(v0.x, v0.y, v0.z);
         positions.push(v1.x, v1.y, v1.z);
         positions.push(v2.x, v2.y, v2.z);
-
-        normals.push(norm.x, norm.y, norm.z);
-        normals.push(norm.x, norm.y, norm.z);
-        normals.push(norm.x, norm.y, norm.z);
       }
     }
 
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    geo.computeVertexNormals();
 
-    // Two-pass optical crystal rendering: Back faces first, Front faces second
-    if (!this.currentOptions.clippingEnabled) {
-      const backMesh = new THREE.Mesh(geo, this.solidBackMaterial);
-      backMesh.name = 'solidMeshBack';
-      backMesh.renderOrder = 2;
-      this.solidGroup.add(backMesh);
-    }
+    // Pass 1: Depth pre-pass mask (writes front-face depth for occluded edge GreaterDepth test)
+    const depthMaskMesh = new THREE.Mesh(geo, this.depthMaskMaterial);
+    depthMaskMesh.name = 'depthMaskMesh';
+    depthMaskMesh.renderOrder = 1;
+    this.solidGroup.add(depthMaskMesh);
 
+    // Pass 2: Pristine translucent crystal glass front faces
     const frontMesh = new THREE.Mesh(
       geo,
       this.currentOptions.clippingEnabled ? this.solidCutMaterial : this.solidFrontMaterial
     );
     frontMesh.name = 'solidMesh';
-    frontMesh.renderOrder = 3;
+    frontMesh.renderOrder = 4;
     this.solidGroup.add(frontMesh);
   }
 
   // -------------------------------------------------------------
-  // 2. Dual-Channel Edge Rendering
+  // 2. Dual-Channel Edge Rendering (Textbook Hidden Dashed Lines)
   // -------------------------------------------------------------
   private rebuildEdges(): void {
     const edgeVerts: number[] = [];
@@ -538,19 +529,22 @@ export class StereometryMesh {
 
     const solidGeo = new THREE.BufferGeometry();
     solidGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgeVerts, 3));
-    const solidEdges = new THREE.LineSegments(solidGeo, this.solidEdgeMaterial);
-    solidEdges.name = 'solidEdges';
-    solidEdges.renderOrder = 4;
-    this.edgesSolidGroup.add(solidEdges);
 
+    // Hidden occluded edges: rendered with GreaterDepth (behind the front faces)
     if (this.currentOptions.showDashedLines) {
       const dashedGeo = solidGeo.clone();
       const dashedEdges = new THREE.LineSegments(dashedGeo, this.dashedEdgeMaterial);
       dashedEdges.computeLineDistances();
       dashedEdges.name = 'dashedEdges';
-      dashedEdges.renderOrder = 1;
+      dashedEdges.renderOrder = 2;
       this.edgesDashedGroup.add(dashedEdges);
     }
+
+    // Visible front edges: rendered with LessEqualDepth
+    const solidEdges = new THREE.LineSegments(solidGeo, this.solidEdgeMaterial);
+    solidEdges.name = 'solidEdges';
+    solidEdges.renderOrder = 3;
+    this.edgesSolidGroup.add(solidEdges);
   }
 
   // -------------------------------------------------------------
@@ -658,14 +652,18 @@ export class StereometryMesh {
       ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
       const r = 24;
       const x = 16, y = 24, w = 96, h = 80;
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.arcTo(x + w, y, x + w, y + h, r);
-      ctx.arcTo(x + w, y + h, x, y + h, r);
-      ctx.arcTo(x, y + h, x, y, r);
-      ctx.arcTo(x, y, x + w, y, r);
-      ctx.closePath();
-      ctx.fill();
+      if (typeof ctx.arcTo === 'function') {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y, w, h);
+      }
 
       // Border highlight
       ctx.lineWidth = 3;
@@ -1107,7 +1105,7 @@ export class StereometryMesh {
     this.sharedVertexGeo.dispose();
     this.sharedMidpointGeo.dispose();
     this.sharedCenterGeo.dispose();
-    this.solidBackMaterial.dispose();
+    this.depthMaskMaterial.dispose();
     this.solidFrontMaterial.dispose();
     this.solidCutMaterial.dispose();
     this.solidEdgeMaterial.dispose();

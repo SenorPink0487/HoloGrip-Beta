@@ -90,6 +90,15 @@ class MockElement {
       contains: (cls: string) => {
         return this.className.split(/\s+/).includes(cls);
       },
+      toggle: (cls: string, force?: boolean) => {
+        const has = this.className.split(/\s+/).includes(cls);
+        const shouldAdd = force !== undefined ? force : !has;
+        const set = new Set(this.className.split(/\s+/).filter(Boolean));
+        if (shouldAdd) set.add(cls);
+        else set.delete(cls);
+        this.className = Array.from(set).join(' ');
+        return shouldAdd;
+      },
     };
   }
 
