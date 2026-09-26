@@ -67,6 +67,11 @@ export class ConductionStatusCard {
   private btnInsulation: HTMLButtonElement | null = null;
   private lastChartRenderTime = 0;
   private lastRenderedNormX = -1;
+  private lastRenderedTempH = -1;
+  private lastRenderedTempC = -1;
+  private lastRenderedMaterial = '';
+  private lastRenderedInsulation: boolean | null = null;
+  private lastRenderedSteadyState: boolean | null = null;
 
   constructor(callbacks: ConductionStatusCardCallbacks = {}) {
     this.callbacks = callbacks;
@@ -230,6 +235,13 @@ export class ConductionStatusCard {
   public setVisible(visible: boolean): void {
     this.isVisible = visible;
     if (visible) {
+      this.lastChartRenderTime = 0;
+      this.lastRenderedNormX = -1;
+      this.lastRenderedTempH = -1;
+      this.lastRenderedTempC = -1;
+      this.lastRenderedMaterial = '';
+      this.lastRenderedInsulation = null;
+      this.lastRenderedSteadyState = null;
       this.renderCharts();
     }
   }
@@ -276,9 +288,23 @@ export class ConductionStatusCard {
     if (this.isVisible) {
       const now = performance.now();
       const probeMoved = Math.abs(data.probePositionNorm - this.lastRenderedNormX) > 0.005;
-      if (!data.isSteadyState || probeMoved || now - this.lastChartRenderTime >= 100) {
+      const tempChanged =
+        Math.abs(data.heatSourceTemp - this.lastRenderedTempH) > 0.5 ||
+        Math.abs(data.coldSourceTemp - this.lastRenderedTempC) > 0.5 ||
+        data.material !== this.lastRenderedMaterial ||
+        data.lateralInsulation !== this.lastRenderedInsulation;
+      const stateTransition = data.isSteadyState !== this.lastRenderedSteadyState;
+
+      const needsRender = !data.isSteadyState || probeMoved || tempChanged || stateTransition;
+
+      if (needsRender && now - this.lastChartRenderTime >= 32) {
         this.lastChartRenderTime = now;
         this.lastRenderedNormX = data.probePositionNorm;
+        this.lastRenderedTempH = data.heatSourceTemp;
+        this.lastRenderedTempC = data.coldSourceTemp;
+        this.lastRenderedMaterial = data.material;
+        this.lastRenderedInsulation = data.lateralInsulation;
+        this.lastRenderedSteadyState = data.isSteadyState;
         this.renderCharts();
       }
     }

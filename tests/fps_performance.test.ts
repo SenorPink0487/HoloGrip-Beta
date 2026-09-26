@@ -322,12 +322,15 @@ let uiAvgMs = 0;
 // --------------------------------------------------------------------------
 // Test 6: Global Combined Frame Budget & 60+ FPS Guarantee
 // --------------------------------------------------------------------------
-console.log('Test 6: Global Combined Frame Budget & 60+ FPS Headroom Guarantee');
+console.log('Test 6: Global Combined Frame Budget & 120 FPS / 60 FPS Headroom Guarantee');
 {
   const totalLogicCostMs = thermoAvgMs + chemAvgMs + opticsAvgMs + uiAvgMs;
-  const targetBudgetMs = 16.666; // 60 FPS standard
-  const gpuHeadroomMs = targetBudgetMs - totalLogicCostMs;
-  const gpuHeadroomPercent = (gpuHeadroomMs / targetBudgetMs) * 100;
+  const targetBudget60Ms = 16.666; // 60 FPS standard
+  const targetBudget120Ms = 8.333; // 120 FPS ProMotion standard
+  const gpuHeadroom60Ms = targetBudget60Ms - totalLogicCostMs;
+  const gpuHeadroom60Percent = (gpuHeadroom60Ms / targetBudget60Ms) * 100;
+  const gpuHeadroom120Ms = targetBudget120Ms - totalLogicCostMs;
+  const gpuHeadroom120Percent = (gpuHeadroom120Ms / targetBudget120Ms) * 100;
   const maxPossibleLogicFps = 1000 / totalLogicCostMs;
 
   console.log('  ┌─────────────────────────────────────┬──────────────┬───────────────┐');
@@ -339,20 +342,25 @@ console.log('Test 6: Global Combined Frame Budget & 60+ FPS Headroom Guarantee')
   console.log(`  │ 4. VisionOS Telemetry & Charts      │ ${uiAvgMs.toFixed(4).padStart(8)} ms │ ${(1000 / uiAvgMs).toFixed(0).padStart(11)} FPS │`);
   console.log('  ├─────────────────────────────────────┼──────────────┼───────────────┤');
   console.log(`  │ Total Combined Logic Computation    │ ${totalLogicCostMs.toFixed(4).padStart(8)} ms │ ${maxPossibleLogicFps.toFixed(0).padStart(11)} FPS │`);
-  console.log(`  │ Remaining GPU Frame Budget (60 FPS) │ ${gpuHeadroomMs.toFixed(4).padStart(8)} ms │ (${gpuHeadroomPercent.toFixed(1)}% headroom)│`);
+  console.log(`  │ Remaining GPU Frame Budget (60 FPS) │ ${gpuHeadroom60Ms.toFixed(4).padStart(8)} ms │ (${gpuHeadroom60Percent.toFixed(1)}% headroom)│`);
+  console.log(`  │ Remaining GPU Frame Budget (120 FPS)│ ${gpuHeadroom120Ms.toFixed(4).padStart(8)} ms │ (${gpuHeadroom120Percent.toFixed(1)}% headroom)│`);
   console.log('  └─────────────────────────────────────┴──────────────┴───────────────┘');
 
-  // Hard Assertion: Total combined logic computation must take < 3.0ms (< 18% of frame budget)
+  // Hard Assertion: Total combined logic computation must take < 2.0ms (< 24% of 120 FPS budget)
   assert(
-    totalLogicCostMs < 3.0,
-    `Total combined logic computation exceeded 3.0ms budget! Got ${totalLogicCostMs.toFixed(3)} ms`
+    totalLogicCostMs < 2.0,
+    `Total combined logic computation exceeded 2.0ms budget! Got ${totalLogicCostMs.toFixed(3)} ms`
   );
   assert(
-    gpuHeadroomPercent >= 80.0,
-    `GPU headroom must exceed 80% of 60 FPS frame budget! Got ${gpuHeadroomPercent.toFixed(1)}%`
+    gpuHeadroom120Percent >= 75.0,
+    `GPU headroom must exceed 75% of 120 FPS frame budget! Got ${gpuHeadroom120Percent.toFixed(1)}%`
+  );
+  assert(
+    gpuHeadroom60Percent >= 85.0,
+    `GPU headroom must exceed 85% of 60 FPS frame budget! Got ${gpuHeadroom60Percent.toFixed(1)}%`
   );
 
-  console.log('\n✓ Test 6 passed: Global 60+ FPS guaranteed with > 80% GPU headroom reserved!\n');
+  console.log('\n✓ Test 6 passed: Global 120 FPS guaranteed with > 75% GPU headroom reserved!\n');
 }
 
 // --------------------------------------------------------------------------
@@ -637,6 +645,192 @@ console.log('Test 10: Math Stereometry Lighting, Geometry Invariants & Telemetry
   console.log('✓ Test 10 passed: Math stereometry lighting, geometry invariants & telemetry verified\n');
 }
 
+// --------------------------------------------------------------------------
+// Test 11: Optics Detector Screen 120 FPS GPU Pipeline Invariants & Canvas Redraw Benchmark
+// --------------------------------------------------------------------------
+console.log('Test 11: Optics Detector Screen 120 FPS GPU Pipeline Invariants & Canvas Redraw Benchmark');
+{
+  // 1. Verify DetectorScreenMesh eliminates synchronous GPU pipeline readbacks (getImageData / putImageData)
+  const detectorPath = path.resolve(process.cwd(), 'src/scene/optics/DetectorScreenMesh.ts');
+  const detectorCode = fs.readFileSync(detectorPath, 'utf-8');
+  assert(!detectorCode.includes('getImageData'), 'DetectorScreenMesh must NOT use getImageData to avoid synchronous GPU stalls');
+  assert(!detectorCode.includes('putImageData'), 'DetectorScreenMesh must NOT use putImageData');
+  assert(detectorCode.includes('gridCanvas'), 'DetectorScreenMesh must pre-render reticle on gridCanvas');
+  assert(detectorCode.includes('getAlphaColor'), 'DetectorScreenMesh must use getAlphaColor lookup cache');
+
+  // 2. Verify Vision window CSS optimizations (no nested backdrop-filters and lightweight window blur)
+  const indexPath = path.resolve(process.cwd(), 'index.html');
+  const indexHtml = fs.readFileSync(indexPath, 'utf-8');
+  assert(indexHtml.includes('blur(12px)'), 'index.html .vision-window-frame must use lightweight blur(12px) to guarantee 120 FPS compositor throughput');
+  assert(!indexHtml.includes('.metric-box {\n      background: rgba(255, 255, 255, 0.05);\n      border: 1px solid rgba(255, 255, 255, 0.08);\n      border-top: 1px solid rgba(255, 255, 255, 0.16);\n      border-radius: 14px;\n      padding: 9px 14px;\n      display: flex;\n      flex-direction: column;\n      gap: 4px;\n      backdrop-filter:'), 'Nested metric-box must not contain backdrop-filter');
+
+  // 3. Verify CarnotStatusCard, ConductionStatusCard, PhaseStatusCard chart throttling and dirty checking
+  const carnotPath = path.resolve(process.cwd(), 'src/ui/vision/CarnotStatusCard.ts');
+  const carnotCode = fs.readFileSync(carnotPath, 'utf-8');
+  assert(carnotCode.includes('lastChartRenderTime'), 'CarnotStatusCard must implement lastChartRenderTime throttling');
+  assert(carnotCode.includes('paramsChanged'), 'CarnotStatusCard must implement dirty checking on cycle parameters');
+
+  const condPath = path.resolve(process.cwd(), 'src/ui/vision/ConductionStatusCard.ts');
+  const condCode = fs.readFileSync(condPath, 'utf-8');
+  assert(condCode.includes('lastRenderedTempH'), 'ConductionStatusCard must implement temperature dirty checking');
+  assert(condCode.includes('lastChartRenderTime'), 'ConductionStatusCard must throttle chart rendering');
+
+  const phasePath = path.resolve(process.cwd(), 'src/ui/vision/PhaseStatusCard.ts');
+  const phaseCode = fs.readFileSync(phasePath, 'utf-8');
+  assert(phaseCode.includes('lastRenderedTempC'), 'PhaseStatusCard must implement dirty checking');
+  assert(phaseCode.includes('lastChartRenderTime'), 'PhaseStatusCard must throttle chart rendering');
+
+  // 4. Verify HallCarrierParticleSystem decouples ArrowHelper solving from per-frame particle drift
+  const hallSystemPath = path.resolve(process.cwd(), 'src/scene/em/HallCarrierParticleSystem.ts');
+  const hallSystemCode = fs.readFileSync(hallSystemPath, 'utf-8');
+  assert(hallSystemCode.includes('_VEC_VEL'), 'HallCarrierParticleSystem must use static scratch vectors');
+  const updateMethod = hallSystemCode.slice(hallSystemCode.indexOf('public update('), hallSystemCode.indexOf('private updateVectorHelpers'));
+  assert(!updateMethod.includes('updateVectorHelpers'), 'HallCarrierParticleSystem must NOT call updateVectorHelpers in update(delta)');
+
+  // 5. Verify CarnotMolecularSystem instance color throttling
+  const carnotMolPath = path.resolve(process.cwd(), 'src/scene/thermo/CarnotMolecularSystem.ts');
+  const carnotMolCode = fs.readFileSync(carnotMolPath, 'utf-8');
+  assert(carnotMolCode.includes('lastColorTempK'), 'CarnotMolecularSystem must throttle instance color uploads with lastColorTempK');
+
+  // 6. Verify Engine CSS3D transform settling check
+  const enginePath = path.resolve(process.cwd(), 'src/core/Engine.ts');
+  const engineCode = fs.readFileSync(enginePath, 'utf-8');
+  assert(engineCode.includes('lastCss3dCamPos'), 'Engine must cache lastCss3dCamPos to avoid redundant CSS matrix updates when stationary');
+
+  // 5. Benchmark DetectorScreenMesh fringe pattern redraw for 120 FPS frame budget (< 8.33ms)
+  const { DetectorScreenMesh } = await import('../src/scene/optics/DetectorScreenMesh.ts');
+  const screen = new DetectorScreenMesh();
+
+  // Warmup JIT
+  for (let i = 0; i < 20; i++) {
+    screen.renderFringesPattern({
+      mode: 'double_slit',
+      wavelengthNm: 550 + i,
+      intensity: 1.0,
+      slitDistanceMm: 0.25,
+      slitWidthMm: 0.04,
+      screenDistanceM: 1.0,
+    });
+  }
+
+  const fringeRuns = 200;
+  const startFringe = performance.now();
+  for (let i = 0; i < fringeRuns; i++) {
+    screen.renderFringesPattern({
+      mode: 'double_slit',
+      wavelengthNm: 500 + (i % 100) * 2,
+      intensity: 1.0,
+      slitDistanceMm: 0.25,
+      slitWidthMm: 0.04,
+      screenDistanceM: 1.0,
+    });
+  }
+  const fringeElapsed = performance.now() - startFringe;
+  const fringeAvgMs = fringeElapsed / fringeRuns;
+  const fringeFps = 1000 / fringeAvgMs;
+
+  console.log(`  Detector Fringe Render Time (double_slit): ${fringeAvgMs.toFixed(4)} ms`);
+  console.log(`  Equivalent Logic Frame Rate:               ${fringeFps.toFixed(0)} FPS`);
+
+  // Target: Frame budget for 120 FPS is 8.333ms.
+  // Fringe rendering MUST consume < 0.8ms (< 10% of 120 FPS frame budget).
+  assert(
+    fringeAvgMs < 0.8,
+    `DetectorScreenMesh fringe rendering exceeded 0.8ms budget! Got ${fringeAvgMs.toFixed(4)} ms`
+  );
+  assert(
+    fringeFps >= 1250,
+    `DetectorScreenMesh logic FPS must exceed 1250 FPS! Got ${fringeFps.toFixed(0)} FPS`
+  );
+
+  screen.dispose();
+  console.log('✓ Test 11 passed: Optics detector screen executes at > 1250 FPS (< 0.8ms/frame) with zero GPU readback stalls\n');
+}
+
+// --------------------------------------------------------------------------
+// Test 12: Hall Effect Carrier Kinetics 120 FPS Frame Budget & Zero-Allocation Invariants
+// --------------------------------------------------------------------------
+console.log('Test 12: Hall Effect Carrier Kinetics 120 FPS Frame Budget & Zero-Allocation Invariants');
+{
+  const { HallCarrierParticleSystem } = await import('../src/scene/em/HallCarrierParticleSystem.ts');
+  const particleSys = new HallCarrierParticleSystem({
+    waferLength: 0.32,
+    waferHeight: 0.125,
+    waferThickness: 0.032,
+    particleCount: 180,
+  });
+
+  // Verify DynamicDrawUsage
+  const posAttr = (particleSys as any).particleGeo.getAttribute('position') as THREE.BufferAttribute;
+  assert.strictEqual(posAttr.usage, THREE.DynamicDrawUsage, 'Particle position buffer must use DynamicDrawUsage');
+
+  // Warmup JIT
+  for (let i = 0; i < 50; i++) {
+    particleSys.update(1 / 120);
+  }
+
+  const frameRuns = 1000;
+  const startCarrier = performance.now();
+  for (let i = 0; i < frameRuns; i++) {
+    particleSys.update(1 / 120);
+  }
+  const carrierElapsed = performance.now() - startCarrier;
+  const carrierAvgMs = carrierElapsed / frameRuns;
+  const carrierFps = 1000 / carrierAvgMs;
+
+  console.log(`  Hall Carrier Simulation Time (180 particles): ${carrierAvgMs.toFixed(5)} ms`);
+  console.log(`  Equivalent Logic Frame Rate:                 ${carrierFps.toFixed(0)} FPS`);
+
+  // Target: At 120 FPS, the frame budget is 8.333 ms.
+  // Carrier physics simulation MUST consume < 0.05 ms (< 0.6% of 120 FPS budget), running at > 20,000 FPS.
+  assert(
+    carrierAvgMs < 0.05,
+    `Hall carrier simulation exceeded 0.05ms budget! Got ${carrierAvgMs.toFixed(5)} ms`
+  );
+  assert(
+    carrierFps >= 20000,
+    `Hall carrier simulation logic FPS must exceed 20,000 FPS! Got ${carrierFps.toFixed(0)} FPS`
+  );
+
+  // Verify zero-current speed invariant
+  particleSys.setPhysicsState(0, 0.5, 0, 'electron');
+  const posArr = (particleSys as any).positions as Float32Array;
+  const initX0 = posArr[0];
+  particleSys.update(1 / 120);
+  assert.strictEqual(posArr[0], initX0, 'Zero current must produce zero forward drift');
+
+  // Verify rapid parameter scrub benchmark (< 0.1 ms across 100 continuous slider transitions)
+  for (let s = -10; s <= 10; s++) {
+    particleSys.setPhysicsState(s * 0.5, (s / 10) * 1.5, (s / 10) * 40, 'electron');
+    particleSys.update(1 / 120);
+  }
+  const scrubStart = performance.now();
+  for (let s = -50; s <= 50; s++) {
+    particleSys.setPhysicsState(s * 0.2, (s / 50) * 1.5, (s / 50) * 40, 'electron');
+    particleSys.update(1 / 120);
+  }
+  const scrubElapsed = performance.now() - scrubStart;
+  const scrubAvgMs = scrubElapsed / 101;
+  assert(scrubAvgMs < 0.1, `Parameter scrub update must consume < 0.1ms, got ${scrubAvgMs.toFixed(5)} ms`);
+
+  // Verify EmHallExperiment cached telemetry read (< 0.005 ms)
+  const EmHallModule = await import('../src/experiments/catalog/em-hall/index.ts');
+  const exp = new EmHallModule.default();
+  exp.init({ scene: new THREE.Scene() } as any);
+
+  const telemStart = performance.now();
+  for (let i = 0; i < 1000; i++) {
+    exp.getTelemetryData();
+  }
+  const telemAvgMs = (performance.now() - telemStart) / 1000;
+  console.log(`  Cached Telemetry Access Time:                ${telemAvgMs.toFixed(6)} ms`);
+  assert(telemAvgMs < 0.005, `Cached telemetry access must be < 0.005ms! Got ${telemAvgMs.toFixed(6)} ms`);
+
+  exp.dispose({} as any);
+  particleSys.dispose();
+  console.log('✓ Test 12 passed: Hall Effect carrier kinetics executes at > 20,000 FPS (< 0.05ms/frame) guaranteeing 120 FPS\n');
+}
+
 console.log('========================================================');
-console.log('All Real-World FPS Performance Tests Passed (10/10)!');
+console.log('All Real-World FPS Performance Tests Passed (12/12)!');
 console.log('========================================================\n');

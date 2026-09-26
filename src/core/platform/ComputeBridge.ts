@@ -13,6 +13,7 @@ import type {
   StreamTubeStepResponse,
   TextureBakeTaskResponse,
   ChemistryCompositionStepResponse,
+  HallCarrierStepResponse,
 } from '../../workers/workerMessages';
 
 export interface ComputeMetrics {
@@ -29,6 +30,7 @@ export class ComputeBridge {
     mode: 'web-worker',
   };
   private computeTimeSamples: number[] = [];
+  private lastComputeTimestamp: number = 0;
 
   private workerPool: WorkerPool;
 
@@ -38,10 +40,16 @@ export class ComputeBridge {
   }
 
   public get currentMetrics(): ComputeMetrics {
+    if (this.lastComputeTimestamp > 0 && Date.now() - this.lastComputeTimestamp > 1500) {
+      this.metrics.lastComputeTimeMs = 0;
+      this.metrics.avgComputeTimeMs = 0;
+      this.computeTimeSamples = [];
+    }
     return this.metrics;
   }
 
   private recordMetrics(ms: number): void {
+    this.lastComputeTimestamp = Date.now();
     this.metrics.lastComputeTimeMs = ms;
     this.computeTimeSamples.push(ms);
     if (this.computeTimeSamples.length > 30) {
@@ -427,6 +435,40 @@ export class ComputeBridge {
     this.recordMetrics(res.computeTimeMs);
     return {
       composition: res.composition,
+      computeTimeMs: res.computeTimeMs,
+    };
+  }
+
+  /**
+   * Simulate Hall carrier particle drift and Lorentz deflection in worker
+   */
+  public async simulateHallCarriers(params: {
+    positions: Float32Array;
+    baseOffsetsY: Float32Array;
+    baseOffsetsZ: Float32Array;
+    thermalPhases: Float32Array;
+    particleCount: number;
+    driftDirection: number;
+    speed: number;
+    maxDeflectionY: number;
+    halfL: number;
+    halfH: number;
+    waferThickness: number;
+    timeNow: number;
+    delta: number;
+  }): Promise<{ positions: Float32Array; baseOffsetsY: Float32Array; computeTimeMs: number }> {
+    const res = await this.workerPool.execute<HallCarrierStepResponse>(
+      {
+        action: 'HALL_CARRIER_STEP',
+        ...params,
+      },
+      [params.positions.buffer, params.baseOffsetsY.buffer]
+    );
+
+    this.recordMetrics(res.computeTimeMs);
+    return {
+      positions: res.positions,
+      baseOffsetsY: res.baseOffsetsY,
       computeTimeMs: res.computeTimeMs,
     };
   }

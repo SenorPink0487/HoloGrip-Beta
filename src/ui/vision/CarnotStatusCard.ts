@@ -87,6 +87,12 @@ export class CarnotStatusCard {
   private sliderTempH: HTMLInputElement | null = null;
   private sliderTempC: HTMLInputElement | null = null;
 
+  private lastChartRenderTime = 0;
+  private lastRenderedVol = -1;
+  private lastRenderedTempH = -1;
+  private lastRenderedTempC = -1;
+  private lastRenderedStage = -1;
+
   constructor(callbacks: CarnotStatusCardCallbacks = {}) {
     this.callbacks = callbacks;
     this.createUI();
@@ -258,6 +264,8 @@ export class CarnotStatusCard {
   public setVisible(visible: boolean): void {
     this.isVisible = visible;
     if (visible) {
+      this.lastChartRenderTime = 0;
+      this.lastRenderedTempH = -1;
       this.renderCharts();
     }
   }
@@ -296,7 +304,21 @@ export class CarnotStatusCard {
     }
 
     if (this.isVisible) {
-      this.renderCharts();
+      const now = performance.now();
+      const paramsChanged =
+        data.tempHigh !== this.lastRenderedTempH ||
+        data.tempLow !== this.lastRenderedTempC ||
+        data.currentStage !== this.lastRenderedStage ||
+        Math.abs(data.currentVol - this.lastRenderedVol) > 0.04;
+
+      if (paramsChanged && (now - this.lastChartRenderTime >= 32 || !data.isRunning)) {
+        this.lastChartRenderTime = now;
+        this.lastRenderedTempH = data.tempHigh;
+        this.lastRenderedTempC = data.tempLow;
+        this.lastRenderedStage = data.currentStage;
+        this.lastRenderedVol = data.currentVol;
+        this.renderCharts();
+      }
     }
   }
 

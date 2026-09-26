@@ -255,7 +255,6 @@ export class HallStatusCard {
             <div class="hall-apple-seg-control">
               <button class="hall-seg-btn active" data-material="n-gaas" title="n型半导体 (主要载流子为电子 e⁻)">n型 (e⁻)</button>
               <button class="hall-seg-btn" data-material="p-silicon" title="p型半导体 (主要载流子为空穴 h⁺)">p型 (h⁺)</button>
-              <button class="hall-seg-btn" data-material="copper" title="金属导体 (自由电子 Cu)">金属</button>
             </div>
           </div>
 
@@ -780,116 +779,147 @@ export class HallStatusCard {
     const matKey = this.currentData.materialKey;
     const carrier = this.currentData.carrierType;
 
-    const isDifferent =
-      Math.abs(this.lastB - b) > 0.002 ||
-      Math.abs(this.lastI - i) > 0.05 ||
-      Math.abs(this.lastVh - vh) > 0.01 ||
-      Math.abs(this.lastD - d) > 0.01 ||
-      this.lastMatKey !== matKey ||
-      this.lastCarrier !== carrier;
+    const diffB = Math.abs(this.lastB - b) > 0.002;
+    const diffI = Math.abs(this.lastI - i) > 0.02;
+    const diffVh = Math.abs(this.lastVh - vh) > 0.005;
+    const diffD = Math.abs(this.lastD - d) > 0.005;
+    const diffMat = this.lastMatKey !== matKey || this.lastCarrier !== carrier;
 
-    if (!isDifferent) return;
-
-    this.lastB = b;
-    this.lastI = i;
-    this.lastVh = vh;
-    this.lastD = d;
-    this.lastMatKey = matKey;
-    this.lastCarrier = carrier;
+    if (!diffB && !diffI && !diffVh && !diffD && !diffMat) return;
 
     // 1. Format Hall Voltage String
-    const signVh = vh >= 0 ? '+' : '';
-    const vhText = `${signVh}${vh.toFixed(2)} mV`;
+    if (diffVh) {
+      this.lastVh = vh;
+      const signVh = vh >= 0 ? '+' : '';
+      const vhText = `${signVh}${vh.toFixed(2)} mV`;
 
-    if (this.valVhEl) this.valVhEl.textContent = vhText;
-    if (this.drawerValVh) this.drawerValVh.textContent = vhText;
-    if (this.tokenValVh) this.tokenValVh.textContent = vhText;
+      if (this.valVhEl) this.valVhEl.textContent = vhText;
+      if (this.drawerValVh) this.drawerValVh.textContent = vhText;
+      if (this.tokenValVh) this.tokenValVh.textContent = vhText;
 
-    // Response readouts across all drawer panes
-    if (this.respVhB) this.respVhB.textContent = vhText;
-    if (this.respVhI) this.respVhI.textContent = vhText;
-    if (this.respVhD) this.respVhD.textContent = vhText;
-    if (this.respVhRh) this.respVhRh.textContent = vhText;
-
-    if (this.chipPolarityEl) {
-      if (carrier === 'electron') {
-        this.chipPolarityEl.textContent = 'e⁻';
-      } else if (carrier === 'hole') {
-        this.chipPolarityEl.textContent = 'h⁺';
-      } else {
-        this.chipPolarityEl.textContent = 'Cu';
-      }
+      // Response readouts across all drawer panes
+      if (this.respVhB) this.respVhB.textContent = vhText;
+      if (this.respVhI) this.respVhI.textContent = vhText;
+      if (this.respVhD) this.respVhD.textContent = vhText;
+      if (this.respVhRh) this.respVhRh.textContent = vhText;
     }
 
     // 2. Magnetic Field B
-    const signB = b >= 0 ? '+' : '';
-    const textB = `${signB}${b.toFixed(2)} T`;
-    if (this.valBEl) this.valBEl.textContent = textB;
-    if (this.drawerValB) this.drawerValB.textContent = textB;
-    if (this.tokenValB) this.tokenValB.textContent = textB;
-    if (this.sliderB && Math.abs(parseFloat(this.sliderB.value) - b) > 0.005) {
-      this.sliderB.value = b.toString();
+    if (diffB) {
+      this.lastB = b;
+      const signB = b >= 0 ? '+' : '';
+      const textB = `${signB}${b.toFixed(2)} T`;
+      if (this.valBEl) this.valBEl.textContent = textB;
+      if (this.drawerValB) this.drawerValB.textContent = textB;
+      if (this.tokenValB) this.tokenValB.textContent = textB;
+
+      if (
+        this.sliderB &&
+        (typeof document === 'undefined' || document.activeElement !== this.sliderB) &&
+        Math.abs(Number(this.sliderB.value) - b) > 0.005
+      ) {
+        this.sliderB.value = b.toString();
+      }
+      if (this.presetChipsB && this.presetChipsB.length > 0) {
+        this.presetChipsB.forEach((chip) => {
+          const pVal = parseFloat(chip.getAttribute('data-set-b') || '999');
+          chip.classList.toggle('active', Math.abs(pVal - b) < 0.04);
+        });
+      }
     }
-    this.presetChipsB?.forEach((chip) => {
-      const pVal = parseFloat(chip.getAttribute('data-set-b') || '999');
-      chip.classList.toggle('active', Math.abs(pVal - b) < 0.04);
-    });
 
     // 3. Current I_S
-    const signI = i >= 0 ? '+' : '';
-    const textI = `${signI}${i.toFixed(1)} mA`;
-    if (this.valIEl) this.valIEl.textContent = textI;
-    if (this.drawerValI) this.drawerValI.textContent = textI;
-    if (this.tokenValI) this.tokenValI.textContent = textI;
-    if (this.sliderI && Math.abs(parseFloat(this.sliderI.value) - i) > 0.1) {
-      this.sliderI.value = i.toString();
+    if (diffI) {
+      this.lastI = i;
+      const signI = i >= 0 ? '+' : '';
+      const textI = `${signI}${i.toFixed(1)} mA`;
+      if (this.valIEl) this.valIEl.textContent = textI;
+      if (this.drawerValI) this.drawerValI.textContent = textI;
+      if (this.tokenValI) this.tokenValI.textContent = textI;
+
+      if (
+        this.sliderI &&
+        (typeof document === 'undefined' || document.activeElement !== this.sliderI) &&
+        Math.abs(Number(this.sliderI.value) - i) > 0.1
+      ) {
+        this.sliderI.value = i.toString();
+      }
+      if (this.presetChipsI && this.presetChipsI.length > 0) {
+        this.presetChipsI.forEach((chip) => {
+          const pVal = parseFloat(chip.getAttribute('data-set-i') || '999');
+          chip.classList.toggle('active', Math.abs(pVal - i) < 0.3);
+        });
+      }
     }
-    this.presetChipsI?.forEach((chip) => {
-      const pVal = parseFloat(chip.getAttribute('data-set-i') || '999');
-      chip.classList.toggle('active', Math.abs(pVal - i) < 0.3);
-    });
 
     // 4. Wafer Thickness d
-    const textD = `${d.toFixed(2)} mm`;
-    if (this.txtValD) this.txtValD.textContent = textD;
-    if (this.drawerValD) this.drawerValD.textContent = textD;
-    if (this.tokenValD) this.tokenValD.textContent = textD;
-    if (this.sliderD && Math.abs(parseFloat(this.sliderD.value) - d) > 0.01) {
-      this.sliderD.value = d.toString();
-    }
-    this.presetChipsD?.forEach((chip) => {
-      const pVal = parseFloat(chip.getAttribute('data-set-d') || '999');
-      chip.classList.toggle('active', Math.abs(pVal - d) < 0.03);
-    });
+    if (diffD) {
+      this.lastD = d;
+      const textD = `${d.toFixed(2)} mm`;
+      if (this.txtValD) this.txtValD.textContent = textD;
+      if (this.drawerValD) this.drawerValD.textContent = textD;
+      if (this.tokenValD) this.tokenValD.textContent = textD;
 
-    // 5. Material / R_H
-    if (this.drawerValRh) {
-      this.drawerValRh.textContent = `${rh.toExponential(2)}`;
-    }
-    if (this.tokenValRh) {
-      this.tokenValRh.textContent = matKey === 'n-gaas' ? 'GaAs' : (matKey === 'p-silicon' ? 'Si' : 'Cu');
+      if (
+        this.sliderD &&
+        (typeof document === 'undefined' || document.activeElement !== this.sliderD) &&
+        Math.abs(Number(this.sliderD.value) - d) > 0.01
+      ) {
+        this.sliderD.value = d.toString();
+      }
+      if (this.presetChipsD && this.presetChipsD.length > 0) {
+        this.presetChipsD.forEach((chip) => {
+          const pVal = parseFloat(chip.getAttribute('data-set-d') || '999');
+          chip.classList.toggle('active', Math.abs(pVal - d) < 0.03);
+        });
+      }
     }
 
-    this.specimenPills?.forEach((pill) => {
-      const k = pill.getAttribute('data-material');
-      pill.classList.toggle('active', k === matKey);
-    });
-    if (this.selectMaterialCompat) {
-      this.selectMaterialCompat.value = matKey;
+    // 5. Material / R_H / Carrier
+    if (diffMat) {
+      this.lastMatKey = matKey;
+      this.lastCarrier = carrier;
+
+      if (this.chipPolarityEl) {
+        if (carrier === 'electron') {
+          this.chipPolarityEl.textContent = 'e⁻';
+        } else if (carrier === 'hole') {
+          this.chipPolarityEl.textContent = 'h⁺';
+        } else {
+          this.chipPolarityEl.textContent = 'Cu';
+        }
+      }
+
+      if (this.drawerValRh) {
+        this.drawerValRh.textContent = `${rh.toExponential(2)}`;
+      }
+      if (this.tokenValRh) {
+        this.tokenValRh.textContent = matKey === 'n-gaas' ? 'GaAs' : (matKey === 'p-silicon' ? 'Si' : 'Cu');
+      }
+
+      this.specimenPills?.forEach((pill) => {
+        const k = pill.getAttribute('data-material');
+        pill.classList.toggle('active', k === matKey);
+      });
+      if (this.selectMaterialCompat) {
+        this.selectMaterialCompat.value = matKey;
+      }
     }
 
     // 6. Micro Stats
-    if (this.subEhEl) {
-      this.subEhEl.textContent = `E: ${this.currentData.hallElectricFieldVm.toFixed(2)} V/m`;
-    }
-    if (this.subVdEl) {
-      this.subVdEl.textContent = `v: ${this.currentData.driftVelocityMs.toFixed(1)} m/s`;
-    }
-    if (this.valKhEl) {
-      this.valKhEl.textContent = `${kh.toFixed(2)}`;
-    }
-    if (this.valRhEl) {
-      this.valRhEl.textContent = `${rh.toExponential(2)} m³/C`;
+    if (diffVh || diffB || diffI || diffMat || diffD) {
+      if (this.subEhEl) {
+        this.subEhEl.textContent = `E: ${this.currentData.hallElectricFieldVm.toFixed(2)} V/m`;
+      }
+      if (this.subVdEl) {
+        this.subVdEl.textContent = `v: ${this.currentData.driftVelocityMs.toFixed(1)} m/s`;
+      }
+      if (this.valKhEl) {
+        this.valKhEl.textContent = `${kh.toFixed(2)}`;
+      }
+      if (this.valRhEl) {
+        this.valRhEl.textContent = `${rh.toExponential(2)} m³/C`;
+      }
     }
   }
 }

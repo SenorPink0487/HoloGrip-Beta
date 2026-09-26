@@ -19,6 +19,12 @@ import type {
   WorkerDispersionRayData,
 } from '../../../workers/workerMessages.ts';
 
+const _START_POS = new THREE.Vector3();
+const _END_POS = new THREE.Vector3();
+const _CENTER_POS = new THREE.Vector3();
+const _P1_POS = new THREE.Vector3();
+const _P2_POS = new THREE.Vector3();
+
 export default class OpticsLabExperiment extends BaseExperiment {
   public readonly metadata = metadata;
   public override targetScale = 1.95;
@@ -188,9 +194,9 @@ export default class OpticsLabExperiment extends BaseExperiment {
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
     // Optical axis is at y = 0.186, dynamically tracked across carrier saddles
-    const startPos = new THREE.Vector3(0, 0.186, this.laserSaddle.position.z + 0.123);
-    const endPos = new THREE.Vector3(0, 0.186, this.screenSaddle.position.z - 0.006);
-    const centerPos = new THREE.Vector3(0, 0.186, this.centerSaddle.position.z - 0.008);
+    _START_POS.set(0, 0.186, this.laserSaddle.position.z + 0.123);
+    _END_POS.set(0, 0.186, this.screenSaddle.position.z - 0.006);
+    _CENTER_POS.set(0, 0.186, this.centerSaddle.position.z - 0.008);
     const screenDistM = Math.max(0.08, this.screenSaddle.position.z - this.centerSaddle.position.z);
 
     // If laser power switch is OFF, extinguish beam and detector radiometer
@@ -253,7 +259,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
       this.beamSystem.setIntensity(1.0);
 
       // 1. Incoming beam stops at the slit plate
-      this.beamSystem.updateSegmentedBeam([{ start: startPos, end: centerPos, intensity: 1.0 }]);
+      this.beamSystem.updateSegmentedBeam([{ start: _START_POS, end: _CENTER_POS, intensity: 1.0 }]);
 
       // 2. Render 3D spatial coherent wavefront ripples expanding towards screen in +Z
       if (this.show3DWave) {
@@ -311,7 +317,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
       this.beamSystem.setIntensity(1.0);
 
       // 1. Incoming beam stops at aperture
-      this.beamSystem.updateSegmentedBeam([{ start: startPos, end: centerPos, intensity: 1.0 }]);
+      this.beamSystem.updateSegmentedBeam([{ start: _START_POS, end: _CENTER_POS, intensity: 1.0 }]);
 
       const isGrating = this.slitFixture.slitType === 'grating';
       const slitCount = isGrating ? 8 : (this.slitFixture.slitType === 'double' ? 2 : 1);
@@ -378,15 +384,15 @@ export default class OpticsLabExperiment extends BaseExperiment {
       this.beamSystem.clearDiffractionFan();
       this.beamSystem.clearGratingOrders();
 
-      const p1Pos = new THREE.Vector3(0, 0.186, this.pol1Saddle.position.z);
-      const p2Pos = new THREE.Vector3(0, 0.186, this.pol2Saddle.position.z);
+      _P1_POS.set(0, 0.186, this.pol1Saddle.position.z);
+      _P2_POS.set(0, 0.186, this.pol2Saddle.position.z);
 
       this.beamSystem.setIntensity(1.0);
       // Segmented beam: Laser -> P1 (1.0), P1 -> P2 (1.0), P2 -> Screen (Malus)
       this.beamSystem.updateSegmentedBeam([
-        { start: startPos, end: p1Pos, intensity: 1.0 },
-        { start: p1Pos, end: p2Pos, intensity: 1.0 },
-        { start: p2Pos, end: endPos, intensity: this.lastMalusIntensity },
+        { start: _START_POS, end: _P1_POS, intensity: 1.0 },
+        { start: _P1_POS, end: _P2_POS, intensity: 1.0 },
+        { start: _P2_POS, end: _END_POS, intensity: this.lastMalusIntensity },
       ]);
 
       // Multi-Core Worker polarization physics offload (state-hashed)
@@ -399,11 +405,11 @@ export default class OpticsLabExperiment extends BaseExperiment {
       // 60+ FPS Real-time continuous 3D electric field vector wave
       if (this.show3DWave) {
         this.beamSystem.updatePolarizationWave({
-          startZ: startPos.z,
-          endZ: endPos.z,
-          polarizerZ: p1Pos.z,
+          startZ: _START_POS.z,
+          endZ: _END_POS.z,
+          polarizerZ: _P1_POS.z,
           polarizerAngleDeg: this.pol1Angle,
-          analyzerZ: p2Pos.z,
+          analyzerZ: _P2_POS.z,
           analyzerAngleDeg: this.pol2Angle,
           hasQuarterWavePlate: this.analyzer2.hasWavePlate,
           time: elapsed,

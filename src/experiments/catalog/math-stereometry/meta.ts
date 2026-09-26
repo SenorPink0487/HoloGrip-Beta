@@ -59,8 +59,8 @@ export const metadata: ExperimentMetadata = {
       id: 'showDashedLines',
       name: '教材风格遮挡虚线',
       type: 'boolean',
-      defaultValue: true,
-      description: '双通道渲染：可见正面实线，背向遮挡边缘自动渲染为虚线',
+      defaultValue: false,
+      description: '双通道渲染：开启后背向遮挡边缘渲染为虚线；默认关闭，全部棱线（含被遮挡棱）均使用纯净实线',
     },
     {
       id: 'showCoordinateSystem',

@@ -58,6 +58,7 @@ export class StereometryMesh {
   private threeViewsGroup = new THREE.Group();
   private snapCursorGroup = new THREE.Group();
   private selectedMarkersGroup = new THREE.Group();
+  private previewSegmentGroup = new THREE.Group();
   private hitEnvelopeMesh: THREE.Mesh | null = null;
   private modelScale = 1.0;
 
@@ -74,16 +75,18 @@ export class StereometryMesh {
 
   // Floating / Levitation state (pure floating 3D geometry in mid-air)
   public baseHoverY = 0.22;
+  public readonly minClearance = 0.055; // Minimum 5.5cm clearance above tabletop to prevent penetration
   private hoverTime = 0;
 
   // Stage presentation group (projection rings, contact shadow, accent lighting)
   private stagePresentationGroup = new THREE.Group();
 
-  // Shared reusable geometries (Ultra-refined micro pips & precision struts)
-  private sharedVertexGeo = new THREE.SphereGeometry(0.0055, 16, 16);
-  private sharedMidpointGeo = new THREE.SphereGeometry(0.0040, 12, 12);
-  private sharedCenterGeo = new THREE.SphereGeometry(0.0040, 12, 12);
-  private unitCylinderGeo = new THREE.CylinderGeometry(0.0016, 0.0016, 1.0, 8);
+  // Shared reusable geometries (Refined micro pips & precision struts)
+  private sharedVertexGeo = new THREE.SphereGeometry(0.0048, 16, 16);
+  private sharedMidpointGeo = new THREE.SphereGeometry(0.0036, 12, 12);
+  private sharedThirdGeo = new THREE.SphereGeometry(0.0032, 12, 12);
+  private sharedCenterGeo = new THREE.SphereGeometry(0.0032, 12, 12);
+  private unitCylinderGeo = new THREE.CylinderGeometry(0.0012, 0.0012, 1.0, 16);
 
   // Materials - Apple VisionOS Crystal Glass Aesthetics (Depth-Tested Hidden Lines)
   private depthMaskMaterial: THREE.MeshBasicMaterial;
@@ -98,11 +101,23 @@ export class StereometryMesh {
   private circumSphereMat: THREE.MeshStandardMaterial;
   private inSphereMat: THREE.MeshStandardMaterial;
 
-  // Pearl Node Materials (Apple VisionOS Minimalist Platinum Style)
+  // Pearl Node Materials (High-contrast spatial pearl anchors)
   private vertexNodeMat: THREE.MeshStandardMaterial;
   private midpointNodeMat: THREE.MeshStandardMaterial;
+  private thirdNodeMat: THREE.MeshStandardMaterial;
   private centerNodeMat: THREE.MeshStandardMaterial;
   private originNodeMat: THREE.MeshStandardMaterial;
+
+  // Analytical edge-face adjacency cache for mathematically pure hidden line occlusion
+  private edgeAdjacencies: Array<{
+    edgeIndex: number;
+    i1: number;
+    i2: number;
+    faceIndices: number[];
+  }> = [];
+  private solidEdgesMesh: THREE.LineSegments | null = null;
+  private dashedEdgesMesh: THREE.LineSegments | null = null;
+  private solidStrutsMesh: THREE.InstancedMesh | null = null;
 
   // Unfolding animated face groups cache
   private unfoldingFaceGroups: THREE.Group[] = [];
@@ -120,7 +135,7 @@ export class StereometryMesh {
       showMidpoints: false,      // NEVER cluttered with midpoints by default
       showFaceCenters: false,    // NEVER cluttered with face centers by default
       showLabels: true,          // Crisp SF Pro vertex billboard labels (A, B, C, D, ...)
-      showDashedLines: true,     // Textbook hidden dashed lines
+      showDashedLines: false,    // Default to solid lines for all edges (user request: 被遮挡的棱也用实线)
       showCoordinateSystem: false, // Clean display by default, toggleable in vectors tab
       showCircumSphere: false,
       showInSphere: false,
@@ -135,6 +150,8 @@ export class StereometryMesh {
     this.currentSphereAnalysis = GeometrySolver.computeSphereAnalysis('cube', this.currentOptions.dimensions);
 
     this.rebuildAll();
+    this.updateBaseHoverHeight();
+    this.modelContainer.position.y = this.baseHoverY;
   }
 
   private initMaterials(): void {
@@ -146,167 +163,179 @@ export class StereometryMesh {
       side: THREE.FrontSide,
     });
 
-    // 1.5 Back-face optical absorption layer for crystal volumetric depth (neutral dark glass)
+    // 1.5 Back-face optical refraction layer for crystal volumetric depth (luminous deep azure)
     this.solidBackMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x18181b,
-      roughness: 0.12,
+      color: 0x0369a1,            // Luminous Deep Azure (not muddy charcoal black)
+      roughness: 0.15,
       metalness: 0.10,
       clearcoat: 0.6,
       clearcoatRoughness: 0.08,
       transparent: true,
-      opacity: 0.20,
+      opacity: 0.14,              // Soft crystal interior refraction
       side: THREE.BackSide,
       depthWrite: false,
       depthFunc: THREE.LessEqualDepth,
-      emissive: 0x000000,
-      emissiveIntensity: 0,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.08,
     });
 
-    // 2. Translucent luxury optical crystal glass front faces (Apple VisionOS Optical Crystal)
+    // 2. Translucent vibrant optical crystal glass front faces (Apple VisionOS Azure Crystal)
     this.solidFrontMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      roughness: 0.06,
-      metalness: 0.02,
+      color: 0x0284c7,            // Vibrant Luminous Azure Crystal
+      roughness: 0.08,
+      metalness: 0.06,
       clearcoat: 1.0,
       clearcoatRoughness: 0.03,
-      reflectivity: 0.94,
+      reflectivity: 0.95,
       transparent: true,
-      opacity: 0.24,
+      opacity: 0.22,              // Crisp optical transparency (interior lines shine through)
       side: THREE.FrontSide,
       depthWrite: false,
       depthFunc: THREE.LessEqualDepth,
-      sheen: 0.25,
-      sheenColor: 0xffffff,
-      sheenRoughness: 0.1,
-      emissive: 0x000000,
-      emissiveIntensity: 0,
+      sheen: 0.75,
+      sheenColor: 0x38bdf8,
+      sheenRoughness: 0.10,
+      emissive: 0x0369a1,
+      emissiveIntensity: 0.16,
     });
 
     this.solidCutMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
+      color: 0x0ea5e9,            // Vivid Sky/Cyan Crystal
       roughness: 0.08,
-      metalness: 0.02,
+      metalness: 0.04,
       clearcoat: 1.0,
       clearcoatRoughness: 0.03,
       reflectivity: 0.92,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.44,
       side: THREE.FrontSide,
       depthWrite: false,
       depthFunc: THREE.LessEqualDepth,
-      sheen: 0.2,
-      sheenColor: 0xffffff,
-      emissive: 0x000000,
-      emissiveIntensity: 0,
+      sheen: 0.60,
+      sheenColor: 0x7dd3fc,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.25,
     });
 
-    // 3. Precision 3D Cylindrical Edge Struts (Polished liquid titanium)
+    // 3. Precision 3D Cylindrical Edge Struts (Polished Cobalt-Titanium micro-struts)
     this.strutMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.92,
-      roughness: 0.14,
-      emissive: 0x000000,
-      emissiveIntensity: 0,
+      color: 0x0284c7,            // Precision Cobalt-Titanium
+      metalness: 0.50,            // Soft satin sheen (no harsh metallic glare)
+      roughness: 0.35,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.40,
+      transparent: true,
+      opacity: 0.92,
     });
 
     // 3.1 Inner razor-sharp glowing core line
     this.solidEdgeMaterial = new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      linewidth: 2,
+      color: 0x00f0ff,            // Electric Cyan Core Line
+      linewidth: 2.5,
       transparent: true,
-      opacity: 0.90,
+      opacity: 0.95,
       depthFunc: THREE.LessEqualDepth,
       depthWrite: false,
     });
 
-    // 4. Hidden occluded edges: textbook clean dashed wireframe
+    // 4. Hidden occluded edges: textbook clean dashed wireframe (Warm Amber Gold)
     this.dashedEdgeMaterial = new THREE.LineDashedMaterial({
-      color: 0xffffff,
-      dashSize: 0.016,
-      gapSize: 0.012,
-      depthFunc: THREE.GreaterDepth,
+      color: 0xf59e0b,            // Warm Amber Gold (high contrast against cyan and light background)
+      dashSize: 0.015,
+      gapSize: 0.008,
+      depthFunc: THREE.LessEqualDepth, // Analytical occlusion handles back-face: no GreaterDepth hack needed
       depthWrite: false,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.95,
     });
 
-    // 5. Cross section: pure monochrome frosted glass with white boundary
+    // 5. Cross section: vibrant luminous coral rose frosted glass with crimson edge
     this.crossSectionFillMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.18,
-      metalness: 0.08,
+      color: 0xf43f5e,            // Vibrant Luminous Coral Rose
+      roughness: 0.16,
+      metalness: 0.10,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.46,
       side: THREE.DoubleSide,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.08,
+      emissive: 0xe11d48,
+      emissiveIntensity: 0.35,
     });
 
     this.crossSectionLineMat = new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      linewidth: 2,
+      color: 0xff1744,            // Vivid Crimson Neon Edge
+      linewidth: 3,
     });
 
     // 6. Spheres: refined monochrome holographic forcefields
     this.circumSphereMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
+      color: 0x8b5cf6,            // Translucent Royal Violet
       transparent: true,
-      opacity: 0.09,
+      opacity: 0.16,
       roughness: 0.1,
       metalness: 0.1,
       side: THREE.DoubleSide,
       depthWrite: false,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.04,
+      emissive: 0x7c3aed,
+      emissiveIntensity: 0.12,
     });
 
     this.inSphereMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
+      color: 0x10b981,            // Translucent Emerald
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.18,
       roughness: 0.1,
       metalness: 0.1,
       side: THREE.DoubleSide,
       depthWrite: false,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.06,
+      emissive: 0x059669,
+      emissiveIntensity: 0.15,
     });
 
-    // 7. Data Nodes (Polished liquid platinum pearl anchors)
+    // 7. Data Nodes (High-contrast spatial pearl anchors)
     this.vertexNodeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
+      color: 0x38bdf8,            // Cyan-Platinum Pearl Anchor (Vertices)
       roughness: 0.08,
-      metalness: 0.92,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.35,
+      metalness: 0.90,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.55,
     });
 
     this.originNodeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
+      color: 0xfbbf24,            // Electric Gold Pearl Anchor (Coordinate Origin)
       roughness: 0.05,
-      metalness: 0.96,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.75,
+      metalness: 0.95,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.85,
     });
 
     this.midpointNodeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
+      color: 0xf59e0b,            // Warm Amber Pearl Anchor (1/2 Midpoints)
       roughness: 0.12,
-      metalness: 0.88,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.25,
+      metalness: 0.85,
+      emissive: 0xb45309,
+      emissiveIntensity: 0.45,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.92,
+    });
+
+    this.thirdNodeMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981,            // Mint Emerald Pearl Anchor (1/3, 2/3 Trisection Points)
+      roughness: 0.12,
+      metalness: 0.85,
+      emissive: 0x059669,
+      emissiveIntensity: 0.45,
+      transparent: true,
+      opacity: 0.92,
     });
 
     this.centerNodeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
+      color: 0xa855f7,            // Violet Pearl Anchor (Face/Body Centers)
       roughness: 0.12,
-      metalness: 0.88,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.25,
+      metalness: 0.85,
+      emissive: 0x7e22ce,
+      emissiveIntensity: 0.45,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.92,
     });
   }
 
@@ -328,6 +357,7 @@ export class StereometryMesh {
     this.modelContainer.add(this.threeViewsGroup);
     this.modelContainer.add(this.snapCursorGroup);
     this.modelContainer.add(this.selectedMarkersGroup);
+    this.modelContainer.add(this.previewSegmentGroup);
 
     // Invisible interaction hit envelope for effortless direct drag-rotation
     const hitGeo = new THREE.SphereGeometry(0.55, 16, 16);
@@ -375,12 +405,12 @@ export class StereometryMesh {
     shadowMesh.position.y = 0.001;
     this.stagePresentationGroup.add(shadowMesh);
 
-    // 2. Holographic polar coordinate laser projection ring (Vision Pro subtle translucent white)
-    const ringGeo = new THREE.RingGeometry(0.24, 0.243, 64);
+    // 2. Holographic polar coordinate laser projection ring (Vision Pro electric cyan reticle)
+    const ringGeo = new THREE.RingGeometry(0.24, 0.244, 64);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: 0x00f7ff,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.35,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -391,11 +421,11 @@ export class StereometryMesh {
     this.stagePresentationGroup.add(ring);
 
     // Inner concentric ring
-    const innerRingGeo = new THREE.RingGeometry(0.12, 0.122, 48);
+    const innerRingGeo = new THREE.RingGeometry(0.12, 0.123, 48);
     const innerRingMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: 0x00d2ff,
       transparent: true,
-      opacity: 0.10,
+      opacity: 0.22,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -409,10 +439,10 @@ export class StereometryMesh {
   private createSnapCursor(): void {
     const ringGeo = new THREE.RingGeometry(0.012, 0.017, 32);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: 0x00f7ff,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.90,
+      opacity: 0.95,
     });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.name = 'snapRing';
@@ -421,10 +451,10 @@ export class StereometryMesh {
     // Outer subtle tick ring
     const outerGeo = new THREE.RingGeometry(0.021, 0.023, 24);
     const outerMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: 0x38bdf8,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.40,
+      opacity: 0.60,
     });
     const outerRing = new THREE.Mesh(outerGeo, outerMat);
     outerRing.name = 'snapRingOuter';
@@ -496,6 +526,9 @@ export class StereometryMesh {
     this.clearGroup(this.threeViewsGroup);
     this.keyPointMeshes.clear();
     this.unfoldingFaceGroups = [];
+    this.solidEdgesMesh = null;
+    this.dashedEdgesMesh = null;
+    this.solidStrutsMesh = null;
 
     if (this.currentOptions.unfoldProgress > 0.01) {
       this.solidGroup.visible = false;
@@ -518,6 +551,9 @@ export class StereometryMesh {
     this.rebuildCoordinateSystem();
     this.rebuildSpheres();
     this.rebuildThreeViews();
+
+    this.updateBaseHoverHeight();
+    this.modelContainer.position.y = this.baseHoverY;
   }
 
   // -------------------------------------------------------------
@@ -553,13 +589,7 @@ export class StereometryMesh {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geo.computeVertexNormals();
 
-    // Pass 1: Depth pre-pass mask (writes front-face depth for occluded edge GreaterDepth test)
-    const depthMaskMesh = new THREE.Mesh(geo, this.depthMaskMaterial);
-    depthMaskMesh.name = 'depthMaskMesh';
-    depthMaskMesh.renderOrder = 1;
-    this.solidGroup.add(depthMaskMesh);
-
-    // Pass 1.5: Deep interior Back-Faces for optical refraction & crystal volumetric depth
+    // Pass 1: Deep interior Back-Faces for optical refraction & crystal volumetric depth
     const backMesh = new THREE.Mesh(
       geo,
       this.currentOptions.clippingEnabled ? this.solidCutMaterial : this.solidBackMaterial
@@ -579,53 +609,136 @@ export class StereometryMesh {
   }
 
   // -------------------------------------------------------------
-  // 2. Dual-Channel Edge Rendering (Textbook Hidden Dashed Lines + 3D Struts)
+  // 2. Analytical Hidden-Line Edge Rendering (Pure Solid Edges + Textbook Dashed Lines)
   // -------------------------------------------------------------
   private rebuildEdges(): void {
-    const edgeVerts: number[] = [];
     const edgeCount = this.currentModelDef.edges.length;
+    this.edgeAdjacencies = [];
 
-    for (const [i1, i2] of this.currentModelDef.edges) {
-      const p1 = this.currentModelDef.vertices[i1];
-      const p2 = this.currentModelDef.vertices[i2];
-      edgeVerts.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+    // Precompute edge-face adjacencies for instant camera-relative occlusion tests
+    for (let i = 0; i < edgeCount; i++) {
+      const [i1, i2] = this.currentModelDef.edges[i];
+      const faceIndices: number[] = [];
+      this.currentModelDef.faces.forEach((f, fIdx) => {
+        const idxs = f.vertexIndices;
+        if (idxs.includes(i1) && idxs.includes(i2)) {
+          faceIndices.push(fIdx);
+        }
+      });
+      this.edgeAdjacencies.push({ edgeIndex: i, i1, i2, faceIndices });
     }
 
+    if (edgeCount === 0) return;
+
+    // 1. Dynamic Solid Edges (Core lines for visible silhouette/front edges)
     const solidGeo = new THREE.BufferGeometry();
-    solidGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgeVerts, 3));
+    solidGeo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(edgeCount * 6), 3)
+    );
+    this.solidEdgesMesh = new THREE.LineSegments(solidGeo, this.solidEdgeMaterial);
+    this.solidEdgesMesh.name = 'solidEdges';
+    this.solidEdgesMesh.renderOrder = 5;
+    this.edgesSolidGroup.add(this.solidEdgesMesh);
 
-    // Hidden occluded edges: rendered with GreaterDepth (behind the front faces)
-    if (this.currentOptions.showDashedLines) {
-      const dashedGeo = solidGeo.clone();
-      const dashedEdges = new THREE.LineSegments(dashedGeo, this.dashedEdgeMaterial);
-      dashedEdges.computeLineDistances();
-      dashedEdges.name = 'dashedEdges';
-      dashedEdges.renderOrder = 2;
-      this.edgesDashedGroup.add(dashedEdges);
+    // 2. High-precision 3D Micro-Struts (ONLY for visible edges, never occluded edges!)
+    this.solidStrutsMesh = new THREE.InstancedMesh(this.unitCylinderGeo, this.strutMaterial, edgeCount);
+    this.solidStrutsMesh.name = 'solidStruts';
+    this.solidStrutsMesh.renderOrder = 4;
+    this.edgesSolidGroup.add(this.solidStrutsMesh);
+
+    // 3. Occluded Dashed Lines (Textbook dashed lines for interior rear edges)
+    const dashedGeo = new THREE.BufferGeometry();
+    dashedGeo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(edgeCount * 6), 3)
+    );
+    this.dashedEdgesMesh = new THREE.LineSegments(dashedGeo, this.dashedEdgeMaterial);
+    this.dashedEdgesMesh.name = 'dashedEdges';
+    this.dashedEdgesMesh.renderOrder = 3;
+    this.edgesDashedGroup.add(this.dashedEdgesMesh);
+
+    // Initial classification
+    this.updateEdgeVisibility();
+  }
+
+  /**
+   * Mathematically classifies visible vs occluded edges from camera viewpoint:
+   * In any convex polyhedron, an edge is visible iff at least one adjacent face is front-facing.
+   * If both adjacent faces are back-facing, the edge is strictly occluded (hidden back line).
+   */
+  public updateEdgeVisibility(camera?: THREE.Camera): void {
+    if (!this.currentModelDef || this.edgeAdjacencies.length === 0) return;
+    if (!this.solidEdgesMesh || !this.dashedEdgesMesh || !this.solidStrutsMesh) return;
+
+    // 1. Determine camera position in modelContainer local space
+    const camLocal = new THREE.Vector3();
+    if (camera) {
+      camera.getWorldPosition(camLocal);
+    } else {
+      // Default canonical textbook viewing position: front-top-right
+      camLocal.set(0.6, 1.35, 1.6);
+    }
+    this.modelContainer.worldToLocal(camLocal);
+
+    // 2. Classify front-facing vs back-facing faces from camera viewpoint
+    const faces = this.currentModelDef.faces;
+    const isFaceFront: boolean[] = new Array(faces.length);
+    for (let f = 0; f < faces.length; f++) {
+      const face = faces[f];
+      const v0 = this.currentModelDef.vertices[face.vertexIndices[0]];
+      const viewX = camLocal.x - v0.x;
+      const viewY = camLocal.y - v0.y;
+      const viewZ = camLocal.z - v0.z;
+      const dot = viewX * face.normal.x + viewY * face.normal.y + viewZ * face.normal.z;
+      isFaceFront[f] = dot > 0.001;
     }
 
-    // High-precision 3D cylindrical struts: liquid titanium-chrome rails that catch light specularly
-    if (edgeCount > 0) {
-      const struts = new THREE.InstancedMesh(this.unitCylinderGeo, this.strutMaterial, edgeCount);
-      struts.name = 'solidStruts';
-      struts.renderOrder = 3;
+    // 3. Classify edges into visible (solid) and occluded (dashed)
+    const solidPos = this.solidEdgesMesh.geometry.attributes.position.array as Float32Array;
+    const dashedPos = this.dashedEdgesMesh.geometry.attributes.position.array as Float32Array;
+    let solidCount = 0;
+    let dashedCount = 0;
 
-      const up = new THREE.Vector3(0, 1, 0);
-      const dir = new THREE.Vector3();
-      const mid = new THREE.Vector3();
-      const quat = new THREE.Quaternion();
-      const scale = new THREE.Vector3();
-      const mat = new THREE.Matrix4();
+    const up = new THREE.Vector3(0, 1, 0);
+    const dir = new THREE.Vector3();
+    const mid = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    const mat = new THREE.Matrix4();
 
-      for (let i = 0; i < edgeCount; i++) {
-        const [i1, i2] = this.currentModelDef.edges[i];
-        const p1 = this.currentModelDef.vertices[i1];
-        const p2 = this.currentModelDef.vertices[i2];
+    for (const adj of this.edgeAdjacencies) {
+      const p1 = this.currentModelDef.vertices[adj.i1];
+      const p2 = this.currentModelDef.vertices[adj.i2];
+
+      let isVisible = false;
+      if (adj.faceIndices.length === 0) {
+        isVisible = true;
+      } else {
+        for (const fIdx of adj.faceIndices) {
+          if (isFaceFront[fIdx]) {
+            isVisible = true;
+            break;
+          }
+        }
+      }
+
+      // When showDashedLines is false (default), ALL edges (including occluded ones) are rendered as solid lines
+      const renderAsSolid = isVisible || !this.currentOptions.showDashedLines;
+
+      if (renderAsSolid) {
+        // Visible or occluded solid edge: solid line + micro strut
+        const off = solidCount * 6;
+        solidPos[off] = p1.x;
+        solidPos[off + 1] = p1.y;
+        solidPos[off + 2] = p1.z;
+        solidPos[off + 3] = p2.x;
+        solidPos[off + 4] = p2.y;
+        solidPos[off + 5] = p2.z;
 
         dir.subVectors(p2, p1);
         const len = dir.length();
         mid.addVectors(p1, p2).multiplyScalar(0.5);
-
         if (len > 1e-4) {
           quat.setFromUnitVectors(up, dir.clone().normalize());
         } else {
@@ -633,17 +746,34 @@ export class StereometryMesh {
         }
         scale.set(1, len, 1);
         mat.compose(mid, quat, scale);
-        struts.setMatrixAt(i, mat);
+        this.solidStrutsMesh.setMatrixAt(solidCount, mat);
+
+        solidCount++;
+      } else {
+        // Occluded edge: textbook dashed line (active only when showDashedLines is explicitly enabled)
+        const off = dashedCount * 6;
+        dashedPos[off] = p1.x;
+        dashedPos[off + 1] = p1.y;
+        dashedPos[off + 2] = p1.z;
+        dashedPos[off + 3] = p2.x;
+        dashedPos[off + 4] = p2.y;
+        dashedPos[off + 5] = p2.z;
+        dashedCount++;
       }
-      struts.instanceMatrix.needsUpdate = true;
-      this.edgesSolidGroup.add(struts);
     }
 
-    // Visible front laser core lines: rendered with LessEqualDepth
-    const solidEdges = new THREE.LineSegments(solidGeo, this.solidEdgeMaterial);
-    solidEdges.name = 'solidEdges';
-    solidEdges.renderOrder = 4;
-    this.edgesSolidGroup.add(solidEdges);
+    // 4. Update solid buffers
+    this.solidEdgesMesh.geometry.setDrawRange(0, solidCount * 2);
+    this.solidEdgesMesh.geometry.attributes.position.needsUpdate = true;
+    this.solidStrutsMesh.count = solidCount;
+    this.solidStrutsMesh.instanceMatrix.needsUpdate = true;
+
+    // 5. Update dashed buffers
+    this.dashedEdgesMesh.geometry.setDrawRange(0, dashedCount * 2);
+    this.dashedEdgesMesh.geometry.attributes.position.needsUpdate = true;
+    if (dashedCount > 0) {
+      this.dashedEdgesMesh.computeLineDistances();
+    }
   }
 
   // -------------------------------------------------------------
@@ -658,11 +788,11 @@ export class StereometryMesh {
     const boxGeo = new THREE.BoxGeometry(size.x, size.y, size.z);
     const wireframeGeo = new THREE.WireframeGeometry(boxGeo);
     const boxMat = new THREE.LineDashedMaterial({
-      color: 0xffffff,
+      color: 0x38bdf8,
       dashSize: 0.02,
       gapSize: 0.015,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.55,
     });
 
     const boxLines = new THREE.LineSegments(wireframeGeo, boxMat);
@@ -684,8 +814,8 @@ export class StereometryMesh {
     const originId = this.currentOptions.originKeyPointId ?? 'v_0';
 
     for (const kp of this.currentModelDef.keyPoints) {
-      // By default: ONLY show vertices! Never clutter with midpoints or centers unless requested
-      if (kp.type === 'midpoint' && !this.currentOptions.showMidpoints) {
+      // By default: ONLY show vertices! Never clutter with midpoints, thirds, or centers unless requested
+      if ((kp.type === 'midpoint' || kp.type === 'third') && !this.currentOptions.showMidpoints) {
         continue;
       }
       if (kp.type === 'center' && !this.currentOptions.showFaceCenters) {
@@ -701,6 +831,9 @@ export class StereometryMesh {
       } else if (kp.type === 'midpoint') {
         geo = this.sharedMidpointGeo;
         mat = this.midpointNodeMat;
+      } else if (kp.type === 'third') {
+        geo = this.sharedThirdGeo;
+        mat = this.thirdNodeMat;
       } else if (kp.type === 'center') {
         geo = this.sharedCenterGeo;
         mat = this.centerNodeMat;
@@ -735,7 +868,7 @@ export class StereometryMesh {
         dir.normalize();
       }
 
-      sprite.position.copy(kp.position).addScaledVector(dir, 0.028);
+      sprite.position.copy(kp.position).addScaledVector(dir, 0.024);
       this.labelsGroup.add(sprite);
     }
   }
@@ -748,36 +881,22 @@ export class StereometryMesh {
     if (ctx) {
       ctx.clearRect(0, 0, 128, 128);
 
-      // VisionOS Frosted Capsule Glass Circular Badge
-      const cx = 64, cy = 64, radius = 38;
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.closePath();
-
-      // Deep frosted dark translucent glass badge
-      ctx.fillStyle = 'rgba(20, 20, 24, 0.82)';
-      ctx.fill();
-
-      // Subtle translucent white rim ring
-      ctx.lineWidth = 2.0;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.stroke();
-
-      // Inner subtle hairline ring
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius - 4, 0, Math.PI * 2);
-      ctx.lineWidth = 0.8;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-      ctx.stroke();
-
-      // Bold SF Pro / Apple Typography
-      ctx.font = 'bold 40px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      // Pure Mathematical Typography (No bubble badge, unadorned letters)
+      ctx.font = 'bold 56px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Times New Roman", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+
+      // Subtle dark stroke outline for maximum legibility on light laboratory walls
+      ctx.lineWidth = 5.0;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(15, 23, 42, 0.90)';
+      if (typeof ctx.strokeText === 'function') {
+        ctx.strokeText(text, 64, 64);
+      }
+
+      // Pure crisp white glyph fill for contrast against azure crystal faces and dark tables
       ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-      ctx.shadowBlur = 6;
-      ctx.fillText(text, 64, 65);
+      ctx.fillText(text, 64, 64);
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -788,7 +907,7 @@ export class StereometryMesh {
       depthTest: false,
     });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(0.040, 0.040, 1);
+    sprite.scale.set(0.046, 0.046, 1);
     sprite.renderOrder = 10;
     return sprite;
   }
@@ -1155,14 +1274,39 @@ export class StereometryMesh {
     this.hoveredKeyPointId = id;
 
     if (id) {
-      const mesh = this.keyPointMeshes.get(id);
-      if (mesh) {
-        this.snapCursorGroup.position.copy(mesh.position);
+      const kp = this.currentModelDef.keyPoints.find((k) => k.id === id);
+      if (kp) {
+        this.snapCursorGroup.position.copy(kp.position);
         this.snapCursorGroup.visible = true;
+
+        let color = 0x38bdf8; // vertex: vivid cyan
+        if (kp.type === 'midpoint') {
+          color = 0xf59e0b; // 1/2: golden amber
+        } else if (kp.type === 'third') {
+          color = 0x10b981; // 1/3: emerald mint
+        } else if (kp.type === 'center') {
+          color = 0xa855f7; // center: violet
+        }
+
+        const inner = this.snapCursorGroup.getObjectByName('snapRing') as THREE.Mesh;
+        const outer = this.snapCursorGroup.getObjectByName('snapRingOuter') as THREE.Mesh;
+        if (inner && (inner.material as THREE.MeshBasicMaterial).color) {
+          (inner.material as THREE.MeshBasicMaterial).color.setHex(color);
+        }
+        if (outer && (outer.material as THREE.MeshBasicMaterial).color) {
+          (outer.material as THREE.MeshBasicMaterial).color.setHex(color);
+        }
         return;
       }
     }
     this.snapCursorGroup.visible = false;
+  }
+
+  public findClosestSnapPoint(
+    ray: THREE.Ray,
+    threshold = 0.055
+  ): { keyPoint: KeyPoint; snapType: string; distance: number; snapLabel: string } | null {
+    return GeometrySolver.findClosestSnapPoint(ray, this.currentModelDef, this.modelContainer.matrixWorld, threshold);
   }
 
   public getKeyPointMeshes(): THREE.Mesh[] {
@@ -1188,6 +1332,14 @@ export class StereometryMesh {
   public setScale(scale: number): void {
     this.modelScale = THREE.MathUtils.clamp(scale, 0.35, 3.0);
     this.modelContainer.scale.setScalar(this.modelScale);
+
+    // Dynamically elevate model so bottom vertices never penetrate the tabletop
+    this.updateBaseHoverHeight();
+    this.modelContainer.position.y = this.baseHoverY;
+
+    // Dynamically scale table contact shadow and projection rings with model
+    const stageScale = Math.max(0.7, this.modelScale * 0.95);
+    this.stagePresentationGroup.scale.set(stageScale, 1, stageScale);
   }
 
   public getScale(): number {
@@ -1204,20 +1356,66 @@ export class StereometryMesh {
     if (!ids || ids.length === 0) return;
 
     for (const id of ids) {
-      const kpMesh = this.keyPointMeshes.get(id);
-      if (!kpMesh) continue;
+      const kp = this.currentModelDef.keyPoints.find((k) => k.id === id);
+      if (!kp) continue;
 
-      const ringGeo = new THREE.RingGeometry(0.011, 0.016, 24);
+      const ringGeo = new THREE.RingGeometry(0.012, 0.018, 24);
       const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: 0xffd43b,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.90,
+        opacity: 0.95,
       });
       const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.position.copy(kpMesh.position);
+      ring.position.copy(kp.position);
       this.selectedMarkersGroup.add(ring);
     }
+  }
+
+  public updatePreviewWire(startPos: THREE.Vector3, endPos: THREE.Vector3, color = 0x38d9a9): void {
+    this.clearGroup(this.previewSegmentGroup);
+    const dir = new THREE.Vector3().subVectors(endPos, startPos);
+    const len = dir.length();
+    if (len < 1e-4) return;
+
+    const mid = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
+    const pipeGeo = new THREE.CylinderGeometry(0.0025, 0.0025, len, 8);
+    const pipeMat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.7,
+      roughness: 0.2,
+      metalness: 0.8,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const pipe = new THREE.Mesh(pipeGeo, pipeMat);
+    pipe.position.copy(mid);
+    pipe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    pipe.renderOrder = 7;
+    this.previewSegmentGroup.add(pipe);
+
+    // Glowing anchor pips at start and end
+    const beadGeo = new THREE.SphereGeometry(0.0055, 12, 12);
+    const beadMat = new THREE.MeshStandardMaterial({
+      color: 0xffd43b,
+      emissive: 0xffd43b,
+      emissiveIntensity: 0.8,
+    });
+    const startBead = new THREE.Mesh(beadGeo, beadMat);
+    startBead.position.copy(startPos);
+    this.previewSegmentGroup.add(startBead);
+
+    const endBead = new THREE.Mesh(beadGeo, beadMat);
+    endBead.position.copy(endPos);
+    this.previewSegmentGroup.add(endBead);
+
+    this.previewSegmentGroup.visible = true;
+  }
+
+  public clearPreviewWire(): void {
+    this.clearGroup(this.previewSegmentGroup);
+    this.previewSegmentGroup.visible = false;
   }
 
   private clearGroup(group: THREE.Group): void {
@@ -1228,6 +1426,7 @@ export class StereometryMesh {
         (child as any).geometry &&
         (child as any).geometry !== this.sharedVertexGeo &&
         (child as any).geometry !== this.sharedMidpointGeo &&
+        (child as any).geometry !== this.sharedThirdGeo &&
         (child as any).geometry !== this.sharedCenterGeo
       ) {
         (child as any).geometry.dispose();
@@ -1235,22 +1434,48 @@ export class StereometryMesh {
     }
   }
 
+  public getLowestVertexY(): number {
+    if (!this.currentModelDef || !this.currentModelDef.vertices || this.currentModelDef.vertices.length === 0) {
+      return -0.19 * this.modelScale;
+    }
+    let lowest = Infinity;
+    const vRot = new THREE.Vector3();
+    const quat = this.modelContainer.quaternion;
+    for (const v of this.currentModelDef.vertices) {
+      vRot.copy(v).applyQuaternion(quat);
+      if (vRot.y < lowest) {
+        lowest = vRot.y;
+      }
+    }
+    return lowest * this.modelScale;
+  }
+
+  public updateBaseHoverHeight(): void {
+    const lowestY = this.getLowestVertexY();
+    // Maintain at least minClearance (0.055) above tabletop (Y=0)
+    // When lowestY is negative (e.g. -0.28), minClearance - lowestY is 0.055 - (-0.28) = 0.335
+    const requiredHover = Math.max(0.20, this.minClearance - lowestY);
+    this.baseHoverY = requiredHover;
+  }
+
   /**
    * Continuous per-frame animation:
    * 1. Gentle Sci-Fi levitation / hover breathing of model in mid-air
-   * 2. Counter-rotating HUD graduation rings on the pedestal
-   * 3. Quantum holographic particle flow drifting upward
-  /**
-   * Continuous per-frame animation:
-   * Gentle Sci-Fi levitation / hover breathing of model in mid-air
+   * 2. Dynamically update visible solid edges vs occluded dashed lines from camera viewpoint
    */
-  public update(delta: number, elapsed?: number): void {
+  public update(delta: number, elapsed?: number, camera?: THREE.Camera): void {
     const t = elapsed !== undefined ? elapsed : (this.hoverTime += delta);
     this.hoverTime = t;
+
+    // Dynamically adjust hover height so model NEVER penetrates the tabletop regardless of tilt or zoom
+    this.updateBaseHoverHeight();
 
     // Gentle Sci-Fi Levitation / Hover Breathing (smooth floating oscillation)
     const hoverOffset = Math.sin(t * 1.5) * 0.005;
     this.modelContainer.position.y = this.baseHoverY + hoverOffset;
+
+    // Dynamically update visible solid edges vs occluded dashed lines from current camera viewpoint
+    this.updateEdgeVisibility(camera);
 
     // Slow rotation of stage presentation holographic ring
     const stageRing = this.stagePresentationGroup.children[1];
@@ -1273,6 +1498,7 @@ export class StereometryMesh {
     this.clearGroup(this.stagePresentationGroup);
     this.sharedVertexGeo.dispose();
     this.sharedMidpointGeo.dispose();
+    this.sharedThirdGeo.dispose();
     this.sharedCenterGeo.dispose();
     this.unitCylinderGeo.dispose();
     this.depthMaskMaterial.dispose();
@@ -1288,6 +1514,7 @@ export class StereometryMesh {
     this.inSphereMat.dispose();
     this.vertexNodeMat.dispose();
     this.midpointNodeMat.dispose();
+    this.thirdNodeMat.dispose();
     this.centerNodeMat.dispose();
     this.originNodeMat.dispose();
   }

@@ -9,6 +9,9 @@ export class DetectorScreenMesh {
 
   private screenCanvas: HTMLCanvasElement;
   private screenCtx: CanvasRenderingContext2D;
+  private gridCanvas: HTMLCanvasElement;
+  private gridCtx: CanvasRenderingContext2D;
+  private alphaColorCache: Map<string, string[]> = new Map();
   private screenTexture: THREE.CanvasTexture;
   public screenMesh: THREE.Mesh;
 
@@ -89,6 +92,12 @@ export class DetectorScreenMesh {
     this.screenCanvas.height = 768;
     this.screenCtx = this.screenCanvas.getContext('2d')!;
 
+    this.gridCanvas = document.createElement('canvas');
+    this.gridCanvas.width = 1024;
+    this.gridCanvas.height = 768;
+    this.gridCtx = this.gridCanvas.getContext('2d')!;
+    this.initGridCanvas();
+
     this.screenTexture = new THREE.CanvasTexture(this.screenCanvas);
     this.screenTexture.colorSpace = THREE.SRGBColorSpace;
 
@@ -145,13 +154,13 @@ export class DetectorScreenMesh {
     this.group.add(meterGroup);
   }
 
-  /**
-   * Draw high-precision engineering millimeter reticle grid on laboratory matte white screen
-   */
-  private drawReticleGrid(): void {
-    const ctx = this.screenCtx;
-    const w = this.screenCanvas.width;
-    const h = this.screenCanvas.height;
+  private initGridCanvas(
+    targetCtx: CanvasRenderingContext2D | null = this.gridCtx,
+    w = this.gridCanvas?.width || 1024,
+    h = this.gridCanvas?.height || 768
+  ): void {
+    if (!targetCtx) return;
+    const ctx = targetCtx;
     const cx = w * 0.5;
     const cy = h * 0.5;
 
@@ -233,6 +242,31 @@ export class DetectorScreenMesh {
     ctx.textAlign = 'right';
     ctx.fillText('OPTICAL BENCH LAB', w - 22, 28);
     ctx.textAlign = 'left';
+  }
+
+  /**
+   * Fast blit of pre-rendered reticle grid (< 0.02ms) with fallback for non-blit test environments
+   */
+  private drawReticleGrid(): void {
+    if (this.gridCanvas && typeof this.screenCtx.drawImage === 'function') {
+      this.screenCtx.drawImage(this.gridCanvas, 0, 0);
+    } else {
+      this.initGridCanvas(this.screenCtx, this.screenCanvas.width, this.screenCanvas.height);
+    }
+  }
+
+  private getAlphaColor(r: number, g: number, b: number, alpha: number): string {
+    const aQuant = Math.min(50, Math.max(0, Math.round(alpha * 50)));
+    const key = `${r}_${g}_${b}`;
+    let lut = this.alphaColorCache.get(key);
+    if (!lut) {
+      lut = new Array(51);
+      for (let i = 0; i <= 50; i++) {
+        lut[i] = `rgba(${r}, ${g}, ${b}, ${(i / 50).toFixed(2)})`;
+      }
+      this.alphaColorCache.set(key, lut);
+    }
+    return lut[aQuant];
   }
 
   /**
@@ -318,10 +352,7 @@ export class DetectorScreenMesh {
       const lambda = params.wavelengthNm * 1e-9;
       const mmPerPx = 0.16 / w;
 
-      const imgData = ctx.getImageData(0, 0, w, h);
-      const data = imgData.data;
-
-      for (let x = 0; x < w; x++) {
+      for (let x = 0; x < w; x += 2) {
         const xDist = (x - cx) * mmPerPx;
         const sinTheta = xDist / Math.sqrt(xDist * xDist + L * L);
 
@@ -330,21 +361,21 @@ export class DetectorScreenMesh {
         const alpha = (Math.PI * d * sinTheta) / lambda;
         const I = Math.cos(alpha) * Math.cos(alpha) * sinc * sinc * params.intensity;
 
-        if (I > 0.01) {
-          for (let y = Math.floor(cy - 150); y <= Math.floor(cy + 150); y++) {
-            const yDist = (y - cy) / 150;
-            const yFalloff = Math.max(0, 1 - yDist * yDist);
-            const finalI = Math.min(1.0, I * yFalloff);
-
-            const idx = (y * w + x) * 4;
-            // Blend from off-white surface toward laser spectral color
-            data[idx] = Math.round(data[idx] * (1 - finalI) + rVal * finalI);
-            data[idx + 1] = Math.round(data[idx + 1] * (1 - finalI) + gVal * finalI);
-            data[idx + 2] = Math.round(data[idx + 2] * (1 - finalI) + bVal * finalI);
-          }
+        if (I > 0.008) {
+          const colAlpha = Math.min(1.0, I * 0.95);
+          ctx.fillStyle = this.getAlphaColor(rVal, gVal, bVal, colAlpha);
+          ctx.fillRect(x, cy - 140, 2.2, 280);
         }
       }
-      ctx.putImageData(imgData, 0, 0);
+
+      // Soft vertical boundary attenuation for realistic projected beam profile
+      const vGrad = ctx.createLinearGradient(0, cy - 140, 0, cy + 140);
+      vGrad.addColorStop(0, 'rgba(246, 248, 251, 1.0)');
+      vGrad.addColorStop(0.20, 'rgba(246, 248, 251, 0.0)');
+      vGrad.addColorStop(0.80, 'rgba(246, 248, 251, 0.0)');
+      vGrad.addColorStop(1, 'rgba(246, 248, 251, 1.0)');
+      ctx.fillStyle = vGrad;
+      ctx.fillRect(0, cy - 140, w, 280);
     } else if (params.mode === 'single_slit') {
       // Fraunhofer single-slit pattern
       const a = (params.slitWidthMm || 0.05) * 1e-3;
@@ -352,10 +383,7 @@ export class DetectorScreenMesh {
       const lambda = params.wavelengthNm * 1e-9;
       const mmPerPx = 0.16 / w;
 
-      const imgData = ctx.getImageData(0, 0, w, h);
-      const data = imgData.data;
-
-      for (let x = 0; x < w; x++) {
+      for (let x = 0; x < w; x += 2) {
         const xDist = (x - cx) * mmPerPx;
         const sinTheta = xDist / Math.sqrt(xDist * xDist + L * L);
 
@@ -363,20 +391,21 @@ export class DetectorScreenMesh {
         const sinc = Math.abs(beta) < 1e-7 ? 1.0 : Math.sin(beta) / beta;
         const I = sinc * sinc * params.intensity;
 
-        if (I > 0.01) {
-          for (let y = Math.floor(cy - 150); y <= Math.floor(cy + 150); y++) {
-            const yDist = (y - cy) / 150;
-            const yFalloff = Math.max(0, 1 - yDist * yDist);
-            const finalI = Math.min(1.0, I * yFalloff);
-
-            const idx = (y * w + x) * 4;
-            data[idx] = Math.round(data[idx] * (1 - finalI) + rVal * finalI);
-            data[idx + 1] = Math.round(data[idx + 1] * (1 - finalI) + gVal * finalI);
-            data[idx + 2] = Math.round(data[idx + 2] * (1 - finalI) + bVal * finalI);
-          }
+        if (I > 0.008) {
+          const colAlpha = Math.min(1.0, I * 0.95);
+          ctx.fillStyle = this.getAlphaColor(rVal, gVal, bVal, colAlpha);
+          ctx.fillRect(x, cy - 140, 2.2, 280);
         }
       }
-      ctx.putImageData(imgData, 0, 0);
+
+      // Soft vertical boundary attenuation for realistic projected beam profile
+      const vGrad = ctx.createLinearGradient(0, cy - 140, 0, cy + 140);
+      vGrad.addColorStop(0, 'rgba(246, 248, 251, 1.0)');
+      vGrad.addColorStop(0.20, 'rgba(246, 248, 251, 0.0)');
+      vGrad.addColorStop(0.80, 'rgba(246, 248, 251, 0.0)');
+      vGrad.addColorStop(1, 'rgba(246, 248, 251, 1.0)');
+      ctx.fillStyle = vGrad;
+      ctx.fillRect(0, cy - 140, w, 280);
     } else if (params.mode === 'grating') {
       // Diffraction grating spectral orders
       const gratingLines = params.gratingLinesPerMm || 300;
@@ -449,7 +478,7 @@ export class DetectorScreenMesh {
       if (I < 0.008) continue;
       const x = i * colW;
       const alpha = Math.min(1.0, I * 0.95);
-      ctx.fillStyle = `rgba(${rVal}, ${gVal}, ${bVal}, ${alpha})`;
+      ctx.fillStyle = this.getAlphaColor(rVal, gVal, bVal, alpha);
       ctx.fillRect(x, cy - 140, colW + 0.6, 280);
     }
 

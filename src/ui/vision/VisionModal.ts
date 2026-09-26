@@ -652,6 +652,7 @@ export class VisionModal {
     this.conductionStatusCard?.setVisible(false);
     this.phaseStatusCard?.setVisible(false);
     this.stereometryStatusCard?.setVisible(false);
+    this.hallStatusCard?.setVisible(false);
     this.callbacks.onClose();
   }
 

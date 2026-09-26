@@ -20,6 +20,7 @@ const createMockElement = (tag = 'div'): any => ({
     createLinearGradient: () => ({ addColorStop: () => {} }),
     getImageData: () => ({ data: new Uint8ClampedArray(512 * 512 * 4) }),
     putImageData: () => {},
+    drawImage: () => {},
   }),
   querySelector: () => createMockElement('div'),
   querySelectorAll: () => [],

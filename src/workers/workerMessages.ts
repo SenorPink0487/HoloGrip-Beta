@@ -10,7 +10,8 @@ export type WorkerAction =
   | 'PARTICLE_SIM_STEP'
   | 'STREAM_TUBE_STEP'
   | 'TEXTURE_BAKE_TASK'
-  | 'CHEMISTRY_COMPOSITION_STEP';
+  | 'CHEMISTRY_COMPOSITION_STEP'
+  | 'HALL_CARRIER_STEP';
 
 export interface BaseWorkerRequest {
   id: number;
@@ -152,6 +153,23 @@ export interface ChemistryCompositionStepRequest extends BaseWorkerRequest {
   recentReaction: any;
 }
 
+export interface HallCarrierStepRequest extends BaseWorkerRequest {
+  action: 'HALL_CARRIER_STEP';
+  positions: Float32Array;
+  baseOffsetsY: Float32Array;
+  baseOffsetsZ: Float32Array;
+  thermalPhases: Float32Array;
+  particleCount: number;
+  driftDirection: number;
+  speed: number;
+  maxDeflectionY: number;
+  halfL: number;
+  halfH: number;
+  waferThickness: number;
+  timeNow: number;
+  delta: number;
+}
+
 export type WorkerRequest =
   | NBodyStepRequest
   | WaveStepRequest
@@ -163,7 +181,8 @@ export type WorkerRequest =
   | ParticleSimStepRequest
   | StreamTubeStepRequest
   | TextureBakeTaskRequest
-  | ChemistryCompositionStepRequest;
+  | ChemistryCompositionStepRequest
+  | HallCarrierStepRequest;
 
 export type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
 
@@ -262,6 +281,14 @@ export interface ChemistryCompositionStepResponse {
   computeTimeMs: number;
 }
 
+export interface HallCarrierStepResponse {
+  id: number;
+  action: 'HALL_CARRIER_STEP';
+  positions: Float32Array;
+  baseOffsetsY: Float32Array;
+  computeTimeMs: number;
+}
+
 export type WorkerResponse =
   | NBodyStepResponse
   | WaveStepResponse
@@ -273,4 +300,5 @@ export type WorkerResponse =
   | ParticleSimStepResponse
   | StreamTubeStepResponse
   | TextureBakeTaskResponse
-  | ChemistryCompositionStepResponse;
+  | ChemistryCompositionStepResponse
+  | HallCarrierStepResponse;

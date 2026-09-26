@@ -252,8 +252,12 @@ export class StereometryStatusCard {
         <!-- 5. Apple VisionOS Dynamic Status Bar -->
         <div class="math-dynamic-status-bar">
           <span class="math-dynamic-dot"></span>
-          <span class="math-dynamic-hint" id="math-live-hint">点击顶点连线或定面剖切</span>
-          <button class="apple-subtle-link" id="btn-clear-lines-subtle" title="清除标记 (ESC)">清除选择</button>
+          <span class="math-dynamic-hint" id="math-live-hint">悬停吸附端点 / 中点 (1/2) / 三等分点 (1/3) 接线</span>
+          <div class="math-mode-pill-group">
+            <button class="math-mode-pill active" id="btn-mode-connect" title="两点接线模式">连线</button>
+            <button class="math-mode-pill" id="btn-mode-cut" title="三点剖切模式">剖切</button>
+          </div>
+          <button class="apple-subtle-link" id="btn-clear-lines-subtle" title="清除所有连线与标记 (C)">清除连线</button>
         </div>
 
         <!-- 6. Hidden preservation elements for telemetry DOM contract -->
@@ -316,6 +320,22 @@ export class StereometryStatusCard {
     // 3. Subtle Clear Marks Button
     this.element.querySelector('#btn-clear-lines-subtle')?.addEventListener('click', () => {
       this.callbacks.onClearSegments?.();
+    });
+
+    // 4. Interaction Mode Pills
+    const btnModeConnect = this.element.querySelector('#btn-mode-connect');
+    const btnModeCut = this.element.querySelector('#btn-mode-cut');
+
+    btnModeConnect?.addEventListener('click', () => {
+      btnModeConnect.classList.add('active');
+      btnModeCut?.classList.remove('active');
+      this.callbacks.onInteractionModeChange?.('direct');
+    });
+
+    btnModeCut?.addEventListener('click', () => {
+      btnModeCut.classList.add('active');
+      btnModeConnect?.classList.remove('active');
+      this.callbacks.onInteractionModeChange?.('three-point-cut');
     });
   }
 

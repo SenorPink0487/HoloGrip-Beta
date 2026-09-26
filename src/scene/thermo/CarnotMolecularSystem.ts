@@ -20,6 +20,7 @@ export class CarnotMolecularSystem {
   // Thermodynamic parameters
   private currentTempK = 600;
   private targetTempK = 600;
+  private lastColorTempK = -999;
   private readonly molarMassKg = 0.028; // Air/N2
   private readonly R_GAS = 8.314;
   private readonly timeScale = 0.00035;
@@ -96,10 +97,15 @@ export class CarnotMolecularSystem {
 
     // Smoothly adjust temperature towards instantaneous cycle temperature
     this.currentTempK += (this.targetTempK - this.currentTempK) * 0.15;
-    this.updateColors();
+    if (Math.abs(this.currentTempK - this.lastColorTempK) >= 2.0) {
+      this.updateColors();
+    }
   }
 
-  private updateColors(): void {
+  private updateColors(force = false): void {
+    if (!force && Math.abs(this.currentTempK - this.lastColorTempK) < 2.0) return;
+    this.lastColorTempK = this.currentTempK;
+
     // Temperature to color gradient:
     // 200K -> Ice Cyan (#38bdf8)
     // 400K -> Warm Yellow (#facc15)

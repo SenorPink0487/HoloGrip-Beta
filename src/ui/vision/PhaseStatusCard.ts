@@ -62,6 +62,11 @@ export class PhaseStatusCard {
   private selectAccel: HTMLSelectElement | null = null;
   private btnHeating: HTMLButtonElement | null = null;
   private lastChartRenderTime = 0;
+  private lastRenderedTempC = -999;
+  private lastRenderedPower = -1;
+  private lastRenderedHeating: boolean | null = null;
+  private lastRenderedStage = '';
+  private lastRenderedTimeS = -1;
 
   constructor(callbacks: PhaseStatusCardCallbacks = {}) {
     this.callbacks = callbacks;
@@ -211,6 +216,12 @@ export class PhaseStatusCard {
   public setVisible(visible: boolean): void {
     this.isVisible = visible;
     if (visible) {
+      this.lastChartRenderTime = 0;
+      this.lastRenderedTempC = -999;
+      this.lastRenderedPower = -1;
+      this.lastRenderedHeating = null;
+      this.lastRenderedStage = '';
+      this.lastRenderedTimeS = -1;
       this.renderCharts();
     }
   }
@@ -249,8 +260,20 @@ export class PhaseStatusCard {
 
     if (this.isVisible) {
       const now = performance.now();
-      if (now - this.lastChartRenderTime >= 100) {
+      const stateChanged =
+        data.isHeating !== this.lastRenderedHeating ||
+        data.phaseStageName !== this.lastRenderedStage ||
+        Math.abs(data.heatPowerW - this.lastRenderedPower) > 1.0 ||
+        Math.abs(data.temperatureC - this.lastRenderedTempC) > 0.2 ||
+        (data.isHeating && data.timeElapsedS - this.lastRenderedTimeS >= 1.0);
+
+      if (stateChanged && now - this.lastChartRenderTime >= 32) {
         this.lastChartRenderTime = now;
+        this.lastRenderedTempC = data.temperatureC;
+        this.lastRenderedPower = data.heatPowerW;
+        this.lastRenderedHeating = data.isHeating;
+        this.lastRenderedStage = data.phaseStageName;
+        this.lastRenderedTimeS = data.timeElapsedS;
         this.renderCharts();
       }
     }

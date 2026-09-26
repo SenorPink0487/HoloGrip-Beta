@@ -116,6 +116,12 @@ export class Engine {
   private lastThermoTelemetrySync = 0;
   private lastMathTelemetrySync = 0;
   private lastEmTelemetrySync = 0;
+  private lastCss3dCamPos = new THREE.Vector3(Infinity, Infinity, Infinity);
+  private lastCss3dCamQuat = new THREE.Quaternion(Infinity, Infinity, Infinity, Infinity);
+  private lastCss3dWinPos = new THREE.Vector3(Infinity, Infinity, Infinity);
+  private lastCss3dWinRotY = Infinity;
+  private lastCss3dWinScale = 1.0;
+  private lastCss3dVisible = false;
 
   public clock = new THREE.Clock();
   private lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -540,8 +546,8 @@ export class Engine {
         this.crosshair.setVisible(false);
       } else {
         if (!this.visionModal || !this.visionModal.visible) {
-          this.inputManager.player.allowPointerLock = true;
-          if (!this.labEntryActive && !this.isWhiteboardMode) {
+          this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
+          if (!this.labEntryActive && !this.isWhiteboardMode && this.currentExperimentId !== 'math-stereometry') {
             this.crosshair.setVisible(true);
           }
         }
@@ -599,6 +605,7 @@ export class Engine {
 
   private positionWindowInFrontOfCamera(snap = true): void {
     this.updateSpatialWindowTransform(0.1, snap);
+    this.lastCss3dCamPos.set(Infinity, Infinity, Infinity);
   }
 
   private initVisionOS(): void {
@@ -606,8 +613,8 @@ export class Engine {
       onClose: () => {
         this.spatialWindowObject.visible = false;
         this.lab?.setObservationWindowVisible(true);
-        this.inputManager.player.allowPointerLock = true;
-        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
+        this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
+        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
           this.crosshair.setVisible(true);
         }
       },
@@ -1051,7 +1058,7 @@ export class Engine {
     this.inputManager.player.onLockChange = (isLocked: boolean) => {
       const isDrawerOpen = this.hud?.drawer?.open ?? false;
       const isModalOpen = this.visionModal?.visible ?? false;
-      if (!this.labEntryActive && !this.isWhiteboardMode && !isModalOpen && !isDrawerOpen) {
+      if (!this.labEntryActive && !this.isWhiteboardMode && !isModalOpen && !isDrawerOpen && this.currentExperimentId !== 'math-stereometry') {
         this.crosshair.setVisible(true);
       } else {
         this.crosshair.setVisible(false);
@@ -1111,6 +1118,17 @@ export class Engine {
       }
 
       this.currentExperimentId = id;
+      if (id === 'math-stereometry') {
+        this.crosshair?.setVisible(false);
+        if (this.inputManager?.player) {
+          this.inputManager.player.allowPointerLock = false;
+          this.inputManager.player.exitLock();
+        }
+      } else {
+        if (this.inputManager?.player && !this.labEntryActive) {
+          this.inputManager.player.allowPointerLock = true;
+        }
+      }
       this.visionModal.setCurrentExperimentId(id);
       this.hud.setActiveExperiment(experiment, this.currentContext);
       this.holoStage.setStageVisible(true);
@@ -1361,8 +1379,20 @@ export class Engine {
       if (this.holoStage.activeExperiment?.onPointerDown) {
         this.raycaster.setFromCamera(mouseNDC, this.camera);
         const hits = this.raycaster.intersectObjects(this.holoStage.activeExperiment.rootGroup.children, true);
-        for (const hit of hits) {
-          const handled = this.holoStage.activeExperiment.onPointerDown(e, hit, this.currentContext);
+        if (hits.length > 0) {
+          for (const hit of hits) {
+            const handled = this.holoStage.activeExperiment.onPointerDown(e, hit, this.currentContext);
+            if (handled) {
+              e.stopPropagation();
+              this.isExperimentInteracting = true;
+              this.inputManager.player.enabled = false;
+              this.inputManager.player.allowPointerLock = false;
+              this.inputManager.player.exitLock();
+              return;
+            }
+          }
+        } else if (this.currentExperimentId === 'math-stereometry') {
+          const handled = this.holoStage.activeExperiment.onPointerDown(e, null, this.currentContext);
           if (handled) {
             e.stopPropagation();
             this.isExperimentInteracting = true;
@@ -1455,9 +1485,9 @@ export class Engine {
         this.holoStage.activeExperiment?.onPointerUp?.(e, this.currentContext);
         if (!this.labEntryActive) {
           this.inputManager.player.enabled = true;
-          this.inputManager.player.allowPointerLock = true;
+          this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
         }
-        if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
+        if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
           this.crosshair.setVisible(true);
         }
       }
@@ -1512,6 +1542,7 @@ export class Engine {
 
     if (this.css3dRenderer) {
       this.css3dRenderer.setSize(width, height);
+      this.lastCss3dCamPos.set(Infinity, Infinity, Infinity);
     }
 
     if (this.renderer.shadowMap.enabled) {
@@ -1520,7 +1551,10 @@ export class Engine {
   }
 
   private checkCrosshairIntersection(now: number): void {
-    if (!this.crosshair || (this.visionModal && this.visionModal.visible)) {
+    if (!this.crosshair || (this.visionModal && this.visionModal.visible) || this.currentExperimentId === 'math-stereometry') {
+      if (this.currentExperimentId === 'math-stereometry' && this.crosshair?.getVisible()) {
+        this.crosshair.setVisible(false);
+      }
       return;
     }
 
@@ -1713,7 +1747,7 @@ export class Engine {
       if (this.renderer?.shadowMap?.enabled) {
         this.renderer.shadowMap.needsUpdate = true;
       }
-      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open)) {
+      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
         this.crosshair.setVisible(true);
       }
     } else if (this.isWhiteboardMode) {
@@ -1909,9 +1943,36 @@ export class Engine {
       this.renderer.render(this.scene, this.camera);
     }
 
-    // Only render CSS3D scene when spatial window is open/visible
-    if (this.css3dRenderer && this.css3dScene && isModalOpen && this.spatialWindowObject?.visible) {
-      this.css3dRenderer.render(this.css3dScene, this.camera);
+    // Only render CSS3D scene when spatial window is open/visible and transforms are dirty
+    const isCss3dVisible = Boolean(this.css3dRenderer && this.css3dScene && isModalOpen && this.spatialWindowObject?.visible);
+    if (isCss3dVisible) {
+      const cam = this.camera;
+      const win = this.spatialWindowObject!;
+      const camMoved =
+        cam.position.distanceToSquared(this.lastCss3dCamPos) > 1e-6 ||
+        Math.abs(cam.quaternion.x - this.lastCss3dCamQuat.x) > 1e-4 ||
+        Math.abs(cam.quaternion.y - this.lastCss3dCamQuat.y) > 1e-4 ||
+        Math.abs(cam.quaternion.z - this.lastCss3dCamQuat.z) > 1e-4 ||
+        Math.abs(cam.quaternion.w - this.lastCss3dCamQuat.w) > 1e-4;
+
+      const winMoved =
+        win.position.distanceToSquared(this.lastCss3dWinPos) > 1e-6 ||
+        Math.abs(win.rotation.y - this.lastCss3dWinRotY) > 1e-4 ||
+        Math.abs(win.scale.x - this.lastCss3dWinScale) > 1e-5;
+
+      const becameVisible = !this.lastCss3dVisible;
+
+      if (camMoved || winMoved || becameVisible) {
+        this.lastCss3dCamPos.copy(cam.position);
+        this.lastCss3dCamQuat.copy(cam.quaternion);
+        this.lastCss3dWinPos.copy(win.position);
+        this.lastCss3dWinRotY = win.rotation.y;
+        this.lastCss3dWinScale = win.scale.x;
+        this.lastCss3dVisible = true;
+        this.css3dRenderer!.render(this.css3dScene!, this.camera);
+      }
+    } else {
+      this.lastCss3dVisible = false;
     }
   }
 }

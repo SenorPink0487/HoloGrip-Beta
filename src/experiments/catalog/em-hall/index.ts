@@ -67,6 +67,9 @@ export default class EmHallExperiment extends BaseExperiment {
   private showVectors = true;
   private showParticles = true;
 
+  // Cached telemetry snapshot
+  private cachedTelemetry: HallTelemetryData | null = null;
+
   // Telemetry listener for UI binding
   private telemetryCallback: ((data: HallTelemetryData) => void) | null = null;
 
@@ -79,7 +82,9 @@ export default class EmHallExperiment extends BaseExperiment {
     this.rootGroup.position.set(0, 0.16, 1.60);
 
     // 1. High-precision 3D Hall Bench
-    this.bench = this.track(new HallBenchMesh());
+    this.bench = this.track(new HallBenchMesh({
+      computeBridge: _context?.computeBridge,
+    }));
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
 
@@ -152,7 +157,7 @@ export default class EmHallExperiment extends BaseExperiment {
     );
 
     // Broadcast to UI Telemetry Card if connected
-    const telemetry: HallTelemetryData = {
+    this.cachedTelemetry = {
       magFieldTesla: this.magFieldTesla,
       currentMa: this.currentMa,
       waferThicknessMm: this.waferThicknessMm,
@@ -175,7 +180,7 @@ export default class EmHallExperiment extends BaseExperiment {
       showParticles: this.showParticles,
     };
 
-    this.telemetryCallback?.(telemetry);
+    this.telemetryCallback?.(this.cachedTelemetry);
   }
 
   // ================= Public API & Parameter Setters =================
@@ -266,44 +271,10 @@ export default class EmHallExperiment extends BaseExperiment {
   }
 
   public getTelemetryData(): HallTelemetryData {
-    const q = this.carrierCharge;
-    const n = this.carrierConcentration;
-    const dMeters = this.waferThicknessMm * 1e-3;
-    const wMeters = this.waferWidthMm * 1e-3;
-    const currentAmps = this.currentMa * 1e-3;
-    const bTesla = this.magFieldTesla;
-
-    const rh = 1.0 / (n * q);
-    const vhMv = (rh * (currentAmps * bTesla) / dMeters) * 1000.0;
-    const kh = Math.abs(rh) / dMeters;
-    const eh = (vhMv * 1e-3) / wMeters;
-    const vd = currentAmps / (n * Math.abs(q) * wMeters * dMeters);
-    const fl = Math.abs(q) * vd * Math.abs(bTesla);
-    const muM2Vs = this.mobilityCm2Vs * 1e-4;
-    const conductivity = n * Math.abs(q) * muM2Vs;
-
-    return {
-      magFieldTesla: this.magFieldTesla,
-      currentMa: this.currentMa,
-      waferThicknessMm: this.waferThicknessMm,
-      waferWidthMm: this.waferWidthMm,
-      waferLengthMm: this.waferLengthMm,
-      materialKey: this.materialKey,
-      materialName: this.materialName,
-      carrierType: this.carrierType,
-      carrierConcentration: this.carrierConcentration,
-      carrierCharge: this.carrierCharge,
-      mobilityCm2Vs: this.mobilityCm2Vs,
-      conductivitySm: conductivity,
-      hallCoefficientRh: rh,
-      hallSensitivityKh: kh,
-      hallVoltageMv: vhMv,
-      hallElectricFieldVm: eh,
-      driftVelocityMs: vd,
-      lorentzForceN: fl,
-      showVectors: this.showVectors,
-      showParticles: this.showParticles,
-    };
+    if (!this.cachedTelemetry) {
+      this.recomputePhysicsAndSync();
+    }
+    return this.cachedTelemetry!;
   }
 
   public override dispose(context: ExperimentContext): void {

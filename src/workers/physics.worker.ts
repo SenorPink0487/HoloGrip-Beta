@@ -718,6 +718,80 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       ctx.postMessage(resp);
       break;
     }
+
+    case 'HALL_CARRIER_STEP': {
+      const {
+        id,
+        positions,
+        baseOffsetsY,
+        baseOffsetsZ,
+        thermalPhases,
+        particleCount,
+        driftDirection,
+        speed,
+        maxDeflectionY,
+        halfL,
+        halfH,
+        waferThickness,
+        timeNow,
+        delta,
+      } = req;
+
+      const curveL = 2 * halfL;
+      const maxY = halfH * 0.94;
+      const minY = -maxY;
+      const maxZ = waferThickness * 0.40;
+      const minZ = -maxZ;
+
+      for (let i = 0; i < particleCount; i++) {
+        const idx = i * 3;
+
+        // Longitudinal drift along X (only when current is flowing)
+        if (speed > 0) {
+          positions[idx] += driftDirection * speed * delta;
+
+          // Seamless wrap-around when exiting wafer boundary
+          if (driftDirection > 0 && positions[idx] > halfL) {
+            positions[idx] = -halfL;
+            baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.75;
+          } else if (driftDirection < 0 && positions[idx] < -halfL) {
+            positions[idx] = halfL;
+            baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.75;
+          }
+        }
+
+        // Smooth parabolic deflection towards accumulating edge
+        const u = driftDirection > 0
+          ? (positions[idx] + halfL) / curveL
+          : (halfL - positions[idx]) / curveL;
+
+        const clampedU = u < 0 ? 0 : u > 1 ? 1 : u;
+        const curveWeight = Math.pow(clampedU, 1.35);
+
+        // Microscopic thermal jitter (Brownian quantum fluctuation)
+        const thermalPhase = thermalPhases[i] + timeNow;
+        const thermalY = Math.sin(thermalPhase * 3.5) * halfH * 0.045;
+        const thermalZ = Math.cos(thermalPhase * 2.8) * waferThickness * 0.06;
+
+        const targetY = baseOffsetsY[i] + maxDeflectionY * curveWeight + thermalY;
+        positions[idx + 1] = targetY < minY ? minY : targetY > maxY ? maxY : targetY;
+
+        const targetZ = baseOffsetsZ[i] + thermalZ;
+        positions[idx + 2] = targetZ < minZ ? minZ : targetZ > maxZ ? maxZ : targetZ;
+      }
+
+      const computeTimeMs = performance.now() - startTime;
+      const resp: WorkerResponse = {
+        id,
+        action: 'HALL_CARRIER_STEP',
+        positions,
+        baseOffsetsY,
+        computeTimeMs,
+      };
+
+      ctx.postMessage(resp, [positions.buffer, baseOffsetsY.buffer]);
+      break;
+    }
   }
 };
 

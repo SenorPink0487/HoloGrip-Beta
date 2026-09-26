@@ -4,10 +4,10 @@ import { GeometrySolver, type KeyPoint } from './GeometrySolver.ts';
 import type { ExperimentContext } from '../../core/types.ts';
 
 export type InteractionMode =
-  | 'direct'          // 直接自然交互 (旋转/连线/剖切自适应)
-  | 'orbit'           // 兼容旧接口：自由空间拖拽旋转
-  | 'connect-line'    // 兼容旧接口：两点连线
-  | 'three-point-cut' // 兼容旧接口：三点定面截面
+  | 'direct'          // 自然交互 (接线为主，空白拖拽旋转)
+  | 'orbit'           // 自由空间拖拽旋转
+  | 'connect-line'    // 两点接线
+  | 'three-point-cut' // 三点定面截面
   | 'set-origin';     // 选取原点建系
 
 export interface StereometryInteractionCallbacks {
@@ -25,17 +25,23 @@ export class StereometryInteractionManager {
   private callbacks: StereometryInteractionCallbacks;
   private currentMode: InteractionMode = 'direct';
 
-  // Rotation dragging state
-  private isDragging = false;
-  private hasDragged = false;
+  // Interaction State Machine
+  private pendingStartPoint: KeyPoint | null = null;
+  private currentHoveredKp: KeyPoint | null = null;
+  private currentSnapLabel = '';
+  private selectedCutPoints: KeyPoint[] = [];
+
+  // Pointer dragging state
+  private isPointerDown = false;
+  private isOrbitDragging = false;
+  private isConnectingDrag = false;
+  private dragStartKp: KeyPoint | null = null;
+
   private pointerDownX = 0;
   private pointerDownY = 0;
   private lastPointerX = 0;
   private lastPointerY = 0;
   private rotationVelocity = new THREE.Vector2(0, 0);
-
-  // Direct interactive selection buffer
-  private selectedKeyPoints: KeyPoint[] = [];
 
   constructor(mesh: StereometryMesh, callbacks: StereometryInteractionCallbacks = {}) {
     this.mesh = mesh;
@@ -44,6 +50,7 @@ export class StereometryInteractionManager {
 
   public setMode(mode: InteractionMode): void {
     this.currentMode = mode;
+    this.resetSelection();
   }
 
   public getMode(): InteractionMode {
@@ -51,42 +58,29 @@ export class StereometryInteractionManager {
   }
 
   public getSelectedCutPoints(): KeyPoint[] {
-    return [...this.selectedKeyPoints];
+    return [...this.selectedCutPoints];
   }
 
   public resetSelection(): void {
-    this.selectedKeyPoints = [];
+    this.pendingStartPoint = null;
+    this.selectedCutPoints = [];
     this.mesh.setSelectedKeyPoints([]);
+    this.mesh.clearPreviewWire();
   }
 
   public clearAll(): void {
-    this.selectedKeyPoints = [];
-    this.mesh.setSelectedKeyPoints([]);
+    this.resetSelection();
     this.mesh.clearAllSegments();
     this.mesh.setOptions({ crossSectionPlane: undefined, clippingEnabled: false });
     this.callbacks.onClearSegments?.();
   }
 
   /**
-   * Find the closest KeyPoint within a generous 3D screen-space ray snap distance.
+   * Find the closest KeyPoint with magnetic snapping (vertex, 1/2 midpoint, 1/3, 2/3, center).
    */
-  public findKeyPointNearRay(raycaster: THREE.Raycaster, threshold = 0.045): KeyPoint | null {
-    const kpMeshes = this.mesh.getKeyPointMeshes();
-    let closestKp: KeyPoint | null = null;
-    let minDistance = threshold;
-    const worldPos = new THREE.Vector3();
-
-    for (const m of kpMeshes) {
-      if (!m.userData?.keyPoint) continue;
-      m.getWorldPosition(worldPos);
-      const dist = raycaster.ray.distanceToPoint(worldPos);
-      if (dist < minDistance) {
-        minDistance = dist;
-        closestKp = m.userData.keyPoint;
-      }
-    }
-
-    return closestKp;
+  public findKeyPointNearRay(raycaster: THREE.Raycaster, threshold = 0.055): KeyPoint | null {
+    const res = this.mesh.findClosestSnapPoint(raycaster.ray, threshold);
+    return res ? res.keyPoint : null;
   }
 
   /**
@@ -95,17 +89,49 @@ export class StereometryInteractionManager {
   public onPointerDown(
     event: PointerEvent,
     _hit: THREE.Intersection | null,
-    _context: ExperimentContext
+    context: ExperimentContext
   ): boolean {
     if (event.button !== 0) return false;
 
-    this.isDragging = true;
-    this.hasDragged = false;
+    this.isPointerDown = true;
     this.pointerDownX = event.clientX;
     this.pointerDownY = event.clientY;
     this.lastPointerX = event.clientX;
     this.lastPointerY = event.clientY;
     this.rotationVelocity.set(0, 0);
+
+    let snapKp: KeyPoint | null = null;
+    let snapLabel = '';
+
+    if (context?.camera) {
+      const mouseNDC = new THREE.Vector2(
+        (event.clientX / window.innerWidth) * 2 - 1,
+        -(event.clientY / window.innerHeight) * 2 + 1
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouseNDC, context.camera);
+      const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, 0.060);
+      if (snapRes) {
+        snapKp = snapRes.keyPoint;
+        snapLabel = snapRes.snapLabel;
+      }
+    }
+
+    if (snapKp) {
+      // Pressed on a magnetic snap point: initiate potential line connection
+      this.isConnectingDrag = true;
+      this.isOrbitDragging = false;
+      this.dragStartKp = snapKp;
+      this.currentHoveredKp = snapKp;
+      this.currentSnapLabel = snapLabel;
+      this.mesh.setHoveredKeyPoint(snapKp.id);
+    } else {
+      // Pressed on empty space / model background: initiate orbit drag
+      this.isConnectingDrag = false;
+      this.isOrbitDragging = true;
+      this.dragStartKp = null;
+    }
+
     return true;
   }
 
@@ -114,15 +140,10 @@ export class StereometryInteractionManager {
    */
   public onPointerMove(
     event: PointerEvent,
-    hit: THREE.Intersection | null,
+    _hit: THREE.Intersection | null,
     context: ExperimentContext
   ): void {
-    if (this.isDragging) {
-      const dist = Math.hypot(event.clientX - this.pointerDownX, event.clientY - this.pointerDownY);
-      if (dist > 4) {
-        this.hasDragged = true;
-      }
-
+    if (this.isOrbitDragging) {
       const dx = event.clientX - this.lastPointerX;
       const dy = event.clientY - this.lastPointerY;
       this.lastPointerX = event.clientX;
@@ -143,26 +164,46 @@ export class StereometryInteractionManager {
       return;
     }
 
-    // Raycast hover check against KeyPoints
+    // Raycast check with magnetic snapping
     let hoveredKp: KeyPoint | null = null;
-    const kpMeshes = this.mesh.getKeyPointMeshes();
-    if (hit) {
-      const hitObj = hit.object;
-      const hitKpMesh = kpMeshes.find((m) => m === hitObj || m.children.includes(hitObj as any));
-      if (hitKpMesh && hitKpMesh.userData.keyPoint) {
-        hoveredKp = hitKpMesh.userData.keyPoint;
+    let hoveredLabel = '';
+    const mouseNDC = new THREE.Vector2(
+      (event.clientX / window.innerWidth) * 2 - 1,
+      -(event.clientY / window.innerHeight) * 2 + 1
+    );
+
+    if (context?.camera) {
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouseNDC, context.camera);
+      const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, 0.055);
+      if (snapRes) {
+        hoveredKp = snapRes.keyPoint;
+        hoveredLabel = snapRes.snapLabel;
+      }
+
+      // Live rubberband preview wire update
+      const activeStart = this.isConnectingDrag ? this.dragStartKp : this.pendingStartPoint;
+      if (activeStart) {
+        if (hoveredKp && hoveredKp.id !== activeStart.id) {
+          // Snapped to target point
+          this.mesh.updatePreviewWire(activeStart.position, hoveredKp.position, 0x38d9a9);
+        } else {
+          // Project cursor onto plane parallel to camera through start point
+          const normal = new THREE.Vector3();
+          context.camera.getWorldDirection(normal).negate();
+          const startWorld = activeStart.position.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld);
+          const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, startWorld);
+          const hitWorld = new THREE.Vector3();
+          if (raycaster.ray.intersectPlane(plane, hitWorld)) {
+            const hitLocal = hitWorld.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld.clone().invert());
+            this.mesh.updatePreviewWire(activeStart.position, hitLocal, 0xffd43b);
+          }
+        }
       }
     }
 
-    if (!hoveredKp && context?.camera) {
-      const mouseNDC = new THREE.Vector2(
-        (event.clientX / window.innerWidth) * 2 - 1,
-        -(event.clientY / window.innerHeight) * 2 + 1
-      );
-      const ray = new THREE.Raycaster();
-      ray.setFromCamera(mouseNDC, context.camera);
-      hoveredKp = this.findKeyPointNearRay(ray);
-    }
+    this.currentHoveredKp = hoveredKp;
+    this.currentSnapLabel = hoveredLabel;
 
     if (hoveredKp) {
       this.mesh.setHoveredKeyPoint(hoveredKp.id);
@@ -176,19 +217,23 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Pointer Up Hook - Dispatches clean clicks vs drag operations.
+   * Pointer Up Hook - Resolves drag-to-connect vs clean clicks.
    */
   public onPointerUp(event: PointerEvent, context: ExperimentContext): void {
-    const wasDragging = this.isDragging;
-    const hasDragged = this.hasDragged;
-    this.isDragging = false;
+    if (!this.isPointerDown) return;
+    this.isPointerDown = false;
 
-    if (!wasDragging || hasDragged) {
+    const dist = Math.hypot(event.clientX - this.pointerDownX, event.clientY - this.pointerDownY);
+
+    if (this.isOrbitDragging) {
+      this.isOrbitDragging = false;
+      // If user did a quick clean click on empty space: cancel pending line
+      if (dist < 5 && this.pendingStartPoint) {
+        this.resetSelection();
+      }
       return;
     }
 
-    // This was a clean CLICK! Determine target keypoint
-    let clickedKp: KeyPoint | null = null;
     if (context?.camera) {
       const mouseNDC = new THREE.Vector2(
         (event.clientX / window.innerWidth) * 2 - 1,
@@ -196,80 +241,95 @@ export class StereometryInteractionManager {
       );
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouseNDC, context.camera);
+      const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, 0.055);
+      const targetKp = snapRes?.keyPoint ?? null;
 
-      // 1. Direct hit on keypoint sphere
-      const hits = raycaster.intersectObjects(this.mesh.getKeyPointMeshes(), false);
-      if (hits.length > 0 && hits[0].object.userData?.keyPoint) {
-        clickedKp = hits[0].object.userData.keyPoint;
-      }
-
-      // 2. Or magnetic snap within 4.5cm radius
-      if (!clickedKp) {
-        clickedKp = this.findKeyPointNearRay(raycaster, 0.045);
+      if (dist > 8 && this.dragStartKp) {
+        // Drag-to-connect: released on target point
+        if (targetKp && targetKp.id !== this.dragStartKp.id) {
+          this.connectTwoPoints(this.dragStartKp, targetKp);
+          this.resetSelection();
+        } else {
+          // Released in open space during drag: keep dragStartKp as pending start point
+          this.pendingStartPoint = this.dragStartKp;
+          this.mesh.setSelectedKeyPoints([this.dragStartKp.id]);
+        }
+      } else {
+        // Clean Click interaction
+        if (targetKp) {
+          this.handleClickOnPoint(targetKp);
+        } else {
+          // Clicked empty space: clear pending selection
+          this.resetSelection();
+        }
       }
     }
 
-    if (clickedKp) {
-      this.handleDirectKeyPointClick(clickedKp);
-    } else {
-      // Clicked on empty space: clear active vertex buffer if nothing was drawn
-      if (this.selectedKeyPoints.length === 1) {
-        this.resetSelection();
-      }
-    }
+    this.isConnectingDrag = false;
+    this.dragStartKp = null;
   }
 
   /**
-   * Direct Natural KeyPoint Interaction:
-   * 1st click: selects vertex (glowing pulse ring)
-   * 2nd click: connects vertex 1 & 2 (line segment, measures distance)
-   * 3rd click: solves cutting plane from 1, 2, 3 (creates 3D cross section, measures area)
-   * 4th click: connects vertex 3 & 4 (second line segment, analyzes skew angle)
-   * 5th click: starts fresh cycle
+   * Handle clean click on a keypoint.
    */
-  private handleDirectKeyPointClick(kp: KeyPoint): void {
-    // If clicking the same vertex that was just clicked, deselect it
-    if (this.selectedKeyPoints.length > 0 && this.selectedKeyPoints[this.selectedKeyPoints.length - 1].id === kp.id) {
-      this.selectedKeyPoints.pop();
-      this.mesh.setSelectedKeyPoints(this.selectedKeyPoints.map((p) => p.id));
+  private handleClickOnPoint(kp: KeyPoint): void {
+    if (this.currentMode === 'three-point-cut') {
+      // Cross-section cut plane selection mode
+      const idx = this.selectedCutPoints.findIndex((p) => p.id === kp.id);
+      if (idx !== -1) {
+        this.selectedCutPoints.splice(idx, 1);
+      } else {
+        this.selectedCutPoints.push(kp);
+      }
+      this.mesh.setSelectedKeyPoints(this.selectedCutPoints.map((p) => p.id));
+      this.callbacks.onKeyPointClick?.(kp, this.currentMode);
+
+      if (this.selectedCutPoints.length === 3) {
+        const [p1, p2, p3] = this.selectedCutPoints;
+        const plane = GeometrySolver.solvePlaneFrom3Points(p1.position, p2.position, p3.position);
+        this.mesh.setOptions({ crossSectionPlane: plane, clippingEnabled: true });
+        const res = this.mesh.getCrossSectionResult();
+        if (res) {
+          this.callbacks.onCrossSectionCreated?.(res.polygonType, res.area);
+        }
+        this.selectedCutPoints = [];
+        this.mesh.setSelectedKeyPoints([]);
+      }
+      return;
+    }
+
+    if (this.currentMode === 'set-origin') {
+      this.callbacks.onOriginChanged?.(kp);
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
       return;
     }
 
-    if (this.selectedKeyPoints.length >= 4) {
-      this.selectedKeyPoints = [];
+    // Default & 'connect-line' mode: Two-Point Line Connection
+    if (!this.pendingStartPoint) {
+      // 1st Click: select start point
+      this.pendingStartPoint = kp;
+      this.mesh.setSelectedKeyPoints([kp.id]);
+      this.callbacks.onKeyPointClick?.(kp, this.currentMode);
+    } else if (this.pendingStartPoint.id === kp.id) {
+      // Clicked same point: deselect
+      this.resetSelection();
+      this.callbacks.onKeyPointClick?.(kp, this.currentMode);
+    } else {
+      // 2nd Click: connect line!
+      const start = this.pendingStartPoint;
+      this.connectTwoPoints(start, kp);
+      this.resetSelection();
+      this.callbacks.onKeyPointClick?.(kp, this.currentMode);
     }
+  }
 
-    this.selectedKeyPoints.push(kp);
-    this.mesh.setSelectedKeyPoints(this.selectedKeyPoints.map((p) => p.id));
-    this.callbacks.onKeyPointClick?.(kp, this.currentMode);
-
-    const count = this.selectedKeyPoints.length;
-
-    if (count === 2) {
-      // Create connection segment between point 1 and point 2
-      const [p1, p2] = this.selectedKeyPoints;
-      const seg = this.mesh.addSegment(p1.id, p2.id);
-      if (seg) {
-        this.callbacks.onSegmentCreated?.(seg.label, seg.length);
-      }
-    } else if (count === 3) {
-      // 3 points: solve cutting plane!
-      const [p1, p2, p3] = this.selectedKeyPoints;
-      const plane = GeometrySolver.solvePlaneFrom3Points(p1.position, p2.position, p3.position);
-      this.mesh.setOptions({ crossSectionPlane: plane, clippingEnabled: true });
-      const res = this.mesh.getCrossSectionResult();
-      if (res) {
-        this.callbacks.onCrossSectionCreated?.(res.polygonType, res.area);
-      }
-    } else if (count === 4) {
-      // 4th point: connect point 3 and point 4 into a second line segment!
-      const p3 = this.selectedKeyPoints[2];
-      const p4 = this.selectedKeyPoints[3];
-      const seg = this.mesh.addSegment(p3.id, p4.id);
-      if (seg) {
-        this.callbacks.onSegmentCreated?.(seg.label, seg.length);
-      }
+  /**
+   * Create line segment between two keypoints.
+   */
+  private connectTwoPoints(p1: KeyPoint, p2: KeyPoint): void {
+    const seg = this.mesh.addSegment(p1.id, p2.id);
+    if (seg) {
+      this.callbacks.onSegmentCreated?.(seg.label, seg.length);
     }
   }
 
@@ -321,7 +381,16 @@ export class StereometryInteractionManager {
       return true;
     }
 
-    if (event.code === 'Escape' || event.code === 'KeyC') {
+    if (event.code === 'Escape') {
+      if (this.pendingStartPoint) {
+        this.resetSelection();
+      } else {
+        this.clearAll();
+      }
+      return true;
+    }
+
+    if (event.code === 'KeyC') {
       this.clearAll();
       return true;
     }
@@ -338,28 +407,33 @@ export class StereometryInteractionManager {
    * Real-Time User Interaction Hint for Status Card.
    */
   public getInteractionHint(): string {
-    const count = this.selectedKeyPoints.length;
-    if (count === 0) {
-      return '点击顶点连线或定面剖切';
-    } else if (count === 1) {
-      const p1 = this.selectedKeyPoints[0];
-      return `已选顶点 ${p1.label}`;
-    } else if (count === 2) {
-      const [p1, p2] = this.selectedKeyPoints;
-      return `线段 ${p1.label}${p2.label}`;
-    } else if (count === 3) {
-      const [p1, p2, p3] = this.selectedKeyPoints;
-      return `截面 (${p1.label}, ${p2.label}, ${p3.label})`;
-    } else {
-      return '空间几何分析已就绪';
+    if (this.currentMode === 'three-point-cut') {
+      const count = this.selectedCutPoints.length;
+      if (count === 0) return '剖切模式：请点击第 1 个点';
+      if (count === 1) return `剖切模式：已选 [${this.selectedCutPoints[0].label}]，请点击第 2 个点`;
+      if (count === 2) return `剖切模式：已选 [${this.selectedCutPoints[0].label}, ${this.selectedCutPoints[1].label}]，请点击第 3 个点剖切`;
     }
+
+    if (this.pendingStartPoint) {
+      if (this.currentHoveredKp && this.currentHoveredKp.id !== this.pendingStartPoint.id) {
+        const len = this.pendingStartPoint.position.distanceTo(this.currentHoveredKp.position);
+        return `已选起点 ${this.pendingStartPoint.label} → 目标: ${this.currentSnapLabel} (距离: ${len.toFixed(3)}m) · 单击完成接线`;
+      }
+      return `已选起点 ${this.pendingStartPoint.label} · 移动鼠标吸附端点/中点/三等分点 (单击空白取消)`;
+    }
+
+    if (this.currentHoveredKp) {
+      return `吸附到: ${this.currentSnapLabel} · 单击或拖拽开始接线`;
+    }
+
+    return '悬停吸附端点 / 中点 (1/2) / 三等分点 (1/3) 接线 · 空白处拖拽旋转视角';
   }
 
   /**
    * Continuous animation update (inertial damping).
    */
   public update(delta: number): void {
-    if (!this.isDragging && (Math.abs(this.rotationVelocity.x) > 1e-4 || Math.abs(this.rotationVelocity.y) > 1e-4)) {
+    if (!this.isOrbitDragging && !this.isConnectingDrag && (Math.abs(this.rotationVelocity.x) > 1e-4 || Math.abs(this.rotationVelocity.y) > 1e-4)) {
       this.mesh.modelContainer.rotation.y += this.rotationVelocity.x;
       this.mesh.modelContainer.rotation.x += this.rotationVelocity.y;
       this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(

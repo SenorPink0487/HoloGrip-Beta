@@ -69,13 +69,20 @@ const floor = lab.group.children.find(child => child instanceof THREE.Mesh) as T
 assert.ok(floor?.geometry instanceof THREE.CircleGeometry, 'Floor must be circular');
 assert.ok(floor.getObjectByName('reference-floor-seams'), 'Floor construction seams must exist');
 
+let wallClearcoatGlass = false;
 let wallTransmission = false;
 walls.traverse(child => {
-  if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhysicalMaterial && child.material.transmission > 0) {
-    wallTransmission = true;
+  if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhysicalMaterial) {
+    if (child.material.clearcoat > 0 && child.material.transparent) {
+      wallClearcoatGlass = true;
+    }
+    if (child.material.transmission > 0) {
+      wallTransmission = true;
+    }
   }
 });
-assert.strictEqual(wallTransmission, true, 'Observation window should use physical glass transmission');
+assert.strictEqual(wallClearcoatGlass, true, 'Observation window should use physical clearcoat glass material');
+assert.strictEqual(wallTransmission, false, 'Observation window must NOT use transmission to avoid offscreen render passes');
 
 assert.doesNotThrow(() => {
   lab.update(0.016, 0);

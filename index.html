@@ -70,12 +70,10 @@
     }
 
     .hud-panel {
-      background: var(--bg-dark);
+      background: rgba(18, 22, 34, 0.94);
       border: 1px solid var(--glass-border);
       border-top: 1px solid var(--glass-border-specular);
       border-radius: 18px;
-      backdrop-filter: blur(32px) saturate(190%);
-      -webkit-backdrop-filter: blur(32px) saturate(190%);
       box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
     }
 
@@ -175,10 +173,8 @@
       width: 380px;
       max-width: 90vw;
       height: 100%;
-      background: rgba(24, 24, 28, 0.88);
+      background: rgba(22, 26, 36, 0.96);
       border-right: 1px solid rgba(255, 255, 255, 0.12);
-      backdrop-filter: blur(40px) saturate(190%);
-      -webkit-backdrop-filter: blur(40px) saturate(190%);
       box-shadow: none;
       transform: translateX(-100%);
       transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s ease, visibility 0.32s;
@@ -460,11 +456,9 @@
       gap: 9px;
       padding: 6px 14px;
       border-radius: 980px;
-      background: rgba(22, 22, 26, 0.72);
-      backdrop-filter: blur(28px) saturate(190%);
-      -webkit-backdrop-filter: blur(28px) saturate(190%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-top: 1px solid rgba(255, 255, 255, 0.24);
+      background: rgba(22, 24, 32, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-top: 1px solid rgba(255, 255, 255, 0.28);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
       cursor: pointer;
       pointer-events: auto;
@@ -524,10 +518,8 @@
       margin-top: 8px;
       padding: 10px 14px;
       border-radius: 14px;
-      background: rgba(22, 22, 26, 0.85);
-      backdrop-filter: blur(32px) saturate(190%);
-      -webkit-backdrop-filter: blur(32px) saturate(190%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(22, 24, 32, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.14);
       box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
       flex-direction: column;
       gap: 6px;
@@ -571,10 +563,8 @@
       top: calc(20px + env(safe-area-inset-top, 0px));
       left: 50%;
       transform: translateX(-50%) translateY(-20px);
-      background: rgba(28, 28, 32, 0.88);
-      backdrop-filter: blur(28px) saturate(190%);
-      -webkit-backdrop-filter: blur(28px) saturate(190%);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(24, 26, 34, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
       border-radius: 980px;
       padding: 8px 18px;
@@ -654,13 +644,11 @@
       font-weight: 500;
       letter-spacing: -0.15px;
       color: #f5f5f7;
-      background: rgba(30, 30, 36, 0.78);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-top: 1px solid rgba(255, 255, 255, 0.32);
+      background: rgba(26, 28, 36, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-top: 1px solid rgba(255, 255, 255, 0.35);
       border-radius: 980px;
       padding: 6px 14px;
-      backdrop-filter: blur(32px) saturate(190%);
-      -webkit-backdrop-filter: blur(32px) saturate(190%);
       box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.2);
       opacity: 0;
       transform: translateY(-4px) scale(0.96);
@@ -677,9 +665,7 @@
       width: 28px;
       height: 28px;
       border: 1.5px solid rgba(255, 255, 255, 0.95);
-      background: rgba(255, 255, 255, 0.16);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: rgba(255, 255, 255, 0.22);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 12px rgba(255, 255, 255, 0.3);
     }
 
@@ -721,9 +707,9 @@
       position: relative;
       width: 1260px;
       height: 710px;
-      background: rgba(28, 32, 42, 0.90);
-      backdrop-filter: blur(48px) saturate(200%);
-      -webkit-backdrop-filter: blur(48px) saturate(200%);
+      background: rgba(24, 28, 38, 0.88);
+      backdrop-filter: blur(12px) saturate(180%);
+      -webkit-backdrop-filter: blur(12px) saturate(180%);
       border: 1px solid rgba(255, 255, 255, 0.18);
       border-top: 1.5px solid rgba(255, 255, 255, 0.45);
       border-radius: 28px;
@@ -731,6 +717,8 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      contain: layout style;
+      will-change: transform;
     }
 
 
@@ -755,9 +743,7 @@
       top: 58px;
       left: 50%;
       transform: translateX(-50%) translateY(0);
-      background: rgba(20, 20, 26, 0.88);
-      backdrop-filter: blur(24px) saturate(180%);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      background: rgba(20, 20, 26, 0.94);
       border: 1px solid rgba(255, 255, 255, 0.2);
       color: #ffffff;
       padding: 6px 18px;
@@ -1184,10 +1170,8 @@
       bottom: -16px;
       width: calc(100% + 44px);
       height: calc(100% + 32px);
-      /* VisionOS spatial ambient scrim: ultra-light transparent air gap, preserving background luminance */
-      background: rgba(8, 12, 20, 0.15);
-      backdrop-filter: blur(6px) saturate(130%);
-      -webkit-backdrop-filter: blur(6px) saturate(130%);
+      /* VisionOS spatial ambient scrim */
+      background: rgba(8, 12, 20, 0.65);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1201,8 +1185,6 @@
 
     .element-popover-overlay.hidden {
       opacity: 0;
-      backdrop-filter: blur(0px);
-      -webkit-backdrop-filter: blur(0px);
       pointer-events: none;
       visibility: hidden;
     }
@@ -1213,11 +1195,9 @@
       width: 420px;
       max-width: 92%;
       /* Secondary page: Apple Vision Pro refined matte glass */
-      background: rgba(26, 30, 42, 0.82);
-      backdrop-filter: blur(32px) saturate(180%);
-      -webkit-backdrop-filter: blur(32px) saturate(180%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-top: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(24, 28, 40, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(255, 255, 255, 0.22);
       border-radius: 22px;
       box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25);
       padding: 20px 22px;
@@ -1468,10 +1448,8 @@
       top: 16px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(30, 30, 35, 0.92);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(24, 26, 34, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 980px;
       padding: 6px 16px;
       box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
@@ -1571,8 +1549,6 @@
       align-items: center;
       gap: 6px;
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
     }
 
     .status-action-btn:hover {
@@ -1597,7 +1573,7 @@
     }
 
     .metric-box {
-      background: rgba(255, 255, 255, 0.04);
+      background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-top: 1px solid rgba(255, 255, 255, 0.16);
       border-radius: 14px;
@@ -1605,8 +1581,6 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
     }
 
     .metric-label {
@@ -1732,13 +1706,11 @@
 
     /* Shared Apple VisionOS Glass Material */
     .glass-card {
-      background: rgba(255, 255, 255, 0.04);
+      background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-top: 1px solid rgba(255, 255, 255, 0.16);
       border-radius: 16px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
       box-sizing: border-box;
     }
 
@@ -1754,12 +1726,10 @@
       opacity: 0;
       transform: translate(-50%, -100%);
       transition: opacity 0.16s cubic-bezier(0.16, 1, 0.3, 1);
-      background: rgba(18, 18, 24, 0.82);
+      background: rgba(18, 22, 32, 0.94);
       border: 1px solid rgba(255, 255, 255, 0.18);
       border-top: 1px solid rgba(255, 255, 255, 0.4);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 16px rgba(10, 132, 255, 0.25);
-      backdrop-filter: blur(24px) saturate(180%);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
       border-radius: 980px;
       padding: 6px 14px;
       display: flex;
@@ -1887,10 +1857,8 @@
       gap: 8px;
       padding: 5px 16px;
       border-radius: 980px;
-      background: rgba(255, 255, 255, 0.04);
+      background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
     }
 
     .capsule-val {
@@ -1926,8 +1894,6 @@
       align-items: center;
       gap: 6px;
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
     }
 
     .apple-pill-btn:hover {
@@ -2035,17 +2001,15 @@
     /* Apple Solute Card */
     .apple-solute-card {
       position: relative;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-top: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-top: 1px solid rgba(255, 255, 255, 0.20);
       border-radius: 20px;
       padding: 24px 22px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       gap: 20px;
-      backdrop-filter: blur(30px);
-      -webkit-backdrop-filter: blur(30px);
       transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       box-sizing: border-box;
     }
@@ -2561,10 +2525,8 @@
       bottom: 24px;
       left: 50%;
       transform: translateX(-50%) translateY(14px);
-      background: rgba(28, 28, 32, 0.88);
-      backdrop-filter: blur(28px) saturate(190%);
-      -webkit-backdrop-filter: blur(28px) saturate(190%);
-      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(24, 26, 34, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 980px;
       padding: 8px 20px;
       color: rgba(255, 255, 255, 0.9);
@@ -3186,6 +3148,34 @@
     .apple-subtle-link:hover {
       color: #ffffff;
     }
+    .math-mode-pill-group {
+      display: flex;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 980px;
+      padding: 2px;
+      gap: 2px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .math-mode-pill {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 11.5px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 980px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .math-mode-pill:hover {
+      color: #ffffff;
+    }
+    .math-mode-pill.active {
+      background: rgba(255, 255, 255, 0.20);
+      color: #ffffff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    }
 
     /* ========================================================== */
     /* VisionOS Hall Effect Studio - Pure Apple Minimalist Design */
@@ -3289,7 +3279,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
       flex-shrink: 0;
     }
 
@@ -3299,7 +3289,6 @@
       transform: translate(-50%, -100%);
       pointer-events: none;
       z-index: 100;
-      filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.6));
       transition: opacity 0.12s ease;
       animation: hudSpring 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
@@ -3322,9 +3311,7 @@
     .hall-hud-bubble {
       position: relative;
       background: rgba(18, 22, 34, 0.94);
-      backdrop-filter: blur(28px) saturate(200%);
-      -webkit-backdrop-filter: blur(28px) saturate(200%);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       border-top: 1px solid rgba(100, 210, 255, 0.6);
       border-radius: 980px;
       padding: 6px 14px 7px 14px;
@@ -3333,7 +3320,7 @@
       align-items: center;
       gap: 4px;
       min-width: 100px;
-      box-shadow: 0 0 20px rgba(10, 132, 255, 0.25);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
     }
 
     .hall-hud-val {
@@ -3546,7 +3533,7 @@
       align-items: center;
       gap: 14px;
       flex-shrink: 0;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.20);
     }
 
     .hall-carrier-deck {
@@ -3596,12 +3583,6 @@
       font-weight: 600;
     }
 
-    .hall-seg-btn.active[data-material="copper"] {
-      background: rgba(255, 255, 255, 0.18);
-      color: #ffffff;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-      font-weight: 600;
-    }
 
     .hall-deck-divider {
       width: 1px;
@@ -3729,10 +3710,8 @@
       gap: 4px;
       padding: 4px 8px;
       border-radius: 980px;
-      background: rgba(255, 255, 255, 0.045);
+      background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.10);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
     }
 
     .hall-dock-btn {

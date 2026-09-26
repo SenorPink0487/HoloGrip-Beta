@@ -11,6 +11,9 @@ import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 import type { OpticalDiffractionStepResponse } from '../../../workers/workerMessages.ts';
 
+const _START_POS = new THREE.Vector3();
+const _SLIT_POS = new THREE.Vector3();
+
 export default class OpticsInterferenceExperiment extends BaseExperiment {
   public readonly metadata = metadata;
   public override targetScale = 1.95;
@@ -105,8 +108,8 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
-    const startPos = new THREE.Vector3(0, 0.186, this.laserSaddle.position.z + 0.123);
-    const slitPos = new THREE.Vector3(0, 0.186, this.slitSaddle.position.z - 0.008);
+    _START_POS.set(0, 0.186, this.laserSaddle.position.z + 0.123);
+    _SLIT_POS.set(0, 0.186, this.slitSaddle.position.z - 0.008);
     const screenDistM = Math.max(0.08, this.screenSaddle.position.z - this.slitSaddle.position.z);
 
     if (!this.laser.isOn) {
@@ -132,7 +135,7 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
 
     this.beamSystem.setIntensity(1.0);
     // 1. Incoming laser beam terminates at the double slit plate (does not penetrate)
-    this.beamSystem.updateSegmentedBeam([{ start: startPos, end: slitPos, intensity: 1.0 }]);
+    this.beamSystem.updateSegmentedBeam([{ start: _START_POS, end: _SLIT_POS, intensity: 1.0 }]);
 
     // 2. Coherent interference wave ripples & spreading diffracted light from slits to screen
     if (this.showWavefronts) {

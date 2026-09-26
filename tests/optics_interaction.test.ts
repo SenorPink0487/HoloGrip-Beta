@@ -59,6 +59,7 @@ const createMockElement = (tag = 'div'): any => {
           rect: () => {},
           getImageData: () => ({ data: new Uint8ClampedArray(512 * 512 * 4) }),
           putImageData: () => {},
+          drawImage: () => {},
         };
       }
       return null;

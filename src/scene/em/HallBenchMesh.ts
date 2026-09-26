@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { HallCarrierParticleSystem, type CarrierType } from './HallCarrierParticleSystem.ts';
+import type { ComputeBridge } from '../../core/platform/ComputeBridge.ts';
 
 export interface HallBenchMeshOptions {
   waferLength?: number;    // Along X (width)
   waferHeight?: number;    // Along Y (height)
   waferThickness?: number; // Along Z (thickness)
   waferWidth?: number;     // Backwards-compatible alias for waferHeight
+  computeBridge?: ComputeBridge;
 }
 
 export class HallBenchMesh {
@@ -14,12 +16,12 @@ export class HallBenchMesh {
 
   // Wafer mesh reference for click & hover interaction
   public waferMesh: THREE.Mesh;
-  private waferMaterial: THREE.MeshPhysicalMaterial;
+  private waferMaterial: THREE.MeshStandardMaterial;
 
   // Crystal Chamber
   private chamberGroup: THREE.Group;
   private crystalBoxMesh: THREE.Mesh;
-  private crystalMaterial: THREE.MeshPhysicalMaterial;
+  private crystalMaterial: THREE.MeshStandardMaterial;
 
   // Magnetic field flux lines (5 sleek, slender holographic flux streamlines)
   private fluxArrowsGroup: THREE.Group;
@@ -47,6 +49,7 @@ export class HallBenchMesh {
   private lastVh = -9999;
   private lastMaterial = '';
   private lastCarrierType: CarrierType = 'electron';
+  private fluxPulsePhase = 0;
 
   private disposables: { dispose: () => void }[] = [];
 
@@ -56,6 +59,10 @@ export class HallBenchMesh {
 
     this.initMaterials();
     this.buildApparatus(options);
+  }
+
+  public setComputeBridge(bridge: ComputeBridge): void {
+    this.particleSystem.setComputeBridge(bridge);
   }
 
   private initMaterials(): void {
@@ -76,15 +83,11 @@ export class HallBenchMesh {
     this.disposables.push(this.goldMat);
 
     // 3. Optical Quartz Specimen Chamber
-    // High-performance physical glass: uses forward specular clearcoat lobes instead of
-    // transmission framebuffer copies, maintaining 60-120+ FPS with crystal-clear fidelity
-    this.crystalMaterial = new THREE.MeshPhysicalMaterial({
+    // High-performance crystal-clear quartz using MeshStandardMaterial without clearcoat overhead
+    this.crystalMaterial = new THREE.MeshStandardMaterial({
       color: 0xf2f8ff,
-      metalness: 0.04,
-      roughness: 0.02,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.02,
-      reflectivity: 0.95,
+      metalness: 0.08,
+      roughness: 0.06,
       transparent: true,
       opacity: 0.20,
       depthWrite: false,
@@ -92,16 +95,13 @@ export class HallBenchMesh {
     this.disposables.push(this.crystalMaterial);
 
     // 4. Polished Semiconductor Wafer Specimen
-    // High-performance translucent crystal without transmission buffer overhead
-    this.waferMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x162232, // Smoky sapphire tint for n-GaAs default
-      metalness: 0.12,
-      roughness: 0.04,
-      clearcoat: 0.95,
-      clearcoatRoughness: 0.03,
-      reflectivity: 0.90,
+    // High-performance crystal-clear optical quartz with ultra-clean transmission
+    this.waferMaterial = new THREE.MeshStandardMaterial({
+      color: 0xd8eeff, // Crystal optical quartz tint
+      metalness: 0.08,
+      roughness: 0.06,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.15,
       depthWrite: false,
     });
     this.disposables.push(this.waferMaterial);
@@ -134,6 +134,7 @@ export class HallBenchMesh {
       waferHeight: waferH,
       waferThickness: waferT,
       particleCount: 180,
+      computeBridge: options.computeBridge,
     });
     this.particleSystem.group.position.set(0, stageY, 0);
     this.group.add(this.particleSystem.group);
@@ -162,6 +163,7 @@ export class HallBenchMesh {
 
     this.crystalBoxMesh = new THREE.Mesh(crystalGeo, this.crystalMaterial);
     this.crystalBoxMesh.position.set(0, stageY, 0);
+    this.crystalBoxMesh.renderOrder = 2;
     this.chamberGroup.add(this.crystalBoxMesh);
 
     // Delicate luminescent beveled chamfer lines
@@ -185,6 +187,7 @@ export class HallBenchMesh {
     this.waferMesh = new THREE.Mesh(waferGeo, this.waferMaterial);
     this.waferMesh.name = 'HallWafer';
     this.waferMesh.position.set(0, stageY, 0);
+    this.waferMesh.renderOrder = 5;
     this.chamberGroup.add(this.waferMesh);
 
     // 3. Precision Ohmic Clamping Terminal Blocks (Left & Right Ends)
@@ -332,23 +335,32 @@ export class HallBenchMesh {
 
   public setWaferAppearance(materialKey: string): void {
     if (materialKey === 'n-gaas') {
-      this.waferMaterial.color.setHex(0x162232); // Smoky obsidian sapphire
-      this.waferMaterial.opacity = 0.28;
-      this.waferMaterial.metalness = 0.12;
-      this.waferMaterial.roughness = 0.04;
-      if (this.chamberLight) this.chamberLight.color.setHex(0x00f0ff);
+      this.waferMaterial.color.setHex(0xd8eeff); // Crystal optical tint with pristine clarity
+      this.waferMaterial.opacity = 0.12;
+      this.waferMaterial.metalness = 0.04;
+      this.waferMaterial.roughness = 0.02;
+      if (this.chamberLight) {
+        this.chamberLight.color.setHex(0x00f5ff);
+        this.chamberLight.intensity = 1.6;
+      }
     } else if (materialKey === 'p-silicon') {
-      this.waferMaterial.color.setHex(0x141d2a); // Deep crystalline silicon indigo
-      this.waferMaterial.opacity = 0.30;
-      this.waferMaterial.metalness = 0.15;
-      this.waferMaterial.roughness = 0.04;
-      if (this.chamberLight) this.chamberLight.color.setHex(0xff9f0a);
+      this.waferMaterial.color.setHex(0xffeedd); // Warm optical tint with pristine clarity
+      this.waferMaterial.opacity = 0.12;
+      this.waferMaterial.metalness = 0.04;
+      this.waferMaterial.roughness = 0.02;
+      if (this.chamberLight) {
+        this.chamberLight.color.setHex(0xff9500);
+        this.chamberLight.intensity = 1.6;
+      }
     } else if (materialKey === 'copper') {
       this.waferMaterial.color.setHex(0xc86d48); // Polished metallic rose copper
-      this.waferMaterial.opacity = 0.65;
+      this.waferMaterial.opacity = 0.55;
       this.waferMaterial.metalness = 0.85;
       this.waferMaterial.roughness = 0.18;
-      if (this.chamberLight) this.chamberLight.color.setHex(0x64d2ff);
+      if (this.chamberLight) {
+        this.chamberLight.color.setHex(0x64d2ff);
+        this.chamberLight.intensity = 1.0;
+      }
     }
   }
 
@@ -367,9 +379,9 @@ export class HallBenchMesh {
     _thicknessMm = 0.50
   ): void {
     const isDifferent =
-      Math.abs(this.lastB - bTesla) > 0.005 ||
-      Math.abs(this.lastI - currentMa) > 0.1 ||
-      Math.abs(this.lastVh - vhMv) > 0.05 ||
+      Math.abs(this.lastB - bTesla) > 0.002 ||
+      Math.abs(this.lastI - currentMa) > 0.02 ||
+      Math.abs(this.lastVh - vhMv) > 0.005 ||
       this.lastMaterial !== materialName ||
       this.lastCarrierType !== carrierType;
 
@@ -405,8 +417,8 @@ export class HallBenchMesh {
 
     // Subtle magnetic flux pulse animation when field is present
     if (this.fluxArrowsGroup.visible && Math.abs(this.lastB) > 0.05) {
-      const pulse = 1.8 + Math.sin(performance.now() * 0.004) * 0.5;
-      this.fluxArrowMat.emissiveIntensity = pulse;
+      this.fluxPulsePhase += delta * 4.0;
+      this.fluxArrowMat.emissiveIntensity = 1.8 + Math.sin(this.fluxPulsePhase) * 0.5;
     }
   }
 

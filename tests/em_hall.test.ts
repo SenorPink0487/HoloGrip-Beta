@@ -13,6 +13,7 @@ class MockElement {
   public className: string = '';
   public innerHTML: string = '';
   public textContent: string = '';
+  public value: string = '';
   public style: Record<string, string> = {};
   public attributes: Record<string, string> = {};
   public eventListeners: Record<string, ((e?: any) => void)[]> = {};
@@ -383,6 +384,170 @@ console.log('Test 7: 60+ FPS Frame Budget & Performance Benchmark');
   console.log('✓ Test 7 passed: In-process 60+ FPS frame budget verified');
 }
 
+// ================= Test 8: ComputeBridge Hall Carrier Simulation & Idle Decay =================
+console.log('Test 8: ComputeBridge Hall Carrier Simulation & Idle Decay');
+{
+  let executedAction = '';
+  const mockWorkerPool = {
+    execute: async (req: any) => {
+      executedAction = req.action;
+      return {
+        id: req.id,
+        action: 'HALL_CARRIER_STEP',
+        positions: req.positions,
+        baseOffsetsY: req.baseOffsetsY,
+        computeTimeMs: 0.045,
+      };
+    },
+  } as any;
+
+  // Import dynamically or create ComputeBridge instance
+  const { ComputeBridge } = await import('../src/core/platform/ComputeBridge.ts');
+  const bridge = new ComputeBridge(mockWorkerPool);
+
+  const res = await bridge.simulateHallCarriers({
+    positions: new Float32Array(54),
+    baseOffsetsY: new Float32Array(18),
+    baseOffsetsZ: new Float32Array(18),
+    thermalPhases: new Float32Array(18),
+    particleCount: 18,
+    driftDirection: -1,
+    speed: 0.1,
+    maxDeflectionY: 0.02,
+    halfL: 0.1,
+    halfH: 0.05,
+    waferThickness: 0.02,
+    timeNow: 1.0,
+    delta: 0.016,
+  });
+
+  assert.strictEqual(executedAction, 'HALL_CARRIER_STEP');
+  assert.strictEqual(res.positions.length, 54);
+  assert.ok(bridge.currentMetrics.avgComputeTimeMs > 0, 'Metrics should record compute time');
+
+  // Verify idle decay: simulate time lapse > 1500ms
+  (bridge as any).lastComputeTimestamp = Date.now() - 2000;
+  assert.strictEqual(bridge.currentMetrics.avgComputeTimeMs, 0, 'Idle metrics must decay to 0 ms after 1.5s inactivity');
+
+  console.log('✓ Test 8 passed: ComputeBridge carrier simulation and idle metric decay verified');
+}
+
+// ================= Test 9: Static Probe Badges and DynamicDrawUsage Verification =================
+console.log('Test 9: Static Probe Badges and DynamicDrawUsage Verification');
+{
+  const particleSys = new HallCarrierParticleSystem({
+    waferLength: 0.20,
+    waferHeight: 0.08,
+    waferThickness: 0.02,
+    particleCount: 50,
+  });
+
+  // Verify DynamicDrawUsage
+  const geo = (particleSys as any).particleGeo as THREE.BufferGeometry;
+  const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+  assert.strictEqual(posAttr.usage, THREE.DynamicDrawUsage, 'Particle position buffer must use DynamicDrawUsage');
+
+  // Verify probe badge textures
+  const plusTex = (particleSys as any).plusBadgeTex;
+  const minusTex = (particleSys as any).minusBadgeTex;
+  assert.ok(plusTex instanceof THREE.CanvasTexture, 'Plus badge texture created');
+  assert.ok(minusTex instanceof THREE.CanvasTexture, 'Minus badge texture created');
+
+  // Verify polarity flipping switches textures instead of canvas re-draw
+  particleSys.setPhysicsState(10.0, 0.5, -25.0, 'electron');
+  const topSprite = (particleSys as any).topProbeSprite as THREE.Sprite;
+  assert.strictEqual(topSprite.material.map, plusTex, 'Top probe should be positive');
+
+  particleSys.setPhysicsState(10.0, -0.5, 25.0, 'electron');
+  assert.strictEqual(topSprite.material.map, minusTex, 'Top probe should switch to minus texture');
+
+  particleSys.dispose();
+  console.log('✓ Test 9 passed: DynamicDrawUsage and zero-overhead badge texture swapping verified');
+}
+
+// ================= Test 10: Zero Current & Zero Field Physical Invariants =================
+console.log('Test 10: Zero Current & Zero Field Physical Invariants');
+{
+  const particleSys = new HallCarrierParticleSystem({
+    waferLength: 0.32,
+    waferHeight: 0.125,
+    waferThickness: 0.032,
+    particleCount: 50,
+  });
+  particleSys.setToggles(true, true);
+
+  // 1. Zero current (I = 0) => Speed = 0, no X drift
+  particleSys.setPhysicsState(0, 0.5, 0, 'electron');
+  const posArray = (particleSys as any).positions as Float32Array;
+  const initialX = posArray[0];
+  particleSys.update(0.1);
+  const afterX = posArray[0];
+  assert.strictEqual(afterX, initialX, 'Carriers must not drift along X when current is zero');
+  assert.strictEqual((particleSys as any).arrowVelocity.visible, false, 'Velocity vector must be hidden when current is 0');
+  assert.strictEqual((particleSys as any).arrowLorentz.visible, false, 'Lorentz force vector must be hidden when current is 0');
+
+  // 2. Zero magnetic field (B = 0) => B arrow & Lorentz arrow hidden
+  particleSys.setPhysicsState(10, 0, 0, 'electron');
+  assert.strictEqual((particleSys as any).arrowMagField.visible, false, 'B vector must be hidden when B is 0');
+  assert.strictEqual((particleSys as any).arrowLorentz.visible, false, 'Lorentz force vector must be hidden when B is 0');
+  assert.strictEqual((particleSys as any).arrowHallField.visible, false, 'Hall field vector must be hidden when V_H is 0');
+
+  // 3. Normal operating condition (I = 10, B = 0.5, V_H = -25) => All 4 vectors visible
+  particleSys.setPhysicsState(10, 0.5, -25.0, 'electron');
+  assert.strictEqual((particleSys as any).arrowVelocity.visible, true, 'Velocity vector visible');
+  assert.strictEqual((particleSys as any).arrowMagField.visible, true, 'B vector visible');
+  assert.strictEqual((particleSys as any).arrowLorentz.visible, true, 'Lorentz force vector visible');
+  assert.strictEqual((particleSys as any).arrowHallField.visible, true, 'Hall field vector visible');
+
+  particleSys.dispose();
+  console.log('✓ Test 10 passed: Zero current and zero field physical invariants verified');
+}
+
+// ================= Test 11: HallStatusCard Granular Change Detection & Focus Safety =================
+console.log('Test 11: HallStatusCard Granular Change Detection & Focus Safety');
+{
+  const card = new HallStatusCard();
+  card.setVisible(true);
+
+  // Initial full sync
+  card.updateTelemetry({
+    magFieldTesla: 0.5,
+    currentMa: 10.0,
+    hallVoltageMv: -25.0,
+    waferThicknessMm: 0.5,
+    carrierType: 'electron',
+    materialKey: 'n-gaas',
+  });
+
+  const sliderB = (card as any).sliderB as HTMLInputElement;
+  const sliderI = (card as any).sliderI as HTMLInputElement;
+  assert.strictEqual(sliderB.value, '0.5');
+  assert.strictEqual(sliderI.value, '10');
+
+  // Simulate active user focus on sliderB while an external telemetry event fires
+  (global as any).document.activeElement = sliderB;
+  sliderB.value = '0.72'; // User dragged slider to 0.72
+
+  // Update telemetry with slightly different B from external sync
+  card.updateTelemetry({
+    magFieldTesla: 0.75,
+  });
+
+  // Focused slider must NOT be abruptly overwritten by background sync
+  assert.strictEqual(sliderB.value, '0.72', 'Active focused slider must preserve user input position');
+
+  // Clean up focus
+  (global as any).document.activeElement = null;
+
+  // Now an external sync should update the slider when not focused
+  card.updateTelemetry({
+    magFieldTesla: 0.85,
+  });
+  assert.strictEqual(sliderB.value, '0.85', 'Unfocused slider updates cleanly to new telemetry value');
+
+  console.log('✓ Test 11 passed: HallStatusCard granular change detection and focus safety verified');
+}
+
 console.log('\n========================================================');
-console.log('All Electromagnetism Hall Effect Tests Passed (7/7)!');
+console.log('All Electromagnetism Hall Effect Tests Passed (11/11)!');
 console.log('========================================================');

@@ -13,6 +13,8 @@ const _DIR_VEC = new THREE.Vector3();
 const _MID_VEC = new THREE.Vector3();
 const _QUAT = new THREE.Quaternion();
 const _WHITE_COLOR = new THREE.Color(0xffffff);
+const _P_START = new THREE.Vector3();
+const _P_END = new THREE.Vector3();
 
 export class OpticalBeamSystem {
   public readonly group = new THREE.Group();
@@ -972,7 +974,6 @@ export class OpticalBeamSystem {
     const d = 1 / (gratingLinesPerMm * 1e3);
 
     const orders = [0, 1, -1, 2, -2];
-    const up = new THREE.Vector3(0, 1, 0);
 
     while (this.gratingOrderMeshes.length < orders.length) {
       const geo = new THREE.CylinderGeometry(0.0011, 0.0011, 1.0, 12);
@@ -1004,16 +1005,16 @@ export class OpticalBeamSystem {
       const tanTheta = Math.tan(Math.asin(sinTheta));
       const endX = L * tanTheta;
 
-      const pStart = new THREE.Vector3(0, beamY, startZ);
-      const pEnd = new THREE.Vector3(endX, beamY, endZ);
+      _P_START.set(0, beamY, startZ);
+      _P_END.set(endX, beamY, endZ);
 
-      const dir = new THREE.Vector3().subVectors(pEnd, pStart);
-      const len = dir.length();
-      const mid = new THREE.Vector3().addVectors(pStart, pEnd).multiplyScalar(0.5);
+      _DIR_VEC.subVectors(_P_END, _P_START);
+      const len = _DIR_VEC.length();
+      _MID_VEC.addVectors(_P_START, _P_END).multiplyScalar(0.5);
 
-      mesh.position.copy(mid);
+      mesh.position.copy(_MID_VEC);
       mesh.scale.set(1, len, 1);
-      mesh.quaternion.setFromUnitVectors(up, dir.normalize());
+      mesh.quaternion.setFromUnitVectors(_UP_VEC, _DIR_VEC.normalize());
 
       const orderFalloff = m === 0 ? 1.0 : (Math.abs(m) === 1 ? 0.75 : 0.45);
       mat.color.copy(baseColor);

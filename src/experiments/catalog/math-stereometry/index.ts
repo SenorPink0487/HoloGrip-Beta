@@ -67,7 +67,10 @@ export default class MathStereometryExperiment extends BaseExperiment {
   private dimA = 0.42;
   private dimH = 0.42;
   private originPointId = 'v_0';
-  private interactionMode: InteractionMode = 'orbit';
+  private interactionMode: InteractionMode = 'direct';
+  private lastTelemetryStateKey = '';
+  private cachedTelemetry: StereometryTelemetryData | null = null;
+  private static readonly _ORIGIN_ZERO = new THREE.Vector3(0, 0, 0);
 
   constructor() {
     super();
@@ -108,9 +111,9 @@ export default class MathStereometryExperiment extends BaseExperiment {
     }
   }
 
-  public update(delta: number, elapsed: number, _context: ExperimentContext): void {
+  public update(delta: number, elapsed: number, context: ExperimentContext): void {
     this.interactionManager?.update(delta);
-    this.mesh?.update(delta, elapsed);
+    this.mesh?.update(delta, elapsed, context?.camera);
   }
 
   public override onPointerDown(
@@ -339,26 +342,33 @@ export default class MathStereometryExperiment extends BaseExperiment {
   // Live Telemetry Provider for UI Status Card
   // -------------------------------------------------------------
   public getStereometryTelemetry(): StereometryTelemetryData {
-    const model = this.mesh.getModelDef();
     const opts = this.mesh.getOptions();
+    const segments = this.mesh.getSegments();
+    const cutPoints = this.interactionManager ? this.interactionManager.getSelectedCutPoints() : [];
+    const planeConstant = opts.crossSectionPlane ? opts.crossSectionPlane.constant.toFixed(3) : 'none';
+    const stateKey = `${this.modelType}_${opts.originKeyPointId ?? 'v_0'}_${segments.length}_${cutPoints.length}_${opts.unfoldProgress}_${opts.clippingEnabled}_${planeConstant}_${opts.explodeDistance}_${this.interactionMode}_${this.mesh.getScale()}_${opts.dimensions?.a}_${opts.dimensions?.h}`;
+
+    if (this.cachedTelemetry && stateKey === this.lastTelemetryStateKey) {
+      return this.cachedTelemetry;
+    }
+    this.lastTelemetryStateKey = stateKey;
+
+    const model = this.mesh.getModelDef();
     const crossSection = this.mesh.getCrossSectionResult();
     const sphereAnalysis = this.mesh.getSphereAnalysisResult();
-    const segments = this.mesh.getSegments();
 
     // Map vertex coordinates relative to origin
     const originKp = model.keyPoints.find((k) => k.id === (opts.originKeyPointId ?? 'v_0'));
-    const originPos = originKp ? originKp.position : new THREE.Vector3(0, 0, 0);
+    const originPos = originKp ? originKp.position : MathStereometryExperiment._ORIGIN_ZERO;
 
     const vertexCoords = model.vertices.map((v, idx) => {
-      const rel = new THREE.Vector3().subVectors(v, originPos);
+      const relX = Math.round((v.x - originPos.x) * 100) / 100;
+      const relY = Math.round((v.y - originPos.y) * 100) / 100;
+      const relZ = Math.round((v.z - originPos.z) * 100) / 100;
       return {
         id: `v_${idx}`,
         label: model.vertexLabels[idx],
-        coords: [
-          parseFloat(rel.x.toFixed(2)),
-          parseFloat(rel.y.toFixed(2)),
-          parseFloat(rel.z.toFixed(2)),
-        ] as [number, number, number],
+        coords: [relX, relY, relZ] as [number, number, number],
       };
     });
 
@@ -383,8 +393,8 @@ export default class MathStereometryExperiment extends BaseExperiment {
           lineA: s1.label,
           lineB: s2.label,
           type: skewRes.type,
-          angleDeg: parseFloat(skewRes.angleDeg.toFixed(1)),
-          skewDistance: parseFloat(skewRes.distance.toFixed(3)),
+          angleDeg: Math.round(skewRes.angleDeg * 10) / 10,
+          skewDistance: Math.round(skewRes.distance * 1000) / 1000,
         };
       }
     }
@@ -393,7 +403,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
     const E = model.edges.length;
     const F = model.faces.length;
 
-    return {
+    const result: StereometryTelemetryData = {
       modelId: model.id,
       modelName: model.name,
       modelSubtitle: model.subtitle,
@@ -407,19 +417,19 @@ export default class MathStereometryExperiment extends BaseExperiment {
       drawnSegments: segments.map((s) => ({
         id: s.id,
         label: s.label,
-        length: parseFloat(s.length.toFixed(3)),
+        length: Math.round(s.length * 1000) / 1000,
       })),
       activeCrossSection: crossSection
         ? {
             polygonType: crossSection.polygonType,
-            area: parseFloat(crossSection.area.toFixed(3)),
-            perimeter: parseFloat(crossSection.perimeter.toFixed(3)),
-            areaRatioToBase: parseFloat(crossSection.areaRatioToBase.toFixed(2)),
-            dihedralAngleDeg: parseFloat(crossSection.dihedralAngleWithBaseDeg.toFixed(1)),
+            area: Math.round(crossSection.area * 1000) / 1000,
+            perimeter: Math.round(crossSection.perimeter * 1000) / 1000,
+            areaRatioToBase: Math.round(crossSection.areaRatioToBase * 100) / 100,
+            dihedralAngleDeg: Math.round(crossSection.dihedralAngleWithBaseDeg * 10) / 10,
             normal: [
-              parseFloat(crossSection.normal.x.toFixed(2)),
-              parseFloat(crossSection.normal.y.toFixed(2)),
-              parseFloat(crossSection.normal.z.toFixed(2)),
+              Math.round(crossSection.normal.x * 100) / 100,
+              Math.round(crossSection.normal.y * 100) / 100,
+              Math.round(crossSection.normal.z * 100) / 100,
             ],
           }
         : null,
@@ -427,12 +437,13 @@ export default class MathStereometryExperiment extends BaseExperiment {
       twoLineAngle,
       interactionMode: this.interactionMode,
       unfoldProgress: opts.unfoldProgress,
-      selectedCutPoints: this.interactionManager
-        ? this.interactionManager.getSelectedCutPoints().map((p) => p.label)
-        : [],
+      selectedCutPoints: cutPoints.map((p) => p.label),
       modelScale: this.mesh ? this.mesh.getScale() : 1.0,
       interactionHint: this.interactionManager ? this.interactionManager.getInteractionHint() : '',
     };
+
+    this.cachedTelemetry = result;
+    return result;
   }
 
   public zoom(direction: number): void {
@@ -457,19 +468,35 @@ export default class MathStereometryExperiment extends BaseExperiment {
 
   public override getHoverTarget(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null {
     if (!this.mesh) return null;
-    const hits = raycaster.intersectObjects(this.mesh.getKeyPointMeshes(), false);
     let kp: KeyPoint | null = null;
-    if (hits.length > 0 && hits[0].object.userData?.keyPoint) {
-      kp = hits[0].object.userData.keyPoint as KeyPoint;
-    } else if (this.interactionManager) {
+    if (this.interactionManager) {
       kp = this.interactionManager.findKeyPointNearRay(raycaster);
+    }
+    if (!kp) {
+      const hits = raycaster.intersectObjects(this.mesh.getKeyPointMeshes(), false);
+      if (hits.length > 0 && hits[0].object.userData?.keyPoint) {
+        kp = hits[0].object.userData.keyPoint as KeyPoint;
+      }
     }
 
     if (kp) {
       this.mesh.setHoveredKeyPoint(kp.id);
+      let desc = `顶点 ${kp.label}`;
+      if (kp.subLabel === '1/2') {
+        const edge = kp.edgeVertices ? `${kp.edgeVertices[0]}${kp.edgeVertices[1]}` : '';
+        desc = `棱 ${edge} 中点 (1/2)`;
+      } else if (kp.subLabel === '1/3') {
+        const edge = kp.edgeVertices ? `${kp.edgeVertices[0]}${kp.edgeVertices[1]}` : '';
+        desc = `棱 ${edge} 三等分点 (1/3)`;
+      } else if (kp.subLabel === '2/3') {
+        const edge = kp.edgeVertices ? `${kp.edgeVertices[0]}${kp.edgeVertices[1]}` : '';
+        desc = `棱 ${edge} 三等分点 (2/3)`;
+      } else if (kp.type === 'center') {
+        desc = `${kp.label} (中心点)`;
+      }
       return {
         id: `math_${kp.id}`,
-        label: `几何顶点 ${kp.label} (点击选择/连线)`,
+        label: `${desc} · 点击或拖拽接线`,
         cursor: 'pointer',
       };
     }

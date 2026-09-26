@@ -11,9 +11,12 @@ export type HighSchoolModelType =
 export interface KeyPoint {
   id: string;
   label: string;
-  type: 'vertex' | 'midpoint' | 'center' | 'apex' | 'custom';
+  subLabel?: string;
+  type: 'vertex' | 'midpoint' | 'third' | 'center' | 'apex' | 'custom';
   position: THREE.Vector3;
   connectedEdges?: string[];
+  ratio?: number;
+  edgeVertices?: [string, string];
 }
 
 export interface PolygonFace {
@@ -118,6 +121,169 @@ export class GeometrySolver {
     }
   }
 
+  /**
+   * Generates edge midpoints (1/2), and trisection points (1/3, 2/3) for all edges of a model.
+   */
+  public static populateEdgeSpecialPoints(
+    vertices: THREE.Vector3[],
+    vertexLabels: string[],
+    edges: [number, number][],
+    keyPoints: KeyPoint[]
+  ): void {
+    edges.forEach(([i1, i2]) => {
+      const v1 = vertices[i1];
+      const v2 = vertices[i2];
+      const l1 = vertexLabels[i1] || `V${i1}`;
+      const l2 = vertexLabels[i2] || `V${i2}`;
+
+      // 1. Midpoint (1/2)
+      const midPos = new THREE.Vector3().addVectors(v1, v2).multiplyScalar(0.5);
+      keyPoints.push({
+        id: `mid_${i1}_${i2}`,
+        label: `M(${l1}${l2})`,
+        subLabel: '1/2',
+        type: 'midpoint',
+        position: midPos,
+        ratio: 0.5,
+        edgeVertices: [l1, l2],
+      });
+
+      // 2. Trisection point closer to v1 (1/3)
+      const tri1Pos = new THREE.Vector3().lerpVectors(v1, v2, 1 / 3);
+      keyPoints.push({
+        id: `tri1_${i1}_${i2}`,
+        label: `T₁(${l1}${l2})`,
+        subLabel: '1/3',
+        type: 'third',
+        position: tri1Pos,
+        ratio: 1 / 3,
+        edgeVertices: [l1, l2],
+      });
+
+      // 3. Trisection point closer to v2 (2/3)
+      const tri2Pos = new THREE.Vector3().lerpVectors(v1, v2, 2 / 3);
+      keyPoints.push({
+        id: `tri2_${i1}_${i2}`,
+        label: `T₂(${l1}${l2})`,
+        subLabel: '2/3',
+        type: 'third',
+        position: tri2Pos,
+        ratio: 2 / 3,
+        edgeVertices: [l1, l2],
+      });
+    });
+  }
+
+  /**
+   * Find closest snap target to a ray:
+   * Checks direct keypoint ray distance, and edge-guided projection with snap to 0, 1/3, 1/2, 2/3, 1.0.
+   */
+  public static findClosestSnapPoint(
+    ray: THREE.Ray,
+    model: PolyhedronModelDef,
+    modelMatrixWorld: THREE.Matrix4,
+    threshold = 0.055
+  ): { keyPoint: KeyPoint; snapType: 'vertex' | 'midpoint' | 'third' | 'center' | 'apex'; distance: number; snapLabel: string } | null {
+    let bestKp: KeyPoint | null = null;
+    let minDistance = threshold;
+    const worldPos = new THREE.Vector3();
+
+    // 1. Direct keypoint proximity
+    for (const kp of model.keyPoints) {
+      worldPos.copy(kp.position).applyMatrix4(modelMatrixWorld);
+      const dist = ray.distanceToPoint(worldPos);
+      let effectiveDist = dist;
+      if (kp.type === 'vertex') effectiveDist *= 0.85;
+      else if (kp.type === 'midpoint' || kp.type === 'third') effectiveDist *= 0.90;
+
+      if (effectiveDist < minDistance) {
+        minDistance = effectiveDist;
+        bestKp = kp;
+      }
+    }
+
+    // 2. Edge-guided magnetic snap
+    const edgeThreshold = threshold * 1.25;
+    const vA = new THREE.Vector3();
+    const vB = new THREE.Vector3();
+    const edgeDir = new THREE.Vector3();
+    const w0 = new THREE.Vector3();
+
+    for (const [i1, i2] of model.edges) {
+      vA.copy(model.vertices[i1]).applyMatrix4(modelMatrixWorld);
+      vB.copy(model.vertices[i2]).applyMatrix4(modelMatrixWorld);
+      edgeDir.subVectors(vB, vA);
+      const edgeLenSq = edgeDir.lengthSq();
+      if (edgeLenSq < 1e-8) continue;
+
+      w0.subVectors(ray.origin, vA);
+      const b = ray.direction.dot(edgeDir);
+      const c = edgeLenSq;
+      const d = ray.direction.dot(w0);
+      const e = edgeDir.dot(w0);
+      const denom = c - b * b;
+
+      let s = 0;
+      let t = 0;
+      if (denom < 1e-6) {
+        t = THREE.MathUtils.clamp(e / c, 0, 1);
+      } else {
+        s = (b * e - c * d) / denom;
+        if (s < 0) continue; // Behind camera
+        t = THREE.MathUtils.clamp((e - b * d) / denom, 0, 1);
+      }
+
+      const ptOnEdge = new THREE.Vector3().copy(vA).addScaledVector(edgeDir, t);
+      const ptOnRay = new THREE.Vector3().copy(ray.origin).addScaledVector(ray.direction, Math.max(0, s));
+      const dist = ptOnEdge.distanceTo(ptOnRay);
+
+      if (dist < edgeThreshold && dist < minDistance) {
+        // Snap parameter t to 0 (vA), 1/3 (tri1), 1/2 (mid), 2/3 (tri2), 1.0 (vB)
+        let targetId = '';
+        if (t < 0.16) {
+          targetId = `v_${i1}`;
+        } else if (t < 0.41) {
+          targetId = `tri1_${i1}_${i2}`;
+        } else if (t < 0.59) {
+          targetId = `mid_${i1}_${i2}`;
+        } else if (t < 0.84) {
+          targetId = `tri2_${i1}_${i2}`;
+        } else {
+          targetId = `v_${i2}`;
+        }
+
+        const candidateKp = model.keyPoints.find((k) => k.id === targetId);
+        if (candidateKp) {
+          minDistance = dist;
+          bestKp = candidateKp;
+        }
+      }
+    }
+
+    if (!bestKp) return null;
+
+    let snapLabel = bestKp.label;
+    if (bestKp.subLabel) {
+      const edge = bestKp.edgeVertices ? `${bestKp.edgeVertices[0]}${bestKp.edgeVertices[1]}` : '';
+      if (bestKp.subLabel === '1/2') {
+        snapLabel = `棱 ${edge} 中点 (1/2)`;
+      } else if (bestKp.subLabel === '1/3') {
+        snapLabel = `棱 ${edge} 三等分点 (1/3)`;
+      } else if (bestKp.subLabel === '2/3') {
+        snapLabel = `棱 ${edge} 三等分点 (2/3)`;
+      }
+    } else if (bestKp.type === 'vertex') {
+      snapLabel = `顶点 ${bestKp.label}`;
+    }
+
+    return {
+      keyPoint: bestKp,
+      snapType: bestKp.type as any,
+      distance: minDistance,
+      snapLabel,
+    };
+  }
+
   // -------------------------------------------------------------
   // 1. 正方体 / 长方体 (Cube / Cuboid)
   // -------------------------------------------------------------
@@ -169,16 +335,8 @@ export class GeometrySolver {
       });
     });
 
-    // 12 Midpoints of edges (高中截面极高频点)
-    edges.forEach(([i1, i2], idx) => {
-      const mid = new THREE.Vector3().addVectors(vertices[i1], vertices[i2]).multiplyScalar(0.5);
-      keyPoints.push({
-        id: `mid_${i1}_${i2}`,
-        label: `M(${vertexLabels[i1]}${vertexLabels[i2]})`,
-        type: 'midpoint',
-        position: mid,
-      });
-    });
+    // Edge Special Points: 12 Midpoints (1/2) and 24 Trisection points (1/3, 2/3)
+    this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
     // Face Centers (面心)
     faces.forEach((f) => {
@@ -258,14 +416,8 @@ export class GeometrySolver {
       });
     });
 
-    edges.forEach(([i1, i2]) => {
-      keyPoints.push({
-        id: `mid_${i1}_${i2}`,
-        label: `M(${vertexLabels[i1]}${vertexLabels[i2]})`,
-        type: 'midpoint',
-        position: new THREE.Vector3().addVectors(vertices[i1], vertices[i2]).multiplyScalar(0.5),
-      });
-    });
+    // Edge Special Points: 6 Midpoints (1/2) and 12 Trisection points (1/3, 2/3)
+    this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
     // 底面中心 (ABC重心)
     const baseCenter = new THREE.Vector3()
@@ -335,14 +487,8 @@ export class GeometrySolver {
       });
     });
 
-    edges.forEach(([i1, i2]) => {
-      keyPoints.push({
-        id: `mid_${i1}_${i2}`,
-        label: `M(${vertexLabels[i1]}${vertexLabels[i2]})`,
-        type: 'midpoint',
-        position: new THREE.Vector3().addVectors(vertices[i1], vertices[i2]).multiplyScalar(0.5),
-      });
-    });
+    // Edge Special Points: 6 Midpoints (1/2) and 12 Trisection points (1/3, 2/3)
+    this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
     // Face Centers
     faces.forEach((f) => {
@@ -421,14 +567,8 @@ export class GeometrySolver {
       });
     });
 
-    edges.forEach(([i1, i2]) => {
-      keyPoints.push({
-        id: `mid_${i1}_${i2}`,
-        label: `M(${vertexLabels[i1]}${vertexLabels[i2]})`,
-        type: 'midpoint',
-        position: new THREE.Vector3().addVectors(vertices[i1], vertices[i2]).multiplyScalar(0.5),
-      });
-    });
+    // Edge Special Points: 8 Midpoints (1/2) and 16 Trisection points (1/3, 2/3)
+    this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
     // 底面中心 O (顶点 P 在底面的垂足)
     keyPoints.push({
@@ -500,14 +640,8 @@ export class GeometrySolver {
       });
     });
 
-    edges.forEach(([i1, i2]) => {
-      keyPoints.push({
-        id: `mid_${i1}_${i2}`,
-        label: `M(${vertexLabels[i1]}${vertexLabels[i2]})`,
-        type: 'midpoint',
-        position: new THREE.Vector3().addVectors(vertices[i1], vertices[i2]).multiplyScalar(0.5),
-      });
-    });
+    // Edge Special Points: 9 Midpoints (1/2) and 18 Trisection points (1/3, 2/3)
+    this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
     // Bottom and top circumcenters
     keyPoints.push({
@@ -629,6 +763,10 @@ export class GeometrySolver {
         position: vertices[idx].clone(),
       });
     });
+
+    // Special points along key generatrices (S to A, B, C, D)
+    const cardinalEdges: [number, number][] = cardinals.map(({ idx }) => [0, idx]);
+    this.populateEdgeSpecialPoints(vertices, vertexLabels, cardinalEdges, keyPoints);
 
     return {
       id: 'cylinder-cone',
