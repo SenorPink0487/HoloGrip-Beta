@@ -69,36 +69,31 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   console.log(`✓ Test 2 passed: ${linkedReagentsCount} reagent mappings verified with 100% (28/28) element coverage\n`);
 }
 
-// Test 3: Spatial clearance between 3D window and beaker on table
+// Test 3: Spatial clearance between 3D window and table
 {
-  console.log('Test 3: Spatial clearance between 3D window and beaker on table');
-  const tableHeight = 0.88; // meters
-  const beakerMountY = 0.852;
-  const beakerHeight = 0.36;
-  const beakerTopY = beakerMountY + beakerHeight; // 1.268 meters
-
-  const windowTargetY = 2.06; // Window center height
+  console.log('Test 3: Spatial clearance between 3D window and table');
+  const tableTopY = 0.99; // meters
+  const windowTargetY = 2.20; // Window center height
   const windowFrameHeightPx = 710;
-  const windowScale = 0.0016;
-  const windowPhysicalHeight = windowFrameHeightPx * windowScale; // 1.136 meters
-  const windowBottomY = windowTargetY - windowPhysicalHeight / 2; // 1.492 meters
+  const windowScale = 0.0028;
+  const windowPhysicalHeight = windowFrameHeightPx * windowScale; // 1.988 meters
+  const windowBottomY = windowTargetY - windowPhysicalHeight / 2; // 1.206 meters
 
-  const verticalClearance = windowBottomY - beakerTopY;
-  console.log(`  Beaker top in world space: ${beakerTopY.toFixed(3)} m`);
+  const verticalClearance = windowBottomY - tableTopY;
+  console.log(`  Table top in world space: ${tableTopY.toFixed(3)} m`);
   console.log(`  Window bottom in world space: ${windowBottomY.toFixed(3)} m`);
-  console.log(`  Clearance between beaker and window: ${(verticalClearance * 100).toFixed(1)} cm`);
+  console.log(`  Clearance between table and window: ${(verticalClearance * 100).toFixed(1)} cm`);
 
   assert(verticalClearance > 0.15, `Clearance must be at least 15 cm for clear visibility, got ${(verticalClearance * 100).toFixed(1)} cm`);
   assert(verticalClearance < 0.40, `Clearance should not be excessively high, got ${(verticalClearance * 100).toFixed(1)} cm`);
   console.log('✓ Test 3 passed: Clean spatial sightline and vertical clearance verified\n');
 }
 
-// Test 4: Orientation and backOffset geometry
+// Test 4: Orientation and table center positioning geometry
 {
-  console.log('Test 4: Orientation and backOffset geometry');
-  // At any camera angle around the table, the beaker is at (0, 0)
-  // Window is offset by -0.06m along the sightline (behind beaker)
-  const backOffset = -0.06;
+  console.log('Test 4: Orientation and table center positioning geometry');
+  // Window is situated directly at the center of the table (0, 0)
+  const backOffset = 0;
 
   for (let deg = 0; deg < 360; deg += 45) {
     const rad = (deg * Math.PI) / 180;
@@ -110,21 +105,17 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
     const winX = Math.sin(angleY) * backOffset;
     const winZ = Math.cos(angleY) * backOffset;
 
-    // Vector from camera to beaker (0, 0)
-    const distCamToBeaker = Math.hypot(camX, camZ);
-    // Vector from camera to window
-    const distCamToWindow = Math.hypot(camX - winX, camZ - winZ);
-
-    assert(distCamToWindow > distCamToBeaker, `At angle ${deg}°, window must be situated further from camera than beaker (behind beaker in depth)`);
+    assert(Math.abs(winX) < 1e-6, `Window X must be centered at 0, got ${winX}`);
+    assert(Math.abs(winZ) < 1e-6, `Window Z must be centered at 0, got ${winZ}`);
   }
 
-  console.log('✓ Test 4 passed: Window is situated behind beaker from any 360° vantage angle\n');
+  console.log('✓ Test 4 passed: Window is situated directly at table center (0, 0) from any 360° vantage angle\n');
 }
 
 // Test 5: Vision Modal scale multipliers, clamping & physical 3D dimension scaling
 {
   console.log('Test 5: Vision Modal scale multipliers, clamping & physical 3D dimension scaling');
-  const baseScale = 0.0016;
+  const baseScale = 0.0028;
   const minScale = 0.5;
   const maxScale = 2.0;
   const step = 0.1;
@@ -149,7 +140,7 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   // Test max clamping
   for (let i = 0; i < 20; i++) zoomIn();
   assert.strictEqual(currentScale, 2.0, 'Scale must clamp to max 2.0x');
-  assert.strictEqual(baseScale * currentScale, 0.0032, 'Max physical scale should be 0.0032');
+  assert.strictEqual(Math.round(baseScale * currentScale * 10000) / 10000, 0.0056, 'Max physical scale should be 0.0056');
 
   // Test zoom out steps
   resetScale();
@@ -160,7 +151,7 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   // Test min clamping
   for (let i = 0; i < 20; i++) zoomOut();
   assert.strictEqual(currentScale, 0.5, 'Scale must clamp to min 0.5x');
-  assert.strictEqual(baseScale * currentScale, 0.0008, 'Min physical scale should be 0.0008');
+  assert.strictEqual(Math.round(baseScale * currentScale * 10000) / 10000, 0.0014, 'Min physical scale should be 0.0014');
 
   console.log('✓ Test 5 passed: Scale multipliers, clamping bounds [0.5x, 2.0x] and physical conversions verified\n');
 }
@@ -183,10 +174,10 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
       const camZ = Math.cos(rad) * 4.0;
 
       const angleY = Math.atan2(camX, camZ);
-      const backOffset = -0.06;
-      const targetX = Math.sin(angleY) * backOffset;
-      const targetY = 2.06;
-      const targetZ = Math.cos(angleY) * backOffset;
+      const backOffset = 0;
+      const targetX = 0;
+      const targetY = 2.20;
+      const targetZ = 0;
 
       // Keep window strictly upright (pitch = 0, roll = 0) facing user around Y
       obj.position.set(targetX, targetY, targetZ);

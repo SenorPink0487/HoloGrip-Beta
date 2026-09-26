@@ -554,20 +554,18 @@ export class Engine {
       return;
     }
 
-    // Target height suspended directly above the table (table top is 0.88m, beaker top is 1.27m)
-    // At y = 2.06m, with height ~1.15m, the window bottom is at ~1.48m, leaving a clean 21cm clear view of the beaker
-    const targetY = 2.06;
+    // Target height suspended directly above the table (table top is 0.99m)
+    const targetY = 2.20;
 
     // Angle of the camera relative to table center (0, 0)
     const dx = this.camera.position.x;
     const dz = this.camera.position.z;
     const angleY = Math.atan2(dx, dz);
 
-    // Position window slightly behind the table center along the camera sightline
-    // so the beaker at (0, 0.908, 0) is always situated in front and below the window
-    const backOffset = -0.06;
-    const targetX = Math.sin(angleY) * backOffset;
-    const targetZ = Math.cos(angleY) * backOffset;
+    // Position window directly at the center of the table (0, targetY, 0)
+    const backOffset = 0;
+    const targetX = 0;
+    const targetZ = 0;
 
     // Keep window strictly upright (pitch = 0, roll = 0) facing the user around the Y axis
     // This prevents the window from slanting / tilting sideways or pitching when the user ascends or descends
@@ -605,6 +603,7 @@ export class Engine {
     this.visionModal = new VisionModal(this.chemistryEngine, {
       onClose: () => {
         this.spatialWindowObject.visible = false;
+        this.lab?.setObservationWindowVisible(true);
         this.inputManager.player.allowPointerLock = true;
         if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
           this.crosshair.setVisible(true);
@@ -613,6 +612,7 @@ export class Engine {
       onOpen: () => {
         this.positionWindowInFrontOfCamera(true);
         this.spatialWindowObject.visible = true;
+        this.lab?.setObservationWindowVisible(false);
         this.inputManager.player.exitLock();
         this.inputManager.player.allowPointerLock = false;
         this.crosshair.setVisible(false);
@@ -621,11 +621,13 @@ export class Engine {
         this.positionWindowInFrontOfCamera(true);
       },
       onScaleChange: (multiplier: number) => {
-        const baseScale = 0.0016;
+        const baseScale = 0.0028;
         const s = baseScale * multiplier;
         this.spatialWindowObject.scale.set(s, s, s);
       },
       onSelectChemistry: () => {
+        const baseScale = 0.0028;
+        this.spatialWindowObject.scale.set(baseScale, baseScale, baseScale);
         this.holoTable.hideHologram();
         this.holoStage.clearExperiment(this.currentContext);
         this.currentExperimentId = null;
@@ -642,6 +644,9 @@ export class Engine {
         this.holoTable.showHologram();
         this.holoStage.setStageVisible(true);
         await this.switchExperiment(id);
+        const baseScale = 0.0028;
+        this.spatialWindowObject.scale.set(baseScale, baseScale, baseScale);
+        this.positionWindowInFrontOfCamera(true);
       },
       onStirBeaker: () => {
         this.reactionEffects.triggerPour(0x0a84ff);
@@ -1017,6 +1022,18 @@ export class Engine {
           exp?.applyClassicPreset?.(preset);
         }
       },
+      onMathZoom: (dir) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.zoom?.(dir);
+        }
+      },
+      onMathResetScale: () => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.resetScale?.();
+        }
+      },
     });
 
     this.visionModal.setEngines(this.chemistryEngineLeft, this.chemistryEngineRight, 'left');
@@ -1024,7 +1041,7 @@ export class Engine {
     // Mount 3D spatial window directly inside the Three.js 3D scene
     this.spatialWindowObject = new CSS3DObject(this.visionModal.element);
     this.spatialWindowObject.rotation.order = 'YXZ';
-    this.spatialWindowObject.scale.set(0.0016, 0.0016, 0.0016);
+    this.spatialWindowObject.scale.set(0.0028, 0.0028, 0.0028);
     this.positionWindowInFrontOfCamera(true);
     this.spatialWindowObject.visible = false;
     this.css3dScene.add(this.spatialWindowObject);
@@ -1245,6 +1262,42 @@ export class Engine {
         this.switchExperiment(this.currentExperimentId);
       }
       this.hud?.showTransition(false);
+    });
+
+    // 3D Model Zooming via Mouse Wheel (scroll wheel)
+    window.addEventListener(
+      'wheel',
+      (e: WheelEvent) => {
+        if (this.labEntryActive) return;
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.onWheel === 'function') {
+            exp.onWheel(e);
+            if (e.cancelable) {
+              e.preventDefault();
+            }
+          }
+        }
+      },
+      { passive: false }
+    );
+
+    // Keyboard Shortcuts for 3D Model Zoom (+ / -) and Actions
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (this.labEntryActive) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if (this.currentExperimentId === 'math-stereometry') {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (exp && typeof exp.onKeyDown === 'function') {
+          const handled = exp.onKeyDown(e);
+          if (handled && e.cancelable) {
+            e.preventDefault();
+          }
+        }
+      }
     });
 
     // 3D Pointer interactions (Single-click Reagent Select & Long-press Drag & Pour)

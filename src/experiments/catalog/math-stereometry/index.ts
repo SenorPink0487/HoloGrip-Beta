@@ -50,6 +50,8 @@ export interface StereometryTelemetryData {
   interactionMode: InteractionMode;
   unfoldProgress: number;
   selectedCutPoints: string[];
+  modelScale?: number;
+  interactionHint?: string;
 }
 
 export default class MathStereometryExperiment extends BaseExperiment {
@@ -73,8 +75,8 @@ export default class MathStereometryExperiment extends BaseExperiment {
 
   public init(context: ExperimentContext): void {
     // Rest experiment root on the white tabletop surface (table surface at Y=0.990, HologramStage offset Y=+0.082)
-    // Positioned in front workbench interaction zone (Z=0.88)
-    this.rootGroup.position.set(0, 0.082, 0.88);
+    // Positioned in front workbench interaction zone (Z=0.72)
+    this.rootGroup.position.set(0, 0.082, 0.72);
 
     // Guarantee local clipping is enabled on renderer
     if (context.renderer) {
@@ -428,22 +430,51 @@ export default class MathStereometryExperiment extends BaseExperiment {
       selectedCutPoints: this.interactionManager
         ? this.interactionManager.getSelectedCutPoints().map((p) => p.label)
         : [],
+      modelScale: this.mesh ? this.mesh.getScale() : 1.0,
+      interactionHint: this.interactionManager ? this.interactionManager.getInteractionHint() : '',
     };
+  }
+
+  public zoom(direction: number): void {
+    if (direction > 0) {
+      this.interactionManager?.onKeyDown({ code: 'Equal', key: '+', preventDefault: () => {} } as any);
+    } else {
+      this.interactionManager?.onKeyDown({ code: 'Minus', key: '-', preventDefault: () => {} } as any);
+    }
+  }
+
+  public resetScale(): void {
+    this.interactionManager?.onKeyDown({ code: 'Digit0', key: '0', preventDefault: () => {} } as any);
+  }
+
+  public onWheel(event: WheelEvent): void {
+    this.interactionManager?.onWheel(event);
+  }
+
+  public onKeyDown(event: KeyboardEvent): boolean {
+    return this.interactionManager?.onKeyDown(event) ?? false;
   }
 
   public override getHoverTarget(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null {
     if (!this.mesh) return null;
     const hits = raycaster.intersectObjects(this.mesh.getKeyPointMeshes(), false);
-    if (hits.length > 0) {
-      const kp = hits[0].object.userData.keyPoint as KeyPoint;
-      if (kp) {
-        return {
-          id: `math_${kp.id}`,
-          label: `几何顶点 ${kp.label}`,
-          cursor: 'pointer',
-        };
-      }
+    let kp: KeyPoint | null = null;
+    if (hits.length > 0 && hits[0].object.userData?.keyPoint) {
+      kp = hits[0].object.userData.keyPoint as KeyPoint;
+    } else if (this.interactionManager) {
+      kp = this.interactionManager.findKeyPointNearRay(raycaster);
     }
+
+    if (kp) {
+      this.mesh.setHoveredKeyPoint(kp.id);
+      return {
+        id: `math_${kp.id}`,
+        label: `几何顶点 ${kp.label} (点击选择/连线)`,
+        cursor: 'pointer',
+      };
+    }
+
+    this.mesh.setHoveredKeyPoint(null);
     return null;
   }
 

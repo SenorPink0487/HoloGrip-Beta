@@ -13,6 +13,7 @@ export class Laboratory {
 
   public materials: Record<string, THREE.Material>;
   private floorMesh: THREE.Mesh | null = null;
+  private observationWindowGroup: THREE.Group | null = null;
 
   constructor() {
     this.materials = {
@@ -516,6 +517,13 @@ export class Laboratory {
     mount.add(reflection);
 
     walls.add(mount);
+    this.observationWindowGroup = mount;
+  }
+
+  public setObservationWindowVisible(visible: boolean): void {
+    if (this.observationWindowGroup) {
+      this.observationWindowGroup.visible = visible;
+    }
   }
 
   private createSideNiches(walls: THREE.Group): void {

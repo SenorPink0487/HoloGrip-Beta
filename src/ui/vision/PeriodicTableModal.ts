@@ -184,44 +184,46 @@ export class PeriodicTableModal {
     this.element.className = 'vision-periodic-container';
 
     this.element.innerHTML = `
-      <!-- Apple Vision Pro Spatial Toolbar -->
-      <div class="periodic-top-bar">
-        <!-- Target Beaker Segmented Control -->
-        <div class="periodic-beaker-tabs" role="tablist" aria-label="目标烧杯选择">
-          <button class="periodic-tab-btn active" id="btn-periodic-beaker-left" role="tab" title="为左侧烧杯添加试剂">
-            <span class="tab-indicator-dot"></span>
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 4h14a1 1 0 0 1 1 1v14a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5a1 1 0 0 1 1-1z"/>
-              <line x1="4" y1="4" x2="2" y2="4"/>
-              <line x1="7" y1="13" x2="17" y2="13"/>
+      <!-- Primary Periodic Table Content (Recedes and soft-blurs when popover is open) -->
+      <div class="periodic-primary-content" id="periodic-primary-content">
+        <!-- Apple Vision Pro Spatial Toolbar -->
+        <div class="periodic-top-bar">
+          <!-- Target Beaker Segmented Control -->
+          <div class="periodic-beaker-tabs" role="tablist" aria-label="目标烧杯选择">
+            <button class="periodic-tab-btn active" id="btn-periodic-beaker-left" role="tab" title="为左侧烧杯添加试剂">
+              <span class="tab-indicator-dot"></span>
+              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 4h14a1 1 0 0 1 1 1v14a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5a1 1 0 0 1 1-1z"/>
+                <line x1="4" y1="4" x2="2" y2="4"/>
+                <line x1="7" y1="13" x2="17" y2="13"/>
+              </svg>
+              <span>左侧烧杯</span>
+            </button>
+            <button class="periodic-tab-btn" id="btn-periodic-beaker-right" role="tab" title="为右侧烧杯添加试剂">
+              <span class="tab-indicator-dot"></span>
+              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 2v7.31L5.5 17.5A2 2 0 0 0 7.2 21h9.6a2 2 0 0 0 1.7-3.5L14 9.31V2"/>
+                <line x1="8.5" y1="2" x2="15.5" y2="2"/>
+                <line x1="7.5" y1="16" x2="16.5" y2="16"/>
+              </svg>
+              <span>右侧烧杯</span>
+            </button>
+          </div>
+
+          <!-- Trailing Action: View Beaker Analysis -->
+          <button class="periodic-analysis-action-btn" id="btn-periodic-view-analysis" title="查看烧杯组分全息分析">
+            <span>烧杯成分分析</span>
+            <svg class="apple-sf-icon action-arrow" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
             </svg>
-            <span>左侧烧杯</span>
           </button>
-          <button class="periodic-tab-btn" id="btn-periodic-beaker-right" role="tab" title="为右侧烧杯添加试剂">
-            <span class="tab-indicator-dot"></span>
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10 2v7.31L5.5 17.5A2 2 0 0 0 7.2 21h9.6a2 2 0 0 0 1.7-3.5L14 9.31V2"/>
-              <line x1="8.5" y1="2" x2="15.5" y2="2"/>
-              <line x1="7.5" y1="16" x2="16.5" y2="16"/>
-            </svg>
-            <span>右侧烧杯</span>
-          </button>
+
+          <span id="periodic-beaker-label" style="display: none;">当前目标：左侧烧杯 (默认)</span>
         </div>
 
-
-        <!-- Trailing Action: View Beaker Analysis -->
-        <button class="periodic-analysis-action-btn" id="btn-periodic-view-analysis" title="查看烧杯组分全息分析">
-          <span>烧杯成分分析</span>
-          <svg class="apple-sf-icon action-arrow" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
-        </button>
-
-        <span id="periodic-beaker-label" style="display: none;">当前目标：左侧烧杯 (默认)</span>
+        <!-- Common Reagents Periodic Grid -->
+        <div class="periodic-grid" id="periodic-elements-grid"></div>
       </div>
-
-      <!-- Common Reagents Periodic Grid -->
-      <div class="periodic-grid" id="periodic-elements-grid"></div>
 
       <!-- Apple Contextual Popover Card -->
       <div class="element-popover-overlay hidden" id="element-popover-overlay">
@@ -335,7 +337,7 @@ export class PeriodicTableModal {
             <div class="popover-meta">
               <span>No. ${elem.number}</span>
               <span>·</span>
-              <span>${this.getCategoryLabel(elem.category)}</span>
+              <span class="popover-meta-cat">${this.getCategoryLabel(elem.category)}</span>
             </div>
           </div>
         </div>
@@ -406,10 +408,12 @@ export class PeriodicTableModal {
       this.closeElementPopover();
     });
 
+    this.element.classList.add('popover-open');
     overlay.classList.remove('hidden');
   }
 
   public closeElementPopover(): void {
+    this.element.classList.remove('popover-open');
     const overlay = this.element.querySelector('#element-popover-overlay');
     if (overlay) {
       overlay.classList.add('hidden');

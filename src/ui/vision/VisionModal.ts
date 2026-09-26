@@ -75,6 +75,8 @@ export interface VisionModalCallbacks {
   onMathToggleFaceCenters?: (show: boolean) => void;
   onMathToggleLabels?: (show: boolean) => void;
   onMathApplyPreset?: (preset: any) => void;
+  onMathZoom?: (direction: 1 | -1) => void;
+  onMathResetScale?: () => void;
 }
 
 export class VisionModal {
@@ -438,7 +440,11 @@ export class VisionModal {
           e.key === ']'
         ) {
           e.preventDefault();
-          this.zoomIn();
+          if (this.activeTab === 'math') {
+            this.callbacks.onMathZoom?.(1);
+          } else {
+            this.zoomIn();
+          }
         } else if (
           e.code === 'Minus' ||
           e.code === 'NumpadSubtract' ||
@@ -448,10 +454,18 @@ export class VisionModal {
           e.key === '['
         ) {
           e.preventDefault();
-          this.zoomOut();
+          if (this.activeTab === 'math') {
+            this.callbacks.onMathZoom?.(-1);
+          } else {
+            this.zoomOut();
+          }
         } else if (e.code === 'Digit0' || e.code === 'Numpad0' || e.key === '0') {
           e.preventDefault();
-          this.resetScale();
+          if (this.activeTab === 'math') {
+            this.callbacks.onMathResetScale?.();
+          } else {
+            this.resetScale();
+          }
         }
       }
     });
@@ -548,6 +562,7 @@ export class VisionModal {
     if (titleEl) {
       titleEl.textContent = titles[tab] || '全息实验视窗';
     }
+
 
     this.bodyContainer.innerHTML = '';
     this.statusCardSlot.innerHTML = '';

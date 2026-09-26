@@ -115,6 +115,12 @@ export class HallStatusCard {
   private selectMaterialCompat: HTMLSelectElement | null = null;
 
   private lastRenderTime = 0;
+  private lastB = -9999;
+  private lastI = -9999;
+  private lastVh = -9999;
+  private lastD = -9999;
+  private lastMatKey = '';
+  private lastCarrier: CarrierType | '' = '';
 
   constructor(callbacks: HallStatusCardCallbacks = {}) {
     this.callbacks = callbacks;
@@ -464,6 +470,23 @@ export class HallStatusCard {
     const d = this.currentData.waferThicknessMm;
     const matKey = this.currentData.materialKey;
     const carrier = this.currentData.carrierType;
+
+    const isDifferent =
+      Math.abs(this.lastB - b) > 0.002 ||
+      Math.abs(this.lastI - i) > 0.05 ||
+      Math.abs(this.lastVh - vh) > 0.01 ||
+      Math.abs(this.lastD - d) > 0.01 ||
+      this.lastMatKey !== matKey ||
+      this.lastCarrier !== carrier;
+
+    if (!isDifferent) return;
+
+    this.lastB = b;
+    this.lastI = i;
+    this.lastVh = vh;
+    this.lastD = d;
+    this.lastMatKey = matKey;
+    this.lastCarrier = carrier;
 
     // 1. Update V_H Hero Readout (Clean Big Apple Number)
     if (this.valVhEl) {

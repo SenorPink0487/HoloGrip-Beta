@@ -12,59 +12,71 @@ export type CarrierType = 'electron' | 'hole' | 'metal';
 
 export class HallCarrierParticleSystem {
   public group: THREE.Group;
-  private instancedMesh: THREE.InstancedMesh;
   private readonly particleCount: number;
 
-  // Wafer physical dimensions in local space
+  // Physical dimensions
   public readonly waferLength: number;
   public readonly waferHeight: number;
   public readonly waferThickness: number;
-  // Backwards-compatible getter / property
   public get waferWidth(): number {
     return this.waferHeight;
   }
 
-  // Particle positions & initial entry cross-section coordinates
+  // Particle positions & simulation state
   private positions: Float32Array;
   private baseOffsetsY: Float32Array;
   private baseOffsetsZ: Float32Array;
-  private dummyObj = new THREE.Object3D();
+  private thermalPhases: Float32Array;
 
-  // Edge charge glow strips on top (+Y) and bottom (-Y) inner edges
+  // Quantum Luminous Point System (Core + Halo dual-layer)
+  private particleGeo: THREE.BufferGeometry;
+  private corePoints: THREE.Points;
+  private haloPoints: THREE.Points;
+  private coreMat: THREE.PointsMaterial;
+  private haloMat: THREE.PointsMaterial;
+
+  // Textures for different carrier types
+  private electronTexture: THREE.CanvasTexture;
+  private holeTexture: THREE.CanvasTexture;
+  private metalTexture: THREE.CanvasTexture;
+
+  // Transverse Electrostatic Potential Glow Ribbons (Top & Bottom boundaries)
   private topGlowMesh: THREE.Mesh;
   private bottomGlowMesh: THREE.Mesh;
   private topGlowMat: THREE.MeshBasicMaterial;
   private bottomGlowMat: THREE.MeshBasicMaterial;
 
-  // Visual Charge Accumulation Badges (7 on top, 7 on bottom)
-  private topChargeGroup: THREE.Group;
-  private bottomChargeGroup: THREE.Group;
-  private topChargeSprites: THREE.Sprite[] = [];
-  private bottomChargeSprites: THREE.Sprite[] = [];
+  // Precision Hall Voltage Probe Badges (Only 2 elegant micro-badges at center probes)
+  private probeBadgeGroup: THREE.Group;
+  private topProbeSprite: THREE.Sprite;
+  private bottomProbeSprite: THREE.Sprite;
+  private badgeCanvasTop: HTMLCanvasElement;
+  private badgeCanvasBottom: HTMLCanvasElement;
+  private badgeTexTop: THREE.CanvasTexture;
+  private badgeTexBottom: THREE.CanvasTexture;
 
-  // Minimalist 3D Vector arrows
+  // Sleek 3D Vector Indicators
   private vectorGroup: THREE.Group;
   private arrowVelocity: THREE.ArrowHelper;
   private arrowMagField: THREE.ArrowHelper;
   private arrowLorentz: THREE.ArrowHelper;
   private arrowHallField: THREE.ArrowHelper;
 
-  // Carrier & physical state
+  // Physical State
   private carrierType: CarrierType = 'electron';
   private magFieldStrength = 0.5; // Tesla
   private currentMa = 10.0;       // mA
   private hallVoltageMv = -25.0;  // mV
-  private showVectors = false;    // Default OFF for clear view
+  private showVectors = false;
   private showParticles = true;
 
-  private sphereMat: THREE.MeshStandardMaterial;
   private disposables: { dispose: () => void }[] = [];
 
   constructor(options: HallCarrierOptions = {}) {
     this.waferLength = options.waferLength ?? 0.32;
     this.waferHeight = options.waferHeight ?? options.waferWidth ?? 0.125;
     this.waferThickness = options.waferThickness ?? 0.032;
-    this.particleCount = options.particleCount ?? 140;
+    this.particleCount = options.particleCount ?? 180;
 
     this.group = new THREE.Group();
     this.group.name = 'HallCarrierParticleSystem';
@@ -72,44 +84,101 @@ export class HallCarrierParticleSystem {
     this.positions = new Float32Array(this.particleCount * 3);
     this.baseOffsetsY = new Float32Array(this.particleCount);
     this.baseOffsetsZ = new Float32Array(this.particleCount);
+    this.thermalPhases = new Float32Array(this.particleCount);
 
+    this.initTextures();
     this.build();
     this.initParticles();
   }
 
+  /**
+   * Procedural radiant glow textures with smooth Gaussian core and exponential falloff
+   */
+  private initTextures(): void {
+    this.electronTexture = this.createGlowingParticleTexture('#ffffff', '#00f0ff', '#007aff');
+    this.holeTexture = this.createGlowingParticleTexture('#ffffff', '#ff9f0a', '#ff3b30');
+    this.metalTexture = this.createGlowingParticleTexture('#ffffff', '#64d2ff', '#0091ff');
+
+    this.disposables.push(this.electronTexture, this.holeTexture, this.metalTexture);
+  }
+
+  private createGlowingParticleTexture(coreColor: string, midColor: string, outerColor: string): THREE.CanvasTexture {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    const cx = size / 2;
+    const cy = size / 2;
+    if (typeof ctx.createRadialGradient === 'function') {
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, size / 2);
+      grad.addColorStop(0.0, coreColor);
+      grad.addColorStop(0.2, coreColor);
+      grad.addColorStop(0.45, midColor);
+      grad.addColorStop(0.75, outerColor);
+      grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = midColor;
+    }
+    ctx.fillRect(0, 0, size, size);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+  }
+
   private build(): void {
-    // 1. Instanced luminous micro-carrier spheres (Ultra-bright glowing neon dots)
-    const sphereRadius = Math.max(0.0048, this.waferThickness * 0.14);
-    const sphereGeo = new THREE.SphereGeometry(sphereRadius, 14, 14);
-    this.sphereMat = new THREE.MeshStandardMaterial({
-      color: 0x39ff14,
-      emissive: 0x00ff88,
-      emissiveIntensity: 3.8,
-      roughness: 0.1,
-      metalness: 0.1,
+    // 1. Dual-Layer Quantum Carrier Particle System
+    this.particleGeo = new THREE.BufferGeometry();
+    this.particleGeo.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+    this.disposables.push(this.particleGeo);
+
+    // Core layer: brilliant concentrated quantum charge point
+    this.coreMat = new THREE.PointsMaterial({
+      size: 0.010,
+      map: this.electronTexture,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
     });
-    this.disposables.push(sphereGeo, this.sphereMat);
 
-    this.instancedMesh = new THREE.InstancedMesh(sphereGeo, this.sphereMat, this.particleCount);
-    this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.group.add(this.instancedMesh);
+    // Halo layer: radiant luminous energy wavepacket
+    this.haloMat = new THREE.PointsMaterial({
+      size: 0.022,
+      map: this.electronTexture,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+    });
+    this.disposables.push(this.coreMat, this.haloMat);
 
-    // 2. Edge accumulation luminous glow strips
-    const glowGeo = new THREE.PlaneGeometry(this.waferLength * 0.96, this.waferThickness * 0.90);
+    this.corePoints = new THREE.Points(this.particleGeo, this.coreMat);
+    this.haloPoints = new THREE.Points(this.particleGeo, this.haloMat);
+    this.group.add(this.corePoints);
+    this.group.add(this.haloPoints);
+
+    // 2. Transverse Electrostatic Potential Glow Ribbons
+    const glowGeo = new THREE.PlaneGeometry(this.waferLength * 0.98, this.waferThickness * 0.92);
     this.disposables.push(glowGeo);
 
     this.topGlowMat = new THREE.MeshBasicMaterial({
       color: 0xff3b30,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.35,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
     this.bottomGlowMat = new THREE.MeshBasicMaterial({
-      color: 0x007aff,
+      color: 0x0a84ff,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.35,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -126,153 +195,139 @@ export class HallCarrierParticleSystem {
     this.bottomGlowMesh.position.set(0, -this.waferHeight / 2 + 0.001, 0);
     this.group.add(this.bottomGlowMesh);
 
-    // 3. Side Charge Accumulation Badges (7 on top, 7 on bottom - bold, prominent & clear)
-    this.buildEdgeChargeBadges();
+    // 3. Precision Hall Voltage Probe Badges (Apple Vision Pro Micro-Pills)
+    this.buildProbeBadges();
 
-    // 4. Vector Arrows
+    // 4. Sleek 3D Vector Indicators
     this.buildVectorHelpers();
   }
 
-  private buildEdgeChargeBadges(): void {
-    this.topChargeGroup = new THREE.Group();
-    this.topChargeGroup.name = 'TopChargeGroup';
-    this.group.add(this.topChargeGroup);
+  private buildProbeBadges(): void {
+    this.probeBadgeGroup = new THREE.Group();
+    this.probeBadgeGroup.name = 'HallProbeBadges';
+    this.group.add(this.probeBadgeGroup);
 
-    this.bottomChargeGroup = new THREE.Group();
-    this.bottomChargeGroup.name = 'BottomChargeGroup';
-    this.group.add(this.bottomChargeGroup);
+    // Canvas & Texture for Top Badge
+    this.badgeCanvasTop = document.createElement('canvas');
+    this.badgeCanvasTop.width = 128;
+    this.badgeCanvasTop.height = 128;
+    this.badgeTexTop = new THREE.CanvasTexture(this.badgeCanvasTop);
+    this.badgeTexTop.minFilter = THREE.LinearFilter;
 
-    // 7 badges along top, 7 along bottom
-    const badgeCount = 7;
-    const spanX = this.waferLength * 0.82;
-    const spacing = spanX / (badgeCount - 1);
-    const startX = -spanX / 2;
-    // Elevated clearly above and below the crystal box edges
-    const topY = this.waferHeight * 0.5 + 0.018;
-    const bottomY = -this.waferHeight * 0.5 - 0.018;
-    const frontZ = this.waferThickness * 0.5 + 0.008;
+    // Canvas & Texture for Bottom Badge
+    this.badgeCanvasBottom = document.createElement('canvas');
+    this.badgeCanvasBottom.width = 128;
+    this.badgeCanvasBottom.height = 128;
+    this.badgeTexBottom = new THREE.CanvasTexture(this.badgeCanvasBottom);
+    this.badgeTexBottom.minFilter = THREE.LinearFilter;
 
-    for (let i = 0; i < badgeCount; i++) {
-      const x = startX + i * spacing;
-
-      // Top badge (defaults to "+" for standard electron deflection)
-      const topSprite = this.createChargeGlyph('+', '#ff3b30');
-      topSprite.position.set(x, topY, frontZ);
-      this.topChargeGroup.add(topSprite);
-      this.topChargeSprites.push(topSprite);
-
-      // Bottom badge (defaults to "−" for standard electron deflection)
-      const bottomSprite = this.createChargeGlyph('−', '#007aff');
-      bottomSprite.position.set(x, bottomY, frontZ);
-      this.bottomChargeGroup.add(bottomSprite);
-      this.bottomChargeSprites.push(bottomSprite);
-    }
-  }
-
-  private createChargeGlyph(symbol: string, color: string): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d')!;
-
-    this.drawChargeCanvas(ctx, symbol, color);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    const mat = new THREE.SpriteMaterial({
-      map: texture,
+    const badgeMatTop = new THREE.SpriteMaterial({
+      map: this.badgeTexTop,
       transparent: true,
-      depthTest: false, // Ensures badges are NEVER clipped or occluded
+      depthTest: false,
     });
-    this.disposables.push(texture, mat);
+    const badgeMatBottom = new THREE.SpriteMaterial({
+      map: this.badgeTexBottom,
+      transparent: true,
+      depthTest: false,
+    });
+    this.disposables.push(this.badgeTexTop, this.badgeTexBottom, badgeMatTop, badgeMatBottom);
 
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(0.026, 0.026, 1.0); // Bold, prominent size
-    return sprite;
+    const badgeScale = 0.026;
+    const topY = this.waferHeight * 0.5 + 0.022;
+    const bottomY = -this.waferHeight * 0.5 - 0.022;
+    const frontZ = this.waferThickness * 0.5 + 0.010;
+
+    this.topProbeSprite = new THREE.Sprite(badgeMatTop);
+    this.topProbeSprite.scale.set(badgeScale, badgeScale, 1.0);
+    this.topProbeSprite.position.set(0, topY, frontZ);
+    this.probeBadgeGroup.add(this.topProbeSprite);
+
+    this.bottomProbeSprite = new THREE.Sprite(badgeMatBottom);
+    this.bottomProbeSprite.scale.set(badgeScale, badgeScale, 1.0);
+    this.bottomProbeSprite.position.set(0, bottomY, frontZ);
+    this.probeBadgeGroup.add(this.bottomProbeSprite);
+
+    this.drawProbeBadge(this.badgeCanvasTop, '+', '#ff453a');
+    this.drawProbeBadge(this.badgeCanvasBottom, '−', '#0a84ff');
+    this.badgeTexTop.needsUpdate = true;
+    this.badgeTexBottom.needsUpdate = true;
   }
 
-  private drawChargeCanvas(ctx: CanvasRenderingContext2D, symbol: string, color: string): void {
-    ctx.clearRect(0, 0, 256, 256);
-
-    // 1. Outer radiant glow
-    if (typeof ctx.createRadialGradient === 'function') {
-      const grad = ctx.createRadialGradient(128, 128, 60, 128, 128, 126);
-      grad.addColorStop(0, color);
-      grad.addColorStop(0.7, 'transparent');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(128, 128, 124, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // 2. High-contrast solid pill badge body
-    ctx.beginPath();
-    ctx.arc(128, 128, 92, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    // 3. Crisp white outer ring
-    ctx.lineWidth = 9;
-    ctx.strokeStyle = '#ffffff';
-    ctx.stroke();
-
-    // 4. Bold white symbol glyph
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 142px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(symbol, 128, 126);
-  }
-
-  private updateChargeBadges(): void {
-    const hasField = Math.abs(this.magFieldStrength) > 0.01 && Math.abs(this.currentMa) > 0.01;
-    const isTopPositive = this.hallVoltageMv < 0;
-
-    const badgeVisible = hasField && Math.abs(this.hallVoltageMv) > 0.005;
-    this.topChargeGroup.visible = badgeVisible;
-    this.bottomChargeGroup.visible = badgeVisible;
-
-    if (!badgeVisible) {
-      this.topGlowMesh.visible = false;
-      this.bottomGlowMesh.visible = false;
-      return;
-    }
-
-    this.topGlowMesh.visible = true;
-    this.bottomGlowMesh.visible = true;
-
-    // Polarity colors
-    const topColor = isTopPositive ? 0xff3b30 : 0x007aff;
-    const bottomColor = isTopPositive ? 0x007aff : 0xff3b30;
-
-    this.topGlowMat.color.setHex(topColor);
-    this.bottomGlowMat.color.setHex(bottomColor);
-
-    // Re-render charge badges with correct sign
-    const topSymbol = isTopPositive ? '+' : '−';
-    const bottomSymbol = isTopPositive ? '−' : '+';
-    const topColorHex = isTopPositive ? '#ff3b30' : '#007aff';
-    const bottomColorHex = isTopPositive ? '#007aff' : '#ff3b30';
-
-    for (const s of this.topChargeSprites) {
-      this.redrawChargeGlyph(s, topSymbol, topColorHex);
-    }
-    for (const s of this.bottomChargeSprites) {
-      this.redrawChargeGlyph(s, bottomSymbol, bottomColorHex);
-    }
-  }
-
-  private redrawChargeGlyph(sprite: THREE.Sprite, symbol: string, color: string): void {
-    const mat = sprite.material as THREE.SpriteMaterial;
-    const texture = mat.map as THREE.CanvasTexture;
-    if (!texture || !texture.image) return;
-
-    const canvas = texture.image as HTMLCanvasElement;
+  private drawProbeBadge(canvas: HTMLCanvasElement, symbol: string, color: string): void {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    this.drawChargeCanvas(ctx, symbol, color);
-    texture.needsUpdate = true;
+    ctx.clearRect(0, 0, 128, 128);
+
+    // Radiant outer ambient glow
+    if (typeof ctx.createRadialGradient === 'function') {
+      const grad = ctx.createRadialGradient(64, 64, 20, 64, 64, 62);
+      grad.addColorStop(0.0, color);
+      grad.addColorStop(0.65, 'rgba(0,0,0,0.1)');
+      grad.addColorStop(1.0, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(64, 64, 62, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // High-contrast frosted pill container
+    ctx.beginPath();
+    ctx.arc(64, 64, 46, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(22, 24, 30, 0.88)';
+    ctx.fill();
+
+    // Specular border in polarity accent color
+    ctx.lineWidth = 4.5;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+
+    // Inner hairline white ring
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.stroke();
+
+    // Bold, crisp typography
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 70px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(symbol, 64, 63);
+  }
+
+  private updateProbeBadges(): void {
+    const hasField = Math.abs(this.magFieldStrength) > 0.01 && Math.abs(this.currentMa) > 0.01;
+    const isTopPositive = this.hallVoltageMv < 0;
+    const badgeVisible = hasField && Math.abs(this.hallVoltageMv) > 0.005;
+
+    this.probeBadgeGroup.visible = badgeVisible;
+    this.topGlowMesh.visible = badgeVisible;
+    this.bottomGlowMesh.visible = badgeVisible;
+
+    if (!badgeVisible) return;
+
+    // Intensity scaling based on voltage magnitude
+    const normVh = Math.min(1.0, Math.abs(this.hallVoltageMv) / 40.0);
+    const glowOpacity = 0.15 + normVh * 0.35;
+
+    const topColor = isTopPositive ? 0xff453a : 0x0a84ff;
+    const bottomColor = isTopPositive ? 0x0a84ff : 0xff453a;
+
+    this.topGlowMat.color.setHex(topColor);
+    this.topGlowMat.opacity = glowOpacity;
+    this.bottomGlowMat.color.setHex(bottomColor);
+    this.bottomGlowMat.opacity = glowOpacity;
+
+    const topSymbol = isTopPositive ? '+' : '−';
+    const bottomSymbol = isTopPositive ? '−' : '+';
+    const topHex = isTopPositive ? '#ff453a' : '#0a84ff';
+    const bottomHex = isTopPositive ? '#0a84ff' : '#ff453a';
+
+    this.drawProbeBadge(this.badgeCanvasTop, topSymbol, topHex);
+    this.drawProbeBadge(this.badgeCanvasBottom, bottomSymbol, bottomHex);
+    this.badgeTexTop.needsUpdate = true;
+    this.badgeTexBottom.needsUpdate = true;
   }
 
   private buildVectorHelpers(): void {
@@ -284,40 +339,41 @@ export class HallCarrierParticleSystem {
     const halfL = this.waferLength * 0.5;
     const halfT = this.waferThickness * 0.5;
 
+    // Sleek, refined vector arrows
     this.arrowVelocity = new THREE.ArrowHelper(
       new THREE.Vector3(-1, 0, 0),
-      new THREE.Vector3(halfL * 0.35, 0, halfT + 0.016),
-      0.038,
-      0xffffff,
-      0.008,
-      0.005
+      new THREE.Vector3(halfL * 0.45, 0, halfT + 0.016),
+      0.036,
+      0x30d158, // Vibrant Emerald
+      0.007,
+      0.004
     );
 
     this.arrowMagField = new THREE.ArrowHelper(
       new THREE.Vector3(0, 0, 1),
-      new THREE.Vector3(-halfL * 0.40, 0, -halfT - 0.020),
-      0.048,
-      0x00f0ff,
-      0.009,
-      0.006
+      new THREE.Vector3(-halfL * 0.50, 0, -halfT - 0.018),
+      0.042,
+      0x00f0ff, // Electric Cyan
+      0.007,
+      0.004
     );
 
     this.arrowLorentz = new THREE.ArrowHelper(
       new THREE.Vector3(0, -1, 0),
       new THREE.Vector3(0, 0, halfT + 0.016),
-      0.035,
-      0x2997ff,
-      0.008,
-      0.005
+      0.034,
+      0x0a84ff, // Royal Azure
+      0.007,
+      0.004
     );
 
     this.arrowHallField = new THREE.ArrowHelper(
       new THREE.Vector3(0, -1, 0),
-      new THREE.Vector3(-halfL * 0.35, 0, halfT + 0.016),
-      0.035,
-      0xff9500,
-      0.008,
-      0.005
+      new THREE.Vector3(-halfL * 0.45, 0, halfT + 0.016),
+      0.034,
+      0xff9f0a, // Solar Amber
+      0.007,
+      0.004
     );
 
     this.vectorGroup.add(this.arrowVelocity);
@@ -341,8 +397,11 @@ export class HallCarrierParticleSystem {
       this.positions[idx + 2] = zOffset;
       this.baseOffsetsY[i] = yOffset;
       this.baseOffsetsZ[i] = zOffset;
+      this.thermalPhases[i] = Math.random() * Math.PI * 2;
     }
-    this.updateMeshTransforms();
+
+    const posAttr = this.particleGeo.getAttribute('position') as THREE.BufferAttribute;
+    posAttr.needsUpdate = true;
   }
 
   public setPhysicsState(
@@ -355,40 +414,41 @@ export class HallCarrierParticleSystem {
     this.magFieldStrength = magFieldTesla;
     this.hallVoltageMv = hallVoltageMv;
     this.setCarrierType(carrierType);
-    this.updateChargeBadges();
+    this.updateProbeBadges();
     this.updateVectorHelpers();
   }
 
   public setCarrierType(type: CarrierType): void {
     this.carrierType = type;
+    let targetTexture = this.electronTexture;
+
     if (type === 'electron') {
-      // Vivid Neon Emerald Green
-      this.sphereMat.color.setHex(0x39ff14);
-      this.sphereMat.emissive.setHex(0x00ff88);
-      this.sphereMat.emissiveIntensity = 3.8;
+      targetTexture = this.electronTexture;
     } else if (type === 'hole') {
-      // Vivid Solar Gold / Amber
-      this.sphereMat.color.setHex(0xffaa00);
-      this.sphereMat.emissive.setHex(0xff7700);
-      this.sphereMat.emissiveIntensity = 3.8;
+      targetTexture = this.holeTexture;
     } else {
-      // Luminous Cyber Cyan
-      this.sphereMat.color.setHex(0x00f0ff);
-      this.sphereMat.emissive.setHex(0x00b4d8);
-      this.sphereMat.emissiveIntensity = 3.2;
+      targetTexture = this.metalTexture;
     }
 
-    this.updateChargeBadges();
+    this.coreMat.map = targetTexture;
+    this.haloMat.map = targetTexture;
+    this.coreMat.needsUpdate = true;
+    this.haloMat.needsUpdate = true;
+
+    this.updateProbeBadges();
   }
 
   public setToggles(showVectors: boolean, showParticles: boolean): void {
     this.showVectors = showVectors;
     this.showParticles = showParticles;
     this.vectorGroup.visible = showVectors;
-    this.instancedMesh.visible = showParticles;
+    this.corePoints.visible = showParticles;
+    this.haloPoints.visible = showParticles;
+
     const badgeActive = Math.abs(this.hallVoltageMv) > 0.005;
-    this.topChargeGroup.visible = badgeActive;
-    this.bottomChargeGroup.visible = badgeActive;
+    this.probeBadgeGroup.visible = badgeActive;
+    this.topGlowMesh.visible = badgeActive;
+    this.bottomGlowMesh.visible = badgeActive;
   }
 
   public update(delta: number): void {
@@ -399,12 +459,14 @@ export class HallCarrierParticleSystem {
 
     const currentSign = this.currentMa >= 0 ? 1 : -1;
     const isElectron = this.carrierType === 'electron';
+    // Electrons drift against current flow; holes drift with current flow
     const driftDirection = isElectron ? -currentSign : currentSign;
 
     const b = this.magFieldStrength;
     const bSign = b >= 0 ? 1 : -1;
 
-    // Deflects DOWNWARDS when current > 0 and B > 0
+    // Lorentz force direction: fl = q(v x B)
+    // Downwards when I > 0 and B > 0 for both electron and hole
     const flSign = -currentSign * bSign;
 
     const deflectionIntensity = THREE.MathUtils.clamp(
@@ -412,9 +474,12 @@ export class HallCarrierParticleSystem {
       0,
       1
     );
-    const maxDeflectionY = halfH * 0.78 * deflectionIntensity * flSign;
+    const maxDeflectionY = halfH * 0.82 * deflectionIntensity * flSign;
 
-    const speed = Math.max(0.04, Math.min(0.26, Math.abs(this.currentMa) * 0.014));
+    // Longitudinal drift velocity
+    const speed = Math.max(0.04, Math.min(0.28, Math.abs(this.currentMa) * 0.016));
+
+    const timeNow = performance.now() * 0.003;
 
     for (let i = 0; i < this.particleCount; i++) {
       const idx = i * 3;
@@ -422,42 +487,41 @@ export class HallCarrierParticleSystem {
       // Longitudinal drift along X
       this.positions[idx] += driftDirection * speed * delta;
 
-      // Wrap around when exiting wafer edge
+      // Seamless wrap-around when exiting wafer boundary
       if (driftDirection > 0 && this.positions[idx] > halfL) {
         this.positions[idx] = -halfL;
-        this.baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.8;
+        this.baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.75;
       } else if (driftDirection < 0 && this.positions[idx] < -halfL) {
         this.positions[idx] = halfL;
-        this.baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.8;
+        this.baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.75;
       }
 
-      // Smooth parabolic trajectory towards accumulating edge
+      // Smooth parabolic deflection towards accumulating edge
       const u = driftDirection > 0
         ? (this.positions[idx] + halfL) / (2 * halfL)
         : (halfL - this.positions[idx]) / (2 * halfL);
 
-      const curveWeight = Math.pow(Math.max(0, Math.min(1, u)), 1.3);
-      const targetY = this.baseOffsetsY[i] + maxDeflectionY * curveWeight;
+      const curveWeight = Math.pow(Math.max(0, Math.min(1, u)), 1.35);
 
-      this.positions[idx + 1] = THREE.MathUtils.clamp(targetY, -halfH * 0.95, halfH * 0.95);
-    }
+      // Microscopic thermal jitter (Brownian quantum fluctuation)
+      const thermalPhase = this.thermalPhases[i] + timeNow;
+      const thermalY = Math.sin(thermalPhase * 3.5) * halfH * 0.045;
+      const thermalZ = Math.cos(thermalPhase * 2.8) * this.waferThickness * 0.06;
 
-    this.updateMeshTransforms();
-    this.updateVectorHelpers();
-  }
+      const targetY = this.baseOffsetsY[i] + maxDeflectionY * curveWeight + thermalY;
 
-  private updateMeshTransforms(): void {
-    for (let i = 0; i < this.particleCount; i++) {
-      const idx = i * 3;
-      this.dummyObj.position.set(
-        this.positions[idx],
-        this.positions[idx + 1],
-        this.positions[idx + 2]
+      this.positions[idx + 1] = THREE.MathUtils.clamp(targetY, -halfH * 0.94, halfH * 0.94);
+      this.positions[idx + 2] = THREE.MathUtils.clamp(
+        this.baseOffsetsZ[i] + thermalZ,
+        -this.waferThickness * 0.40,
+        this.waferThickness * 0.40
       );
-      this.dummyObj.updateMatrix();
-      this.instancedMesh.setMatrixAt(i, this.dummyObj.matrix);
     }
-    this.instancedMesh.instanceMatrix.needsUpdate = true;
+
+    const posAttr = this.particleGeo.getAttribute('position') as THREE.BufferAttribute;
+    posAttr.needsUpdate = true;
+
+    this.updateVectorHelpers();
   }
 
   private updateVectorHelpers(): void {
