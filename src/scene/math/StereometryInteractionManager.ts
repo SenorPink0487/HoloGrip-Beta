@@ -12,12 +12,14 @@ export type InteractionMode =
 
 export interface StereometryInteractionCallbacks {
   onKeyPointClick?: (point: KeyPoint, mode: InteractionMode) => void;
-  onKeyPointHover?: (point: KeyPoint | null) => void;
+  onKeyPointHover?: (point: KeyPoint | null, snapLabel?: string) => void;
   onSegmentCreated?: (segLabel: string, length: number) => void;
+  onSegmentRemoved?: (segLabel: string, length: number) => void;
   onCrossSectionCreated?: (type: string, area: number) => void;
   onOriginChanged?: (point: KeyPoint) => void;
   onScaleChange?: (scale: number) => void;
   onClearSegments?: () => void;
+  onGuidanceChange?: (hint: string, type: 'info' | 'active' | 'success' | 'warn') => void;
 }
 
 export class StereometryInteractionManager {
@@ -62,10 +64,23 @@ export class StereometryInteractionManager {
   }
 
   public resetSelection(): void {
+    const wasPending = Boolean(this.pendingStartPoint);
     this.pendingStartPoint = null;
     this.selectedCutPoints = [];
     this.mesh.setSelectedKeyPoints([]);
     this.mesh.clearPreviewWire();
+    if (wasPending) {
+      this.callbacks.onGuidanceChange?.('✦ 已取消连线选择', 'info');
+    }
+  }
+
+  public undoLastSegment(): any {
+    const seg = this.mesh.undoLastSegment();
+    if (seg) {
+      this.callbacks.onSegmentRemoved?.(seg.label, seg.length);
+      this.callbacks.onGuidanceChange?.(`↩ 已撤销辅助线 ${seg.label}`, 'warn');
+    }
+    return seg;
   }
 
   public clearAll(): void {
@@ -73,6 +88,7 @@ export class StereometryInteractionManager {
     this.mesh.clearAllSegments();
     this.mesh.setOptions({ crossSectionPlane: undefined, clippingEnabled: false });
     this.callbacks.onClearSegments?.();
+    this.callbacks.onGuidanceChange?.('✕ 已清空所有辅助线', 'warn');
   }
 
   /**
@@ -186,7 +202,10 @@ export class StereometryInteractionManager {
       if (activeStart) {
         if (hoveredKp && hoveredKp.id !== activeStart.id) {
           // Snapped to target point
-          this.mesh.updatePreviewWire(activeStart.position, hoveredKp.position, 0x38d9a9);
+          const len = activeStart.position.distanceTo(hoveredKp.position);
+          const badgeText = `${activeStart.label} → ${hoveredKp.label} (${len.toFixed(3)}m)`;
+          this.mesh.updatePreviewWire(activeStart.position, hoveredKp.position, 0x10b981, badgeText);
+          this.callbacks.onGuidanceChange?.(`🎯 目标点: ${hoveredLabel || hoveredKp.label} · 单击完成连线 (长 ${len.toFixed(3)}m)`, 'active');
         } else {
           // Project cursor onto plane parallel to camera through start point
           const normal = new THREE.Vector3();
@@ -196,9 +215,16 @@ export class StereometryInteractionManager {
           const hitWorld = new THREE.Vector3();
           if (raycaster.ray.intersectPlane(plane, hitWorld)) {
             const hitLocal = hitWorld.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld.clone().invert());
-            this.mesh.updatePreviewWire(activeStart.position, hitLocal, 0xffd43b);
+            const len = activeStart.position.distanceTo(hitLocal);
+            const badgeText = `${len.toFixed(3)} m`;
+            this.mesh.updatePreviewWire(activeStart.position, hitLocal, 0x38bdf8, badgeText);
+            this.callbacks.onGuidanceChange?.(`🔗 已选起点 ${activeStart.label} · 移动至目标点完成连线 (按 Esc 取消)`, 'info');
           }
         }
+      } else if (hoveredKp) {
+        this.callbacks.onGuidanceChange?.(`✦ 磁吸捕捉: ${hoveredLabel || hoveredKp.label} · 点击或拖拽连线`, 'info');
+      } else {
+        this.callbacks.onGuidanceChange?.(`✦ 鼠标悬停关键点可磁吸捕捉 · 点击或拖拽创建连线`, 'info');
       }
     }
 
@@ -207,7 +233,7 @@ export class StereometryInteractionManager {
 
     if (hoveredKp) {
       this.mesh.setHoveredKeyPoint(hoveredKp.id);
-      this.callbacks.onKeyPointHover?.(hoveredKp);
+      this.callbacks.onKeyPointHover?.(hoveredKp, hoveredLabel);
       document.body.style.cursor = 'pointer';
     } else {
       this.mesh.setHoveredKeyPoint(null);
@@ -309,6 +335,7 @@ export class StereometryInteractionManager {
       // 1st Click: select start point
       this.pendingStartPoint = kp;
       this.mesh.setSelectedKeyPoints([kp.id]);
+      this.callbacks.onGuidanceChange?.(`🔗 已选起点 ${kp.label} · 请移动至目标点完成连线 (按 Esc 取消)`, 'info');
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
     } else if (this.pendingStartPoint.id === kp.id) {
       // Clicked same point: deselect
@@ -330,6 +357,7 @@ export class StereometryInteractionManager {
     const seg = this.mesh.addSegment(p1.id, p2.id);
     if (seg) {
       this.callbacks.onSegmentCreated?.(seg.label, seg.length);
+      this.callbacks.onGuidanceChange?.(`✓ 成功生成辅助线 ${seg.label} (长 ${seg.length.toFixed(3)}m)`, 'success');
     }
   }
 
@@ -346,6 +374,12 @@ export class StereometryInteractionManager {
    * Keyboard shortcuts for Zooming and Shortcuts.
    */
   public onKeyDown(event: KeyboardEvent): boolean {
+    if ((event.code === 'KeyZ' && (event.metaKey || event.ctrlKey)) || event.code === 'Backspace') {
+      event.preventDefault();
+      this.undoLastSegment();
+      return true;
+    }
+
     if (
       event.code === 'Equal' ||
       event.code === 'NumpadAdd' ||

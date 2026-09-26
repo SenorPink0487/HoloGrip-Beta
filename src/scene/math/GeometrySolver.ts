@@ -6,7 +6,13 @@ export type HighSchoolModelType =
   | 'tetrahedron'     // 正四面体 (嵌入正方体模型)
   | 'square-pyramid'  // 正四棱锥 (埃及金字塔模型)
   | 'triangular-prism'// 直三棱柱
-  | 'cylinder-cone';  // 圆柱与圆锥 (旋转体与截线)
+  | 'cylinder-cone'   // 圆柱与圆锥 (旋转体与截线)
+  | 'recognized';     // 题目照片还原的立体
+
+export interface AuxEdge {
+  a: string;
+  b: string;
+}
 
 export interface KeyPoint {
   id: string;
@@ -39,6 +45,7 @@ export interface PolyhedronModelDef {
   faces: PolygonFace[];
   edges: [number, number][]; // pairs of vertex indices
   keyPoints: KeyPoint[];
+  auxEdges?: AuxEdge[]; // construction lines (midpoint joins, etc.), keyed by keypoint id
   defaultParams: Record<string, number>;
   boundingRadius: number;
 }
@@ -116,6 +123,8 @@ export class GeometrySolver {
         return this.createTriangularPrismModel(a, h);
       case 'cylinder-cone':
         return this.createCylinderConeModel(r, h);
+      case 'recognized':
+        throw new Error('识图模型要由题目生成');
       default:
         return this.createCubeModel(a, b, c);
     }
@@ -1196,6 +1205,9 @@ export class GeometrySolver {
         inCenter.set(0, -h / 2 + inRadius, 0);
         break;
       }
+
+      case 'recognized':
+        break;
     }
 
     const circumArea = 4 * Math.PI * circumRadius * circumRadius;
@@ -1218,5 +1230,148 @@ export class GeometrySolver {
       radiusRatio,
       embeddingCuboidSize: embeddingCuboid,
     };
+  }
+
+  /**
+   * Circumsphere when every vertex lies on one sphere, and inradius for a tetrahedron.
+   * Used by photo-recognized figures, whose size is not one of the preset formulas.
+   */
+  public static analyzeRecognizedModel(model: PolyhedronModelDef): SphereAnalysisResult {
+    const verts = model.vertices;
+    const empty = new THREE.Vector3();
+    let circumCenter = empty.clone();
+    let circumRadius = 0;
+    let inCenter = empty.clone();
+    let inRadius = 0;
+    let embeddingCuboid: THREE.Vector3 | undefined;
+
+    if (verts.length > 0) {
+      const min = new THREE.Vector3(Infinity, Infinity, Infinity);
+      const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+      verts.forEach((v) => {
+        min.min(v);
+        max.max(v);
+      });
+      embeddingCuboid = max.clone().sub(min);
+
+      const tetra = this.findTetraBasis(verts);
+      if (tetra) {
+        const solved = this.circumcenterOfTetra(tetra[0], tetra[1], tetra[2], tetra[3]);
+        if (solved) {
+          const radius = solved.distanceTo(tetra[0]);
+          const onSphere = verts.every((v) => Math.abs(v.distanceTo(solved) - radius) < 1e-3);
+          if (onSphere && radius > 1e-6) {
+            circumCenter = solved;
+            circumRadius = radius;
+          }
+        }
+      }
+    }
+
+    if (verts.length === 4 && model.faces.length === 4 && circumRadius > 0) {
+      const [a, b, c, d] = verts;
+      const ab = b.clone().sub(a);
+      const ac = c.clone().sub(a);
+      const ad = d.clone().sub(a);
+      const volume = Math.abs(ab.dot(ac.clone().cross(ad))) / 6;
+      let surface = 0;
+      for (const face of model.faces) {
+        surface += this.fanArea(verts, face.vertexIndices);
+      }
+      if (volume > 1e-8 && surface > 1e-8) {
+        inRadius = (3 * volume) / surface;
+        const weighted = new THREE.Vector3();
+        let weightSum = 0;
+        for (let i = 0; i < 4; i++) {
+          const opposite = model.faces.find((face) => !face.vertexIndices.includes(i));
+          const area = opposite ? this.fanArea(verts, opposite.vertexIndices) : 0;
+          weighted.addScaledVector(verts[i], area);
+          weightSum += area;
+        }
+        if (weightSum > 1e-8) inCenter = weighted.multiplyScalar(1 / weightSum);
+      }
+    }
+
+    const circumArea = 4 * Math.PI * circumRadius * circumRadius;
+    const circumVolume = (4 / 3) * Math.PI * Math.pow(circumRadius, 3);
+    const inArea = 4 * Math.PI * inRadius * inRadius;
+    const inVolume = (4 / 3) * Math.PI * Math.pow(inRadius, 3);
+
+    return {
+      hasCircumSphere: circumRadius > 0,
+      circumRadius,
+      circumCenter,
+      circumArea,
+      circumVolume,
+      hasInSphere: inRadius > 0,
+      inRadius,
+      inCenter,
+      inArea,
+      inVolume,
+      radiusRatio: inRadius > 1e-6 ? circumRadius / inRadius : 1,
+      embeddingCuboidSize: embeddingCuboid,
+    };
+  }
+
+  private static fanArea(verts: THREE.Vector3[], indices: number[]): number {
+    if (indices.length < 3) return 0;
+    const v0 = verts[indices[0]];
+    let area = 0;
+    for (let i = 1; i < indices.length - 1; i++) {
+      const e1 = verts[indices[i]].clone().sub(v0);
+      const e2 = verts[indices[i + 1]].clone().sub(v0);
+      area += e1.cross(e2).length() * 0.5;
+    }
+    return area;
+  }
+
+  private static findTetraBasis(verts: THREE.Vector3[]): [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3] | null {
+    const origin = verts[0];
+    for (let i = 1; i < verts.length; i++) {
+      for (let j = i + 1; j < verts.length; j++) {
+        for (let k = j + 1; k < verts.length; k++) {
+          const ab = verts[i].clone().sub(origin);
+          const ac = verts[j].clone().sub(origin);
+          const ad = verts[k].clone().sub(origin);
+          if (Math.abs(ab.dot(ac.clone().cross(ad))) > 1e-6) {
+            return [origin, verts[i], verts[j], verts[k]];
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private static circumcenterOfTetra(
+    a: THREE.Vector3,
+    b: THREE.Vector3,
+    c: THREE.Vector3,
+    d: THREE.Vector3
+  ): THREE.Vector3 | null {
+    const rows = [b.clone().sub(a), c.clone().sub(a), d.clone().sub(a)];
+    const rhs = [
+      b.lengthSq() - a.lengthSq(),
+      c.lengthSq() - a.lengthSq(),
+      d.lengthSq() - a.lengthSq(),
+    ];
+    const matrix = rows.map((row, index) => [2 * row.x, 2 * row.y, 2 * row.z, rhs[index]]);
+    for (let col = 0; col < 3; col++) {
+      let pivot = col;
+      for (let row = col + 1; row < 3; row++) {
+        if (Math.abs(matrix[row][col]) > Math.abs(matrix[pivot][col])) pivot = row;
+      }
+      if (Math.abs(matrix[pivot][col]) < 1e-10) return null;
+      const hold = matrix[col];
+      matrix[col] = matrix[pivot];
+      matrix[pivot] = hold;
+      const div = matrix[col][col];
+      for (let k = col; k < 4; k++) matrix[col][k] /= div;
+      for (let row = 0; row < 3; row++) {
+        if (row === col) continue;
+        const factor = matrix[row][col];
+        for (let k = col; k < 4; k++) matrix[row][k] -= factor * matrix[col][k];
+      }
+    }
+    return new THREE.Vector3(matrix[0][3], matrix[1][3], matrix[2][3]);
   }
 }

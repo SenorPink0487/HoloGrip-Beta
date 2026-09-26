@@ -5,7 +5,7 @@ export const metadata: ExperimentMetadata = {
   name: '立体几何',
   category: 'math',
   categoryName: '空间数学',
-  description: '立体几何空间解析模型。提供正方体、三棱锥、正四面体、四棱锥、直三棱柱与圆柱圆锥等三维几何分析。',
+  description: '立体几何空间解析模型。提供正方体、三棱锥、正四面体、四棱锥、直三棱柱与圆柱圆锥，并可由斜二测题目照片生成可交互模型。',
   tags: ['立体几何', '空间向量', '二面角', '截面', '外接球', '内切球'],
   icon: 'math',
   equation: '2R = \\sqrt{a^2+b^2+c^2}',

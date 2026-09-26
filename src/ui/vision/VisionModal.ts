@@ -77,6 +77,7 @@ export interface VisionModalCallbacks {
   onMathApplyPreset?: (preset: any) => void;
   onMathZoom?: (direction: 1 | -1) => void;
   onMathResetScale?: () => void;
+  onMathRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string }>;
 }
 
 export class VisionModal {
@@ -315,6 +316,10 @@ export class VisionModal {
       onToggleFaceCenters: (show) => this.callbacks.onMathToggleFaceCenters?.(show),
       onToggleLabels: (show) => this.callbacks.onMathToggleLabels?.(show),
       onApplyPreset: (preset) => this.callbacks.onMathApplyPreset?.(preset),
+      onRecognizeImage: (dataUrl) => {
+        if (!this.callbacks.onMathRecognizeImage) return Promise.reject(new Error('识图还没接上'));
+        return this.callbacks.onMathRecognizeImage(dataUrl);
+      },
     });
 
     this.hallStatusCard = new HallStatusCard({

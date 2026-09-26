@@ -1043,6 +1043,13 @@ export class Engine {
           exp?.resetScale?.();
         }
       },
+      onMathRecognizeImage: (dataUrl: string) => {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (this.currentExperimentId !== 'math-stereometry' || typeof exp?.recognizeProblemImage !== 'function') {
+          return Promise.reject(new Error('请先打开立体几何'));
+        }
+        return exp.recognizeProblemImage(dataUrl);
+      },
     });
 
     this.visionModal.setEngines(this.chemistryEngineLeft, this.chemistryEngineRight, 'left');
@@ -1414,7 +1421,10 @@ export class Engine {
         -(e.clientY / window.innerHeight) * 2 + 1
       );
 
-      if (this.isExperimentInteracting && this.holoStage.activeExperiment?.onPointerMove) {
+      if (
+        (this.isExperimentInteracting || this.currentExperimentId === 'math-stereometry') &&
+        this.holoStage.activeExperiment?.onPointerMove
+      ) {
         const mouseNDC = new THREE.Vector2(
           (e.clientX / window.innerWidth) * 2 - 1,
           -(e.clientY / window.innerHeight) * 2 + 1

@@ -5,6 +5,11 @@ import {
   type HighSchoolModelType,
 } from '../src/scene/math/GeometrySolver.ts';
 import {
+  buildRecognizedModel,
+  parseRecognizedFigure,
+  RECOGNIZED_MODEL_SPAN,
+} from '../src/scene/math/figureModel.ts';
+import {
   StereometryMesh,
 } from '../src/scene/math/StereometryMesh.ts';
 import MathStereometryExperiment from '../src/experiments/catalog/math-stereometry/index.ts';
@@ -588,7 +593,250 @@ assert.strictEqual(labelsGroup.children.length, 0, 'Disabling showLabels must cl
 
 console.log('✓ Test 15 passed: Pure typography vertex labels without bubble badges verified\n');
 
+// -------------------------------------------------------------
+// Test 16: Humanized Line Connection, Birth Animation & Undo
+// -------------------------------------------------------------
+console.log('Test 16: Humanized Line Connection, Birth Animation & Undo');
+const animMesh = new StereometryMesh();
+animMesh.setOptions({ modelType: 'cube' });
+
+// 1. Initial state
+assert.strictEqual(animMesh.getSegments().length, 0);
+
+// 2. Add segment: triggers birth growth animation
+const segA = animMesh.addSegment('v_0', 'v_1', 0x38d9a9);
+assert(segA !== null, 'Segment AB must be created');
+assert.strictEqual(segA!.label, 'AB');
+assert.strictEqual(animMesh.getSegments().length, 1);
+
+// Active birth animation tracking
+const anims = (animMesh as any).activeSegmentAnimations;
+assert.strictEqual(anims.length, 1, 'New segment must initiate birth growth animation');
+assert.strictEqual(anims[0].id, segA!.id);
+
+// 3. Advancing time completes animation and builds permanent strut
+animMesh.update(0.30);
+assert.strictEqual(anims.length, 0, 'Animation must complete after duration');
+const permSegs = animMesh.getSegments();
+assert.strictEqual(permSegs.length, 1, 'Permanent segment AB must remain');
+
+// 4. Add second segment
+const segB = animMesh.addSegment('v_4', 'v_5', 0xffd43b);
+assert.strictEqual(animMesh.getSegments().length, 2);
+
+// 5. Undo last segment
+const undone = animMesh.undoLastSegment();
+assert(undone !== null, 'Undo must return the undone segment');
+assert.strictEqual(undone!.label, 'A₁B₁');
+assert.strictEqual(animMesh.getSegments().length, 1, 'Only 1 segment should remain after undo');
+assert.strictEqual(animMesh.getSegments()[0].label, 'AB');
+
+// 6. Preview wire with distance badge
+const vStart = new THREE.Vector3(0, 0, 0);
+const vEnd = new THREE.Vector3(0.38, 0, 0);
+animMesh.updatePreviewWire(vStart, vEnd, 0x10b981, 'AB · 0.380 m');
+const previewGroup = (animMesh as any).previewSegmentGroup as THREE.Group;
+assert.strictEqual(previewGroup.visible, true, 'Preview wire group must be visible');
+const badgeSprite = (animMesh as any).previewBadgeSprite as THREE.Sprite;
+assert(badgeSprite !== null, 'Preview distance badge sprite must be instantiated');
+assert.strictEqual(badgeSprite.renderOrder, 9, 'Badge sprite renderOrder must be 9');
+
+// 7. Reticle Sprite billboard verification
+const snapSprite = (animMesh as any).snapCursorSprite as THREE.Sprite;
+assert(snapSprite !== null, 'Camera-facing snap reticle sprite must be instantiated');
+assert.strictEqual(snapSprite.renderOrder, 8, 'Reticle sprite renderOrder must be 8');
+assert.strictEqual(snapSprite.scale.x, 0.024, 'Reticle sprite scale must be 0.024m to avoid text collision');
+
+// 8. Dynamic node scaling on hover
+animMesh.setHoveredKeyPoint('v_0');
+const v0Mesh = (animMesh as any).keyPointMeshes.get('v_0') as THREE.Mesh;
+assert(v0Mesh.scale.x > 1.2, 'Hovered vertex pearl must scale up for tactile focus');
+animMesh.setHoveredKeyPoint(null);
+assert.strictEqual(v0Mesh.scale.x, 1.0, 'Unhovered vertex pearl must return to 1.0 scale');
+
+console.log('✓ Test 16 passed: Humanized line connection, birth animation, distance badge, and undo verified\n');
+
+// -------------------------------------------------------------
+// Test 17: Oblique-figure recognition rebuilds the true solid
+// -------------------------------------------------------------
+console.log('Test 17: Recognized oblique figure (三棱锥 D-ABC)');
+
+const tianjinFigure = {
+  name: '三棱锥 D-ABC',
+  subtitle: 'AD⊥底面，∠C=90°',
+  vertices: [
+    { id: 'C', x: 0, y: 0, z: 0 },
+    { id: 'A', x: Math.SQRT2, y: 0, z: 0 },
+    { id: 'B', x: 0, y: 0, z: Math.SQRT2 },
+    { id: 'D', x: Math.SQRT2, y: 2, z: 0 },
+  ],
+  edges: [
+    ['C', 'A'],
+    ['C', 'B'],
+    ['A', 'B'],
+    ['A', 'D'],
+    ['B', 'D'],
+    ['C', 'D'],
+  ] as [string, string][],
+  faces: [
+    ['C', 'A', 'B'],
+    ['A', 'D', 'B'],
+    ['A', 'C', 'D'],
+    ['B', 'C', 'D'],
+  ],
+  points: [
+    { id: 'M', from: 'A', to: 'D', t: 0.5 },
+    { id: 'P', from: 'B', to: 'M', t: 0.5 },
+    { id: 'Q', from: 'D', to: 'C', t: 0.75 },
+  ],
+  aux: [
+    ['B', 'M'],
+    ['P', 'Q'],
+  ] as [string, string][],
+};
+
+const recognized = buildRecognizedModel(parseRecognizedFigure(tianjinFigure));
+const pointOf = (label: string) => {
+  const found = recognized.keyPoints.find((kp) => kp.label === label);
+  assert(found, `missing point ${label}`);
+  return found!.position;
+};
+
+const ptA = pointOf('A');
+const ptB = pointOf('B');
+const ptC = pointOf('C');
+const ptD = pointOf('D');
+const ptM = pointOf('M');
+const ptP = pointOf('P');
+const ptQ = pointOf('Q');
+const edgeAD = ptD.clone().sub(ptA);
+const edgeCA = ptA.clone().sub(ptC);
+const edgeCB = ptB.clone().sub(ptC);
+
+assert(Math.abs(edgeAD.dot(edgeCA)) < 1e-5, 'AD must be perpendicular to CA');
+assert(Math.abs(edgeAD.dot(edgeCB)) < 1e-5, 'AD must be perpendicular to CB');
+assert(Math.abs(edgeCA.dot(edgeCB)) < 1e-5, 'angle C must be 90°');
+assert(Math.abs(edgeCA.length() - edgeCB.length()) < 1e-5, 'AC must equal BC');
+assert(Math.abs(edgeCA.length() / edgeAD.length() - Math.SQRT2 / 2) < 1e-4, 'AC:AD must stay √2:2');
+assert(Math.abs(edgeAD.length() - RECOGNIZED_MODEL_SPAN) < 1e-4, 'model must be scaled to the stage span');
+assert(ptM.distanceTo(ptA.clone().add(ptD).multiplyScalar(0.5)) < 1e-5, 'M is the midpoint of AD');
+assert(ptP.distanceTo(ptB.clone().add(ptM).multiplyScalar(0.5)) < 1e-5, 'P is the midpoint of BM');
+assert(Math.abs(ptQ.distanceTo(ptD) / ptQ.distanceTo(ptC) - 3) < 1e-3, 'DQ must be 3 QC');
+assert.strictEqual(recognized.vertices.length - recognized.edges.length + recognized.faces.length, 2);
+assert.strictEqual(recognized.auxEdges?.length, 2);
+
+const centroid = new THREE.Vector3();
+recognized.vertices.forEach((vertex) => centroid.add(vertex));
+centroid.multiplyScalar(1 / recognized.vertices.length);
+for (const face of recognized.faces) {
+  const faceCenter = new THREE.Vector3();
+  face.vertexIndices.forEach((index) => faceCenter.add(recognized.vertices[index]));
+  faceCenter.multiplyScalar(1 / face.vertexIndices.length);
+  assert(face.normal.dot(faceCenter.clone().sub(centroid)) > 0, 'face normals must point outward');
+}
+
+const recognizedSphere = GeometrySolver.analyzeRecognizedModel(recognized);
+assert.strictEqual(recognizedSphere.hasCircumSphere, true);
+assert.strictEqual(recognizedSphere.hasInSphere, true);
+for (const vertex of recognized.vertices) {
+  assert(Math.abs(vertex.distanceTo(recognizedSphere.circumCenter) - recognizedSphere.circumRadius) < 1e-3);
+}
+for (const face of recognized.faces) {
+  const planeDist = Math.abs(
+    face.normal.dot(recognizedSphere.inCenter.clone().sub(recognized.vertices[face.vertexIndices[0]]))
+  );
+  assert(Math.abs(planeDist - recognizedSphere.inRadius) < 1e-3, 'incenter must be equidistant from all faces');
+}
+
+const fenced = '```json\n' + JSON.stringify({
+  ...tianjinFigure,
+  points: [tianjinFigure.points[1], tianjinFigure.points[0], tianjinFigure.points[2]],
+}) + '\n```';
+const reordered = buildRecognizedModel(parseRecognizedFigure(fenced));
+const reorderedP = reordered.keyPoints.find((kp) => kp.label === 'P')!;
+const reorderedM = reordered.keyPoints.find((kp) => kp.label === 'M')!;
+const reorderedB = reordered.keyPoints.find((kp) => kp.label === 'B')!;
+assert(reorderedP.position.distanceTo(reorderedB.position.clone().add(reorderedM.position).multiplyScalar(0.5)) < 1e-5);
+
+const movedAux = buildRecognizedModel({
+  ...tianjinFigure,
+  edges: [...tianjinFigure.edges, ['B', 'M']],
+  aux: [['P', 'Q']],
+});
+assert.strictEqual(movedAux.edges.length, 6, 'construction lines must not become solid edges');
+const auxNames = (movedAux.auxEdges ?? []).map((edge) => {
+  const a = movedAux.keyPoints.find((kp) => kp.id === edge.a)!.label;
+  const b = movedAux.keyPoints.find((kp) => kp.id === edge.b)!.label;
+  return [a, b].sort().join('');
+}).sort();
+assert.deepStrictEqual(auxNames, ['BM', 'PQ']);
+
+const trimmed = buildRecognizedModel({
+  ...tianjinFigure,
+  edges: [...tianjinFigure.edges, ['C', 'Q']],
+  aux: [['B', 'M'], ['P', 'Q']],
+});
+const trimmedNames = (trimmed.auxEdges ?? []).map((edge) => {
+  const a = trimmed.keyPoints.find((kp) => kp.id === edge.a)!.label;
+  const b = trimmed.keyPoints.find((kp) => kp.id === edge.b)!.label;
+  return [a, b].sort().join('');
+}).sort();
+assert.deepStrictEqual(trimmedNames, ['BM', 'PQ'], 'a mark that already lies on a solid edge must not be drawn twice');
+
+const bare = buildRecognizedModel({
+  name: '四面体',
+  subtitle: '无面数据',
+  vertices: tianjinFigure.vertices,
+  edges: [],
+  faces: [],
+  points: [],
+  aux: [],
+});
+assert.strictEqual(bare.faces.length, 4);
+assert.strictEqual(bare.vertices.length - bare.edges.length + bare.faces.length, 2);
+
+const doubled = buildRecognizedModel(parseRecognizedFigure({
+  ...tianjinFigure,
+  vertices: [
+    ...tianjinFigure.vertices,
+    { id: 'M', x: Math.SQRT2, y: 1, z: 0 },
+    { id: 'P', x: 0.7071, y: 0.5, z: 0.7071 },
+    { id: 'Q', x: Math.SQRT2 / 4, y: 0.5, z: 0 },
+  ],
+}));
+assert.strictEqual(doubled.vertices.length, 4, 'midpoints listed as vertices must stay off the solid');
+assert.strictEqual(doubled.keyPoints.find((kp) => kp.label === 'M')?.type, 'custom');
+
+assert.throws(() => parseRecognizedFigure('不是 json'), /没有认出/);
+assert.throws(() => parseRecognizedFigure({ vertices: [{ id: 'A', x: 0, y: 0, z: 0 }] }), /没有认出完整/);
+
+const figureMesh = new StereometryMesh();
+figureMesh.loadRecognizedModel(recognized);
+assert.strictEqual(figureMesh.getModelDef().id, 'recognized');
+assert.strictEqual((figureMesh as any).auxGroup.children.length, 2, 'BM and PQ must be drawn');
+assert.strictEqual((figureMesh as any).labelsGroup.children.length, 7, 'vertices plus M, P, Q must be labeled');
+figureMesh.update(0.016, 1);
+const figureLowest = figureMesh.modelContainer.position.y + figureMesh.getLowestVertexY();
+assert(figureLowest >= figureMesh.minClearance - 1e-3, 'recognized model must stay above the table');
+figureMesh.setOptions({ dimensions: { a: 0.2 } });
+assert.strictEqual(figureMesh.getModelDef().name, '三棱锥 D-ABC', 'dimension sliders must not wipe a recognized figure');
+figureMesh.setOptions({ modelType: 'cube' });
+assert.strictEqual(figureMesh.getModelDef().id, 'cube');
+assert.strictEqual((figureMesh as any).auxGroup.children.length, 0);
+
+const figureExp = new MathStereometryExperiment();
+figureExp.init(mockContext);
+const loaded = figureExp.loadRecognizedFigure(tianjinFigure);
+assert.strictEqual(loaded.name, '三棱锥 D-ABC');
+const figureTelemetry = figureExp.getStereometryTelemetry();
+assert.strictEqual(figureTelemetry.modelId, 'recognized');
+assert.strictEqual(figureTelemetry.vertexCount, 4);
+assert.strictEqual(figureTelemetry.eulerCharacteristic, 2);
+figureExp.dispose(mockContext);
+
+console.log('✓ Test 17 passed: oblique figure keeps lengths, right angles, auxiliary points, and stays interactive\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (15/15)!');
+console.log('All High School Stereometry Tests Passed Successfully (17/17)!');
 console.log('========================================================');
 

@@ -1,6 +1,7 @@
 import type { StereometryTelemetryData } from '../../experiments/catalog/math-stereometry/index.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
+import { captureProblemPhoto } from './captureProblemPhoto.ts';
 
 export interface StereometryStatusCardCallbacks {
   onModelChange?: (type: HighSchoolModelType) => void;
@@ -21,6 +22,7 @@ export interface StereometryStatusCardCallbacks {
   onToggleFaceCenters?: (show: boolean) => void;
   onToggleLabels?: (show: boolean) => void;
   onApplyPreset?: (preset: 'cube-hexagon' | 'cube-skew-60' | 'tetra-orthogonal' | 'corner-box' | 'cone-conic') => void;
+  onRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string }>;
 }
 
 export class StereometryStatusCard {
@@ -44,6 +46,11 @@ export class StereometryStatusCard {
   private modelScaleEl: HTMLElement | null = null;
   private liveHintEl: HTMLElement | null = null;
   private coordsContainer: HTMLElement | null = null;
+  private scanBarEl: HTMLElement | null = null;
+  private scanStatusEl: HTMLElement | null = null;
+  private uploadBtn: HTMLButtonElement | null = null;
+  private cameraBtn: HTMLButtonElement | null = null;
+  private recognizing = false;
 
   // Cache to avoid DOM layout thrashing
   private lastCoordsSignature = '';
@@ -78,6 +85,16 @@ export class StereometryStatusCard {
               <span>重置视角</span>
             </button>
           </div>
+        </div>
+
+        <div class="math-scan-bar" id="math-scan-bar">
+          <div class="math-scan-actions">
+            <button type="button" class="apple-glass-action-btn" id="btn-math-upload">上传题目</button>
+            <button type="button" class="apple-glass-action-btn" id="btn-math-camera">拍摄</button>
+          </div>
+          <span class="math-scan-status" id="math-scan-status">上传或拍摄一张斜二测题，几秒内生成可交互模型</span>
+          <input id="math-scan-file" type="file" accept="image/*" hidden />
+          <input id="math-scan-camera" type="file" accept="image/*" capture="environment" hidden />
         </div>
 
         <!-- 2. Model Quick Selector (6 Clean Vector Diagrams) -->
@@ -293,6 +310,10 @@ export class StereometryStatusCard {
     this.modelScaleEl = this.element.querySelector('#val-model-scale');
     this.liveHintEl = this.element.querySelector('#math-live-hint');
     this.coordsContainer = this.element.querySelector('#math-coords-chips');
+    this.scanBarEl = this.element.querySelector('#math-scan-bar');
+    this.scanStatusEl = this.element.querySelector('#math-scan-status');
+    this.uploadBtn = this.element.querySelector('#btn-math-upload') as HTMLButtonElement | null;
+    this.cameraBtn = this.element.querySelector('#btn-math-camera') as HTMLButtonElement | null;
   }
 
   private bindEvents(): void {
@@ -337,6 +358,79 @@ export class StereometryStatusCard {
       btnModeConnect?.classList.remove('active');
       this.callbacks.onInteractionModeChange?.('three-point-cut');
     });
+
+    const fileInput = this.element.querySelector('#math-scan-file') as HTMLInputElement | null;
+    const cameraInput = this.element.querySelector('#math-scan-camera') as HTMLInputElement | null;
+    const takeFile = (input: HTMLInputElement | null) => {
+      const file = input?.files?.[0];
+      if (input) input.value = '';
+      if (!file) return;
+      if (file.type && !file.type.startsWith('image/')) {
+        this.setScanStatus('请上传图片');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') void this.handleImage(reader.result);
+        else this.setScanStatus('这张图片打不开');
+      };
+      reader.onerror = () => this.setScanStatus('这张图片打不开');
+      reader.readAsDataURL(file);
+    };
+    fileInput?.addEventListener('change', () => takeFile(fileInput));
+    cameraInput?.addEventListener('change', () => takeFile(cameraInput));
+    this.uploadBtn?.addEventListener('click', () => fileInput?.click());
+    this.cameraBtn?.addEventListener('click', () => {
+      void this.openCamera(cameraInput);
+    });
+  }
+
+  private setScanStatus(text: string): void {
+    if (this.scanStatusEl && this.scanStatusEl.textContent !== text) {
+      this.scanStatusEl.textContent = text;
+    }
+  }
+
+  private setScanBusy(busy: boolean): void {
+    this.recognizing = busy;
+    this.scanBarEl?.classList.toggle('is-busy', busy);
+    if (this.uploadBtn) this.uploadBtn.disabled = busy;
+    if (this.cameraBtn) this.cameraBtn.disabled = busy;
+  }
+
+  private clearPresetSelection(): void {
+    this.element.querySelectorAll('.math-model-card').forEach((card) => card.classList.remove('active'));
+  }
+
+  private async openCamera(fallback: HTMLInputElement | null): Promise<void> {
+    if (this.recognizing) return;
+    const shot = await captureProblemPhoto();
+    if (shot.ok) {
+      await this.handleImage(shot.dataUrl);
+      return;
+    }
+    if (shot.reason === 'unavailable') fallback?.click();
+  }
+
+  private async handleImage(dataUrl: string): Promise<void> {
+    if (this.recognizing) return;
+    if (!this.callbacks.onRecognizeImage) {
+      this.setScanStatus('识图还没接上');
+      return;
+    }
+    this.setScanBusy(true);
+    this.setScanStatus('正在识别…');
+    const started = performance.now();
+    try {
+      const result = await this.callbacks.onRecognizeImage(dataUrl);
+      const seconds = ((performance.now() - started) / 1000).toFixed(1);
+      this.clearPresetSelection();
+      this.setScanStatus(`已生成「${result.name}」· ${seconds} 秒`);
+    } catch (error) {
+      this.setScanStatus(error instanceof Error ? error.message : '识图失败');
+    } finally {
+      this.setScanBusy(false);
+    }
   }
 
   public setVisible(visible: boolean): void {

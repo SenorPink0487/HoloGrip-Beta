@@ -16,8 +16,11 @@ import {
   type SphereAnalysisResult,
   type SkewLineResult,
 } from '../../../scene/math/GeometrySolver.ts';
+import { StereometryGuidanceHUD } from '../../../ui/vision/StereometryGuidanceHUD.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
+import { buildRecognizedModel, type RecognizedFigure } from '../../../scene/math/figureModel.ts';
+import { recognizeStereometryImage } from '../../../scene/math/recognizeFigure.ts';
 
 export interface StereometryTelemetryData {
   modelId: HighSchoolModelType;
@@ -61,6 +64,8 @@ export default class MathStereometryExperiment extends BaseExperiment {
 
   private mesh: StereometryMesh;
   private interactionManager: StereometryInteractionManager;
+  private guidanceHud: StereometryGuidanceHUD | null = null;
+  private onKeyDownBound: ((e: KeyboardEvent) => void) | null = null;
 
   // State cache
   private modelType: HighSchoolModelType = 'cube';
@@ -92,12 +97,23 @@ export default class MathStereometryExperiment extends BaseExperiment {
     this.interactionManager = new StereometryInteractionManager(this.mesh, {
       onSegmentCreated: (label, len) => {
         console.log(`[Stereometry] Segment created: ${label} (len: ${len.toFixed(3)})`);
+        this.guidanceHud?.setSegmentsCount(this.mesh.getSegments().length);
+      },
+      onSegmentRemoved: (label, len) => {
+        console.log(`[Stereometry] Segment removed: ${label} (len: ${len.toFixed(3)})`);
+        this.guidanceHud?.setSegmentsCount(this.mesh.getSegments().length);
       },
       onCrossSectionCreated: (type, area) => {
         console.log(`[Stereometry] Cross-section created: ${type} (area: ${area.toFixed(3)})`);
       },
       onOriginChanged: (kp) => {
         this.originPointId = kp.id;
+      },
+      onClearSegments: () => {
+        this.guidanceHud?.setSegmentsCount(0);
+      },
+      onGuidanceChange: (hint, type) => {
+        this.guidanceHud?.setGuidance(hint, type);
       },
     });
 
@@ -108,6 +124,22 @@ export default class MathStereometryExperiment extends BaseExperiment {
   public mount(context: ExperimentContext): void {
     if (context.renderer) {
       context.renderer.localClippingEnabled = true;
+    }
+
+    // Mount Apple VisionOS floating guidance HUD
+    if (typeof document !== 'undefined' && document.body) {
+      this.guidanceHud = new StereometryGuidanceHUD(document.body, {
+        onUndo: () => this.undoLastSegment(),
+        onResetView: () => this.interactionManager?.resetToIsometricView(),
+        onClear: () => this.interactionManager?.clearAll(),
+      });
+      this.guidanceHud.setSegmentsCount(this.mesh ? this.mesh.getSegments().length : 0);
+
+      this.onKeyDownBound = (e: KeyboardEvent) => {
+        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+        this.interactionManager?.onKeyDown(e);
+      };
+      window.addEventListener('keydown', this.onKeyDownBound);
     }
   }
 
@@ -200,6 +232,22 @@ export default class MathStereometryExperiment extends BaseExperiment {
       modelType: type,
       dimensions: { a: this.dimA, h: this.dimH },
     });
+  }
+
+  public loadRecognizedFigure(figure: RecognizedFigure): { name: string; subtitle: string } {
+    const model = buildRecognizedModel(figure);
+    this.modelType = 'recognized';
+    this.cachedTelemetry = null;
+    this.lastTelemetryStateKey = '';
+    this.mesh.loadRecognizedModel(model);
+    this.interactionManager?.resetSelection();
+    this.interactionManager?.resetToIsometricView();
+    return { name: model.name, subtitle: model.subtitle };
+  }
+
+  public async recognizeProblemImage(dataUrl: string): Promise<{ name: string; subtitle: string }> {
+    const figure = await recognizeStereometryImage(dataUrl);
+    return this.loadRecognizedFigure(figure);
   }
 
   public setDimensions(dims: { a?: number; b?: number; c?: number; h?: number; r?: number }): void {
@@ -505,7 +553,19 @@ export default class MathStereometryExperiment extends BaseExperiment {
     return null;
   }
 
+  public undoLastSegment(): any {
+    const seg = this.interactionManager?.undoLastSegment();
+    this.guidanceHud?.setSegmentsCount(this.mesh ? this.mesh.getSegments().length : 0);
+    return seg;
+  }
+
   public dispose(_context: ExperimentContext): void {
+    if (this.onKeyDownBound && typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.onKeyDownBound);
+      this.onKeyDownBound = null;
+    }
+    this.guidanceHud?.dispose();
+    this.guidanceHud = null;
     this.mesh?.dispose();
     this.rootGroup.clear();
   }

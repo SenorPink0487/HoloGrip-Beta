@@ -59,11 +59,43 @@ export class StereometryMesh {
   private snapCursorGroup = new THREE.Group();
   private selectedMarkersGroup = new THREE.Group();
   private previewSegmentGroup = new THREE.Group();
+  private segmentAnimGroup = new THREE.Group();
+  private auxGroup = new THREE.Group();
   private hitEnvelopeMesh: THREE.Mesh | null = null;
   private modelScale = 1.0;
 
+  // Active birth animations for newly connected spatial segments
+  private activeSegmentAnimations: Array<{
+    id: string;
+    pipeMesh: THREE.Mesh;
+    glowTipMesh: THREE.Mesh;
+    posA: THREE.Vector3;
+    posB: THREE.Vector3;
+    finalLength: number;
+    dir: THREE.Vector3;
+    color: number;
+    progress: number;
+    duration: number;
+  }> = [];
+
+  // Reusable dynamic preview wire resources (Zero-Allocation 120 FPS)
+  private previewPipeMesh: THREE.Mesh | null = null;
+  private previewStartBead: THREE.Mesh | null = null;
+  private previewEndBead: THREE.Mesh | null = null;
+  private previewBadgeSprite: THREE.Sprite | null = null;
+  private previewBadgeCanvas: HTMLCanvasElement | null = null;
+  private previewBadgeTex: THREE.CanvasTexture | null = null;
+  private lastPreviewBadgeKey = '';
+
+  // Focus Halo / Reticle Billboard Sprite (No clipping, camera-facing)
+  private snapCursorSprite: THREE.Sprite | null = null;
+  private selectedBeaconSprites: Map<string, THREE.Sprite> = new Map();
+  private lastHoveredMeshId: string | null = null;
+  private lastSelectedIds: string[] = [];
+
   // Current Model State
   private currentModelDef: PolyhedronModelDef;
+  private recognizedModel: PolyhedronModelDef | null = null;
   private currentOptions: StereometryDisplayOptions;
   private currentCrossSection: CrossSectionResult | null = null;
   private currentSphereAnalysis: SphereAnalysisResult;
@@ -96,6 +128,7 @@ export class StereometryMesh {
   private strutMaterial: THREE.MeshStandardMaterial;
   private solidEdgeMaterial: THREE.LineBasicMaterial;
   private dashedEdgeMaterial: THREE.LineDashedMaterial;
+  private auxEdgeMaterial: THREE.LineDashedMaterial;
   private crossSectionFillMat: THREE.MeshStandardMaterial;
   private crossSectionLineMat: THREE.LineBasicMaterial;
   private circumSphereMat: THREE.MeshStandardMaterial;
@@ -249,6 +282,15 @@ export class StereometryMesh {
       opacity: 0.95,
     });
 
+    this.auxEdgeMaterial = new THREE.LineDashedMaterial({
+      color: 0xf8fafc,
+      dashSize: 0.012,
+      gapSize: 0.008,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.95,
+    });
+
     // 5. Cross section: vibrant luminous coral rose frosted glass with crimson edge
     this.crossSectionFillMat = new THREE.MeshStandardMaterial({
       color: 0xf43f5e,            // Vibrant Luminous Coral Rose
@@ -358,6 +400,9 @@ export class StereometryMesh {
     this.modelContainer.add(this.snapCursorGroup);
     this.modelContainer.add(this.selectedMarkersGroup);
     this.modelContainer.add(this.previewSegmentGroup);
+    this.modelContainer.add(this.segmentAnimGroup);
+    this.auxGroup.name = 'auxEdges';
+    this.modelContainer.add(this.auxGroup);
 
     // Invisible interaction hit envelope for effortless direct drag-rotation
     const hitGeo = new THREE.SphereGeometry(0.55, 16, 16);
@@ -437,28 +482,61 @@ export class StereometryMesh {
   }
 
   private createSnapCursor(): void {
-    const ringGeo = new THREE.RingGeometry(0.012, 0.017, 32);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00f7ff,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.95,
-    });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.name = 'snapRing';
-    this.snapCursorGroup.add(ring);
+    // Generate camera-facing Billboard Sprite for pristine, non-clipping focus reticle
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = typeof (canvas as any).getContext === 'function' ? (canvas as any).getContext('2d') : null;
+    if (ctx) {
+      const cx = 64, cy = 64;
+      // Soft radial glow aura
+      if (typeof ctx.createRadialGradient === 'function') {
+        const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 58);
+        grad.addColorStop(0, 'rgba(56, 189, 248, 0.45)');
+        grad.addColorStop(0.65, 'rgba(56, 189, 248, 0.15)');
+        grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 58, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Inner crisp focus ring (radius 36 hugs the pearl cleanly without touching text at radius 60+)
+      ctx.beginPath();
+      ctx.arc(cx, cy, 36, 0, Math.PI * 2);
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.stroke();
 
-    // Outer subtle tick ring
-    const outerGeo = new THREE.RingGeometry(0.021, 0.023, 24);
-    const outerMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      side: THREE.DoubleSide,
+      // Outer delicate dashed tick ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, 48, 0, Math.PI * 2);
+      ctx.lineWidth = 1.8;
+      if (typeof ctx.setLineDash === 'function') {
+        ctx.setLineDash([5, 6]);
+      }
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.stroke();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    const mat = new THREE.SpriteMaterial({
+      map: texture,
       transparent: true,
-      opacity: 0.60,
+      depthTest: false,
     });
-    const outerRing = new THREE.Mesh(outerGeo, outerMat);
-    outerRing.name = 'snapRingOuter';
-    this.snapCursorGroup.add(outerRing);
+    this.snapCursorSprite = new THREE.Sprite(mat);
+    this.snapCursorSprite.scale.set(0.024, 0.024, 1);
+    this.snapCursorSprite.renderOrder = 8;
+    this.snapCursorGroup.add(this.snapCursorSprite);
+
+    // Keep snapRing & snapRingOuter for backwards compatibility with any existing property lookups
+    const dummyRing = new THREE.Object3D();
+    dummyRing.name = 'snapRing';
+    this.snapCursorGroup.add(dummyRing);
+    const dummyOuter = new THREE.Object3D();
+    dummyOuter.name = 'snapRingOuter';
+    this.snapCursorGroup.add(dummyOuter);
 
     this.snapCursorGroup.visible = false;
   }
@@ -467,9 +545,38 @@ export class StereometryMesh {
   // Full Rebuild Lifecycle
   // -------------------------------------------------------------
 
+  public loadRecognizedModel(def: PolyhedronModelDef): void {
+    this.recognizedModel = def;
+    this.drawnSegments = [];
+    this.currentCrossSection = null;
+    this.currentOptions = {
+      ...this.currentOptions,
+      modelType: 'recognized',
+      showDashedLines: true,
+      showLabels: true,
+      showKeyPoints: true,
+      showMidpoints: false,
+      showFaceCenters: false,
+      showEmbeddingBox: false,
+      showCircumSphere: false,
+      showInSphere: false,
+      showThreeViews: false,
+      unfoldProgress: 0,
+      clippingEnabled: false,
+      explodeDistance: 0,
+      crossSectionPlane: undefined,
+    };
+    this.currentModelDef = def;
+    this.currentSphereAnalysis = GeometrySolver.analyzeRecognizedModel(def);
+    this.rebuildAll();
+  }
+
   public setOptions(options: Partial<StereometryDisplayOptions>): void {
-    const modelChanged = options.modelType && options.modelType !== this.currentOptions.modelType;
+    const modelChanged = !!(options.modelType && options.modelType !== this.currentOptions.modelType);
     const dimsChanged = options.dimensions !== undefined;
+    if (modelChanged && options.modelType !== 'recognized') {
+      this.recognizedModel = null;
+    }
     const unfoldOnly =
       options.unfoldProgress !== undefined &&
       Object.keys(options).length === 1 &&
@@ -484,7 +591,8 @@ export class StereometryMesh {
 
     this.currentOptions = { ...this.currentOptions, ...options };
 
-    if (modelChanged || dimsChanged) {
+    const keepFigure = this.recognizedModel !== null && this.currentOptions.modelType === 'recognized';
+    if (!keepFigure && (modelChanged || dimsChanged) && this.currentOptions.modelType !== 'recognized') {
       this.currentModelDef = GeometrySolver.createModel(
         this.currentOptions.modelType,
         this.currentOptions.dimensions
@@ -524,6 +632,7 @@ export class StereometryMesh {
     this.clearGroup(this.spheresGroup);
     this.clearGroup(this.unfoldGroup);
     this.clearGroup(this.threeViewsGroup);
+    this.clearGroup(this.auxGroup);
     this.keyPointMeshes.clear();
     this.unfoldingFaceGroups = [];
     this.solidEdgesMesh = null;
@@ -545,6 +654,7 @@ export class StereometryMesh {
 
     this.rebuildEmbeddingBox();
     this.rebuildKeyPoints();
+    this.rebuildAuxEdges();
     this.rebuildLabels();
     this.rebuildSegments();
     this.rebuildCrossSection();
@@ -837,6 +947,9 @@ export class StereometryMesh {
       } else if (kp.type === 'center') {
         geo = this.sharedCenterGeo;
         mat = this.centerNodeMat;
+      } else if (kp.type === 'custom') {
+        geo = this.sharedMidpointGeo;
+        mat = this.midpointNodeMat;
       }
 
       const mesh = new THREE.Mesh(geo, mat);
@@ -857,7 +970,7 @@ export class StereometryMesh {
     if (!this.currentOptions.showLabels) return;
 
     for (const kp of this.currentModelDef.keyPoints) {
-      if (kp.type !== 'vertex') continue;
+      if (kp.type !== 'vertex' && kp.type !== 'custom') continue;
 
       const sprite = this.createLabelSprite(kp.label);
       // Offset slightly outward from centroid
@@ -912,10 +1025,26 @@ export class StereometryMesh {
     return sprite;
   }
 
+  private rebuildAuxEdges(): void {
+    const aux = this.currentModelDef.auxEdges;
+    if (!aux || aux.length === 0) return;
+    for (const edge of aux) {
+      const kpA = this.currentModelDef.keyPoints.find((kp) => kp.id === edge.a);
+      const kpB = this.currentModelDef.keyPoints.find((kp) => kp.id === edge.b);
+      if (!kpA || !kpB) continue;
+      const geo = new THREE.BufferGeometry().setFromPoints([kpA.position, kpB.position]);
+      const line = new THREE.Line(geo, this.auxEdgeMaterial);
+      line.computeLineDistances();
+      line.name = `aux_${edge.a}_${edge.b}`;
+      line.renderOrder = 6;
+      this.auxGroup.add(line);
+    }
+  }
+
   // -------------------------------------------------------------
-  // 6. 空间连线绘制 (Drawn Spatial Segments)
+  // 6. 空间连线绘制 (Drawn Spatial Segments with Birth Animation)
   // -------------------------------------------------------------
-  public addSegment(pointIdA: string, pointIdB: string, color = 0xffffff): DrawnSegment | null {
+  public addSegment(pointIdA: string, pointIdB: string, color = 0x38d9a9): DrawnSegment | null {
     const kpA = this.currentModelDef.keyPoints.find((k) => k.id === pointIdA);
     const kpB = this.currentModelDef.keyPoints.find((k) => k.id === pointIdB);
     if (!kpA || !kpB || pointIdA === pointIdB) return null;
@@ -935,8 +1064,80 @@ export class StereometryMesh {
       length,
     };
     this.drawnSegments.push(seg);
+
+    // Launch luminous beam expansion animation
+    this.startSegmentBirthAnimation(seg, kpA.position, kpB.position);
+
+    // Build permanent segment
     this.rebuildSegments();
     return seg;
+  }
+
+  private startSegmentBirthAnimation(seg: DrawnSegment, posA: THREE.Vector3, posB: THREE.Vector3): void {
+    const dir = new THREE.Vector3().subVectors(posB, posA);
+    const len = dir.length();
+    if (len < 1e-4) return;
+
+    const pipeGeo = new THREE.CylinderGeometry(0.0042, 0.0042, 1.0, 16);
+    const pipeMat = new THREE.MeshStandardMaterial({
+      color: seg.color,
+      emissive: seg.color,
+      emissiveIntensity: 0.95,
+      roughness: 0.15,
+      metalness: 0.85,
+      transparent: true,
+      opacity: 0.95,
+    });
+    const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
+    pipeMesh.position.copy(posA);
+    pipeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    pipeMesh.scale.set(1, 0.001, 1);
+    pipeMesh.renderOrder = 6;
+    this.segmentAnimGroup.add(pipeMesh);
+
+    // Glowing energy tip beacon travelling from posA to posB
+    const tipGeo = new THREE.SphereGeometry(0.0062, 12, 12);
+    const tipMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: seg.color,
+      emissiveIntensity: 1.6,
+    });
+    const glowTipMesh = new THREE.Mesh(tipGeo, tipMat);
+    glowTipMesh.position.copy(posA);
+    glowTipMesh.renderOrder = 7;
+    this.segmentAnimGroup.add(glowTipMesh);
+
+    this.activeSegmentAnimations.push({
+      id: seg.id,
+      pipeMesh,
+      glowTipMesh,
+      posA: posA.clone(),
+      posB: posB.clone(),
+      finalLength: len,
+      dir: dir.clone().normalize(),
+      color: seg.color,
+      progress: 0,
+      duration: 0.22,
+    });
+  }
+
+  public undoLastSegment(): DrawnSegment | null {
+    if (this.drawnSegments.length === 0) return null;
+    const removed = this.drawnSegments.pop()!;
+    // Clean up any active animation on this segment
+    const animIdx = this.activeSegmentAnimations.findIndex((a) => a.id === removed.id);
+    if (animIdx !== -1) {
+      const anim = this.activeSegmentAnimations[animIdx];
+      this.segmentAnimGroup.remove(anim.pipeMesh);
+      this.segmentAnimGroup.remove(anim.glowTipMesh);
+      anim.pipeMesh.geometry.dispose();
+      (anim.pipeMesh.material as THREE.Material).dispose();
+      anim.glowTipMesh.geometry.dispose();
+      (anim.glowTipMesh.material as THREE.Material).dispose();
+      this.activeSegmentAnimations.splice(animIdx, 1);
+    }
+    this.rebuildSegments();
+    return removed;
   }
 
   public removeSegment(id: string): void {
@@ -946,6 +1147,8 @@ export class StereometryMesh {
 
   public clearAllSegments(): void {
     this.drawnSegments = [];
+    this.clearGroup(this.segmentAnimGroup);
+    this.activeSegmentAnimations = [];
     this.rebuildSegments();
   }
 
@@ -965,16 +1168,16 @@ export class StereometryMesh {
       const len = dir.length();
       const mid = new THREE.Vector3().addVectors(kpA.position, kpB.position).multiplyScalar(0.5);
 
-      const pipeGeo = new THREE.CylinderGeometry(0.0035, 0.0035, len, 12);
+      const pipeGeo = new THREE.CylinderGeometry(0.0035, 0.0035, len, 16);
       const pipeMat = new THREE.MeshStandardMaterial({
         color: seg.color,
-        emissive: 0xffffff,
-        emissiveIntensity: 0.4,
+        emissive: seg.color,
+        emissiveIntensity: 0.55,
         roughness: 0.15,
         metalness: 0.85,
       });
       const pipe = new THREE.Mesh(pipeGeo, pipeMat);
-
+      pipe.name = `perm_seg_${seg.id}`;
       pipe.position.copy(mid);
       pipe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
       pipe.renderOrder = 5;
@@ -1267,10 +1470,19 @@ export class StereometryMesh {
   }
 
   // -------------------------------------------------------------
-  // Magnetic Snapping & Raycast Target
+  // Magnetic Snapping & Raycast Target (Camera-Facing Reticles)
   // -------------------------------------------------------------
   public setHoveredKeyPoint(id: string | null): void {
     if (this.hoveredKeyPointId === id) return;
+
+    // Reset previous hovered mesh scale
+    if (this.lastHoveredMeshId && !this.lastSelectedIds.includes(this.lastHoveredMeshId)) {
+      const prevMesh = this.keyPointMeshes.get(this.lastHoveredMeshId);
+      if (prevMesh) {
+        prevMesh.scale.set(1.0, 1.0, 1.0);
+      }
+    }
+    this.lastHoveredMeshId = id;
     this.hoveredKeyPointId = id;
 
     if (id) {
@@ -1279,22 +1491,23 @@ export class StereometryMesh {
         this.snapCursorGroup.position.copy(kp.position);
         this.snapCursorGroup.visible = true;
 
-        let color = 0x38bdf8; // vertex: vivid cyan
-        if (kp.type === 'midpoint') {
-          color = 0xf59e0b; // 1/2: golden amber
-        } else if (kp.type === 'third') {
-          color = 0x10b981; // 1/3: emerald mint
-        } else if (kp.type === 'center') {
-          color = 0xa855f7; // center: violet
+        // Tactile node scaling: smoothly grow the pearl bead
+        const currMesh = this.keyPointMeshes.get(id);
+        if (currMesh && !this.lastSelectedIds.includes(id)) {
+          currMesh.scale.set(1.30, 1.30, 1.30);
         }
 
-        const inner = this.snapCursorGroup.getObjectByName('snapRing') as THREE.Mesh;
-        const outer = this.snapCursorGroup.getObjectByName('snapRingOuter') as THREE.Mesh;
-        if (inner && (inner.material as THREE.MeshBasicMaterial).color) {
-          (inner.material as THREE.MeshBasicMaterial).color.setHex(color);
+        let hex = 0x38bdf8; // vertex: vivid cyan
+        if (kp.type === 'midpoint') {
+          hex = 0xf59e0b; // 1/2: golden amber
+        } else if (kp.type === 'third') {
+          hex = 0x10b981; // 1/3: emerald mint
+        } else if (kp.type === 'center') {
+          hex = 0xa855f7; // center: violet
         }
-        if (outer && (outer.material as THREE.MeshBasicMaterial).color) {
-          (outer.material as THREE.MeshBasicMaterial).color.setHex(color);
+
+        if (this.snapCursorSprite) {
+          (this.snapCursorSprite.material as THREE.SpriteMaterial).color.setHex(hex);
         }
         return;
       }
@@ -1352,69 +1565,203 @@ export class StereometryMesh {
   }
 
   public setSelectedKeyPoints(ids: string[]): void {
+    // Reset previous selected keypoint mesh scales
+    for (const prevId of this.lastSelectedIds) {
+      const mesh = this.keyPointMeshes.get(prevId);
+      if (mesh) {
+        mesh.scale.set(1.0, 1.0, 1.0);
+      }
+    }
+    this.lastSelectedIds = [...ids];
     this.clearGroup(this.selectedMarkersGroup);
+    this.selectedBeaconSprites.clear();
+
     if (!ids || ids.length === 0) return;
 
     for (const id of ids) {
       const kp = this.currentModelDef.keyPoints.find((k) => k.id === id);
       if (!kp) continue;
 
-      const ringGeo = new THREE.RingGeometry(0.012, 0.018, 24);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xffd43b,
-        side: THREE.DoubleSide,
+      // Scale keypoint mesh as active selection beacon
+      const currMesh = this.keyPointMeshes.get(id);
+      if (currMesh) {
+        currMesh.scale.set(1.40, 1.40, 1.40);
+      }
+
+      // Golden breathing beacon billboard sprite
+      const beaconCanvas = document.createElement('canvas');
+      beaconCanvas.width = 128;
+      beaconCanvas.height = 128;
+      const bctx = typeof (beaconCanvas as any).getContext === 'function' ? (beaconCanvas as any).getContext('2d') : null;
+      if (bctx) {
+        const cx = 64, cy = 64;
+        if (typeof bctx.createRadialGradient === 'function') {
+          const grad = bctx.createRadialGradient(cx, cy, 18, cx, cy, 58);
+          grad.addColorStop(0, 'rgba(251, 191, 36, 0.65)');
+          grad.addColorStop(0.65, 'rgba(251, 191, 36, 0.22)');
+          grad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+          bctx.fillStyle = grad;
+          bctx.beginPath();
+          bctx.arc(cx, cy, 58, 0, Math.PI * 2);
+          bctx.fill();
+        }
+        bctx.beginPath();
+        bctx.arc(cx, cy, 38, 0, Math.PI * 2);
+        bctx.lineWidth = 4;
+        bctx.strokeStyle = '#fbbf24';
+        bctx.stroke();
+
+        bctx.beginPath();
+        bctx.arc(cx, cy, 48, 0, Math.PI * 2);
+        bctx.lineWidth = 1.8;
+        if (typeof bctx.setLineDash === 'function') {
+          bctx.setLineDash([4, 6]);
+        }
+        bctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        bctx.stroke();
+      }
+
+      const tex = new THREE.CanvasTexture(beaconCanvas);
+      tex.minFilter = THREE.LinearFilter;
+      const spriteMat = new THREE.SpriteMaterial({
+        map: tex,
         transparent: true,
-        opacity: 0.95,
+        depthTest: false,
       });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.position.copy(kp.position);
-      this.selectedMarkersGroup.add(ring);
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.position.copy(kp.position);
+      sprite.scale.set(0.026, 0.026, 1);
+      sprite.renderOrder = 8;
+      this.selectedMarkersGroup.add(sprite);
+      this.selectedBeaconSprites.set(id, sprite);
     }
   }
 
-  public updatePreviewWire(startPos: THREE.Vector3, endPos: THREE.Vector3, color = 0x38d9a9): void {
-    this.clearGroup(this.previewSegmentGroup);
+  public updatePreviewWire(
+    startPos: THREE.Vector3,
+    endPos: THREE.Vector3,
+    color = 0x38d9a9,
+    badgeText?: string
+  ): void {
     const dir = new THREE.Vector3().subVectors(endPos, startPos);
     const len = dir.length();
-    if (len < 1e-4) return;
+    if (len < 1e-4) {
+      this.previewSegmentGroup.visible = false;
+      return;
+    }
 
     const mid = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
-    const pipeGeo = new THREE.CylinderGeometry(0.0025, 0.0025, len, 8);
-    const pipeMat = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: 0.7,
-      roughness: 0.2,
-      metalness: 0.8,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const pipe = new THREE.Mesh(pipeGeo, pipeMat);
-    pipe.position.copy(mid);
-    pipe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-    pipe.renderOrder = 7;
-    this.previewSegmentGroup.add(pipe);
 
-    // Glowing anchor pips at start and end
-    const beadGeo = new THREE.SphereGeometry(0.0055, 12, 12);
-    const beadMat = new THREE.MeshStandardMaterial({
-      color: 0xffd43b,
-      emissive: 0xffd43b,
-      emissiveIntensity: 0.8,
-    });
-    const startBead = new THREE.Mesh(beadGeo, beadMat);
-    startBead.position.copy(startPos);
-    this.previewSegmentGroup.add(startBead);
+    // 1. Reusable / Dynamic Pipe
+    if (!this.previewPipeMesh) {
+      const pipeGeo = new THREE.CylinderGeometry(0.0024, 0.0024, 1.0, 12);
+      const pipeMat = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.85,
+        roughness: 0.15,
+        metalness: 0.85,
+        transparent: true,
+        opacity: 0.92,
+      });
+      this.previewPipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
+      this.previewPipeMesh.renderOrder = 7;
+      this.previewSegmentGroup.add(this.previewPipeMesh);
+    }
 
-    const endBead = new THREE.Mesh(beadGeo, beadMat);
-    endBead.position.copy(endPos);
-    this.previewSegmentGroup.add(endBead);
+    const pMat = this.previewPipeMesh.material as THREE.MeshStandardMaterial;
+    pMat.color.setHex(color);
+    pMat.emissive.setHex(color);
+    pMat.emissiveIntensity = 0.85 + 0.25 * Math.sin(this.hoverTime * 8);
 
+    this.previewPipeMesh.scale.set(1, len, 1);
+    this.previewPipeMesh.position.copy(mid);
+    this.previewPipeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+
+    // 2. Reusable Anchor Beads
+    if (!this.previewStartBead) {
+      const beadGeo = new THREE.SphereGeometry(0.0052, 12, 12);
+      const beadMat = new THREE.MeshStandardMaterial({
+        color: 0xffd43b,
+        emissive: 0xffd43b,
+        emissiveIntensity: 0.9,
+      });
+      this.previewStartBead = new THREE.Mesh(beadGeo, beadMat);
+      this.previewStartBead.renderOrder = 7;
+      this.previewSegmentGroup.add(this.previewStartBead);
+    }
+    this.previewStartBead.position.copy(startPos);
+
+    if (!this.previewEndBead) {
+      const beadGeo = new THREE.SphereGeometry(0.0052, 12, 12);
+      const beadMat = new THREE.MeshStandardMaterial({
+        color: 0x38d9a9,
+        emissive: 0x38d9a9,
+        emissiveIntensity: 0.9,
+      });
+      this.previewEndBead = new THREE.Mesh(beadGeo, beadMat);
+      this.previewEndBead.renderOrder = 7;
+      this.previewSegmentGroup.add(this.previewEndBead);
+    }
+    this.previewEndBead.position.copy(endPos);
+    (this.previewEndBead.material as THREE.MeshStandardMaterial).color.setHex(color);
+    (this.previewEndBead.material as THREE.MeshStandardMaterial).emissive.setHex(color);
+
+    // 3. Floating Midpoint Distance Badge Sprite
+    const labelToDisplay = badgeText || `${len.toFixed(3)} m`;
+    if (!this.previewBadgeSprite) {
+      this.previewBadgeCanvas = document.createElement('canvas');
+      this.previewBadgeCanvas.width = 256;
+      this.previewBadgeCanvas.height = 64;
+      this.previewBadgeTex = new THREE.CanvasTexture(this.previewBadgeCanvas);
+      this.previewBadgeTex.minFilter = THREE.LinearFilter;
+      const bMat = new THREE.SpriteMaterial({
+        map: this.previewBadgeTex,
+        transparent: true,
+        depthTest: false,
+      });
+      this.previewBadgeSprite = new THREE.Sprite(bMat);
+      this.previewBadgeSprite.scale.set(0.062, 0.0155, 1);
+      this.previewBadgeSprite.renderOrder = 9;
+      this.previewSegmentGroup.add(this.previewBadgeSprite);
+    }
+
+    if (this.previewBadgeCanvas && this.previewBadgeTex && this.lastPreviewBadgeKey !== `${labelToDisplay}_${color}`) {
+      this.lastPreviewBadgeKey = `${labelToDisplay}_${color}`;
+      const bctx = this.previewBadgeCanvas.getContext('2d');
+      if (bctx) {
+        bctx.clearRect(0, 0, 256, 64);
+        const isEmerald = (color === 0x10b981 || color === 0x38d9a9);
+        bctx.fillStyle = isEmerald ? 'rgba(5, 150, 105, 0.92)' : 'rgba(15, 23, 42, 0.88)';
+        if (typeof (bctx as any).roundRect === 'function') {
+          bctx.beginPath();
+          (bctx as any).roundRect(8, 8, 240, 48, 24);
+          bctx.fill();
+        } else {
+          bctx.fillRect(8, 8, 240, 48);
+        }
+        bctx.lineWidth = 2.5;
+        bctx.strokeStyle = isEmerald ? 'rgba(52, 211, 153, 0.95)' : 'rgba(56, 189, 248, 0.75)';
+        if (typeof (bctx as any).roundRect === 'function') {
+          bctx.beginPath();
+          (bctx as any).roundRect(8, 8, 240, 48, 24);
+          bctx.stroke();
+        }
+
+        bctx.font = 'bold 26px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+        bctx.textAlign = 'center';
+        bctx.textBaseline = 'middle';
+        bctx.fillStyle = '#ffffff';
+        bctx.fillText(labelToDisplay, 128, 32);
+        this.previewBadgeTex.needsUpdate = true;
+      }
+    }
+
+    this.previewBadgeSprite.position.copy(mid).add(new THREE.Vector3(0, 0.015, 0));
     this.previewSegmentGroup.visible = true;
   }
 
   public clearPreviewWire(): void {
-    this.clearGroup(this.previewSegmentGroup);
     this.previewSegmentGroup.visible = false;
   }
 
@@ -1462,6 +1809,7 @@ export class StereometryMesh {
    * Continuous per-frame animation:
    * 1. Gentle Sci-Fi levitation / hover breathing of model in mid-air
    * 2. Dynamically update visible solid edges vs occluded dashed lines from camera viewpoint
+   * 3. Update active segment birth animations and beacon pulses
    */
   public update(delta: number, elapsed?: number, camera?: THREE.Camera): void {
     const t = elapsed !== undefined ? elapsed : (this.hoverTime += delta);
@@ -1484,10 +1832,38 @@ export class StereometryMesh {
     }
 
     // Magnetic snap reticle pulse
-    if (this.snapCursorGroup.visible) {
-      const outer = this.snapCursorGroup.getObjectByName('snapRingOuter');
-      if (outer) {
-        outer.rotation.z += delta * 1.8;
+    if (this.snapCursorGroup.visible && this.snapCursorSprite) {
+      const snapPulse = 0.024 * (1.0 + 0.08 * Math.sin(this.hoverTime * 6));
+      this.snapCursorSprite.scale.set(snapPulse, snapPulse, 1);
+    }
+
+    // Selected keypoints beacon pulsation
+    const beaconScale = 0.026 * (1.0 + 0.12 * Math.sin(this.hoverTime * 5));
+    for (const sprite of this.selectedBeaconSprites.values()) {
+      sprite.scale.set(beaconScale, beaconScale, 1);
+    }
+
+    // Update active segment birth growth animations
+    for (let i = this.activeSegmentAnimations.length - 1; i >= 0; i--) {
+      const anim = this.activeSegmentAnimations[i];
+      anim.progress += delta / anim.duration;
+      const p = Math.min(anim.progress, 1.0);
+      const ease = 1 - Math.pow(1 - p, 3); // Ease-out cubic
+      const currentLen = anim.finalLength * ease;
+
+      const halfLen = currentLen * 0.5;
+      anim.pipeMesh.position.copy(anim.posA).addScaledVector(anim.dir, halfLen);
+      anim.pipeMesh.scale.set(1, Math.max(0.001, currentLen), 1);
+      anim.glowTipMesh.position.copy(anim.posA).addScaledVector(anim.dir, currentLen);
+
+      if (p >= 1.0) {
+        this.segmentAnimGroup.remove(anim.pipeMesh);
+        this.segmentAnimGroup.remove(anim.glowTipMesh);
+        anim.pipeMesh.geometry.dispose();
+        (anim.pipeMesh.material as THREE.Material).dispose();
+        anim.glowTipMesh.geometry.dispose();
+        (anim.glowTipMesh.material as THREE.Material).dispose();
+        this.activeSegmentAnimations.splice(i, 1);
       }
     }
   }
