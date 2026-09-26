@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LAB_ENTRY_REST } from './labEntry.ts';
 
 export class PlayerController {
   public camera: THREE.PerspectiveCamera;
@@ -14,8 +15,8 @@ export class PlayerController {
     sprint: false,
   };
 
-  public yaw = 0;
-  public pitch = -0.20;
+  public yaw: number = LAB_ENTRY_REST.yaw;
+  public pitch: number = LAB_ENTRY_REST.pitch;
   public minPitch = -Math.PI / 2.1;
   public maxPitch = Math.PI / 2.1;
 
@@ -25,7 +26,7 @@ export class PlayerController {
   public verticalSpeed = 3.0;
   public sprintMultiplier = 1.7;
   public damping = 9.0;
-  public eyeHeight = 1.38;
+  public eyeHeight: number = LAB_ENTRY_REST.y;
   public minHeight = 0.3;
   public maxHeight = 3.55;
 
@@ -54,10 +55,11 @@ export class PlayerController {
     this.camera = camera;
     this.domElement = domElement;
 
-    // Gallery view of the circular chamber matching Image 1:
-    // Positioned directly in front of the table so the workstation is prominent, framing oculus dome at top, table in center, glossy floor in foreground
-    this.pitch = -0.07;
-    this.camera.position.set(0, 1.38, 4.25);
+    // Gallery view in front of the table: oculus above, platter centered, floor in the foreground.
+    this.yaw = LAB_ENTRY_REST.yaw;
+    this.pitch = LAB_ENTRY_REST.pitch;
+    this.eyeHeight = LAB_ENTRY_REST.y;
+    this.camera.position.set(LAB_ENTRY_REST.x, LAB_ENTRY_REST.y, LAB_ENTRY_REST.z);
     this.camera.rotation.order = 'YXZ';
     this.updateCameraRotation();
 

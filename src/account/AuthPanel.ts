@@ -50,7 +50,6 @@ export class AuthPanel {
         <img src="/hologrip-logo.png" alt="HoloGrip" class="auth-hero-img" />
       </div>
       <h1 class="auth-hero-brand">HoloGrip</h1>
-      <p class="auth-hero-motto">极简白板 · 全息交互</p>
     `;
 
     // 2. Segmented Mode Controller (登录 / 注册)

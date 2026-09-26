@@ -21,6 +21,18 @@ import { BeakerMesh } from '../scene/BeakerMesh.ts';
 import { ReactionEffects } from '../scene/ReactionEffects.ts';
 import { VisionModal } from '../ui/vision/VisionModal.ts';
 import type { ExperimentContext, IExperiment } from './types.ts';
+import {
+  advanceLabEntry,
+  createLabEntryClock,
+  labEntryPose,
+  type LabEntryClock,
+  type LabEntryFrame,
+} from '../controls/labEntry.ts';
+import {
+  advanceLabReturn,
+  createLabReturnClock,
+  type LabReturnClock,
+} from '../controls/labReturn.ts';
 
 export class Engine {
   public container: HTMLElement;
@@ -527,7 +539,7 @@ export class Engine {
       } else {
         if (!this.visionModal || !this.visionModal.visible) {
           this.inputManager.player.allowPointerLock = true;
-          if (!this.isWhiteboardMode) {
+          if (!this.labEntryActive && !this.isWhiteboardMode) {
             this.crosshair.setVisible(true);
           }
         }
@@ -594,7 +606,7 @@ export class Engine {
       onClose: () => {
         this.spatialWindowObject.visible = false;
         this.inputManager.player.allowPointerLock = true;
-        if (!this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
+        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
           this.crosshair.setVisible(true);
         }
       },
@@ -1020,7 +1032,7 @@ export class Engine {
     this.inputManager.player.onLockChange = (isLocked: boolean) => {
       const isDrawerOpen = this.hud?.drawer?.open ?? false;
       const isModalOpen = this.visionModal?.visible ?? false;
-      if (!this.isWhiteboardMode && !isModalOpen && !isDrawerOpen) {
+      if (!this.labEntryActive && !this.isWhiteboardMode && !isModalOpen && !isDrawerOpen) {
         this.crosshair.setVisible(true);
       } else {
         this.crosshair.setVisible(false);
@@ -1237,6 +1249,7 @@ export class Engine {
 
     // 3D Pointer interactions (Single-click Reagent Select & Long-press Drag & Pour)
     canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (this.labEntryActive) return;
       if (this.visionModal && this.visionModal.visible) {
         if (e.target !== canvas) return;
       }
@@ -1385,9 +1398,11 @@ export class Engine {
       if (this.isExperimentInteracting) {
         this.isExperimentInteracting = false;
         this.holoStage.activeExperiment?.onPointerUp?.(e, this.currentContext);
-        this.inputManager.player.enabled = true;
-        this.inputManager.player.allowPointerLock = true;
-        if (this.crosshair && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
+        if (!this.labEntryActive) {
+          this.inputManager.player.enabled = true;
+          this.inputManager.player.allowPointerLock = true;
+        }
+        if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
           this.crosshair.setVisible(true);
         }
       }
@@ -1396,8 +1411,10 @@ export class Engine {
 
       const state = this.beakerDragState;
       this.beakerDragState = null;
-      this.inputManager.player.enabled = true;
-      if (this.crosshair && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
+      if (!this.labEntryActive) {
+        this.inputManager.player.enabled = true;
+      }
+      if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
         this.crosshair.setVisible(true);
       }
 
@@ -1516,6 +1533,123 @@ export class Engine {
 
   public isWhiteboardMode = false; // Default engine mode is laboratory (3D scene active)
 
+  /** True while entering or leaving: the scripted camera owns the view. */
+  public labEntryActive = false;
+  public onLabEntryFrame: ((frame: LabEntryFrame) => void) | null = null;
+  private labEntryClock: LabEntryClock | null = null;
+  private labReturnClock: LabReturnClock | null = null;
+
+  public beginLabEntry(): void {
+    const restFov = this.labEntryClock?.restFov ?? this.camera.fov;
+    this.labEntryClock = createLabEntryClock(restFov);
+    this.labEntryActive = true;
+    const player = this.inputManager?.player;
+    if (player) {
+      player.velocity.set(0, 0, 0);
+      player.resetKeys();
+      player.enabled = false;
+      player.allowPointerLock = false;
+      player.exitLock();
+    }
+    this.crosshair?.setVisible(false);
+    const frame = advanceLabEntry(this.labEntryClock, 0);
+    this.applyLabEntryPose(frame.pose);
+    this.onLabEntryFrame?.(frame);
+  }
+
+  public cancelLabEntry(): void {
+    const restFov = this.labEntryClock?.restFov;
+    this.suspendLabMotion();
+    if (restFov !== undefined) {
+      this.applyLabEntryPose(labEntryPose(1, restFov));
+    }
+  }
+
+  /** Stop a running dolly and leave the camera where it is. */
+  public suspendLabMotion(): void {
+    this.labEntryActive = false;
+    this.labEntryClock = null;
+    this.labReturnClock = null;
+    this.onLabEntryFrame = null;
+  }
+
+  public getLabTransitionLinear(): number {
+    const clock = this.labEntryClock ?? this.labReturnClock;
+    if (!clock || clock.duration <= 0) return 1;
+    return Math.min(1, clock.elapsed / clock.duration);
+  }
+
+  public beginLabReturn(): void {
+    const player = this.inputManager?.player;
+    const from = {
+      x: this.camera.position.x,
+      y: this.camera.position.y,
+      z: this.camera.position.z,
+      yaw: player?.yaw ?? 0,
+      pitch: player?.pitch ?? 0,
+      fov: this.camera.fov,
+    };
+    this.labEntryClock = null;
+    this.labReturnClock = createLabReturnClock(from, {
+      roomRadius: player?.roomRadius ?? 7.6,
+      tableRadius: player?.tableRadius ?? 2.48,
+      minHeight: player?.minHeight ?? 0.3,
+      maxHeight: player?.maxHeight ?? 3.55,
+      minPitch: player?.minPitch ?? -Math.PI / 2,
+      maxPitch: player?.maxPitch ?? Math.PI / 2,
+    });
+    this.labEntryActive = true;
+    if (player) {
+      player.velocity.set(0, 0, 0);
+      player.resetKeys();
+      player.enabled = false;
+      player.allowPointerLock = false;
+      player.exitLock();
+    }
+    this.crosshair?.setVisible(false);
+    const frame = advanceLabReturn(this.labReturnClock, 0);
+    this.applyLabEntryPose(frame.pose);
+    this.onLabEntryFrame?.(frame);
+  }
+
+  private applyLabEntryPose(pose: LabEntryFrame['pose']): void {
+    this.camera.position.set(pose.x, pose.y, pose.z);
+    this.camera.fov = pose.fov;
+    this.camera.updateProjectionMatrix();
+    const player = this.inputManager?.player;
+    if (!player) return;
+    player.yaw = pose.yaw;
+    player.pitch = pose.pitch;
+    player.eyeHeight = pose.y;
+    player.velocity.set(0, 0, 0);
+    player.updateCameraRotation();
+  }
+
+  private tickLabEntry(delta: number): void {
+    if (this.labReturnClock) {
+      const frame = advanceLabReturn(this.labReturnClock, delta);
+      this.applyLabEntryPose(frame.pose);
+      const listener = this.onLabEntryFrame;
+      if (frame.done) {
+        this.labEntryActive = false;
+        this.labReturnClock = null;
+        this.onLabEntryFrame = null;
+      }
+      listener?.(frame);
+      return;
+    }
+    if (!this.labEntryClock) return;
+    const frame = advanceLabEntry(this.labEntryClock, delta);
+    this.applyLabEntryPose(frame.pose);
+    const listener = this.onLabEntryFrame;
+    if (frame.done) {
+      this.labEntryActive = false;
+      this.labEntryClock = null;
+      this.onLabEntryFrame = null;
+    }
+    listener?.(frame);
+  }
+
   public setViewMode(mode: 'whiteboard' | 'laboratory'): void {
     const wasWhiteboard = this.isWhiteboardMode;
     this.isWhiteboardMode = mode === 'whiteboard';
@@ -1524,7 +1658,7 @@ export class Engine {
       if (this.renderer?.shadowMap?.enabled) {
         this.renderer.shadowMap.needsUpdate = true;
       }
-      if (this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open)) {
+      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open)) {
         this.crosshair.setVisible(true);
       }
     } else if (this.isWhiteboardMode) {
@@ -1560,7 +1694,10 @@ export class Engine {
       return;
     }
 
-    if (this.inputManager) {
+    // The dolly owns the camera until it settles. Player integration would walk it off the path.
+    if (this.labEntryActive) {
+      this.tickLabEntry(delta);
+    } else if (this.inputManager) {
       this.inputManager.update(delta);
     }
 
@@ -1706,7 +1843,9 @@ export class Engine {
       this.hud.update(delta);
     }
 
-    this.checkCrosshairIntersection(now);
+    if (!this.labEntryActive) {
+      this.checkCrosshairIntersection(now);
+    }
 
     // Render using ultra-fast native pipeline (100+ FPS) or optional downsampled bloom composer
     if (this.isPostProcessingActive && this.composer) {
