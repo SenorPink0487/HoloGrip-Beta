@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { BaseExperiment } from '../../base/BaseExperiment.ts';
 import { HallBenchMesh } from '../../../scene/em/HallBenchMesh.ts';
 import { HallInteractionManager } from '../../../scene/em/HallInteractionManager.ts';
@@ -40,7 +41,7 @@ export const MATERIAL_PROFILES: Record<string, HallMaterialProfile> = {
 
 export default class EmHallExperiment extends BaseExperiment {
   public readonly metadata = metadata;
-  public override targetScale = 1.95;
+  public override targetScale = 3.8;
   public override hideCenterEmitter = true;
 
   // 3D Assemblies
@@ -74,8 +75,8 @@ export default class EmHallExperiment extends BaseExperiment {
   }
 
   public init(_context: ExperimentContext): void {
-    // Rest experiment directly on table surface in interaction zone
-    this.rootGroup.position.set(0, -0.056, 0.92);
+    // Position experiment prominently in front workbench interaction zone
+    this.rootGroup.position.set(0, 0.16, 1.60);
 
     // 1. High-precision 3D Hall Bench
     this.bench = this.track(new HallBenchMesh());
@@ -92,6 +93,14 @@ export default class EmHallExperiment extends BaseExperiment {
 
     this.applyMaterial(this.materialKey);
     this.recomputePhysicsAndSync();
+  }
+
+  public override getHoverTarget(raycaster: THREE.Raycaster) {
+    return this.interactionManager?.getHoverTarget(raycaster) ?? null;
+  }
+
+  public override onPointerDown(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean {
+    return this.interactionManager?.onPointerDown(event, hit, context) ?? false;
   }
 
   public update(delta: number, _elapsed: number, _context: ExperimentContext): void {
@@ -131,13 +140,15 @@ export default class EmHallExperiment extends BaseExperiment {
     const muM2Vs = this.mobilityCm2Vs * 1e-4;
     const conductivity = n * Math.abs(q) * muM2Vs;
 
-    // Update 3D Bench & OLED display
+    // Update 3D Bench, Top Parameter HUD & OLED display
     this.bench.updateTelemetry(
       this.magFieldTesla,
       this.currentMa,
       vhMv,
       this.materialName,
-      this.carrierType
+      this.carrierType,
+      this.carrierConcentration,
+      this.waferThicknessMm
     );
 
     // Broadcast to UI Telemetry Card if connected

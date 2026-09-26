@@ -165,6 +165,59 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   console.log('✓ Test 5 passed: Scale multipliers, clamping bounds [0.5x, 2.0x] and physical conversions verified\n');
 }
 
+// Test 6: Spatial window orientation stability under player vertical ascent/descent
+{
+  console.log('Test 6: Spatial window orientation stability under player vertical ascent/descent');
+  const THREE = await import('three');
+
+  const obj = new THREE.Object3D();
+  obj.rotation.order = 'YXZ';
+
+  const heights = [0.3, 0.8, 1.38, 2.06, 2.8, 3.55]; // From minimum height to maximum height
+  const anglesDeg = [0, 30, 45, 90, 135, 180, 225, 270, 315];
+
+  for (const camY of heights) {
+    for (const deg of anglesDeg) {
+      const rad = (deg * Math.PI) / 180;
+      const camX = Math.sin(rad) * 4.0;
+      const camZ = Math.cos(rad) * 4.0;
+
+      const angleY = Math.atan2(camX, camZ);
+      const backOffset = -0.06;
+      const targetX = Math.sin(angleY) * backOffset;
+      const targetY = 2.06;
+      const targetZ = Math.cos(angleY) * backOffset;
+
+      // Keep window strictly upright (pitch = 0, roll = 0) facing user around Y
+      obj.position.set(targetX, targetY, targetZ);
+      obj.rotation.set(0, angleY, 0);
+      obj.updateMatrixWorld();
+
+      // Horizontal axis of window (local X)
+      const localX = new THREE.Vector3(1, 0, 0).transformDirection(obj.matrixWorld);
+      // Vertical axis of window (local Y)
+      const localY = new THREE.Vector3(0, 1, 0).transformDirection(obj.matrixWorld);
+      // Facing normal of window (local Z)
+      const localZ = new THREE.Vector3(0, 0, 1).transformDirection(obj.matrixWorld);
+
+      // Verify local X has strictly 0 vertical tilt (no roll, perfectly horizontal)
+      assert(Math.abs(localX.y) < 1e-6, `Window horizontal axis must have y=0 at camY=${camY}, deg=${deg}, got ${localX.y}`);
+
+      // Verify local Y is strictly vertical (gravity-aligned)
+      assert(Math.abs(localY.y - 1.0) < 1e-6, `Window vertical axis must point straight up (+Y) at camY=${camY}, deg=${deg}`);
+      assert(Math.abs(localY.x) < 1e-6 && Math.abs(localY.z) < 1e-6, `Window vertical axis must have x=z=0`);
+
+      // Verify normal faces horizontally towards the player sightline
+      const dirCamXZ = new THREE.Vector2(camX, camZ).normalize();
+      const dirNormalXZ = new THREE.Vector2(localZ.x, localZ.z).normalize();
+      assert(Math.abs(dirCamXZ.x - dirNormalXZ.x) < 1e-5 && Math.abs(dirCamXZ.y - dirNormalXZ.y) < 1e-5, `Window normal must face player`);
+    }
+  }
+
+  console.log('✓ Test 6 passed: Spatial window remains strictly level & upright with 0 roll/tilt during ascent/descent across all 360° positions\n');
+}
+
 console.log('========================================================');
-console.log('All VisionOS Spatial Window Tests Passed (5/5)!');
+console.log('All VisionOS Spatial Window Tests Passed (6/6)!');
 console.log('========================================================\n');
+

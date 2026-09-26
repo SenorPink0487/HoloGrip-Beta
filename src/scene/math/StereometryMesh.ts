@@ -42,7 +42,6 @@ export class StereometryMesh {
 
   // Root sub-containers
   public readonly modelContainer = new THREE.Group();
-  private pedestalGroup = new THREE.Group();
 
   // Subgroups attached to modelContainer
   private solidGroup = new THREE.Group();
@@ -70,10 +69,14 @@ export class StereometryMesh {
   private keyPointMeshes: Map<string, THREE.Mesh> = new Map();
   private hoveredKeyPointId: string | null = null;
 
+  // Floating / Levitation state (pure floating 3D geometry in mid-air)
+  public baseHoverY = 0.38;
+  private hoverTime = 0;
+
   // Shared reusable geometries (Ultra-refined micro pips)
-  private sharedVertexGeo = new THREE.SphereGeometry(0.0045, 16, 16);
-  private sharedMidpointGeo = new THREE.SphereGeometry(0.0035, 12, 12);
-  private sharedCenterGeo = new THREE.SphereGeometry(0.0035, 12, 12);
+  private sharedVertexGeo = new THREE.SphereGeometry(0.0055, 16, 16);
+  private sharedMidpointGeo = new THREE.SphereGeometry(0.0040, 12, 12);
+  private sharedCenterGeo = new THREE.SphereGeometry(0.0040, 12, 12);
 
   // Materials - Apple VisionOS Crystal Glass Aesthetics (Depth-Tested Hidden Lines)
   private depthMaskMaterial: THREE.MeshBasicMaterial;
@@ -98,7 +101,6 @@ export class StereometryMesh {
   constructor() {
     this.group.name = 'StereometryMesh';
     this.initMaterials();
-    this.initPedestal();
     this.assembleGroups();
 
     // Default configuration: standard high school cube, canonical textbook oblique view
@@ -135,216 +137,142 @@ export class StereometryMesh {
       side: THREE.FrontSide,
     });
 
-    // 2. Crystal glass front faces: pristine Apple VisionOS glass sheen without dark absorption
+    // 2. Translucent cyber holographic front faces (vivid cyan-azure crystal glass, distinct from white table)
     this.solidFrontMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xeaf4fc,
-      roughness: 0.04,
-      metalness: 0.02,
+      color: 0x00b4d8,
+      roughness: 0.03,
+      metalness: 0.06,
       clearcoat: 1.0,
-      clearcoatRoughness: 0.03,
-      reflectivity: 0.92,
+      clearcoatRoughness: 0.02,
+      reflectivity: 0.95,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.35,
       side: THREE.FrontSide,
       depthWrite: false,
       depthFunc: THREE.LessEqualDepth,
       emissive: 0x0284c7,
-      emissiveIntensity: 0.08,
+      emissiveIntensity: 0.22,
     });
 
     this.solidCutMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x60a5fa,
-      roughness: 0.06,
-      metalness: 0.04,
+      color: 0x3b82f6,
+      roughness: 0.05,
+      metalness: 0.08,
       clearcoat: 0.95,
-      clearcoatRoughness: 0.04,
+      clearcoatRoughness: 0.03,
       transparent: true,
-      opacity: 0.42,
+      opacity: 0.48,
       side: THREE.FrontSide,
       depthWrite: false,
       depthFunc: THREE.LessEqualDepth,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.10,
+      emissive: 0x1d4ed8,
+      emissiveIntensity: 0.32,
     });
 
-    // 3. Visible front edges: crisp luminous white seam
+    // 3. Visible front edges: razor-sharp glowing cyber neon laser cyan (high contrast with white table)
     this.solidEdgeMaterial = new THREE.LineBasicMaterial({
-      color: 0xffffff,
+      color: 0x00f5ff,
       linewidth: 2,
       transparent: true,
-      opacity: 0.95,
+      opacity: 1.0,
       depthFunc: THREE.LessEqualDepth,
       depthWrite: false,
     });
 
-    // 4. Hidden occluded edges: textbook subtle dashed line
+    // 4. Hidden occluded edges: high-tech electric indigo / violet-blue dashed wireframe
     this.dashedEdgeMaterial = new THREE.LineDashedMaterial({
-      color: 0x38bdf8,
+      color: 0x818cf8,
       dashSize: 0.016,
       gapSize: 0.012,
       depthFunc: THREE.GreaterDepth,
       depthWrite: false,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.65,
     });
 
-    // Cross section: glowing amber glass with neon border
+    // 5. Cross section: glowing amber laser glass with neon border
     this.crossSectionFillMat = new THREE.MeshStandardMaterial({
       color: 0xf59e0b,
-      roughness: 0.2,
-      metalness: 0.1,
+      roughness: 0.15,
+      metalness: 0.2,
       transparent: true,
       opacity: 0.65,
       side: THREE.DoubleSide,
       emissive: 0xd97706,
-      emissiveIntensity: 0.25,
+      emissiveIntensity: 0.35,
     });
 
     this.crossSectionLineMat = new THREE.LineBasicMaterial({
-      color: 0xfef08a,
+      color: 0xffea00,
       linewidth: 2,
     });
 
-    // Spheres: refined luminous glass shells
+    // 6. Spheres: refined luminous holographic energy forcefields
     this.circumSphereMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
+      color: 0x00e5ff,
       transparent: true,
-      opacity: 0.14,
-      roughness: 0.1,
-      metalness: 0.2,
+      opacity: 0.16,
+      roughness: 0.08,
+      metalness: 0.3,
       side: THREE.DoubleSide,
       depthWrite: false,
+      emissive: 0x0099cc,
+      emissiveIntensity: 0.20,
     });
 
     this.inSphereMat = new THREE.MeshStandardMaterial({
       color: 0xf43f5e,
       transparent: true,
-      opacity: 0.18,
-      roughness: 0.1,
-      metalness: 0.2,
+      opacity: 0.20,
+      roughness: 0.08,
+      metalness: 0.3,
       side: THREE.DoubleSide,
       depthWrite: false,
-    });
-
-    // Apple VisionOS Platinum Pearl Nodes (subtle, unified, zero gaudy beads)
-    this.vertexNodeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.15,
-      metalness: 0.85,
-      emissive: 0x38bdf8,
+      emissive: 0xe11d48,
       emissiveIntensity: 0.25,
     });
 
+    // 7. Luminous Quantum Data Nodes
+    this.vertexNodeMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.10,
+      metalness: 0.90,
+      emissive: 0x00f5ff,
+      emissiveIntensity: 0.90,
+    });
+
     this.originNodeMat = new THREE.MeshStandardMaterial({
-      color: 0xfff1f2,
-      roughness: 0.15,
-      metalness: 0.85,
-      emissive: 0xf43f5e,
-      emissiveIntensity: 0.5,
+      color: 0xffe4e6,
+      roughness: 0.10,
+      metalness: 0.90,
+      emissive: 0xff0055,
+      emissiveIntensity: 1.15,
     });
 
     this.midpointNodeMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      roughness: 0.2,
-      metalness: 0.8,
-      emissive: 0x64748b,
-      emissiveIntensity: 0.15,
+      color: 0xfef08a,
+      roughness: 0.15,
+      metalness: 0.85,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 0.80,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.90,
     });
 
     this.centerNodeMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f5f9,
-      roughness: 0.2,
-      metalness: 0.8,
-      emissive: 0x475569,
-      emissiveIntensity: 0.15,
-      transparent: true,
-      opacity: 0.7,
-    });
-  }
-
-  /**
-   * Museum-grade Apple VisionOS Holographic Pedestal Turntable.
-   * Grounds the solid geometry cleanly on the tabletop without falling into any aperture.
-   */
-  private initPedestal(): void {
-    // 1. Dark titanium plinth disc
-    const baseGeo = new THREE.CylinderGeometry(0.28, 0.29, 0.012, 64);
-    const baseMat = new THREE.MeshStandardMaterial({
-      color: 0x161a20,
-      metalness: 0.9,
-      roughness: 0.25,
-    });
-    const base = new THREE.Mesh(baseGeo, baseMat);
-    base.position.y = 0.006;
-    base.receiveShadow = true;
-    this.pedestalGroup.add(base);
-
-    // 2. Beveled silver-chrome rim ring
-    const rimGeo = new THREE.RingGeometry(0.278, 0.288, 64);
-    const rimMat = new THREE.MeshStandardMaterial({
-      color: 0xcfd8e3,
-      metalness: 0.95,
+      color: 0xa7f3d0,
       roughness: 0.15,
-      side: THREE.DoubleSide,
-    });
-    const rim = new THREE.Mesh(rimGeo, rimMat);
-    rim.rotation.x = -Math.PI / 2;
-    rim.position.y = 0.0121;
-    this.pedestalGroup.add(rim);
-
-    // 3. Frosted smoked glass turntable inlay disc
-    const discGeo = new THREE.RingGeometry(0.04, 0.276, 64);
-    const discMat = new THREE.MeshPhysicalMaterial({
-      color: 0x1e242f,
-      metalness: 0.3,
-      roughness: 0.15,
-      clearcoat: 0.8,
+      metalness: 0.85,
+      emissive: 0x10b981,
+      emissiveIntensity: 0.80,
       transparent: true,
-      opacity: 0.75,
-      side: THREE.DoubleSide,
+      opacity: 0.85,
     });
-    const disc = new THREE.Mesh(discGeo, discMat);
-    disc.rotation.x = -Math.PI / 2;
-    disc.position.y = 0.0123;
-    disc.receiveShadow = true;
-    this.pedestalGroup.add(disc);
-
-    // 4. Subtle concentric laser-etched graduation ring
-    const ringGeo = new THREE.RingGeometry(0.245, 0.248, 64);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.35,
-      side: THREE.DoubleSide,
-    });
-    const graduationRing = new THREE.Mesh(ringGeo, ringMat);
-    graduationRing.rotation.x = -Math.PI / 2;
-    graduationRing.position.y = 0.0125;
-    this.pedestalGroup.add(graduationRing);
-
-    // 5. Diffused upward holographic aura halo
-    const auraGeo = new THREE.RingGeometry(0.16, 0.25, 48);
-    const auraMat = new THREE.MeshBasicMaterial({
-      color: 0x0284c7,
-      transparent: true,
-      opacity: 0.07,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const aura = new THREE.Mesh(auraGeo, auraMat);
-    aura.rotation.x = -Math.PI / 2;
-    aura.position.y = 0.0126;
-    this.pedestalGroup.add(aura);
-
-    this.group.add(this.pedestalGroup);
   }
 
   private assembleGroups(): void {
-    // Model container hovers cleanly above the pedestal plate (y = 0.22, bottom of model at y ~ 0.03)
-    this.modelContainer.position.y = 0.22;
+    // Model container hovers cleanly in mid-air (y = 0.38)
+    this.modelContainer.position.y = this.baseHoverY;
 
     this.modelContainer.add(this.solidGroup);
     this.modelContainer.add(this.edgesSolidGroup);
@@ -366,9 +294,9 @@ export class StereometryMesh {
   }
 
   private createSnapCursor(): void {
-    const ringGeo = new THREE.RingGeometry(0.012, 0.018, 32);
+    const ringGeo = new THREE.RingGeometry(0.012, 0.017, 32);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
+      color: 0x00f5ff,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.95,
@@ -376,6 +304,19 @@ export class StereometryMesh {
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.name = 'snapRing';
     this.snapCursorGroup.add(ring);
+
+    // Outer subtle tick ring
+    const outerGeo = new THREE.RingGeometry(0.021, 0.023, 24);
+    const outerMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.75,
+    });
+    const outerRing = new THREE.Mesh(outerGeo, outerMat);
+    outerRing.name = 'snapRingOuter';
+    this.snapCursorGroup.add(outerRing);
+
     this.snapCursorGroup.visible = false;
   }
 
@@ -644,12 +585,13 @@ export class StereometryMesh {
   private createLabelSprite(text: string): THREE.Sprite {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
+    canvas.height = 128;
     const ctx = typeof (canvas as any).getContext === 'function' ? (canvas as any).getContext('2d') : null;
     if (ctx) {
       ctx.clearRect(0, 0, 128, 128);
 
-      // Translucent frosted glass badge backing
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+      // Cyber dark glass backing with high opacity for maximum contrast
+      ctx.fillStyle = 'rgba(8, 16, 32, 0.88)';
       const r = 24;
       const x = 16, y = 24, w = 96, h = 80;
       if (typeof ctx.arcTo === 'function') {
@@ -665,18 +607,18 @@ export class StereometryMesh {
         ctx.fillRect(x, y, w, h);
       }
 
-      // Border highlight
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      // Luminous Neon Cyan Border highlight
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = 'rgba(0, 245, 255, 0.85)';
       ctx.stroke();
 
-      // Bold SF Pro / Apple Typography
+      // Bold SF Pro / Apple Typography with cyan glow shadow
       ctx.font = 'bold 44px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-      ctx.shadowBlur = 6;
+      ctx.shadowColor = 'rgba(0, 245, 255, 0.75)';
+      ctx.shadowBlur = 8;
       ctx.fillText(text, 64, 66);
     }
 
@@ -854,10 +796,10 @@ export class StereometryMesh {
       this.coordinateGroup.add(axisGroup, sprite);
     };
 
-    // +X: Coral Red, +Y: Mint Emerald, +Z: Azure Cyan
-    createAxis(new THREE.Vector3(1, 0, 0), 0xf43f5e, 'x');
-    createAxis(new THREE.Vector3(0, 1, 0), 0x10b981, 'y');
-    createAxis(new THREE.Vector3(0, 0, 1), 0x0ea5e9, 'z');
+    // +X: Neon Laser Crimson, +Y: Neon Laser Emerald, +Z: Neon Laser Electric Cyan
+    createAxis(new THREE.Vector3(1, 0, 0), 0xff1744, 'x');
+    createAxis(new THREE.Vector3(0, 1, 0), 0x00e676, 'y');
+    createAxis(new THREE.Vector3(0, 0, 1), 0x00e5ff, 'z');
   }
 
   private createAxisBadgeSprite(text: string, color: number): THREE.Sprite {
@@ -921,14 +863,16 @@ export class StereometryMesh {
   // -------------------------------------------------------------
   private rebuildUnfoldingNet(): void {
     const unfoldMat = new THREE.MeshPhysicalMaterial({
-      color: 0x60a5fa,
-      roughness: 0.1,
+      color: 0x0ea5e9,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.22,
+      roughness: 0.05,
       metalness: 0.1,
       transparent: true,
       opacity: 0.55,
       side: THREE.DoubleSide,
     });
-    const wireMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+    const wireMat = new THREE.LineBasicMaterial({ color: 0x00f5ff, linewidth: 2 });
 
     const verts = this.currentModelDef.vertices;
     this.currentModelDef.faces.forEach((face) => {
@@ -1098,10 +1042,35 @@ export class StereometryMesh {
     }
   }
 
+  /**
+   * Continuous per-frame animation:
+   * 1. Gentle Sci-Fi levitation / hover breathing of model in mid-air
+   * 2. Counter-rotating HUD graduation rings on the pedestal
+   * 3. Quantum holographic particle flow drifting upward
+  /**
+   * Continuous per-frame animation:
+   * Gentle Sci-Fi levitation / hover breathing of model in mid-air
+   */
+  public update(delta: number, elapsed?: number): void {
+    const t = elapsed !== undefined ? elapsed : (this.hoverTime += delta);
+    this.hoverTime = t;
+
+    // Gentle Sci-Fi Levitation / Hover Breathing (smooth floating oscillation)
+    const hoverOffset = Math.sin(t * 1.5) * 0.007;
+    this.modelContainer.position.y = this.baseHoverY + hoverOffset;
+
+    // Magnetic snap reticle pulse
+    if (this.snapCursorGroup.visible) {
+      const outer = this.snapCursorGroup.getObjectByName('snapRingOuter');
+      if (outer) {
+        outer.rotation.z += delta * 1.8;
+      }
+    }
+  }
+
   public dispose(): void {
     this.clearGroup(this.group);
     this.clearGroup(this.modelContainer);
-    this.clearGroup(this.pedestalGroup);
     this.sharedVertexGeo.dispose();
     this.sharedMidpointGeo.dispose();
     this.sharedCenterGeo.dispose();

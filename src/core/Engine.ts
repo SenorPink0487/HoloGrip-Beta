@@ -557,13 +557,11 @@ export class Engine {
     const targetX = Math.sin(angleY) * backOffset;
     const targetZ = Math.cos(angleY) * backOffset;
 
-    // Vertical angle to tilt window slightly downward towards player's eye level (eyeHeight is 1.65m)
-    const distXZ = Math.max(1.0, Math.hypot(dx - targetX, dz - targetZ));
-    const tiltDown = Math.atan2(targetY - this.camera.position.y, distXZ) * 0.42;
-
+    // Keep window strictly upright (pitch = 0, roll = 0) facing the user around the Y axis
+    // This prevents the window from slanting / tilting sideways or pitching when the user ascends or descends
     if (snap) {
       this.spatialWindowObject.position.set(targetX, targetY, targetZ);
-      this.spatialWindowObject.rotation.set(-tiltDown, angleY, 0);
+      this.spatialWindowObject.rotation.set(0, angleY, 0);
     } else {
       const lerpSpeed = Math.min(1.0, delta * 7.0);
       const pos = this.spatialWindowObject.position;
@@ -582,9 +580,7 @@ export class Engine {
       if (Math.abs(diffY) > 1e-4) {
         rot.y += diffY * lerpSpeed;
       }
-      if (Math.abs(-tiltDown - rot.x) > 1e-4) {
-        rot.x = THREE.MathUtils.lerp(rot.x, -tiltDown, lerpSpeed);
-      }
+      rot.x = 0;
       rot.z = 0;
     }
   }
@@ -1015,6 +1011,7 @@ export class Engine {
 
     // Mount 3D spatial window directly inside the Three.js 3D scene
     this.spatialWindowObject = new CSS3DObject(this.visionModal.element);
+    this.spatialWindowObject.rotation.order = 'YXZ';
     this.spatialWindowObject.scale.set(0.0016, 0.0016, 0.0016);
     this.positionWindowInFrontOfCamera(true);
     this.spatialWindowObject.visible = false;

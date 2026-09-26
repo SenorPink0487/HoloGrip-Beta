@@ -32,15 +32,15 @@ export class HallInteractionManager {
         if (obj.name === 'ElectromagnetYoke') {
           return {
             id: 'hall_magnet',
-            label: '科研级双极靴电磁铁（点击快速反转磁场极性 N ↔ S）',
+            label: '精简垂直双极靴（点击快速反转磁场极性 N ↔ S）',
             cursor: 'pointer',
           };
         }
         if (obj.name === 'InstrumentPanel') {
           return {
             id: 'hall_panel',
-            label: '高精度双通道数字仪表盘（监测 B 与 V_H）',
-            cursor: 'default',
+            label: '一体化数字毫伏表与电流端（点击切换工作电流流向 ±I）',
+            cursor: 'pointer',
           };
         }
         obj = obj.parent;
@@ -61,6 +61,10 @@ export class HallInteractionManager {
       }
       if (obj.name === 'ElectromagnetYoke') {
         this.callbacks.onToggleFieldPolarity?.();
+        return true;
+      }
+      if (obj.name === 'InstrumentPanel') {
+        this.callbacks.onToggleCurrentPolarity?.();
         return true;
       }
       obj = obj.parent;

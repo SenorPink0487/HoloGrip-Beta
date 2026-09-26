@@ -60,9 +60,6 @@ export default class MathStereometryExperiment extends BaseExperiment {
   private mesh: StereometryMesh;
   private interactionManager: StereometryInteractionManager;
 
-  // Localized pedestal upward fill light (gentle aura, zero room light bleed)
-  private stageUpFill?: THREE.PointLight;
-
   // State cache
   private modelType: HighSchoolModelType = 'cube';
   private dimA = 0.42;
@@ -75,7 +72,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   public init(context: ExperimentContext): void {
-    // Rest experiment apparatus flush on the white tabletop surface (table surface at Y=0.990, HologramStage offset Y=+0.082)
+    // Rest experiment root on the white tabletop surface (table surface at Y=0.990, HologramStage offset Y=+0.082)
     // Positioned in front workbench interaction zone (Z=0.88)
     this.rootGroup.position.set(0, 0.082, 0.88);
 
@@ -83,12 +80,6 @@ export default class MathStereometryExperiment extends BaseExperiment {
     if (context.renderer) {
       context.renderer.localClippingEnabled = true;
     }
-
-    // Localized subtle pedestal uplight (bounded distance falloff so it never affects lab room illumination)
-    this.stageUpFill = new THREE.PointLight(0x38bdf8, 0.5, 0.75, 2.0);
-    this.stageUpFill.position.set(0, 0.03, 0);
-    this.rootGroup.add(this.stageUpFill);
-    this.addDisposable(() => this.stageUpFill?.dispose());
 
     this.mesh = new StereometryMesh();
     this.rootGroup.add(this.mesh.group);
@@ -115,8 +106,9 @@ export default class MathStereometryExperiment extends BaseExperiment {
     }
   }
 
-  public update(delta: number, _elapsed: number, _context: ExperimentContext): void {
+  public update(delta: number, elapsed: number, _context: ExperimentContext): void {
     this.interactionManager?.update(delta);
+    this.mesh?.update(delta, elapsed);
   }
 
   public override onPointerDown(
