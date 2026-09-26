@@ -408,12 +408,21 @@ export class PeriodicTableModal {
       this.closeElementPopover();
     });
 
+    // Prevent card clicks from bubbling to backdrop dismiss
+    card.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
     this.element.classList.add('popover-open');
+    const frame = this.element.closest('.vision-window-frame') || document.querySelector('.vision-window-frame');
+    frame?.classList.add('has-modal-popover');
     overlay.classList.remove('hidden');
   }
 
   public closeElementPopover(): void {
     this.element.classList.remove('popover-open');
+    const frame = this.element.closest('.vision-window-frame') || document.querySelector('.vision-window-frame');
+    frame?.classList.remove('has-modal-popover');
     const overlay = this.element.querySelector('#element-popover-overlay');
     if (overlay) {
       overlay.classList.add('hidden');
@@ -421,6 +430,10 @@ export class PeriodicTableModal {
     this.element.querySelectorAll('.element-cell').forEach((c) => {
       c.classList.remove('selected');
     });
+  }
+
+  public isPopoverOpen(): boolean {
+    return this.element.classList.contains('popover-open');
   }
 
   public showToast(message: string): void {
@@ -435,9 +448,10 @@ export class PeriodicTableModal {
       clearTimeout(this.toastTimeout);
     }
 
-    this.toastTimeout = window.setTimeout(() => {
+    const setTimer = typeof window !== 'undefined' ? window.setTimeout.bind(window) : setTimeout;
+    this.toastTimeout = setTimer(() => {
       toast.classList.add('hidden');
-    }, 2200);
+    }, 2200) as unknown as number;
   }
 
   private getCategoryLabel(cat: PeriodicElement['category']): string {
@@ -491,11 +505,14 @@ export class PeriodicTableModal {
     });
 
     // Global escape key to dismiss popover
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'Escape') {
-        this.closeElementPopover();
-      }
-    });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape' && this.isPopoverOpen()) {
+          e.stopPropagation();
+          this.closeElementPopover();
+        }
+      });
+    }
   }
 }
 

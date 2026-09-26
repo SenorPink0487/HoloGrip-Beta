@@ -43,6 +43,7 @@ export class StereometryStatusCard {
   private linesDistEl: HTMLElement | null = null;
   private modelScaleEl: HTMLElement | null = null;
   private liveHintEl: HTMLElement | null = null;
+  private coordsContainer: HTMLElement | null = null;
 
   // Cache to avoid DOM layout thrashing
   private lastCoordsSignature = '';
@@ -64,7 +65,7 @@ export class StereometryStatusCard {
             <span class="math-live-dot"></span>
             <div class="math-title-group">
               <span class="math-card-title" id="math-model-title">正方体</span>
-              <span class="math-card-subtitle" id="math-model-subtitle">空间立体几何解析基石 · 棱长 a = 0.38</span>
+              <span class="math-card-subtitle" id="math-model-subtitle">棱长 a</span>
             </div>
           </div>
           <div class="math-header-right">
@@ -82,7 +83,7 @@ export class StereometryStatusCard {
         <!-- 2. Model Quick Selector (6 Clean Vector Diagrams) -->
         <div class="math-models-grid">
           <!-- Cube -->
-          <button class="math-model-card active" data-model="cube" title="正方体 / 长方体">
+          <button class="math-model-card active" data-model="cube" title="正方体">
             <div class="model-svg-wrap">
               <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
                 <path d="M22 6 L38 15 L22 24 L6 15 Z" fill="currentColor" fill-opacity="0.14" stroke-width="1.8" stroke-linejoin="round"/>
@@ -94,7 +95,7 @@ export class StereometryStatusCard {
           </button>
 
           <!-- Corner Pyramid -->
-          <button class="math-model-card" data-model="corner-pyramid" title="墙角三棱锥 (PA ⊥ PB ⊥ PC)">
+          <button class="math-model-card" data-model="corner-pyramid" title="三棱锥">
             <div class="model-svg-wrap">
               <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
                 <polygon points="10,34 34,34 22,10" fill="currentColor" fill-opacity="0.12" stroke-width="1.8" stroke-linejoin="round"/>
@@ -106,7 +107,7 @@ export class StereometryStatusCard {
                 <line x1="22" y1="24" x2="34" y2="34" stroke-width="1.6"/>
               </svg>
             </div>
-            <span class="model-title">墙角三棱锥</span>
+            <span class="model-title">三棱锥</span>
           </button>
 
           <!-- Regular Tetrahedron -->
@@ -124,7 +125,7 @@ export class StereometryStatusCard {
           </button>
 
           <!-- Square Pyramid -->
-          <button class="math-model-card" data-model="square-pyramid" title="正四棱锥">
+          <button class="math-model-card" data-model="square-pyramid" title="四棱锥">
             <div class="model-svg-wrap">
               <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
                 <path d="M22 6 L6 30 L26 38 L38 26 Z" fill="currentColor" fill-opacity="0.12" stroke-width="1.8" stroke-linejoin="round"/>
@@ -138,11 +139,11 @@ export class StereometryStatusCard {
                 <line x1="22" y1="6" x2="18" y2="18" stroke-width="1.4" stroke-dasharray="3 2"/>
               </svg>
             </div>
-            <span class="model-title">正四棱锥</span>
+            <span class="model-title">四棱锥</span>
           </button>
 
           <!-- Triangular Prism -->
-          <button class="math-model-card" data-model="triangular-prism" title="直三棱柱">
+          <button class="math-model-card" data-model="triangular-prism" title="三棱柱">
             <div class="model-svg-wrap">
               <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
                 <polygon points="10,8 34,8 22,16" fill="currentColor" fill-opacity="0.16" stroke-width="1.8" stroke-linejoin="round"/>
@@ -152,11 +153,11 @@ export class StereometryStatusCard {
                 <line x1="22" y1="16" x2="22" y2="34" stroke-width="1.8"/>
               </svg>
             </div>
-            <span class="model-title">正三棱柱</span>
+            <span class="model-title">三棱柱</span>
           </button>
 
           <!-- Cylinder & Cone -->
-          <button class="math-model-card" data-model="cylinder-cone" title="圆柱与圆锥">
+          <button class="math-model-card" data-model="cylinder-cone" title="圆柱圆锥">
             <div class="model-svg-wrap">
               <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
                 <ellipse cx="22" cy="32" rx="14" ry="5.5" fill="currentColor" fill-opacity="0.12" stroke-width="1.8"/>
@@ -173,7 +174,7 @@ export class StereometryStatusCard {
 
         <!-- 3. Real-Time Spatial Geometry Analytics (4 Apple Vision Frosted Glass Tiles) -->
         <div class="math-analytics-grid">
-          <!-- Tile 1: 剖切截面 -->
+          <!-- Tile 1: 截面剖切 -->
           <div class="math-analytic-tile">
             <div class="tile-header">
               <svg class="tile-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -181,48 +182,48 @@ export class StereometryStatusCard {
                 <polyline points="2 17 12 22 22 17"/>
                 <polyline points="2 12 12 17 22 12"/>
               </svg>
-              <span class="tile-title">剖切截面形状</span>
+              <span class="tile-title">截面剖切</span>
             </div>
-            <div class="tile-val-main" id="val-cut-shape">未剖切</div>
+            <div class="tile-val-main" id="val-cut-shape">—</div>
             <div class="tile-subtext">
-              <span>面积: <b id="val-cut-area">--</b></span>
-              <span>二面角: <b id="val-cut-dihedral">--</b></span>
+              <span>面积 <b id="val-cut-area">—</b></span>
+              <span>二面角 <b id="val-cut-dihedral">—</b></span>
             </div>
           </div>
 
-          <!-- Tile 2: 空间直线与夹角 -->
+          <!-- Tile 2: 空间直线 -->
           <div class="math-analytic-tile">
             <div class="tile-header">
               <svg class="tile-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="4" y1="20" x2="20" y2="4"/>
                 <line x1="4" y1="4" x2="14" y2="14"/>
               </svg>
-              <span class="tile-title">空间连线 / 异面夹角</span>
+              <span class="tile-title">空间直线</span>
             </div>
-            <div class="tile-val-main" id="val-lines-angle">--</div>
+            <div class="tile-val-main" id="val-lines-angle">—</div>
             <div class="tile-subtext" id="val-lines-detail">
-              <span>关系: <b id="val-lines-rel">点击顶点连线</b></span>
-              <span>公垂线: <b id="val-lines-dist">--</b></span>
+              <span>关系 <b id="val-lines-rel">—</b></span>
+              <span>公垂线 <b id="val-lines-dist">—</b></span>
             </div>
           </div>
 
-          <!-- Tile 3: 外接球与内切球 -->
+          <!-- Tile 3: 外接与内切球 -->
           <div class="math-analytic-tile">
             <div class="tile-header">
               <svg class="tile-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
               </svg>
-              <span class="tile-title">外接球与内切球</span>
+              <span class="tile-title">外接与内切球</span>
             </div>
-            <div class="tile-val-main" id="val-sphere-2r">--</div>
+            <div class="tile-val-main" id="val-sphere-2r">—</div>
             <div class="tile-subtext">
-              <span>外接 R: <b id="val-sphere-r">--</b></span>
-              <span>内切 r: <b id="val-in-r">--</b></span>
+              <span>外接 R <b id="val-sphere-r">—</b></span>
+              <span>内切 r <b id="val-in-r">—</b></span>
             </div>
           </div>
 
-          <!-- Tile 4: 实时交互与缩放 -->
+          <!-- Tile 4: 模型缩放 -->
           <div class="math-analytic-tile">
             <div class="tile-header">
               <svg class="tile-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -231,53 +232,36 @@ export class StereometryStatusCard {
                 <line x1="11" y1="8" x2="11" y2="14"/>
                 <line x1="8" y1="11" x2="14" y2="11"/>
               </svg>
-              <span class="tile-title">3D 模型缩放</span>
+              <span class="tile-title">模型缩放</span>
             </div>
             <div class="tile-val-main" id="val-model-scale">100%</div>
             <div class="tile-subtext">
-              <span>鼠标滚轮 / 键盘 [+/-] 缩放</span>
+              <span>滚轮或 [+/-] 缩放</span>
             </div>
           </div>
         </div>
 
-        <!-- 4. High-School Stereometry Core Theorems & Formulas (Apple Vision Pro Frosted Glass Reference Deck) -->
-        <div class="math-theorems-grid">
-          <div class="math-theorem-card">
-            <div class="theorem-tag">多面体欧拉定理</div>
-            <div class="theorem-title">拓扑结构守恒</div>
-            <div class="theorem-formula">V - E + F = 2</div>
-            <div class="theorem-desc">任意凸多面体顶点数 V、面数 F 与棱数 E 恒守恒，空间立体拓扑不变量。</div>
+        <!-- 4. Spatial Vertex Coordinates Inspector (Apple Vision Pro Frosted Chips Deck) -->
+        <div class="math-coords-inspector">
+          <div class="coords-inspector-header">
+            <span class="coords-inspector-title">空间顶点坐标</span>
           </div>
-
-          <div class="math-theorem-card">
-            <div class="theorem-tag">空间直线与向量</div>
-            <div class="theorem-title">异面直线夹角定理</div>
-            <div class="theorem-formula">cos θ = |u · v| / (|u| |v|)</div>
-            <div class="theorem-desc">异面直线夹角范围 θ ∈ (0°, 90°]，平移或利用空间法向量快速求算公垂线。</div>
-          </div>
-
-          <div class="math-theorem-card">
-            <div class="theorem-tag">高考外接与内切球</div>
-            <div class="theorem-title">割补体与射影模型</div>
-            <div class="theorem-formula">(2R)² = a² + b² + c² · R:r = 3:1</div>
-            <div class="theorem-desc">墙角三棱锥构造长方体体对角线割补；正四面体外接球与内切球半径比恒为 3:1。</div>
-          </div>
+          <div class="math-coords-chips" id="math-coords-chips"></div>
         </div>
 
         <!-- 5. Apple VisionOS Dynamic Status Bar -->
         <div class="math-dynamic-status-bar">
           <span class="math-dynamic-dot"></span>
-          <span class="math-dynamic-hint" id="math-live-hint">✦ 直接对3D模型交互：左键拖拽旋转 · 滚轮或[+/-]缩放 · 点击顶点直接连线或定面剖切</span>
-          <button class="apple-subtle-link" id="btn-clear-lines-subtle" title="清除标记与截面 (ESC)">清除标记</button>
+          <span class="math-dynamic-hint" id="math-live-hint">点击顶点连线或定面剖切</span>
+          <button class="apple-subtle-link" id="btn-clear-lines-subtle" title="清除标记 (ESC)">清除选择</button>
         </div>
 
-        <!-- 5. Hidden preservation elements for telemetry DOM contract -->
+        <!-- 6. Hidden preservation elements for telemetry DOM contract -->
         <div style="display: none;">
           <span id="val-dim-a">0.38</span>
           <input type="range" id="slider-dim-a" value="0.38" />
           <span id="val-dim-h">0.38</span>
           <input type="range" id="slider-dim-h" value="0.38" />
-          <div id="math-coords-chips"></div>
           <input type="range" id="slider-unfold" value="0" />
           <span id="val-unfold">0%</span>
           <span id="math-cut-picked-badge">直接交互模式</span>
@@ -304,6 +288,7 @@ export class StereometryStatusCard {
     this.linesDistEl = this.element.querySelector('#val-lines-dist');
     this.modelScaleEl = this.element.querySelector('#val-model-scale');
     this.liveHintEl = this.element.querySelector('#math-live-hint');
+    this.coordsContainer = this.element.querySelector('#math-coords-chips');
   }
 
   private bindEvents(): void {
@@ -360,7 +345,7 @@ export class StereometryStatusCard {
 
     // Dynamic Live Interaction Hint
     if (this.liveHintEl) {
-      const hint = data.interactionHint || '✦ 直接对3D模型交互：左键拖拽旋转 · 滚轮或[+/-]缩放 · 点击顶点直接连线或定面剖切';
+      const hint = data.interactionHint || '点击顶点连线或定面剖切';
       if (this.liveHintEl.textContent !== hint) {
         this.liveHintEl.textContent = hint;
       }
@@ -375,43 +360,57 @@ export class StereometryStatusCard {
     }
 
     // Cross section metrics
-    const cutShape = data.activeCrossSection ? data.activeCrossSection.polygonType : '未剖切';
-    const cutArea = data.activeCrossSection ? data.activeCrossSection.area.toFixed(3) : '--';
-    const cutDihedral = data.activeCrossSection ? `${data.activeCrossSection.dihedralAngleDeg.toFixed(1)}°` : '--';
+    const cutShape = data.activeCrossSection ? data.activeCrossSection.polygonType : '—';
+    const cutArea = data.activeCrossSection ? data.activeCrossSection.area.toFixed(3) : '—';
+    const cutDihedral = data.activeCrossSection ? `${data.activeCrossSection.dihedralAngleDeg.toFixed(1)}°` : '—';
     if (this.cutShapeEl && this.cutShapeEl.textContent !== cutShape) this.cutShapeEl.textContent = cutShape;
     if (this.cutAreaEl && this.cutAreaEl.textContent !== cutArea) this.cutAreaEl.textContent = cutArea;
     if (this.cutDihedralEl && this.cutDihedralEl.textContent !== cutDihedral) this.cutDihedralEl.textContent = cutDihedral;
 
     // Lines & Angles metrics
-    let linesRel = '点击顶点连线';
-    let linesAngle = '--';
-    let linesDist = '--';
+    let linesRel = '—';
+    let linesAngle = '—';
+    let linesDist = '—';
     if (data.twoLineAngle) {
       const typeDesc =
         data.twoLineAngle.type === 'skew'
-          ? '异面直线'
+          ? '异面'
           : data.twoLineAngle.type === 'parallel'
-          ? '互相平行'
-          : '相交直线';
+          ? '平行'
+          : '相交';
       linesRel = `${data.twoLineAngle.lineA} 与 ${data.twoLineAngle.lineB} (${typeDesc})`;
-      linesAngle = `${data.twoLineAngle.angleDeg.toFixed(1)}° (${typeDesc})`;
+      linesAngle = `${data.twoLineAngle.angleDeg.toFixed(1)}°`;
       linesDist = `${data.twoLineAngle.skewDistance.toFixed(3)}`;
     } else if (data.drawnSegments.length > 0) {
       const lastSeg = data.drawnSegments[data.drawnSegments.length - 1];
-      linesRel = `已绘制 ${data.drawnSegments.length} 条线段`;
-      linesAngle = `线段 ${lastSeg.label} = ${lastSeg.length.toFixed(2)}`;
+      linesRel = `${data.drawnSegments.length} 条线段`;
+      linesAngle = `${lastSeg.label} = ${lastSeg.length.toFixed(2)}`;
     }
     if (this.linesRelEl && this.linesRelEl.textContent !== linesRel) this.linesRelEl.textContent = linesRel;
     if (this.linesAngleEl && this.linesAngleEl.textContent !== linesAngle) this.linesAngleEl.textContent = linesAngle;
     if (this.linesDistEl && this.linesDistEl.textContent !== linesDist) this.linesDistEl.textContent = linesDist;
 
     // Spheres metrics
-    const sphere2r = data.sphereAnalysis.hasCircumSphere ? (data.sphereAnalysis.circumRadius * 2).toFixed(2) : '无外接球';
-    const sphereR = data.sphereAnalysis.hasCircumSphere ? data.sphereAnalysis.circumRadius.toFixed(2) : '--';
-    const inR = data.sphereAnalysis.hasInSphere ? data.sphereAnalysis.inRadius.toFixed(2) : '--';
+    const sphere2r = data.sphereAnalysis.hasCircumSphere ? (data.sphereAnalysis.circumRadius * 2).toFixed(2) : '—';
+    const sphereR = data.sphereAnalysis.hasCircumSphere ? data.sphereAnalysis.circumRadius.toFixed(2) : '—';
+    const inR = data.sphereAnalysis.hasInSphere ? data.sphereAnalysis.inRadius.toFixed(2) : '—';
     if (this.sphereDiameterEl && this.sphereDiameterEl.textContent !== sphere2r) this.sphereDiameterEl.textContent = sphere2r;
     if (this.sphereRadiusEl && this.sphereRadiusEl.textContent !== sphereR) this.sphereRadiusEl.textContent = sphereR;
     if (this.inRadiusEl && this.inRadiusEl.textContent !== inR) this.inRadiusEl.textContent = inR;
+
+    // Spatial Vertex Coordinates Inspector
+    if (this.coordsContainer && data.vertexCoords && data.vertexCoords.length > 0) {
+      const signature = data.modelId + ':' + data.vertexCoords.map((v) => `${v.label},${v.coords.join(',')}`).join(';');
+      if (signature !== this.lastCoordsSignature) {
+        this.lastCoordsSignature = signature;
+        this.coordsContainer.innerHTML = data.vertexCoords
+          .map(
+            (v) =>
+              `<div class="math-coord-chip"><span class="coord-label">${v.label}</span><span class="coord-vals">(${v.coords[0].toFixed(2)}, ${v.coords[1].toFixed(2)}, ${v.coords[2].toFixed(2)})</span></div>`
+          )
+          .join('');
+      }
+    }
   }
 
   public dispose(): void {

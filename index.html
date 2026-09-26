@@ -788,6 +788,15 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       user-select: none;
       position: relative;
+      opacity: 1;
+      transition: opacity 0.28s ease;
+      will-change: opacity;
+    }
+
+    /* VisionOS subtle dim on window header when secondary modal is active */
+    .vision-window-frame.has-modal-popover .vision-window-header {
+      opacity: 0.75;
+      cursor: pointer;
     }
 
     .header-left {
@@ -1067,7 +1076,30 @@
       height: 100%;
       min-height: 0;
       user-select: none;
+    }
+
+    /* Apple VisionOS Primary Page Content Wrapper (In-place Optical Defocus) */
+    .periodic-primary-content {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       gap: 10px;
+      opacity: 1;
+      filter: blur(0px) brightness(1) saturate(100%);
+      -webkit-filter: blur(0px) brightness(1) saturate(100%);
+      transition: filter 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  -webkit-filter 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.25s ease;
+      will-change: filter, opacity;
+    }
+
+    /* Secondary popover open: Primary page stays firmly in place, smoothly defocusing without shrinking */
+    .vision-periodic-container.popover-open .periodic-primary-content {
+      filter: blur(8px) saturate(145%) brightness(0.96);
+      -webkit-filter: blur(8px) saturate(145%) brightness(0.96);
+      opacity: 0.88;
+      pointer-events: none;
     }
 
     .periodic-grid {
@@ -1079,33 +1111,36 @@
       max-width: 1160px;
     }
 
-    /* Element Cell Cards */
+    /* Apple VisionOS Frosted Crystal Element Cells (Hardware accelerated, no per-cell backdrop blur) */
     .element-cell {
       position: relative;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(255, 255, 255, 0.26);
       padding: 6px 8px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       align-items: center;
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
     .element-cell:hover {
       transform: scale(1.08) translateY(-2px);
       z-index: 10;
-      background: rgba(255, 255, 255, 0.12);
-      border-color: rgba(255, 255, 255, 0.3);
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.35);
+      border-top-color: rgba(255, 255, 255, 0.65);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 16px rgba(255, 255, 255, 0.15);
     }
 
     .element-cell.selected {
       border-color: var(--apple-blue) !important;
-      background: rgba(10, 132, 255, 0.18) !important;
-      box-shadow: 0 0 0 2px var(--apple-blue);
+      background: rgba(10, 132, 255, 0.28) !important;
+      box-shadow: 0 0 0 2px var(--apple-blue), 0 8px 24px rgba(10, 132, 255, 0.50) !important;
       transform: scale(1.08) translateY(-2px);
       z-index: 12;
     }
@@ -1114,7 +1149,7 @@
       align-self: flex-start;
       font-size: 10px;
       font-weight: 500;
-      color: rgba(255, 255, 255, 0.4);
+      color: rgba(255, 255, 255, 0.45);
       line-height: 1;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace;
     }
@@ -1127,27 +1162,47 @@
       letter-spacing: -0.4px;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
       margin-top: -4px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     }
 
     .elem-name {
       font-size: 11.5px;
       font-weight: 500;
-      color: rgba(255, 255, 255, 0.85);
+      color: rgba(255, 255, 255, 0.90);
       line-height: 1;
     }
 
-    /* Pure Monochrome Apple Vision Pro Cells */
-    .cat-alkali-metal,
-    .cat-alkaline-earth,
-    .cat-transition-metal,
+    /* Apple VisionOS Chemical Family Luminous Glass Tints (Beautiful bokeh when blurred!) */
+    .cat-alkali-metal {
+      background: linear-gradient(145deg, rgba(255, 159, 10, 0.14), rgba(255, 159, 10, 0.05));
+      border-color: rgba(255, 159, 10, 0.26);
+      border-top-color: rgba(255, 200, 100, 0.45);
+    }
+    .cat-alkaline-earth {
+      background: linear-gradient(145deg, rgba(255, 214, 10, 0.12), rgba(255, 214, 10, 0.04));
+      border-color: rgba(255, 214, 10, 0.24);
+      border-top-color: rgba(255, 235, 120, 0.42);
+    }
+    .cat-transition-metal {
+      background: linear-gradient(145deg, rgba(100, 210, 255, 0.12), rgba(100, 210, 255, 0.04));
+      border-color: rgba(100, 210, 255, 0.24);
+      border-top-color: rgba(140, 230, 255, 0.45);
+    }
     .cat-post-transition,
-    .cat-metalloid,
-    .cat-reactive-nonmetal,
-    .cat-noble-gas,
-    .cat-lanthanide,
-    .cat-actinide {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.1);
+    .cat-metalloid {
+      background: linear-gradient(145deg, rgba(48, 209, 88, 0.12), rgba(48, 209, 88, 0.04));
+      border-color: rgba(48, 209, 88, 0.24);
+      border-top-color: rgba(100, 240, 140, 0.42);
+    }
+    .cat-reactive-nonmetal {
+      background: linear-gradient(145deg, rgba(52, 199, 89, 0.12), rgba(52, 199, 89, 0.04));
+      border-color: rgba(52, 199, 89, 0.26);
+      border-top-color: rgba(110, 240, 150, 0.45);
+    }
+    .cat-noble-gas {
+      background: linear-gradient(145deg, rgba(191, 90, 242, 0.14), rgba(191, 90, 242, 0.05));
+      border-color: rgba(191, 90, 242, 0.26);
+      border-top-color: rgba(220, 140, 255, 0.45);
     }
 
     /* ========================================================== */
@@ -1155,51 +1210,59 @@
     /* ========================================================== */
     .element-popover-overlay {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      /* Apple Vision Pro: Gentle ambient tint without blackening the underlying periodic table */
-      background: rgba(0, 0, 0, 0.04);
-      backdrop-filter: blur(2px);
-      -webkit-backdrop-filter: blur(2px);
+      top: -16px;
+      left: -22px;
+      right: -22px;
+      bottom: -16px;
+      width: calc(100% + 44px);
+      height: calc(100% + 32px);
+      /* VisionOS spatial ambient scrim: ultra-light transparent air gap, preserving background luminance */
+      background: rgba(8, 12, 20, 0.15);
+      backdrop-filter: blur(6px) saturate(130%);
+      -webkit-backdrop-filter: blur(6px) saturate(130%);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 100;
       padding: 20px;
-      transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), backdrop-filter 0.22s ease;
+      opacity: 1;
+      cursor: pointer;
+      transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: opacity;
     }
 
     .element-popover-overlay.hidden {
       opacity: 0;
-      pointer-events: none;
-      visibility: hidden;
       backdrop-filter: blur(0px);
       -webkit-backdrop-filter: blur(0px);
+      pointer-events: none;
+      visibility: hidden;
     }
 
     .element-popover-card {
+      position: relative;
+      cursor: default;
       width: 420px;
       max-width: 92%;
-      /* Apple Vision Pro luminous white frosted glass card */
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(48px) saturate(180%);
-      -webkit-backdrop-filter: blur(48px) saturate(180%);
-      border: 1px solid rgba(255, 255, 255, 0.92);
-      border-top: 1.5px solid #ffffff;
+      /* Secondary page: Apple Vision Pro refined matte glass */
+      background: rgba(26, 30, 42, 0.82);
+      backdrop-filter: blur(32px) saturate(180%);
+      -webkit-backdrop-filter: blur(32px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid rgba(255, 255, 255, 0.16);
       border-radius: 22px;
-      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.22), 0 8px 24px rgba(0, 0, 0, 0.08), inset 0 1px 0 #ffffff;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25);
       padding: 20px 22px;
       display: flex;
       flex-direction: column;
       gap: 14px;
-      color: #1d1d1f;
-      animation: apple-popover-spring 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      color: #ffffff;
+      animation: apple-popover-spring 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: transform, opacity;
     }
 
     @keyframes apple-popover-spring {
-      0% { opacity: 0; transform: scale(0.95) translateY(8px); }
+      0% { opacity: 0; transform: scale(0.96) translateY(6px); }
       100% { opacity: 1; transform: scale(1) translateY(0); }
     }
 
@@ -1208,7 +1271,7 @@
       justify-content: space-between;
       align-items: flex-start;
       padding-bottom: 12px;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
     .popover-title-row {
@@ -1220,11 +1283,11 @@
     .popover-sym {
       font-size: 34px;
       font-weight: 700;
-      color: var(--apple-blue);
+      color: #ffffff;
       line-height: 1;
       letter-spacing: -0.5px;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-      text-shadow: 0 2px 10px rgba(10, 132, 255, 0.20);
+      text-shadow: 0 2px 12px rgba(255, 255, 255, 0.25);
     }
 
     .popover-title-text {
@@ -1242,41 +1305,40 @@
     .popover-cn {
       font-size: 19px;
       font-weight: 600;
-      color: #1d1d1f;
+      color: #ffffff;
       letter-spacing: -0.2px;
     }
 
     .popover-en {
       font-size: 12.5px;
-      color: #86868b;
+      color: rgba(255, 255, 255, 0.55);
       font-weight: 400;
     }
 
     .popover-meta {
       font-size: 11px;
-      color: #86868b;
+      color: rgba(255, 255, 255, 0.5);
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
     .popover-meta-cat {
-      background: rgba(10, 132, 255, 0.10);
-      border: 1px solid rgba(10, 132, 255, 0.22);
-      padding: 1px 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 1px 7px;
       border-radius: 980px;
-      color: #0071e3;
-      font-weight: 600;
+      color: rgba(255, 255, 255, 0.75);
+      font-weight: 500;
     }
 
     .popover-close-btn {
       width: 28px;
       height: 28px;
       border-radius: 50%;
-      background: rgba(0, 0, 0, 0.05);
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      border-top: 1px solid rgba(255, 255, 255, 0.6);
-      color: #6e6e73;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      color: rgba(255, 255, 255, 0.75);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -1286,8 +1348,9 @@
     }
 
     .popover-close-btn:hover {
-      background: rgba(0, 0, 0, 0.10);
-      color: #1d1d1f;
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.22);
+      color: #ffffff;
       transform: scale(1.06);
     }
 
@@ -1301,30 +1364,29 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: rgba(244, 246, 250, 0.92);
-      border: 1px solid rgba(0, 0, 0, 0.06);
-      border-top: 1px solid #ffffff;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
       border-radius: 15px;
       padding: 11px 15px;
-      color: #1d1d1f;
+      color: #ffffff;
       cursor: pointer;
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       text-align: left;
       gap: 12px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
     }
 
     .popover-reagent-row:hover {
-      background: #ffffff;
-      border-color: rgba(10, 132, 255, 0.35);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.14);
       transform: translateY(-1px);
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25);
     }
 
     .popover-reagent-row.row-added {
-      background: rgba(52, 199, 89, 0.12) !important;
-      border-color: rgba(52, 199, 89, 0.45) !important;
-      box-shadow: 0 0 16px rgba(52, 199, 89, 0.20);
+      background: rgba(52, 199, 89, 0.20) !important;
+      border-color: rgba(52, 199, 89, 0.48) !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 16px rgba(52, 199, 89, 0.25);
     }
 
     .reagent-row-info {
@@ -1345,7 +1407,7 @@
       font-size: 15.5px;
       font-weight: 700;
       letter-spacing: -0.2px;
-      color: #1d1d1f;
+      color: #ffffff;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", monospace;
     }
 
@@ -1358,20 +1420,20 @@
     }
 
     .reagent-state-badge.solid {
-      background: rgba(255, 149, 0, 0.12);
-      border: 1px solid rgba(255, 149, 0, 0.28);
-      color: #c2410c;
+      background: rgba(255, 159, 10, 0.16);
+      border: 1px solid rgba(255, 159, 10, 0.32);
+      color: #ffb340;
     }
 
     .reagent-state-badge.liquid {
-      background: rgba(10, 132, 255, 0.10);
-      border: 1px solid rgba(10, 132, 255, 0.24);
-      color: #0071e3;
+      background: rgba(10, 132, 255, 0.16);
+      border: 1px solid rgba(10, 132, 255, 0.32);
+      color: #64d2ff;
     }
 
     .reagent-row-name {
       font-size: 11.5px;
-      color: #6e6e73;
+      color: rgba(255, 255, 255, 0.65);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1409,8 +1471,7 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      background: rgba(0, 0, 0, 0.04);
-      border: 1px solid rgba(0, 0, 0, 0.06);
+      background: rgba(255, 255, 255, 0.04);
       border-radius: 12px;
       padding: 12px 14px;
     }
@@ -1426,7 +1487,7 @@
     }
 
     .meta-value {
-      color: #1d1d1f;
+      color: #ffffff;
       font-weight: 500;
     }
 
@@ -2959,7 +3020,6 @@
       height: 8px;
       border-radius: 50%;
       background: #ffffff;
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
     }
     .math-title-group {
       display: flex;
@@ -3005,7 +3065,6 @@
       font-weight: 500;
       color: rgba(255, 255, 255, 0.85);
       cursor: pointer;
-      backdrop-filter: blur(16px);
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .apple-glass-action-btn:hover {
@@ -3036,7 +3095,6 @@
       gap: 6px;
       cursor: pointer;
       color: rgba(255, 255, 255, 0.70);
-      backdrop-filter: blur(20px);
       transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .math-model-card:hover {
@@ -3044,14 +3102,14 @@
       border-color: rgba(255, 255, 255, 0.22);
       color: #ffffff;
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.20);
     }
     .math-model-card.active {
       background: rgba(255, 255, 255, 0.18);
       border: 1px solid rgba(255, 255, 255, 0.45);
       border-top: 1px solid rgba(255, 255, 255, 0.65);
       color: #ffffff;
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.30);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.30);
     }
     .model-svg-wrap {
       width: 36px;
@@ -3086,8 +3144,7 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
       transition: all 0.2s ease;
     }
     .math-analytic-tile:hover {
@@ -3125,51 +3182,56 @@
       color: rgba(255, 255, 255, 0.85);
       font-weight: 500;
     }
-    .math-theorems-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-    }
-    .math-theorem-card {
+    .math-coords-inspector {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-top: 1px solid rgba(255, 255, 255, 0.16);
       border-radius: 18px;
-      padding: 14px 18px;
+      padding: 12px 18px;
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-      transition: all 0.2s ease;
+      gap: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
     }
-    .math-theorem-card:hover {
-      background: rgba(255, 255, 255, 0.07);
-      border-color: rgba(255, 255, 255, 0.16);
+    .coords-inspector-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
-    .theorem-tag {
-      font-size: 10.5px;
+    .coords-inspector-title {
+      font-size: 11px;
       font-weight: 500;
       color: rgba(255, 255, 255, 0.50);
       letter-spacing: 0.2px;
+      text-transform: uppercase;
     }
-    .theorem-title {
-      font-size: 13.5px;
+    .math-coords-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .math-coord-chip {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 8px;
+      padding: 5px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Mono", monospace;
+      font-size: 11.5px;
+      transition: all 0.15s ease;
+    }
+    .math-coord-chip:hover {
+      background: rgba(255, 255, 255, 0.10);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    .coord-label {
       font-weight: 600;
       color: #ffffff;
-      letter-spacing: -0.1px;
     }
-    .theorem-formula {
-      font-size: 13px;
-      font-weight: 600;
-      color: rgba(255, 255, 255, 0.95);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Mono", monospace;
-      padding: 2px 0;
-    }
-    .theorem-desc {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.45);
-      line-height: 1.4;
+    .coord-vals {
+      color: rgba(255, 255, 255, 0.65);
     }
     .math-dynamic-status-bar {
       display: flex;
@@ -3182,15 +3244,13 @@
       padding: 10px 18px;
       font-size: 12.5px;
       color: rgba(255, 255, 255, 0.85);
-      backdrop-filter: blur(20px);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
     }
     .math-dynamic-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
       background: #ffffff;
-      box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
       flex-shrink: 0;
     }
     .math-dynamic-hint {

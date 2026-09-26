@@ -385,6 +385,19 @@ export class VisionModal {
   }
 
   private bindHeaderEvents(): void {
+    // Intercept clicks on window header when secondary modal is open to dismiss it
+    this.element.querySelector('.vision-window-header')?.addEventListener(
+      'click',
+      (e) => {
+        if (this.periodicTableModal?.isPopoverOpen?.()) {
+          e.stopPropagation();
+          e.preventDefault();
+          this.periodicTableModal.closeElementPopover();
+        }
+      },
+      true
+    );
+
     this.btnBack?.addEventListener('click', () => {
       if (this.activeTab === 'physics') {
         if (this.physicsModal.canGoBack()) {
@@ -427,6 +440,10 @@ export class VisionModal {
       } else if (e.code === 'KeyR' && this.isOpen) {
         this.callbacks.onRecenter?.();
       } else if (e.code === 'Escape') {
+        if (this.periodicTableModal?.isPopoverOpen?.()) {
+          this.periodicTableModal.closeElementPopover();
+          return;
+        }
         if (this.isOpen) {
           this.close();
         }
@@ -530,6 +547,8 @@ export class VisionModal {
   }
 
   public switchTab(tab: VisionTab): void {
+    this.periodicTableModal?.closeElementPopover();
+    this.element.querySelector('.vision-window-frame')?.classList.remove('has-modal-popover');
     this.activeTab = tab;
 
     if (this.btnBack) {
@@ -540,27 +559,27 @@ export class VisionModal {
     const isConduction = this.currentExperimentId === 'thermo-conduction';
     const isPhase = this.currentExperimentId === 'thermo-phase';
 
-    let thermoTitle = '热力学状态分析 (PV = nRT)';
+    let thermoTitle = '热力学';
     if (isCarnot) {
-      thermoTitle = '卡诺热机与循环效率 (η = 1 - T_C / T_H)';
+      thermoTitle = '卡诺循环';
     } else if (isConduction) {
-      thermoTitle = '热传导与傅里叶定律 (q = -k ∇T)';
+      thermoTitle = '热传导';
     } else if (isPhase) {
-      thermoTitle = '物态相变与潜热动力学 (Q = mcΔT + mL)';
+      thermoTitle = '物态相变';
     }
 
     const titleEl = this.element.querySelector('#vision-window-title');
     const titles: Record<VisionTab, string> = {
-      disciplines: '学科领域',
-      chemistry: '常用试剂 · 试剂注入',
-      beaker: '烧杯主要成分与浓度',
+      disciplines: '学科',
+      chemistry: '常用试剂',
+      beaker: '烧杯成分',
       physics: '物理学',
-      math: '立体几何与空间解析实验室',
+      math: '立体几何',
       thermo: thermoTitle,
-      em: '霍尔效应原理与载流子动力学 (V_H = R_H · I B / d)',
+      em: '霍尔效应',
     };
     if (titleEl) {
-      titleEl.textContent = titles[tab] || '全息实验视窗';
+      titleEl.textContent = titles[tab] || '实验视窗';
     }
 
 
@@ -650,6 +669,8 @@ export class VisionModal {
   }
 
   public close(): void {
+    this.periodicTableModal?.closeElementPopover();
+    this.element.querySelector('.vision-window-frame')?.classList.remove('has-modal-popover');
     this.isOpen = false;
     this.element.classList.add('hidden');
     this.floatingLauncher?.classList.remove('hidden');

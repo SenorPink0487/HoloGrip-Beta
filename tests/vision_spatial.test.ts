@@ -208,7 +208,108 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   console.log('✓ Test 6 passed: Spatial window remains strictly level & upright with 0 roll/tilt during ascent/descent across all 360° positions\n');
 }
 
+// Test 7: VisionOS secondary modal popover defocus state machine & lifecycle
+{
+  console.log('Test 7: VisionOS secondary modal popover defocus state machine & lifecycle');
+  class MockDOMElement {
+    public tagName: string;
+    public className: string = '';
+    public id: string = '';
+    public dataset: Record<string, string> = {};
+    public style: Record<string, string> = {};
+    public innerHTML: string = '';
+    public parentElement: MockDOMElement | null = null;
+    public children: MockDOMElement[] = [];
+    public classList = {
+      add: (...names: string[]) => {
+        const classes = new Set(this.className.split(' ').filter(Boolean));
+        names.forEach((n) => classes.add(n));
+        this.className = Array.from(classes).join(' ');
+      },
+      remove: (...names: string[]) => {
+        const classes = new Set(this.className.split(' ').filter(Boolean));
+        names.forEach((n) => classes.delete(n));
+        this.className = Array.from(classes).join(' ');
+      },
+      toggle: (name: string, force?: boolean) => {
+        const classes = new Set(this.className.split(' ').filter(Boolean));
+        const shouldAdd = force !== undefined ? force : !classes.has(name);
+        if (shouldAdd) classes.add(name);
+        else classes.delete(name);
+        this.className = Array.from(classes).join(' ');
+        return shouldAdd;
+      },
+      contains: (name: string) => this.className.split(' ').filter(Boolean).includes(name),
+    };
+
+    constructor(tag: string = 'div') {
+      this.tagName = tag.toUpperCase();
+    }
+
+    appendChild(child: MockDOMElement) {
+      child.parentElement = this;
+      this.children.push(child);
+      return child;
+    }
+
+    addEventListener() {}
+
+    querySelector(selector: string): any {
+      if (selector.startsWith('#')) {
+        const id = selector.slice(1);
+        if (this.id === id) return this;
+        for (const child of this.children) {
+          const res = child.querySelector(selector);
+          if (res) return res;
+        }
+        return new MockDOMElement('div');
+      }
+      return new MockDOMElement('div');
+    }
+
+    querySelectorAll(_selector: string): any[] {
+      return [];
+    }
+
+    closest(selector: string): any {
+      if (selector === '.vision-window-frame') {
+        let cur: MockDOMElement | null = this;
+        while (cur) {
+          if (cur.classList.contains('vision-window-frame')) return cur;
+          cur = cur.parentElement;
+        }
+      }
+      return null;
+    }
+  }
+
+  const prevDoc = (globalThis as any).document;
+  (globalThis as any).document = {
+    createElement: (tag: string) => new MockDOMElement(tag),
+    querySelector: () => null,
+  };
+
+  const engine = new ChemistryEngine();
+  const modal = new PeriodicTableModal(engine, () => {}, () => {});
+
+  assert.strictEqual(modal.isPopoverOpen(), false, 'Initially popover must not be open');
+  assert.strictEqual(modal.element.classList.contains('popover-open'), false);
+
+  const feElem = PeriodicTableModal.ELEMENTS.find((e) => e.symbol === 'Fe')!;
+  modal.openElementPopover(feElem);
+
+  assert.strictEqual(modal.isPopoverOpen(), true, 'Popover must be marked open');
+  assert.strictEqual(modal.element.classList.contains('popover-open'), true, 'Container must have popover-open class');
+
+  modal.closeElementPopover();
+  assert.strictEqual(modal.isPopoverOpen(), false, 'Popover must be closed');
+  assert.strictEqual(modal.element.classList.contains('popover-open'), false, 'Container must remove popover-open class');
+
+  (globalThis as any).document = prevDoc;
+  console.log('✓ Test 7 passed: VisionOS secondary modal popover defocus state machine & lifecycle verified\n');
+}
+
 console.log('========================================================');
-console.log('All VisionOS Spatial Window Tests Passed (6/6)!');
+console.log('All VisionOS Spatial Window Tests Passed (7/7)!');
 console.log('========================================================\n');
 

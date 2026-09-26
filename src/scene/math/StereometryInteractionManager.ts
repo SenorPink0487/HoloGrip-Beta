@@ -340,18 +340,18 @@ export class StereometryInteractionManager {
   public getInteractionHint(): string {
     const count = this.selectedKeyPoints.length;
     if (count === 0) {
-      return '✦ 直接对3D模型交互：左键拖拽旋转 · 滚轮或[+/-]缩放 · 点击顶点直接连线或定面剖切';
+      return '点击顶点连线或定面剖切';
     } else if (count === 1) {
       const p1 = this.selectedKeyPoints[0];
-      return `✦ 已选中顶点 ${p1.label} · 点击下一个顶点即可自动连线`;
+      return `已选顶点 ${p1.label}`;
     } else if (count === 2) {
       const [p1, p2] = this.selectedKeyPoints;
-      return `✦ 已连接线段 ${p1.label}${p2.label} · 可继续点击第3个顶点生成空间剖切截面`;
+      return `线段 ${p1.label}${p2.label}`;
     } else if (count === 3) {
       const [p1, p2, p3] = this.selectedKeyPoints;
-      return `✦ 已生成剖切截面 (${p1.label}, ${p2.label}, ${p3.label}) · 可点击第4点连线分析夹角，双击空白处可重置`;
+      return `截面 (${p1.label}, ${p2.label}, ${p3.label})`;
     } else {
-      return `✦ 空间几何分析已就绪 · 双击空白处或按 ESC 清除全部标记`;
+      return '空间几何分析已就绪';
     }
   }
 

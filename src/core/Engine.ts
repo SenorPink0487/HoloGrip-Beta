@@ -114,6 +114,8 @@ export class Engine {
   private currentHoveredTarget: string | null = null;
   private isExperimentInteracting = false;
   private lastThermoTelemetrySync = 0;
+  private lastMathTelemetrySync = 0;
+  private lastEmTelemetrySync = 0;
 
   public clock = new THREE.Clock();
   private lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -1787,8 +1789,8 @@ export class Engine {
         }
       } else if (isModalOpen && this.visionModal.currentTab === 'math') {
         const nowMs = performance.now();
-        if (nowMs - this.lastThermoTelemetrySync >= 100) {
-          this.lastThermoTelemetrySync = nowMs;
+        if (nowMs - this.lastMathTelemetrySync >= 120) {
+          this.lastMathTelemetrySync = nowMs;
           const exp = this.holoStage.activeExperiment as any;
           if (this.currentExperimentId === 'math-stereometry' && typeof exp?.getStereometryTelemetry === 'function') {
             this.visionModal.stereometryCard.updateTelemetry(exp.getStereometryTelemetry());
@@ -1796,8 +1798,8 @@ export class Engine {
         }
       } else if (isModalOpen && this.visionModal.currentTab === 'em') {
         const nowMs = performance.now();
-        if (nowMs - this.lastThermoTelemetrySync >= 50) {
-          this.lastThermoTelemetrySync = nowMs;
+        if (nowMs - this.lastEmTelemetrySync >= 50) {
+          this.lastEmTelemetrySync = nowMs;
           const exp = this.holoStage.activeExperiment as any;
           if (this.currentExperimentId === 'em-hall' && typeof exp?.getTelemetryData === 'function') {
             this.visionModal.hallCard.updateTelemetry(exp.getTelemetryData());

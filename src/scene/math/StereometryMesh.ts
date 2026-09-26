@@ -404,11 +404,6 @@ export class StereometryMesh {
     innerRing.rotation.x = -Math.PI / 2;
     innerRing.position.y = 0.002;
     this.stagePresentationGroup.add(innerRing);
-
-    // 3. Upward crystal refractive accent stage light (clean neutral soft white)
-    const stageLight = new THREE.PointLight(0xffffff, 0.40, 1.2, 2.0);
-    stageLight.position.set(0, 0.04, 0);
-    this.stagePresentationGroup.add(stageLight);
   }
 
   private createSnapCursor(): void {
