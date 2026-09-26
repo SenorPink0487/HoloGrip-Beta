@@ -81,7 +81,7 @@ export interface VisionModalCallbacks {
 
 export class VisionModal {
   public element: HTMLElement;
-  public floatingLauncher: HTMLElement;
+  public floatingLauncher?: HTMLElement;
 
   private activeTab: VisionTab = 'disciplines';
   private isOpen = false;
@@ -120,7 +120,6 @@ export class VisionModal {
     this.engine = engine;
     this.callbacks = callbacks;
     this.createUI();
-    this.createFloatingLauncher(parent);
     this.bindKeyboardShortcuts();
   }
 
@@ -336,30 +335,6 @@ export class VisionModal {
     this.switchTab('disciplines');
 
     this.bindHeaderEvents();
-  }
-
-  private createFloatingLauncher(parent: HTMLElement): void {
-    this.floatingLauncher = document.createElement('div');
-    this.floatingLauncher.id = 'vision-floating-launcher';
-    this.floatingLauncher.className = 'vision-floating-launcher hidden';
-    this.floatingLauncher.innerHTML = `
-      <div class="launcher-inner">
-        <span class="launcher-glyph">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <line x1="9" y1="3" x2="9" y2="21"/>
-          </svg>
-        </span>
-        <span class="launcher-text">全息实验视窗</span>
-        <span class="launcher-kbd">V</span>
-      </div>
-    `;
-    this.floatingLauncher.addEventListener('click', () => {
-      this.open();
-    });
-    if (parent && typeof parent.appendChild === 'function') {
-      parent.appendChild(this.floatingLauncher);
-    }
   }
 
   private createMathView(): HTMLElement {
@@ -664,7 +639,6 @@ export class VisionModal {
     }
     this.isOpen = true;
     this.element.classList.remove('hidden');
-    this.floatingLauncher?.classList.add('hidden');
     this.callbacks.onOpen();
   }
 
@@ -673,7 +647,6 @@ export class VisionModal {
     this.element.querySelector('.vision-window-frame')?.classList.remove('has-modal-popover');
     this.isOpen = false;
     this.element.classList.add('hidden');
-    this.floatingLauncher?.classList.remove('hidden');
     this.thermoStatusCard?.setVisible(false);
     this.carnotStatusCard?.setVisible(false);
     this.conductionStatusCard?.setVisible(false);

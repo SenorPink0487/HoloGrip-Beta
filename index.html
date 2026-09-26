@@ -1112,12 +1112,13 @@
     }
 
     /* Apple VisionOS Frosted Crystal Element Cells (Hardware accelerated, no per-cell backdrop blur) */
+    /* Apple VisionOS Unified Monochromatic Frosted Crystal Element Cells */
     .element-cell {
       position: relative;
       border-radius: 14px;
-      background: rgba(255, 255, 255, 0.07);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-top: 1px solid rgba(255, 255, 255, 0.26);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid rgba(255, 255, 255, 0.16);
       padding: 6px 8px;
       display: flex;
       flex-direction: column;
@@ -1125,23 +1126,24 @@
       align-items: center;
       cursor: pointer;
       transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
     }
 
     .element-cell:hover {
-      transform: scale(1.08) translateY(-2px);
+      transform: scale(1.05) translateY(-2px);
       z-index: 10;
-      background: rgba(255, 255, 255, 0.16);
-      border-color: rgba(255, 255, 255, 0.35);
-      border-top-color: rgba(255, 255, 255, 0.65);
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 16px rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.22);
+      border-top-color: rgba(255, 255, 255, 0.38);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
     }
 
     .element-cell.selected {
-      border-color: var(--apple-blue) !important;
-      background: rgba(10, 132, 255, 0.28) !important;
-      box-shadow: 0 0 0 2px var(--apple-blue), 0 8px 24px rgba(10, 132, 255, 0.50) !important;
-      transform: scale(1.08) translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.40) !important;
+      border-top-color: rgba(255, 255, 255, 0.60) !important;
+      background: rgba(255, 255, 255, 0.18) !important;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), 0 8px 24px rgba(0, 0, 0, 0.30) !important;
+      transform: scale(1.03);
       z-index: 12;
     }
 
@@ -1149,60 +1151,26 @@
       align-self: flex-start;
       font-size: 10px;
       font-weight: 500;
-      color: rgba(255, 255, 255, 0.45);
+      color: rgba(255, 255, 255, 0.40);
       line-height: 1;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace;
     }
 
     .elem-sym {
       font-size: 22px;
-      font-weight: 700;
+      font-weight: 600;
       color: #ffffff;
       line-height: 1;
       letter-spacing: -0.4px;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
       margin-top: -4px;
-      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     }
 
     .elem-name {
-      font-size: 11.5px;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.90);
+      font-size: 11px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.80);
       line-height: 1;
-    }
-
-    /* Apple VisionOS Chemical Family Luminous Glass Tints (Beautiful bokeh when blurred!) */
-    .cat-alkali-metal {
-      background: linear-gradient(145deg, rgba(255, 159, 10, 0.14), rgba(255, 159, 10, 0.05));
-      border-color: rgba(255, 159, 10, 0.26);
-      border-top-color: rgba(255, 200, 100, 0.45);
-    }
-    .cat-alkaline-earth {
-      background: linear-gradient(145deg, rgba(255, 214, 10, 0.12), rgba(255, 214, 10, 0.04));
-      border-color: rgba(255, 214, 10, 0.24);
-      border-top-color: rgba(255, 235, 120, 0.42);
-    }
-    .cat-transition-metal {
-      background: linear-gradient(145deg, rgba(100, 210, 255, 0.12), rgba(100, 210, 255, 0.04));
-      border-color: rgba(100, 210, 255, 0.24);
-      border-top-color: rgba(140, 230, 255, 0.45);
-    }
-    .cat-post-transition,
-    .cat-metalloid {
-      background: linear-gradient(145deg, rgba(48, 209, 88, 0.12), rgba(48, 209, 88, 0.04));
-      border-color: rgba(48, 209, 88, 0.24);
-      border-top-color: rgba(100, 240, 140, 0.42);
-    }
-    .cat-reactive-nonmetal {
-      background: linear-gradient(145deg, rgba(52, 199, 89, 0.12), rgba(52, 199, 89, 0.04));
-      border-color: rgba(52, 199, 89, 0.26);
-      border-top-color: rgba(110, 240, 150, 0.45);
-    }
-    .cat-noble-gas {
-      background: linear-gradient(145deg, rgba(191, 90, 242, 0.14), rgba(191, 90, 242, 0.05));
-      border-color: rgba(191, 90, 242, 0.26);
-      border-top-color: rgba(220, 140, 255, 0.45);
     }
 
     /* ========================================================== */
@@ -1383,10 +1351,11 @@
     }
 
     .popover-reagent-row.row-added {
-      background: rgba(52, 199, 89, 0.20) !important;
-      border-color: rgba(52, 199, 89, 0.48) !important;
+      background: rgba(255, 255, 255, 0.14) !important;
+      border-color: rgba(255, 255, 255, 0.28) !important;
+      border-top-color: rgba(255, 255, 255, 0.45) !important;
       color: #ffffff !important;
-      box-shadow: 0 0 16px rgba(52, 199, 89, 0.25);
+      box-shadow: 0 0 16px rgba(255, 255, 255, 0.12), 0 4px 14px rgba(0, 0, 0, 0.25);
     }
 
     .reagent-row-info {
@@ -1414,21 +1383,12 @@
     .reagent-state-badge {
       font-size: 9.5px;
       font-weight: 500;
-      padding: 1px 7px;
+      padding: 1.5px 7px;
       border-radius: 980px;
       letter-spacing: -0.1px;
-    }
-
-    .reagent-state-badge.solid {
-      background: rgba(255, 159, 10, 0.16);
-      border: 1px solid rgba(255, 159, 10, 0.32);
-      color: #ffb340;
-    }
-
-    .reagent-state-badge.liquid {
-      background: rgba(10, 132, 255, 0.16);
-      border: 1px solid rgba(10, 132, 255, 0.32);
-      color: #64d2ff;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      color: rgba(255, 255, 255, 0.70);
     }
 
     .reagent-row-name {
@@ -1444,27 +1404,38 @@
       align-items: center;
       gap: 4px;
       font-size: 11px;
-      font-weight: 600;
-      color: #ffffff;
-      background: var(--apple-blue);
-      padding: 6px 14px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.88);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(255, 255, 255, 0.20);
+      padding: 6px 13px;
       border-radius: 980px;
-      border: 1px solid rgba(255, 255, 255, 0.35);
       flex-shrink: 0;
-      box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
       transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .popover-reagent-row:hover .reagent-row-action {
-      background: #0071e3;
-      box-shadow: 0 4px 12px rgba(10, 132, 255, 0.45);
-      transform: scale(1.03);
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.24);
+      border-top-color: rgba(255, 255, 255, 0.36);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      transform: translateY(-0.5px);
+    }
+
+    .popover-reagent-row:active .reagent-row-action {
+      background: rgba(255, 255, 255, 0.22);
+      transform: scale(0.96);
     }
 
     .popover-reagent-row.row-added .reagent-row-action {
-      background: #34c759 !important;
-      border-color: rgba(255, 255, 255, 0.6) !important;
-      box-shadow: 0 2px 10px rgba(52, 199, 89, 0.4) !important;
+      background: rgba(255, 255, 255, 0.24) !important;
+      border-color: rgba(255, 255, 255, 0.40) !important;
+      border-top-color: rgba(255, 255, 255, 0.55) !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.16) !important;
     }
 
     .popover-element-meta {
@@ -1769,68 +1740,6 @@
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
       box-sizing: border-box;
-    }
-
-    /* Floating Launcher Button - Apple Vision Pro Capsule */
-    #vision-floating-launcher {
-      display: block;
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1800;
-      cursor: pointer;
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    #vision-floating-launcher.hidden {
-      opacity: 0;
-      transform: translateX(-50%) translateY(20px);
-      pointer-events: none;
-    }
-
-    .launcher-inner {
-      background: rgba(24, 24, 28, 0.72);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-top: 1px solid rgba(255, 255, 255, 0.28);
-      backdrop-filter: blur(28px) saturate(190%);
-      -webkit-backdrop-filter: blur(28px) saturate(190%);
-      border-radius: 980px;
-      padding: 7px 16px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-      transition: all 0.2s ease;
-    }
-
-    #vision-floating-launcher:hover .launcher-inner {
-      background: rgba(32, 32, 38, 0.85);
-      border-color: rgba(255, 255, 255, 0.25);
-      transform: scale(1.03);
-    }
-
-    .launcher-glyph {
-      font-size: 14px;
-      color: #ffffff;
-    }
-
-    .launcher-text {
-      font-size: 12px;
-      font-weight: 500;
-      color: #ffffff;
-      letter-spacing: -0.1px;
-    }
-
-    .launcher-kbd {
-      font-size: 10px;
-      font-family: -apple-system, BlinkMacSystemFont, monospace;
-      font-weight: 600;
-      color: rgba(255, 255, 255, 0.8);
-      background: rgba(255, 255, 255, 0.12);
-      padding: 1px 5px;
-      border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
     }
 
     /* ========================================================== */
@@ -2353,8 +2262,8 @@
 
     .periodic-tab-btn.active .tab-indicator-dot,
     .beaker-tab-btn.active .tab-indicator-dot {
-      background: #34c759;
-      box-shadow: 0 0 6px #34c759;
+      background: #ffffff;
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
     }
 
     /* ========================================================== */
@@ -2412,39 +2321,43 @@
     .periodic-mode-badge {
       display: inline-flex;
       align-items: center;
-      background: rgba(10, 132, 255, 0.22);
-      border: 1px solid rgba(10, 132, 255, 0.45);
-      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-top: 1px solid rgba(255, 255, 255, 0.22);
+      color: rgba(255, 255, 255, 0.90);
       padding: 6px 16px;
       border-radius: 980px;
       font-size: 12px;
       font-weight: 600;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.20);
       letter-spacing: 0.2px;
     }
 
     /* Trailing Action - Apple Glass Capsule */
     .periodic-analysis-action-btn {
-      background: rgba(10, 132, 255, 0.16);
-      border: 1px solid rgba(10, 132, 255, 0.35);
-      color: #ffffff;
-      padding: 6px 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(255, 255, 255, 0.20);
+      color: rgba(255, 255, 255, 0.88);
+      padding: 6px 15px;
       border-radius: 980px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      box-shadow: 0 4px 14px rgba(10, 132, 255, 0.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
     }
 
     .periodic-analysis-action-btn:hover {
-      background: rgba(10, 132, 255, 0.28);
-      border-color: rgba(10, 132, 255, 0.55);
-      transform: scale(1.02);
-      box-shadow: 0 0 16px rgba(10, 132, 255, 0.3);
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.22);
+      border-top-color: rgba(255, 255, 255, 0.35);
+      color: #ffffff;
+      transform: translateY(-0.5px);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
     }
 
     .periodic-analysis-action-btn .action-arrow {
@@ -3275,7 +3188,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS Hall Effect Studio - Apple HIG Minimalist Design  */
+    /* VisionOS Hall Effect Studio - Pure Apple Minimalist Design */
     /* ========================================================== */
     .vision-hall-status-card {
       width: 100%;
@@ -3285,320 +3198,573 @@
       box-sizing: border-box;
       overflow: hidden;
       color: #ffffff;
-      padding: 8px 12px 6px 12px;
+      padding: 10px 16px 8px 16px;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
     }
 
-    .hall-apple-container {
+    .hall-pure-container {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      justify-content: space-between;
       height: 100%;
-      min-height: 0;
+      max-width: 740px;
+      margin: 0 auto;
+      width: 100%;
       box-sizing: border-box;
-    }
-
-    /* 1. Apple Clean Top Navigation Bar */
-    .hall-apple-nav {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
       gap: 16px;
-      padding-bottom: 6px;
-      flex-shrink: 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .hall-nav-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .hall-apple-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 9px;
-      background: rgba(41, 151, 255, 0.12);
-      border: 1px solid rgba(41, 151, 255, 0.25);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #2997ff;
-      flex-shrink: 0;
-    }
-
-    .hall-nav-titles {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-    }
-
-    .hall-apple-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #ffffff;
-      letter-spacing: -0.2px;
-    }
-
-    .hall-apple-subtitle {
-      font-size: 11.5px;
-      color: rgba(255, 255, 255, 0.50);
-      font-weight: 400;
-    }
-
-    /* 2. Apple Vision Studio Grid (56% / 44%) */
-    .hall-apple-grid {
-      display: grid;
-      grid-template-columns: 1.22fr 0.78fr;
-      gap: 14px;
-      flex: 1;
-      min-height: 0;
-    }
-
-    /* Left: Interactive Canvas Card */
-    .hall-apple-canvas-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-top: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 18px;
-      padding: 12px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-height: 0;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
-    }
-
-    .hall-canvas-top-row {
+    /* 1. Apple Header */
+    .hall-pure-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
       flex-shrink: 0;
     }
 
-    .hall-canvas-legend {
+    .hall-header-brand {
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.60);
-    }
-
-    .hall-legend-pill {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .hall-canvas-viewport {
-      flex: 1;
-      min-height: 0;
-      position: relative;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 12px;
-      overflow: hidden;
-    }
-
-    .hall-canvas-viewport canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100% !important;
-      height: 100% !important;
-    }
-
-    /* Right: Telemetry & Parameter Column */
-    .hall-apple-ctrl-col {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-height: 0;
-      overflow-y: auto;
-    }
-
-    /* Hero Readout Block */
-    .hall-apple-hero {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-top: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 18px;
-      padding: 14px 18px;
-      display: flex;
-      flex-direction: column;
       gap: 8px;
     }
 
-    .hall-hero-label-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .hall-brand-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f5f5f7;
+      letter-spacing: -0.2px;
     }
 
-    .hall-hero-label {
-      font-size: 11.5px;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.55);
-      letter-spacing: -0.1px;
-    }
-
-    .hall-apple-tag {
+    .hall-clean-badge {
       font-size: 11px;
-      font-weight: 500;
+      font-weight: 600;
+      font-family: "SF Pro Text", -apple-system, sans-serif;
       padding: 2px 8px;
       border-radius: 980px;
-      background: rgba(255, 255, 255, 0.08);
+      background: rgba(10, 132, 255, 0.12);
+      border: 1px solid rgba(10, 132, 255, 0.28);
+      color: #64d2ff;
+    }
+
+    .hall-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .apple-circle-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.85);
-    }
-
-    .hall-hero-num-row {
+      color: rgba(255, 255, 255, 0.8);
       display: flex;
-      align-items: baseline;
-      gap: 6px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .hall-hero-num {
-      font-size: 38px;
-      font-weight: 700;
+    .apple-circle-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
       color: #ffffff;
-      letter-spacing: -1.2px;
-      line-height: 1;
+      transform: scale(1.06);
     }
 
-    .hall-hero-unit {
-      font-size: 15px;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.45);
+    .apple-circle-btn:active {
+      transform: scale(0.96);
     }
 
-    .hall-hero-sub-stats {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding-top: 6px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.50);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Mono", monospace;
-    }
-
-    /* Dual Parameter Sliders */
-    .hall-apple-card-block {
+    /* 2. Pure Formula Stage (Hero Centerpiece) */
+    .hall-pure-stage {
+      position: relative;
       background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-top: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 16px;
-      padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 24px;
+      padding: 30px 44px;
       display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .hall-param-row {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-
-    .hall-param-head {
-      display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: center;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+      flex-shrink: 0;
     }
 
-    .hall-param-title {
-      font-size: 11.5px;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.65);
+    /* Apple Precision Scrubber HUD */
+    .hall-drag-hud {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: none;
+      z-index: 100;
+      filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.6));
+      transition: opacity 0.12s ease;
+      animation: hudSpring 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
-    .hall-param-val {
-      font-size: 13px;
+    .hall-drag-hud.hud-below {
+      transform: translate(-50%, 0);
+      animation: hudSpringBelow 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes hudSpring {
+      from { opacity: 0; transform: translate(-50%, -85%) scale(0.92); }
+      to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+    }
+
+    @keyframes hudSpringBelow {
+      from { opacity: 0; transform: translate(-50%, 15%) scale(0.92); }
+      to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    }
+
+    .hall-hud-bubble {
+      position: relative;
+      background: rgba(18, 22, 34, 0.94);
+      backdrop-filter: blur(28px) saturate(200%);
+      -webkit-backdrop-filter: blur(28px) saturate(200%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-top: 1px solid rgba(100, 210, 255, 0.6);
+      border-radius: 980px;
+      padding: 6px 14px 7px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-width: 100px;
+      box-shadow: 0 0 20px rgba(10, 132, 255, 0.25);
+    }
+
+    .hall-hud-val {
+      font-size: 15px;
       font-weight: 600;
       color: #ffffff;
       font-family: -apple-system, BlinkMacSystemFont, "SF Mono", monospace;
+      letter-spacing: -0.3px;
+    }
+
+    .hall-hud-gauge {
+      width: 100%;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .hall-hud-fill {
+      height: 100%;
+      background: #0a84ff;
+      border-radius: 1px;
+      box-shadow: 0 0 6px #0a84ff;
+      transition: width 0.04s linear;
+    }
+
+    .hall-hud-beak {
+      position: absolute;
+      bottom: -4px;
+      left: 50%;
+      transform: translateX(-50%) rotate(45deg);
+      width: 8px;
+      height: 8px;
+      background: rgba(18, 22, 34, 0.94);
+      border-right: 1px solid rgba(255, 255, 255, 0.15);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .hall-drag-hud.hud-below .hall-hud-beak {
+      bottom: auto;
+      top: -4px;
+      border-right: none;
+      border-bottom: none;
+      border-left: 1px solid rgba(255, 255, 255, 0.15);
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    /* Mathematical Typography & Tokens */
+    .hall-formula-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+    }
+
+    .hall-token-btn {
+      position: relative;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 16px;
+      padding: 10px 18px;
+      min-width: 68px;
+      min-height: 56px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      touch-action: none;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hall-token-btn[data-param="b"],
+    .hall-token-btn[data-param="i"],
+    .hall-token-btn[data-param="d"] {
+      cursor: ew-resize;
+    }
+
+    .hall-token-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.22);
+      transform: translateY(-1px);
+    }
+
+    .hall-token-btn.active {
+      background: rgba(10, 132, 255, 0.14);
+      border-color: #0a84ff;
+      box-shadow: 0 0 20px rgba(10, 132, 255, 0.3);
+    }
+
+    .hall-token-btn.dragging {
+      background: rgba(10, 132, 255, 0.22) !important;
+      border-color: #0a84ff !important;
+      box-shadow: 0 0 28px rgba(10, 132, 255, 0.5) !important;
+      transform: scale(1.05) !important;
+    }
+
+    .hall-token-btn.response-active {
+      background: rgba(255, 159, 10, 0.16) !important;
+      border-color: rgba(255, 159, 10, 0.8) !important;
+      box-shadow: 0 0 22px rgba(255, 159, 10, 0.4) !important;
+      transform: scale(1.03);
+    }
+
+    .hall-token-math {
+      font-size: 27px;
+      font-weight: 500;
+      color: #ffffff;
+      font-family: "SF Pro Display", -apple-system, "Times New Roman", serif;
+      font-style: italic;
+      letter-spacing: 0.5px;
+      line-height: 1;
+      transition: color 0.2s ease;
+    }
+
+    .hall-token-btn.active .hall-token-math,
+    .hall-token-btn.dragging .hall-token-math {
+      color: #64d2ff;
+    }
+
+    .hall-token-btn.response-active .hall-token-math {
+      color: #ff9f0a;
+    }
+
+    .hall-token-math sub {
+      font-size: 14px;
+      font-style: normal;
+      margin-left: 1px;
+    }
+
+    /* Dynamic Value Badge on Tokens (Hidden when idle -> pure clean; revealed on active/drag) */
+    .hall-token-dynamic-val {
+      display: none;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Mono", monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64d2ff;
+      margin-top: 3px;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+    }
+
+    .hall-token-btn.active .hall-token-dynamic-val,
+    .hall-token-btn.dragging .hall-token-dynamic-val {
+      display: block;
+      animation: popIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hall-token-btn.response-active .hall-token-dynamic-val {
+      display: block;
+      color: #ff9f0a;
+      animation: popIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.85); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .hall-math-equal {
+      font-size: 30px;
+      font-weight: 300;
+      color: rgba(255, 255, 255, 0.30);
+      user-select: none;
+    }
+
+    .hall-math-fraction {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .hall-math-num-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hall-math-dot {
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.30);
+      user-select: none;
+    }
+
+    .hall-math-bar {
+      width: 100%;
+      height: 1.5px;
+      border-radius: 1px;
+      background: rgba(255, 255, 255, 0.20);
+      margin: 6px 0;
+    }
+
+    .hall-math-den-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 3. Apple Control Deck (Carrier Type Switch + Parameter Scrubber) */
+    .hall-focus-drawer {
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 980px;
+      padding: 6px 16px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .hall-carrier-deck {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .hall-apple-seg-control {
+      display: flex;
+      background: rgba(0, 0, 0, 0.32);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 980px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .hall-seg-btn {
+      padding: 5px 13px;
+      border-radius: 980px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.60);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hall-seg-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .hall-seg-btn.active[data-material="n-gaas"] {
+      background: rgba(10, 132, 255, 0.25);
+      color: #64d2ff;
+      box-shadow: 0 2px 8px rgba(10, 132, 255, 0.3);
+      font-weight: 600;
+    }
+
+    .hall-seg-btn.active[data-material="p-silicon"] {
+      background: rgba(255, 159, 10, 0.25);
+      color: #ff9f0a;
+      box-shadow: 0 2px 8px rgba(255, 159, 10, 0.3);
+      font-weight: 600;
+    }
+
+    .hall-seg-btn.active[data-material="copper"] {
+      background: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      font-weight: 600;
+    }
+
+    .hall-deck-divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(255, 255, 255, 0.12);
+      flex-shrink: 0;
+    }
+
+    .hall-param-deck {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .hall-focus-pane {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .hall-param-tag {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.75);
+      white-space: nowrap;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    }
+
+    .hall-slider-track-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      min-width: 0;
     }
 
     .hall-apple-slider {
       -webkit-appearance: none;
+      appearance: none;
       width: 100%;
       height: 4px;
       border-radius: 2px;
-      background: rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.15);
       outline: none;
       cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .hall-apple-slider:hover {
+      background: rgba(255, 255, 255, 0.22);
     }
 
     .hall-apple-slider::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
+      appearance: none;
+      width: 16px;
+      height: 16px;
       border-radius: 50%;
       background: #ffffff;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.1);
       cursor: pointer;
-      transition: transform 0.15s ease;
+      transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s;
     }
 
     .hall-apple-slider::-webkit-slider-thumb:hover {
       transform: scale(1.15);
+      box-shadow: 0 2px 10px rgba(10, 132, 255, 0.5), 0 0 0 2px #0a84ff;
     }
 
-    /* Specimen Materials Deck */
-    .hall-specimen-deck {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+    .hall-apple-slider::-webkit-slider-thumb:active {
+      transform: scale(1.25);
     }
 
-    .hall-specimen-item {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 12px;
-      padding: 8px 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    .hall-apple-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: none;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .hall-specimen-item:hover {
-      background: rgba(255, 255, 255, 0.07);
-      border-color: rgba(255, 255, 255, 0.15);
-    }
-
-    .hall-specimen-item.active {
-      background: rgba(41, 151, 255, 0.15);
-      border-color: rgba(41, 151, 255, 0.40);
-    }
-
-    .hall-specimen-meta {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-    }
-
-    .hall-specimen-name {
-      font-size: 12.5px;
-      font-weight: 500;
+    .hall-focus-val {
+      font-size: 13.5px;
+      font-weight: 600;
       color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Mono", monospace;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+      min-width: 62px;
+      text-align: right;
     }
 
-    .hall-specimen-desc {
-      font-size: 10.5px;
-      color: rgba(255, 255, 255, 0.45);
+    .hall-glow-accent {
+      color: #0a84ff;
+      text-shadow: 0 0 10px rgba(10, 132, 255, 0.4);
     }
 
-    /* 3. Bottom Minimalist Toolbar */
-    .hall-apple-toolbar {
+    .hall-metric-pill {
+      font-size: 11px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Mono", monospace;
+      color: rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 3px 8px;
+      border-radius: 980px;
+      white-space: nowrap;
+    }
+
+    /* 4. Apple Floating Glass Dock */
+    .hall-pure-toolbar {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding-top: 4px;
+      justify-content: center;
+      padding-top: 2px;
       flex-shrink: 0;
+    }
+
+    .hall-dock-capsule {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 980px;
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+
+    .hall-dock-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hall-dock-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      transform: scale(1.05);
+    }
+
+    .hall-dock-btn.active {
+      background: rgba(10, 132, 255, 0.22);
+      color: #0a84ff;
+    }
+
+    .hall-dock-divider {
+      width: 1px;
+      height: 14px;
+      background: rgba(255, 255, 255, 0.12);
+      margin: 0 2px;
     }
   </style>
 </head>
