@@ -1636,11 +1636,11 @@ export class StereometryMesh {
           this.snapHoverBeadMat.emissive.setHex(hex);
         }
 
-        // Update floating 3D holographic badge
+        // Update snap label state without displaying ugly 3D floating bubble
         const badgeText = this.formatKeyPointSnapLabel(kp, snapLabel);
         this.updateSnapBadge(badgeText, hex);
         if (this.snapBadgeSprite) {
-          this.snapBadgeSprite.visible = true;
+          this.snapBadgeSprite.visible = false;
         }
         return;
       }
@@ -1976,6 +1976,7 @@ export class StereometryMesh {
     }
 
     this.previewBadgeSprite.position.copy(mid).add(new THREE.Vector3(0, 0.015, 0));
+    this.previewBadgeSprite.visible = false;
     this.previewSegmentGroup.visible = true;
   }
 

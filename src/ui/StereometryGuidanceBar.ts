@@ -1,39 +1,47 @@
 export type GuidanceType = 'info' | 'active' | 'success' | 'warn';
 
 export class StereometryGuidanceBar {
-  private element: HTMLElement;
-  private dotEl: HTMLElement;
-  private textEl: HTMLElement;
+  private element: HTMLElement | null = null;
+  private dotEl: HTMLElement | null = null;
+  private textEl: HTMLElement | null = null;
   private isVisible = true;
   private resetTimeout: any = null;
 
   private static readonly DEFAULT_HINT = '悬停吸附端点 / 中点 (1/2) / 三等分点 (1/3) 接线 · 空白处拖拽旋转视角';
 
-  constructor(parent: HTMLElement = document.body) {
+  constructor(parent: HTMLElement = (typeof document !== 'undefined' ? document.body : (null as any))) {
     this.createElements(parent);
     this.injectStyles();
   }
 
   private createElements(parent: HTMLElement): void {
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') return;
+
     this.element = document.createElement('div');
     this.element.id = 'stereometry-guidance-bar';
     this.element.className = 'stereometry-guidance-bar';
-    this.element.setAttribute('role', 'status');
-    this.element.setAttribute('aria-live', 'polite');
+    if (typeof this.element.setAttribute === 'function') {
+      this.element.setAttribute('role', 'status');
+      this.element.setAttribute('aria-live', 'polite');
+    }
 
     this.element.innerHTML = `
       <span class="guidance-dot" id="guidance-dot"></span>
       <span class="guidance-text" id="guidance-text">${StereometryGuidanceBar.DEFAULT_HINT}</span>
     `;
 
-    this.dotEl = this.element.querySelector('.guidance-dot') as HTMLElement;
-    this.textEl = this.element.querySelector('.guidance-text') as HTMLElement;
+    this.dotEl = (typeof this.element.querySelector === 'function' ? this.element.querySelector('.guidance-dot') : null) as HTMLElement;
+    this.textEl = (typeof this.element.querySelector === 'function' ? this.element.querySelector('.guidance-text') : null) as HTMLElement;
 
-    parent.appendChild(this.element);
+    if (parent && typeof parent.appendChild === 'function') {
+      parent.appendChild(this.element);
+    }
   }
 
   private injectStyles(): void {
+    if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
     if (document.getElementById('stereometry-guidance-styles')) return;
+    if (!document.head || typeof document.head.appendChild !== 'function') return;
 
     const style = document.createElement('style');
     style.id = 'stereometry-guidance-styles';
@@ -125,7 +133,7 @@ export class StereometryGuidanceBar {
   }
 
   public setHint(hint: string, type: GuidanceType = 'info', colorHex?: number): void {
-    if (!this.textEl || !this.dotEl) return;
+    if (!this.textEl || !this.dotEl || !this.element) return;
 
     if (this.resetTimeout) {
       clearTimeout(this.resetTimeout);
@@ -135,8 +143,10 @@ export class StereometryGuidanceBar {
     const cleanHint = hint.replace(/^[✦🎯🔗✓✕↩]\s*/, '').trim();
     this.textEl.textContent = cleanHint || StereometryGuidanceBar.DEFAULT_HINT;
 
-    this.element.classList.remove('type-info', 'type-active', 'type-success', 'type-warn');
-    this.element.classList.add(`type-${type}`);
+    if (this.element.classList) {
+      this.element.classList.remove('type-info', 'type-active', 'type-success', 'type-warn');
+      this.element.classList.add(`type-${type}`);
+    }
 
     if (colorHex !== undefined) {
       const hexStr = `#${colorHex.toString(16).padStart(6, '0')}`;
@@ -147,25 +157,25 @@ export class StereometryGuidanceBar {
         case 'active':
           this.dotEl.style.backgroundColor = '#34d399';
           this.dotEl.style.boxShadow = '0 0 10px rgba(52, 211, 153, 0.8)';
-          this.dotEl.classList.add('pulse');
+          this.dotEl.classList?.add('pulse');
           break;
         case 'success':
           this.dotEl.style.backgroundColor = '#10b981';
           this.dotEl.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.8)';
-          this.dotEl.classList.remove('pulse');
+          this.dotEl.classList?.remove('pulse');
           this.scheduleResetToDefault(2800);
           break;
         case 'warn':
           this.dotEl.style.backgroundColor = '#f59e0b';
           this.dotEl.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.8)';
-          this.dotEl.classList.remove('pulse');
+          this.dotEl.classList?.remove('pulse');
           this.scheduleResetToDefault(2400);
           break;
         case 'info':
         default:
           this.dotEl.style.backgroundColor = '#38bdf8';
           this.dotEl.style.boxShadow = '0 0 10px rgba(56, 189, 248, 0.75)';
-          this.dotEl.classList.remove('pulse');
+          this.dotEl.classList?.remove('pulse');
           break;
       }
     }
@@ -194,7 +204,7 @@ export class StereometryGuidanceBar {
     if (this.isVisible === visible) return;
     this.isVisible = visible;
 
-    if (!this.element) return;
+    if (!this.element || !this.element.classList) return;
     if (visible) {
       this.element.classList.remove('hidden');
     } else {
@@ -214,9 +224,11 @@ export class StereometryGuidanceBar {
     if (this.element && this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);
     }
-    const style = document.getElementById('stereometry-guidance-styles');
-    if (style && style.parentNode) {
-      style.parentNode.removeChild(style);
+    if (typeof document !== 'undefined' && typeof document.getElementById === 'function') {
+      const style = document.getElementById('stereometry-guidance-styles');
+      if (style && style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
     }
   }
 }
