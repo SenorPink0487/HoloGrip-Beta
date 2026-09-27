@@ -31,29 +31,12 @@ export class StereometryStatusCard {
   private isVisible = false;
 
   // Cached DOM Elements
-  private modelTitleEl: HTMLElement | null = null;
-  private modelSubtitleEl: HTMLElement | null = null;
-  private eulerEl: HTMLElement | null = null;
-  private cutShapeEl: HTMLElement | null = null;
-  private cutAreaEl: HTMLElement | null = null;
-  private cutDihedralEl: HTMLElement | null = null;
-  private sphereRadiusEl: HTMLElement | null = null;
-  private sphereDiameterEl: HTMLElement | null = null;
-  private inRadiusEl: HTMLElement | null = null;
-  private linesRelEl: HTMLElement | null = null;
-  private linesAngleEl: HTMLElement | null = null;
-  private linesDistEl: HTMLElement | null = null;
-  private modelScaleEl: HTMLElement | null = null;
-  private liveHintEl: HTMLElement | null = null;
-  private coordsContainer: HTMLElement | null = null;
   private scanBarEl: HTMLElement | null = null;
   private scanStatusEl: HTMLElement | null = null;
   private uploadBtn: HTMLButtonElement | null = null;
   private cameraBtn: HTMLButtonElement | null = null;
+  private dropzoneEl: HTMLElement | null = null;
   private recognizing = false;
-
-  // Cache to avoid DOM layout thrashing
-  private lastCoordsSignature = '';
 
   constructor(callbacks: StereometryStatusCardCallbacks = {}) {
     this.callbacks = callbacks;
@@ -66,226 +49,99 @@ export class StereometryStatusCard {
 
     this.element.innerHTML = `
       <div class="math-card-container apple-style">
-        <!-- 1. Apple-Style Window Header -->
-        <div class="math-card-header">
-          <div class="math-header-left">
-            <span class="math-live-dot"></span>
-            <div class="math-title-group">
-              <span class="math-card-title" id="math-model-title">正方体</span>
-              <span class="math-card-subtitle" id="math-model-subtitle">棱长 a</span>
-            </div>
-          </div>
-          <div class="math-header-right">
-            <span class="math-euler-badge" id="math-euler-badge">V: 8 · E: 12 · F: 6</span>
-            <button class="apple-glass-action-btn" id="btn-math-reset-all" title="重置视角 (R)">
-              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
-              </svg>
-              <span>重置视角</span>
-            </button>
-          </div>
+        <!-- 1. Hero Action Buttons: Upload & Camera -->
+        <div class="math-hero-actions" id="math-scan-bar">
+          <button type="button" class="apple-hero-btn" id="btn-math-upload" title="上传立体几何题目图片">
+            <svg class="apple-hero-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span class="apple-btn-label">上传题目</span>
+          </button>
+          <button type="button" class="apple-hero-btn" id="btn-math-camera" title="调用摄像头拍摄题目">
+            <svg class="apple-hero-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span class="apple-btn-label">拍摄</span>
+          </button>
+
+          <input id="math-scan-file" type="file" accept="image/*" style="display:none;" />
+          <input id="math-scan-camera" type="file" accept="image/*" capture="environment" style="display:none;" />
         </div>
 
-        <div class="math-scan-bar" id="math-scan-bar">
-          <div class="math-scan-actions">
-            <button type="button" class="apple-glass-action-btn" id="btn-math-upload">上传题目</button>
-            <button type="button" class="apple-glass-action-btn" id="btn-math-camera">拍摄</button>
-          </div>
-          <span class="math-scan-status" id="math-scan-status">上传或拍摄一张斜二测题，几秒内生成可交互模型</span>
-          <input id="math-scan-file" type="file" accept="image/*" hidden />
-          <input id="math-scan-camera" type="file" accept="image/*" capture="environment" hidden />
-        </div>
+        <!-- 2. 4 Built-in Models Grid (Clean, No Subtitles) -->
+        <div class="math-deck-container">
+          <div class="math-branches-deck">
+            <!-- Cube -->
+            <div class="math-branch-tile math-model-card active" data-model="cube" role="button" tabindex="0" title="正方体">
+              <div class="math-tile-icon-box">
+                <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor">
+                  <path d="M22 6 L38 15 L22 24 L6 15 Z" fill="currentColor" fill-opacity="0.14" stroke-width="1.8" stroke-linejoin="round"/>
+                  <path d="M6 15 L22 24 L22 39 L6 30 Z" fill="currentColor" fill-opacity="0.08" stroke-width="1.8" stroke-linejoin="round"/>
+                  <path d="M38 15 L22 24 L22 39 L38 30 Z" fill="currentColor" fill-opacity="0.2" stroke-width="1.8" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <h3 class="math-tile-name">正方体</h3>
+            </div>
 
-        <!-- 2. Model Quick Selector (6 Clean Vector Diagrams) -->
-        <div class="math-models-grid">
-          <!-- Cube -->
-          <button class="math-model-card active" data-model="cube" title="正方体">
-            <div class="model-svg-wrap">
-              <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
-                <path d="M22 6 L38 15 L22 24 L6 15 Z" fill="currentColor" fill-opacity="0.14" stroke-width="1.8" stroke-linejoin="round"/>
-                <path d="M6 15 L22 24 L22 39 L6 30 Z" fill="currentColor" fill-opacity="0.08" stroke-width="1.8" stroke-linejoin="round"/>
-                <path d="M38 15 L22 24 L22 39 L38 30 Z" fill="currentColor" fill-opacity="0.2" stroke-width="1.8" stroke-linejoin="round"/>
-              </svg>
+            <!-- Regular Tetrahedron -->
+            <div class="math-branch-tile math-model-card" data-model="tetrahedron" role="button" tabindex="0" title="正四面体">
+              <div class="math-tile-icon-box">
+                <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor">
+                  <polygon points="22,6 38,36 6,36" fill="currentColor" fill-opacity="0.12" stroke-width="1.8" stroke-linejoin="round"/>
+                  <line x1="22" y1="6" x2="22" y2="36" stroke-width="1.8" stroke-linecap="round"/>
+                  <line x1="22" y1="6" x2="25" y2="26" stroke-width="1.4" stroke-dasharray="3 2"/>
+                  <line x1="6" y1="36" x2="25" y2="26" stroke-width="1.4" stroke-dasharray="3 2"/>
+                  <line x1="38" y1="36" x2="25" y2="26" stroke-width="1.4" stroke-dasharray="3 2"/>
+                </svg>
+              </div>
+              <h3 class="math-tile-name">正四面体</h3>
             </div>
-            <span class="model-title">正方体</span>
-          </button>
 
-          <!-- Corner Pyramid -->
-          <button class="math-model-card" data-model="corner-pyramid" title="三棱锥">
-            <div class="model-svg-wrap">
-              <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
-                <polygon points="10,34 34,34 22,10" fill="currentColor" fill-opacity="0.12" stroke-width="1.8" stroke-linejoin="round"/>
-                <line x1="10" y1="34" x2="10" y2="10" stroke-width="2.2" stroke-linecap="round"/>
-                <line x1="10" y1="34" x2="34" y2="34" stroke-width="2.2" stroke-linecap="round"/>
-                <line x1="10" y1="34" x2="22" y2="24" stroke-width="2.2" stroke-linecap="round"/>
-                <line x1="10" y1="10" x2="34" y2="34" stroke-width="1.4" stroke-dasharray="3 2"/>
-                <line x1="10" y1="10" x2="22" y2="24" stroke-width="1.6"/>
-                <line x1="22" y1="24" x2="34" y2="34" stroke-width="1.6"/>
-              </svg>
+            <!-- Square Pyramid -->
+            <div class="math-branch-tile math-model-card" data-model="square-pyramid" role="button" tabindex="0" title="四棱锥">
+              <div class="math-tile-icon-box">
+                <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor">
+                  <path d="M22 6 L6 30 L26 38 L38 26 Z" fill="currentColor" fill-opacity="0.12" stroke-width="1.8" stroke-linejoin="round"/>
+                  <line x1="22" y1="6" x2="6" y2="30" stroke-width="1.8"/>
+                  <line x1="22" y1="6" x2="26" y2="38" stroke-width="1.8"/>
+                  <line x1="22" y1="6" x2="38" y2="26" stroke-width="1.8"/>
+                  <line x1="6" y1="30" x2="26" y2="38" stroke-width="1.8"/>
+                  <line x1="26" y1="38" x2="38" y2="26" stroke-width="1.8"/>
+                  <line x1="6" y1="30" x2="18" y2="18" stroke-width="1.4" stroke-dasharray="3 2"/>
+                  <line x1="38" y1="26" x2="18" y2="18" stroke-width="1.4" stroke-dasharray="3 2"/>
+                  <line x1="22" y1="6" x2="18" y2="18" stroke-width="1.4" stroke-dasharray="3 2"/>
+                </svg>
+              </div>
+              <h3 class="math-tile-name">四棱锥</h3>
             </div>
-            <span class="model-title">三棱锥</span>
-          </button>
 
-          <!-- Regular Tetrahedron -->
-          <button class="math-model-card" data-model="tetrahedron" title="正四面体">
-            <div class="model-svg-wrap">
-              <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
-                <polygon points="22,6 38,36 6,36" fill="currentColor" fill-opacity="0.12" stroke-width="1.8" stroke-linejoin="round"/>
-                <line x1="22" y1="6" x2="22" y2="36" stroke-width="1.8" stroke-linecap="round"/>
-                <line x1="22" y1="6" x2="25" y2="26" stroke-width="1.4" stroke-dasharray="3 2"/>
-                <line x1="6" y1="36" x2="25" y2="26" stroke-width="1.4" stroke-dasharray="3 2"/>
-                <line x1="38" y1="36" x2="25" y2="26" stroke-width="1.4" stroke-dasharray="3 2"/>
-              </svg>
-            </div>
-            <span class="model-title">正四面体</span>
-          </button>
-
-          <!-- Square Pyramid -->
-          <button class="math-model-card" data-model="square-pyramid" title="四棱锥">
-            <div class="model-svg-wrap">
-              <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
-                <path d="M22 6 L6 30 L26 38 L38 26 Z" fill="currentColor" fill-opacity="0.12" stroke-width="1.8" stroke-linejoin="round"/>
-                <line x1="22" y1="6" x2="6" y2="30" stroke-width="1.8"/>
-                <line x1="22" y1="6" x2="26" y2="38" stroke-width="1.8"/>
-                <line x1="22" y1="6" x2="38" y2="26" stroke-width="1.8"/>
-                <line x1="6" y1="30" x2="26" y2="38" stroke-width="1.8"/>
-                <line x1="26" y1="38" x2="38" y2="26" stroke-width="1.8"/>
-                <line x1="6" y1="30" x2="18" y2="18" stroke-width="1.4" stroke-dasharray="3 2"/>
-                <line x1="38" y1="26" x2="18" y2="18" stroke-width="1.4" stroke-dasharray="3 2"/>
-                <line x1="22" y1="6" x2="18" y2="18" stroke-width="1.4" stroke-dasharray="3 2"/>
-              </svg>
-            </div>
-            <span class="model-title">四棱锥</span>
-          </button>
-
-          <!-- Triangular Prism -->
-          <button class="math-model-card" data-model="triangular-prism" title="三棱柱">
-            <div class="model-svg-wrap">
-              <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
-                <polygon points="10,8 34,8 22,16" fill="currentColor" fill-opacity="0.16" stroke-width="1.8" stroke-linejoin="round"/>
-                <polygon points="10,26 34,26 22,34" fill="currentColor" fill-opacity="0.08" stroke-width="1.8" stroke-linejoin="round"/>
-                <line x1="10" y1="8" x2="10" y2="26" stroke-width="1.8"/>
-                <line x1="34" y1="8" x2="34" y2="26" stroke-width="1.8"/>
-                <line x1="22" y1="16" x2="22" y2="34" stroke-width="1.8"/>
-              </svg>
-            </div>
-            <span class="model-title">三棱柱</span>
-          </button>
-
-          <!-- Cylinder & Cone -->
-          <button class="math-model-card" data-model="cylinder-cone" title="圆柱圆锥">
-            <div class="model-svg-wrap">
-              <svg class="model-diagram-svg" viewBox="0 0 44 44" fill="none" stroke="currentColor">
-                <ellipse cx="22" cy="32" rx="14" ry="5.5" fill="currentColor" fill-opacity="0.12" stroke-width="1.8"/>
-                <line x1="8" y1="32" x2="22" y2="8" stroke-width="1.8"/>
-                <line x1="36" y1="32" x2="22" y2="8" stroke-width="1.8"/>
-                <line x1="8" y1="32" x2="8" y2="20" stroke-width="1.4" stroke-dasharray="3 2"/>
-                <line x1="36" y1="32" x2="36" y2="20" stroke-width="1.4" stroke-dasharray="3 2"/>
-                <ellipse cx="22" cy="20" rx="14" ry="5" stroke-width="1.4" stroke-dasharray="3 2"/>
-              </svg>
-            </div>
-            <span class="model-title">圆柱圆锥</span>
-          </button>
-        </div>
-
-        <!-- 3. Real-Time Spatial Geometry Analytics (4 Apple Vision Frosted Glass Tiles) -->
-        <div class="math-analytics-grid">
-          <!-- Tile 1: 截面剖切 -->
-          <div class="math-analytic-tile">
-            <div class="tile-header">
-              <svg class="tile-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-                <polyline points="2 17 12 22 22 17"/>
-                <polyline points="2 12 12 17 22 12"/>
-              </svg>
-              <span class="tile-title">截面剖切</span>
-            </div>
-            <div class="tile-val-main" id="val-cut-shape">—</div>
-            <div class="tile-subtext">
-              <span>面积 <b id="val-cut-area">—</b></span>
-              <span>二面角 <b id="val-cut-dihedral">—</b></span>
-            </div>
-          </div>
-
-          <!-- Tile 2: 空间直线 -->
-          <div class="math-analytic-tile">
-            <div class="tile-header">
-              <svg class="tile-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="20" x2="20" y2="4"/>
-                <line x1="4" y1="4" x2="14" y2="14"/>
-              </svg>
-              <span class="tile-title">空间直线</span>
-            </div>
-            <div class="tile-val-main" id="val-lines-angle">—</div>
-            <div class="tile-subtext" id="val-lines-detail">
-              <span>关系 <b id="val-lines-rel">—</b></span>
-              <span>公垂线 <b id="val-lines-dist">—</b></span>
-            </div>
-          </div>
-
-          <!-- Tile 3: 外接与内切球 -->
-          <div class="math-analytic-tile">
-            <div class="tile-header">
-              <svg class="tile-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
-              </svg>
-              <span class="tile-title">外接与内切球</span>
-            </div>
-            <div class="tile-val-main" id="val-sphere-2r">—</div>
-            <div class="tile-subtext">
-              <span>外接 R <b id="val-sphere-r">—</b></span>
-              <span>内切 r <b id="val-in-r">—</b></span>
-            </div>
-          </div>
-
-          <!-- Tile 4: 模型缩放 -->
-          <div class="math-analytic-tile">
-            <div class="tile-header">
-              <svg class="tile-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                <line x1="11" y1="8" x2="11" y2="14"/>
-                <line x1="8" y1="11" x2="14" y2="11"/>
-              </svg>
-              <span class="tile-title">模型缩放</span>
-            </div>
-            <div class="tile-val-main" id="val-model-scale">100%</div>
-            <div class="tile-subtext">
-              <span>滚轮或 [+/-] 缩放</span>
+            <!-- Triangular Prism -->
+            <div class="math-branch-tile math-model-card" data-model="triangular-prism" role="button" tabindex="0" title="三棱柱">
+              <div class="math-tile-icon-box">
+                <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor">
+                  <polygon points="10,8 34,8 22,16" fill="currentColor" fill-opacity="0.16" stroke-width="1.8" stroke-linejoin="round"/>
+                  <polygon points="10,26 34,26 22,34" fill="currentColor" fill-opacity="0.08" stroke-width="1.8" stroke-linejoin="round"/>
+                  <line x1="10" y1="8" x2="10" y2="26" stroke-width="1.8"/>
+                  <line x1="34" y1="8" x2="34" y2="26" stroke-width="1.8"/>
+                  <line x1="22" y1="16" x2="22" y2="34" stroke-width="1.8"/>
+                </svg>
+              </div>
+              <h3 class="math-tile-name">三棱柱</h3>
             </div>
           </div>
         </div>
 
-        <!-- 4. Spatial Vertex Coordinates Inspector (Apple Vision Pro Frosted Chips Deck) -->
-        <div class="math-coords-inspector">
-          <div class="coords-inspector-header">
-            <span class="coords-inspector-title">空间顶点坐标</span>
-          </div>
-          <div class="math-coords-chips" id="math-coords-chips"></div>
-        </div>
-
-        <!-- 5. Apple VisionOS Dynamic Status Bar -->
-        <div class="math-dynamic-status-bar">
-          <span class="math-dynamic-dot"></span>
-          <span class="math-dynamic-hint" id="math-live-hint">悬停吸附端点 / 中点 (1/2) / 三等分点 (1/3) 接线</span>
-          <div class="math-mode-pill-group">
-            <button class="math-mode-pill active" id="btn-mode-connect" title="两点接线模式">连线</button>
-            <button class="math-mode-pill" id="btn-mode-cut" title="三点剖切模式">剖切</button>
-          </div>
-          <button class="apple-subtle-link" id="btn-clear-lines-subtle" title="清除所有连线与标记 (C)">清除连线</button>
-        </div>
-
-        <!-- 6. Hidden preservation elements for telemetry DOM contract -->
+        <!-- Hidden preservation elements for telemetry and status contract -->
         <div style="display: none;">
-          <span id="val-dim-a">0.38</span>
-          <input type="range" id="slider-dim-a" value="0.38" />
-          <span id="val-dim-h">0.38</span>
-          <input type="range" id="slider-dim-h" value="0.38" />
-          <input type="range" id="slider-unfold" value="0" />
-          <span id="val-unfold">0%</span>
-          <span id="math-cut-picked-badge">直接交互模式</span>
+          <span id="math-scan-status"></span>
+          <span id="math-euler-badge"></span>
+          <span id="val-dim-a">0.58</span>
+          <input type="range" id="slider-dim-a" value="0.58" />
+          <span id="val-dim-h">0.58</span>
+          <input type="range" id="slider-dim-h" value="0.58" />
         </div>
       </div>
     `;
@@ -295,68 +151,26 @@ export class StereometryStatusCard {
   }
 
   private cacheDOMElements(): void {
-    this.modelTitleEl = this.element.querySelector('#math-model-title');
-    this.modelSubtitleEl = this.element.querySelector('#math-model-subtitle');
-    this.eulerEl = this.element.querySelector('#math-euler-badge');
-    this.cutShapeEl = this.element.querySelector('#val-cut-shape');
-    this.cutAreaEl = this.element.querySelector('#val-cut-area');
-    this.cutDihedralEl = this.element.querySelector('#val-cut-dihedral');
-    this.sphereRadiusEl = this.element.querySelector('#val-sphere-r');
-    this.sphereDiameterEl = this.element.querySelector('#val-sphere-2r');
-    this.inRadiusEl = this.element.querySelector('#val-in-r');
-    this.linesRelEl = this.element.querySelector('#val-lines-rel');
-    this.linesAngleEl = this.element.querySelector('#val-lines-angle');
-    this.linesDistEl = this.element.querySelector('#val-lines-dist');
-    this.modelScaleEl = this.element.querySelector('#val-model-scale');
-    this.liveHintEl = this.element.querySelector('#math-live-hint');
-    this.coordsContainer = this.element.querySelector('#math-coords-chips');
     this.scanBarEl = this.element.querySelector('#math-scan-bar');
     this.scanStatusEl = this.element.querySelector('#math-scan-status');
     this.uploadBtn = this.element.querySelector('#btn-math-upload') as HTMLButtonElement | null;
     this.cameraBtn = this.element.querySelector('#btn-math-camera') as HTMLButtonElement | null;
+    this.dropzoneEl = this.uploadBtn;
   }
 
   private bindEvents(): void {
-    // 1. Model Cards selection
-    const modelsGrid = this.element.querySelector('.math-models-grid');
-    modelsGrid?.addEventListener('click', (e) => {
+    // 1. Model Cards selection across the 4 tiles
+    this.element.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('.math-model-card') as HTMLElement;
       if (!btn) return;
       const model = btn.getAttribute('data-model') as HighSchoolModelType;
       if (!model) return;
 
-      modelsGrid.querySelectorAll('.math-model-card').forEach((b) => b.classList.remove('active'));
+      this.element.querySelectorAll('.math-model-card').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
 
       this.callbacks.onModelChange?.(model);
       this.callbacks.onClearSegments?.();
-    });
-
-    // 2. View reset shortcut
-    this.element.querySelector('#btn-math-reset-all')?.addEventListener('click', () => {
-      this.callbacks.onResetView?.('iso');
-      this.callbacks.onClearSegments?.();
-    });
-
-    // 3. Subtle Clear Marks Button
-    this.element.querySelector('#btn-clear-lines-subtle')?.addEventListener('click', () => {
-      this.callbacks.onClearSegments?.();
-    });
-
-    // 4. Interaction Mode Pills
-    const btnModeConnect = this.element.querySelector('#btn-mode-connect');
-    const btnModeCut = this.element.querySelector('#btn-mode-cut');
-
-    btnModeConnect?.addEventListener('click', () => {
-      btnModeConnect.classList.add('active');
-      btnModeCut?.classList.remove('active');
-      this.callbacks.onInteractionModeChange?.('direct');
-    });
-
-    btnModeCut?.addEventListener('click', () => {
-      btnModeCut.classList.add('active');
-      btnModeConnect?.classList.remove('active');
-      this.callbacks.onInteractionModeChange?.('three-point-cut');
     });
 
     const fileInput = this.element.querySelector('#math-scan-file') as HTMLInputElement | null;
@@ -372,16 +186,45 @@ export class StereometryStatusCard {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') void this.handleImage(reader.result);
-        else this.setScanStatus('这张图片打不开');
+        else this.setScanStatus('解析失败');
       };
-      reader.onerror = () => this.setScanStatus('这张图片打不开');
+      reader.onerror = () => this.setScanStatus('解析失败');
       reader.readAsDataURL(file);
     };
+
     fileInput?.addEventListener('change', () => takeFile(fileInput));
     cameraInput?.addEventListener('change', () => takeFile(cameraInput));
     this.uploadBtn?.addEventListener('click', () => fileInput?.click());
     this.cameraBtn?.addEventListener('click', () => {
       void this.openCamera(cameraInput);
+    });
+
+    // Drag and drop onto card or upload button
+    this.element.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      this.uploadBtn?.classList.add('is-dragover');
+    });
+    this.element.addEventListener('dragleave', (e) => {
+      if (!this.element.contains(e.relatedTarget as Node)) {
+        this.uploadBtn?.classList.remove('is-dragover');
+      }
+    });
+    this.element.addEventListener('drop', (e) => {
+      e.preventDefault();
+      this.uploadBtn?.classList.remove('is-dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (file.type && !file.type.startsWith('image/')) {
+        this.setScanStatus('请上传图片');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') void this.handleImage(reader.result);
+        else this.setScanStatus('解析失败');
+      };
+      reader.onerror = () => this.setScanStatus('解析失败');
+      reader.readAsDataURL(file);
     });
   }
 
@@ -389,13 +232,29 @@ export class StereometryStatusCard {
     if (this.scanStatusEl && this.scanStatusEl.textContent !== text) {
       this.scanStatusEl.textContent = text;
     }
+    const labelEl = this.uploadBtn?.querySelector('.apple-btn-label');
+    if (labelEl && text) {
+      labelEl.textContent = text;
+      if (text.startsWith('已构建') || text.includes('失败')) {
+        setTimeout(() => {
+          if (labelEl.textContent === text) {
+            labelEl.textContent = '上传题目';
+          }
+        }, 2500);
+      }
+    }
   }
 
   private setScanBusy(busy: boolean): void {
     this.recognizing = busy;
     this.scanBarEl?.classList.toggle('is-busy', busy);
+    this.uploadBtn?.classList.toggle('is-busy', busy);
     if (this.uploadBtn) this.uploadBtn.disabled = busy;
     if (this.cameraBtn) this.cameraBtn.disabled = busy;
+    const labelEl = this.uploadBtn?.querySelector('.apple-btn-label');
+    if (labelEl && busy) {
+      labelEl.textContent = '正在识别…';
+    }
   }
 
   private clearPresetSelection(): void {
@@ -415,7 +274,7 @@ export class StereometryStatusCard {
   private async handleImage(dataUrl: string): Promise<void> {
     if (this.recognizing) return;
     if (!this.callbacks.onRecognizeImage) {
-      this.setScanStatus('识图还没接上');
+      this.setScanStatus('识图服务未连接');
       return;
     }
     this.setScanBusy(true);
@@ -425,7 +284,7 @@ export class StereometryStatusCard {
       const result = await this.callbacks.onRecognizeImage(dataUrl);
       const seconds = ((performance.now() - started) / 1000).toFixed(1);
       this.clearPresetSelection();
-      this.setScanStatus(`已生成「${result.name}」· ${seconds} 秒`);
+      this.setScanStatus(`已构建「${result.name}」· ${seconds} 秒`);
     } catch (error) {
       this.setScanStatus(error instanceof Error ? error.message : '识图失败');
     } finally {
@@ -440,89 +299,23 @@ export class StereometryStatusCard {
 
   /**
    * Synchronize telemetry state into the Apple VisionOS card.
-   * Reinforced with dirty check signature caching to prevent DOM layout thrashing.
+   * Keeps active model card highlighting synchronized with current model.
    */
   public updateTelemetry(data: StereometryTelemetryData): void {
     if (!this.isVisible) return;
 
-    // Header info (dirty checked)
-    if (this.modelTitleEl && this.modelTitleEl.textContent !== data.modelName) {
-      this.modelTitleEl.textContent = data.modelName;
-    }
-    if (this.modelSubtitleEl && this.modelSubtitleEl.textContent !== data.modelSubtitle) {
-      this.modelSubtitleEl.textContent = data.modelSubtitle;
-    }
-    const eulerStr = `V: ${data.vertexCount} · E: ${data.edgeCount} · F: ${data.faceCount}`;
-    if (this.eulerEl && this.eulerEl.textContent !== eulerStr) {
-      this.eulerEl.textContent = eulerStr;
-    }
-
-    // Dynamic Live Interaction Hint
-    if (this.liveHintEl) {
-      const hint = data.interactionHint || '点击顶点连线或定面剖切';
-      if (this.liveHintEl.textContent !== hint) {
-        this.liveHintEl.textContent = hint;
+    if (data.modelId) {
+      const activeCard = this.element.querySelector(`.math-model-card[data-model="${data.modelId}"]`);
+      if (activeCard && !activeCard.classList.contains('active')) {
+        this.element.querySelectorAll('.math-model-card').forEach((card) => card.classList.remove('active'));
+        activeCard.classList.add('active');
       }
     }
 
-    // Model Scale
-    if (this.modelScaleEl && data.modelScale !== undefined) {
-      const scalePct = `${Math.round(data.modelScale * 100)}%`;
-      if (this.modelScaleEl.textContent !== scalePct) {
-        this.modelScaleEl.textContent = scalePct;
-      }
-    }
-
-    // Cross section metrics
-    const cutShape = data.activeCrossSection ? data.activeCrossSection.polygonType : '—';
-    const cutArea = data.activeCrossSection ? data.activeCrossSection.area.toFixed(3) : '—';
-    const cutDihedral = data.activeCrossSection ? `${data.activeCrossSection.dihedralAngleDeg.toFixed(1)}°` : '—';
-    if (this.cutShapeEl && this.cutShapeEl.textContent !== cutShape) this.cutShapeEl.textContent = cutShape;
-    if (this.cutAreaEl && this.cutAreaEl.textContent !== cutArea) this.cutAreaEl.textContent = cutArea;
-    if (this.cutDihedralEl && this.cutDihedralEl.textContent !== cutDihedral) this.cutDihedralEl.textContent = cutDihedral;
-
-    // Lines & Angles metrics
-    let linesRel = '—';
-    let linesAngle = '—';
-    let linesDist = '—';
-    if (data.twoLineAngle) {
-      const typeDesc =
-        data.twoLineAngle.type === 'skew'
-          ? '异面'
-          : data.twoLineAngle.type === 'parallel'
-          ? '平行'
-          : '相交';
-      linesRel = `${data.twoLineAngle.lineA} 与 ${data.twoLineAngle.lineB} (${typeDesc})`;
-      linesAngle = `${data.twoLineAngle.angleDeg.toFixed(1)}°`;
-      linesDist = `${data.twoLineAngle.skewDistance.toFixed(3)}`;
-    } else if (data.drawnSegments.length > 0) {
-      const lastSeg = data.drawnSegments[data.drawnSegments.length - 1];
-      linesRel = `${data.drawnSegments.length} 条线段`;
-      linesAngle = `${lastSeg.label} = ${lastSeg.length.toFixed(2)}`;
-    }
-    if (this.linesRelEl && this.linesRelEl.textContent !== linesRel) this.linesRelEl.textContent = linesRel;
-    if (this.linesAngleEl && this.linesAngleEl.textContent !== linesAngle) this.linesAngleEl.textContent = linesAngle;
-    if (this.linesDistEl && this.linesDistEl.textContent !== linesDist) this.linesDistEl.textContent = linesDist;
-
-    // Spheres metrics
-    const sphere2r = data.sphereAnalysis.hasCircumSphere ? (data.sphereAnalysis.circumRadius * 2).toFixed(2) : '—';
-    const sphereR = data.sphereAnalysis.hasCircumSphere ? data.sphereAnalysis.circumRadius.toFixed(2) : '—';
-    const inR = data.sphereAnalysis.hasInSphere ? data.sphereAnalysis.inRadius.toFixed(2) : '—';
-    if (this.sphereDiameterEl && this.sphereDiameterEl.textContent !== sphere2r) this.sphereDiameterEl.textContent = sphere2r;
-    if (this.sphereRadiusEl && this.sphereRadiusEl.textContent !== sphereR) this.sphereRadiusEl.textContent = sphereR;
-    if (this.inRadiusEl && this.inRadiusEl.textContent !== inR) this.inRadiusEl.textContent = inR;
-
-    // Spatial Vertex Coordinates Inspector
-    if (this.coordsContainer && data.vertexCoords && data.vertexCoords.length > 0) {
-      const signature = data.modelId + ':' + data.vertexCoords.map((v) => `${v.label},${v.coords.join(',')}`).join(';');
-      if (signature !== this.lastCoordsSignature) {
-        this.lastCoordsSignature = signature;
-        this.coordsContainer.innerHTML = data.vertexCoords
-          .map(
-            (v) =>
-              `<div class="math-coord-chip"><span class="coord-label">${v.label}</span><span class="coord-vals">(${v.coords[0].toFixed(2)}, ${v.coords[1].toFixed(2)}, ${v.coords[2].toFixed(2)})</span></div>`
-          )
-          .join('');
+    if (data.vertexCount !== undefined && data.edgeCount !== undefined && data.faceCount !== undefined) {
+      const eulerEl = this.element.querySelector('#math-euler-badge');
+      if (eulerEl) {
+        eulerEl.textContent = `V: ${data.vertexCount} · E: ${data.edgeCount} · F: ${data.faceCount}`;
       }
     }
   }

@@ -455,35 +455,42 @@ export class GeometrySolver {
   }
 
   // -------------------------------------------------------------
-  // 3. 正四面体 / 嵌入正方体模型 (Regular Tetrahedron)
+  // 3. 正四面体 / 正三棱锥 (Regular Tetrahedron)
   // -------------------------------------------------------------
   private static createRegularTetrahedronModel(L: number): PolyhedronModelDef {
-    // A regular tetrahedron of edge length L can be embedded in a cube of side a = L / sqrt(2)
-    // Vertices of cube alternating:
-    // (1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1)
-    const a = L / Math.SQRT2;
-    const r = a / 2;
+    // Standard upright regular tetrahedron:
+    // Bottom face BCD is horizontal (parallel to XZ plane) resting flat, apex A points straight up along Y-axis.
+    const h = (Math.sqrt(6) / 3) * L;            // Total height of tetrahedron
+    const yBase = -h / 4;                        // -sqrt(6)/12 * L (centroid at origin (0,0,0))
+    const yApex = (3 * h) / 4;                   // +sqrt(6)/4 * L
+    const rCircum = (Math.sqrt(3) / 3) * L;      // R_base = L / sqrt(3)
+    const rIn = (Math.sqrt(3) / 6) * L;          // r_base = L / (2 * sqrt(3))
 
+    // Front edge BC is parallel to X-axis, back vertex D is on negative Z-axis:
+    // 0: A (Apex on vertical Y axis)
+    // 1: B (Front-left base vertex)
+    // 2: C (Front-right base vertex)
+    // 3: D (Back-center base vertex)
     const vertices: THREE.Vector3[] = [
-      new THREE.Vector3(r, r, r),    // 0: A
-      new THREE.Vector3(r, -r, -r),  // 1: B
-      new THREE.Vector3(-r, r, -r),  // 2: C
-      new THREE.Vector3(-r, -r, r),  // 3: D
+      new THREE.Vector3(0, yApex, 0),        // 0: A (顶角)
+      new THREE.Vector3(-L / 2, yBase, rIn), // 1: B (底面前左)
+      new THREE.Vector3(L / 2, yBase, rIn),  // 2: C (底面前右)
+      new THREE.Vector3(0, yBase, -rCircum), // 3: D (底面后)
     ];
 
     const vertexLabels = ['A', 'B', 'C', 'D'];
 
     // 6 edges: all pairs
     const edges: [number, number][] = [
-      [0, 1], [0, 2], [0, 3],
-      [1, 2], [2, 3], [3, 1],
+      [0, 1], [0, 2], [0, 3], // Lateral edges: AB, AC, AD
+      [1, 2], [2, 3], [3, 1], // Base edges: BC, CD, DB
     ];
 
     const faces: PolygonFace[] = [
-      { id: 'bcd', label: '底面 BCD', vertexIndices: [1, 3, 2], normal: new THREE.Vector3(-1, -1, -1).normalize() },
-      { id: 'abc', label: '侧面 ABC', vertexIndices: [0, 1, 2], normal: new THREE.Vector3(1, 1, -1).normalize() },
-      { id: 'acd', label: '侧面 ACD', vertexIndices: [0, 2, 3], normal: new THREE.Vector3(-1, 1, 1).normalize() },
-      { id: 'adb', label: '侧面 ADB', vertexIndices: [0, 3, 1], normal: new THREE.Vector3(1, -1, 1).normalize() },
+      { id: 'bcd', label: '底面 BCD', vertexIndices: [1, 2, 3], normal: new THREE.Vector3(0, -1, 0) },
+      { id: 'abc', label: '侧面 ABC', vertexIndices: [0, 1, 2], normal: new THREE.Vector3(0, 1 / 3, (2 * Math.SQRT2) / 3).normalize() },
+      { id: 'acd', label: '侧面 ACD', vertexIndices: [0, 2, 3], normal: new THREE.Vector3(Math.sqrt(6) / 3, 1 / 3, -Math.SQRT2 / 3).normalize() },
+      { id: 'adb', label: '侧面 ADB', vertexIndices: [0, 3, 1], normal: new THREE.Vector3(-Math.sqrt(6) / 3, 1 / 3, -Math.SQRT2 / 3).normalize() },
     ];
 
     const keyPoints: KeyPoint[] = [];
@@ -522,7 +529,7 @@ export class GeometrySolver {
 
     return {
       id: 'tetrahedron',
-      name: '正四面体 (嵌正方体模型)',
+      name: '正四面体',
       subtitle: `棱长 L = ${L.toFixed(2)}`,
       description: '高中对称性最强的三棱锥。对棱互相垂直，四条高线交于一点，外接球半径与内切球半径之比恒为 3:1。',
       vertices,

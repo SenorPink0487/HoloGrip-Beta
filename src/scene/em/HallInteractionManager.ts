@@ -22,7 +22,7 @@ export class HallInteractionManager {
     if (hits.length > 0) {
       let obj: THREE.Object3D | null = hits[0].object;
       while (obj && obj !== this.callbacks.bench.group) {
-        if (obj === this.callbacks.bench.waferMesh) {
+        if (obj === this.callbacks.bench.waferMesh || obj === this.callbacks.bench.substrateMesh) {
           return {
             id: 'hall_wafer',
             label: '霍尔试样薄片（点击切换材质：n型GaAs / p型硅 / 金属铜）',
@@ -55,7 +55,7 @@ export class HallInteractionManager {
 
     let obj: THREE.Object3D | null = hit.object;
     while (obj && obj !== this.callbacks.bench.group) {
-      if (obj === this.callbacks.bench.waferMesh) {
+      if (obj === this.callbacks.bench.waferMesh || obj === this.callbacks.bench.substrateMesh) {
         this.callbacks.onCycleMaterial?.();
         return true;
       }

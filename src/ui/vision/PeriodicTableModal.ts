@@ -1,4 +1,5 @@
 import { ChemistryEngine, type ChemicalReagent } from '../../chemistry/ChemistryEngine.ts';
+import { bindMixtureQuery, type MixtureQueryBinding } from './mixtureQuery.ts';
 
 export interface PeriodicElement {
   number: number;
@@ -130,6 +131,7 @@ export class PeriodicTableModal {
   private onSelectBeaker?: (beakerId: 'left' | 'right') => void;
   private selectedElement: PeriodicElement;
   private toastTimeout: number | null = null;
+  private mixtureQuery: MixtureQueryBinding | null = null;
 
   constructor(
     engine: ChemistryEngine,
@@ -220,6 +222,22 @@ export class PeriodicTableModal {
 
           <span id="periodic-beaker-label" style="display: none;">当前目标：左侧烧杯 (默认)</span>
         </div>
+
+        <div class="mixture-ai-row periodic-mixture-row">
+          <input class="mixture-ai-input" id="periodic-mixture-query" type="text" maxlength="40" enterkeyhint="search" autocomplete="off" placeholder="输入一种东西，例如可乐" aria-label="要分析的物质" />
+          <button class="apple-pill-btn" id="btn-periodic-mixture-voice" type="button" title="语音输入">
+            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+              <path d="M5 11a7 7 0 0 0 14 0"></path>
+              <line x1="12" y1="18" x2="12" y2="21"></line>
+            </svg>
+            <span>语音</span>
+          </button>
+          <button class="apple-pill-btn primary" id="btn-periodic-mixture-analyze" type="button" title="拆成化合物并倒入当前烧杯">
+            <span>分析</span>
+          </button>
+        </div>
+        <p class="mixture-ai-status" id="periodic-mixture-status"></p>
 
         <!-- Common Reagents Periodic Grid -->
         <div class="periodic-grid" id="periodic-elements-grid"></div>
@@ -494,6 +512,16 @@ export class PeriodicTableModal {
     // View analysis button
     this.element.querySelector('#btn-periodic-view-analysis')?.addEventListener('click', () => {
       this.onViewBeaker?.();
+    });
+
+    this.mixtureQuery = bindMixtureQuery(this.element, {
+      input: '#periodic-mixture-query',
+      voice: '#btn-periodic-mixture-voice',
+      analyze: '#btn-periodic-mixture-analyze',
+      status: '#periodic-mixture-status',
+    }, {
+      getEngine: () => this.getActiveEngine(),
+      onPoured: () => this.onViewBeaker?.(),
     });
 
     // Overlay backdrop click dismisses popover

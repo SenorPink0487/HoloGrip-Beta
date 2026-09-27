@@ -45,6 +45,9 @@ export class HallCarrierParticleSystem {
   private electronTexture: THREE.CanvasTexture;
   private holeTexture: THREE.CanvasTexture;
   private metalTexture: THREE.CanvasTexture;
+  private electronHaloTexture: THREE.CanvasTexture;
+  private holeHaloTexture: THREE.CanvasTexture;
+  private metalHaloTexture: THREE.CanvasTexture;
 
   // Transverse Electrostatic Potential Glow Ribbons (Top & Bottom boundaries)
   private topGlowMesh: THREE.Mesh;
@@ -110,56 +113,74 @@ export class HallCarrierParticleSystem {
    * specular glint, crisp luminous boundary, and quantum charge indicator
    */
   private initTextures(): void {
-    // n-type Carrier: Intense Electric Laser Cyan & Radiant Azure (#00F5FF -> #007AFF)
-    this.electronTexture = this.createGlowingParticleTexture(
-      '#ffffff',                 // Specular glint
-      '#00f5ff',                 // Luminous electric cyan
-      '#007aff',                 // Saturated vivid azure body
-      'rgba(0, 210, 255, 0.50)', // Luminous ambient halo
-      '−'                        // True minus symbol (U+2212)
-    );
+    // n-type Carrier (electron e⁻): Deep Electric Royal Blue body + Vivid Neon Cyan Core + High-Contrast Dark Rim
+    this.electronTexture = this.createGlowingParticleTexture({
+      innerCore: '#00f0ff',                // Electric neon cyan inner core
+      mainBody: '#0062ff',                 // Vivid royal electric blue
+      shadedEdge: '#003db8',               // Deep saturated sapphire
+      darkRim: 'rgba(0, 18, 56, 0.88)',    // High-contrast perimeter shadow rim for light backgrounds
+      haloColor: 'rgba(0, 130, 255, 0.55)', // Outer aura
+      symbol: '−',                         // True minus symbol (U+2212)
+    });
+    this.electronHaloTexture = this.createHaloTexture('rgba(0, 110, 255, 0.60)');
 
-    // p-type Carrier: Intense Fiery Solar Amber & Radiant Crimson (#FFCC00 -> #FF3B30)
-    this.holeTexture = this.createGlowingParticleTexture(
-      '#ffffff',                 // Specular glint
-      '#ffcc00',                 // Luminous solar gold
-      '#ff3b30',                 // Saturated vivid flame red body
-      'rgba(255, 120, 0, 0.55)', // Luminous ambient halo
-      '+'                        // Plus symbol
-    );
+    // p-type Carrier (hole h⁺): Radiant Solar Amber Core + Deep Fiery Crimson-Red Body + High-Contrast Dark Rim
+    this.holeTexture = this.createGlowingParticleTexture({
+      innerCore: '#ffb300',                // Radiant solar gold/amber
+      mainBody: '#e62e2e',                 // Vivid saturated fiery crimson
+      shadedEdge: '#a81313',               // Deep flame ruby
+      darkRim: 'rgba(56, 8, 8, 0.88)',     // High-contrast perimeter shadow rim
+      haloColor: 'rgba(255, 60, 20, 0.55)', // Outer aura
+      symbol: '+',                         // Plus symbol
+    });
+    this.holeHaloTexture = this.createHaloTexture('rgba(255, 50, 10, 0.60)');
 
-    // Metal Carrier: Brilliant Cobalt
-    this.metalTexture = this.createGlowingParticleTexture(
-      '#ffffff',
-      '#64d2ff',
-      '#0077ed',
-      'rgba(0, 119, 237, 0.40)'
-    );
+    // Metal Carrier: Brilliant Cobalt / Electric Ultramarine
+    this.metalTexture = this.createGlowingParticleTexture({
+      innerCore: '#38bdf8',                // Electric sky blue
+      mainBody: '#2563eb',                 // Vibrant cobalt blue
+      shadedEdge: '#1d4ed8',               // Deep cobalt
+      darkRim: 'rgba(15, 23, 60, 0.88)',   // High-contrast perimeter shadow rim
+      haloColor: 'rgba(37, 99, 235, 0.50)',
+      symbol: '−',
+    });
+    this.metalHaloTexture = this.createHaloTexture('rgba(37, 99, 235, 0.55)');
 
-    this.disposables.push(this.electronTexture, this.holeTexture, this.metalTexture);
+    this.disposables.push(
+      this.electronTexture,
+      this.holeTexture,
+      this.metalTexture,
+      this.electronHaloTexture,
+      this.holeHaloTexture,
+      this.metalHaloTexture
+    );
   }
 
-  private createGlowingParticleTexture(
-    glintColor: string,
-    coreColor: string,
-    bodyColor: string,
-    haloColor: string,
-    symbol?: string
-  ): THREE.CanvasTexture {
+  private createGlowingParticleTexture(config: {
+    innerCore: string;
+    mainBody: string;
+    shadedEdge: string;
+    darkRim: string;
+    haloColor: string;
+    symbol?: string;
+  }): THREE.CanvasTexture {
     const size = 128;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
 
     const cx = size / 2;
     const cy = size / 2;
 
     if (ctx && typeof ctx.arc === 'function') {
-      // 1. Soft Luminous Glow Halo
+      const bodyRadius = size * 0.36; // 46px radius for prominent solid body
+
+      // 1. Soft Luminous Glow Halo (Outer atmospheric glow)
       if (typeof ctx.createRadialGradient === 'function') {
-        const haloGrad = ctx.createRadialGradient(cx, cy, size * 0.15, cx, cy, size * 0.48);
-        haloGrad.addColorStop(0.0, haloColor);
+        const haloGrad = ctx.createRadialGradient(cx, cy, bodyRadius * 0.75, cx, cy, size * 0.48);
+        haloGrad.addColorStop(0.0, config.haloColor);
+        haloGrad.addColorStop(0.55, config.haloColor.replace(/[\d.]+\)$/, '0.25)'));
         haloGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = haloGrad;
         ctx.beginPath();
@@ -167,43 +188,98 @@ export class HallCarrierParticleSystem {
         ctx.fill();
       }
 
-      // 2. Solid High-Contrast Quantum Particle Body
-      const bodyRadius = size * 0.28;
+      // 2. High-Contrast Outer Perimeter Shadow Rim (Guarantees contrast on light lab backgrounds)
+      ctx.fillStyle = config.darkRim;
+      ctx.beginPath();
+      ctx.arc(cx, cy, bodyRadius + 1.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 3. Solid 3D Spherical Quantum Particle Body with Specular Highlight
       if (typeof ctx.createRadialGradient === 'function') {
+        const lightX = cx - bodyRadius * 0.28;
+        const lightY = cy - bodyRadius * 0.28;
         const bodyGrad = ctx.createRadialGradient(
-          cx - size * 0.05,
-          cy - size * 0.05,
+          lightX,
+          lightY,
           0,
           cx,
           cy,
           bodyRadius
         );
-        bodyGrad.addColorStop(0.0, glintColor);
-        bodyGrad.addColorStop(0.20, coreColor);
-        bodyGrad.addColorStop(0.80, bodyColor);
-        bodyGrad.addColorStop(1.0, bodyColor);
+        bodyGrad.addColorStop(0.0, '#ffffff');           // Pure specular glint highlight
+        bodyGrad.addColorStop(0.12, '#ffffff');          // Tight pinpoint highlight
+        bodyGrad.addColorStop(0.25, config.innerCore);   // Brilliant neon core
+        bodyGrad.addColorStop(0.60, config.mainBody);    // High-saturation vivid body
+        bodyGrad.addColorStop(0.88, config.shadedEdge);  // Deep saturated shaded body
+        bodyGrad.addColorStop(1.0, config.darkRim);      // Crisp perimeter rim
         ctx.fillStyle = bodyGrad;
       } else {
-        ctx.fillStyle = coreColor;
+        ctx.fillStyle = config.mainBody;
       }
       ctx.beginPath();
       ctx.arc(cx, cy, bodyRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // 3. Crisp Glowing Perimeter Rim (Ensures sharp contrast against any background)
-      ctx.strokeStyle = coreColor;
-      ctx.lineWidth = 2.5;
+      // 4. Subtle Inner Luminance Rim
+      ctx.strokeStyle = config.innerCore;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(cx, cy, bodyRadius, 0, Math.PI * 2);
+      ctx.arc(cx, cy, bodyRadius - 0.75, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 4. Centered Quantum Charge Symbol (Minus for e⁻, Plus for h⁺)
-      if (symbol && typeof ctx.fillText === 'function') {
+      // 5. Centered Quantum Charge Symbol with Dark Contrast Drop Shadow
+      if (config.symbol && typeof ctx.fillText === 'function') {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 1;
         ctx.fillStyle = '#ffffff';
-        ctx.font = '900 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+        ctx.font = 'bold 30px system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(symbol, cx, cy + (symbol === '−' || symbol === '-' ? -0.5 : 1));
+        const yOffset = (config.symbol === '−' || config.symbol === '-') ? -1 : 1;
+        ctx.fillText(config.symbol, cx, cy + yOffset);
+
+        // Reset shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+  }
+
+  private createHaloTexture(haloColor: string): THREE.CanvasTexture {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const cx = size / 2;
+    const cy = size / 2;
+
+    if (ctx && typeof ctx.arc === 'function') {
+      if (typeof ctx.createRadialGradient === 'function') {
+        const haloGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.48);
+        haloGrad.addColorStop(0.0, haloColor);
+        haloGrad.addColorStop(0.40, haloColor.replace(/[\d.]+\)$/, '0.35)'));
+        haloGrad.addColorStop(0.75, haloColor.replace(/[\d.]+\)$/, '0.08)'));
+        haloGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = haloGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, size * 0.48, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = haloColor;
+        ctx.beginPath();
+        ctx.arc(cx, cy, size * 0.48, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
@@ -221,35 +297,37 @@ export class HallCarrierParticleSystem {
     this.particleGeo.setAttribute('position', posAttr);
     this.disposables.push(this.particleGeo);
 
-    // Core layer: brilliant concentrated quantum charge point with NormalBlending for 100% saturation
-    this.coreMat = new THREE.PointsMaterial({
-      size: 0.018,
-      map: this.electronTexture,
+    // Halo layer: radiant luminous energy aura rendered first with NormalBlending (renderOrder 18)
+    this.haloMat = new THREE.PointsMaterial({
+      size: 0.046,
+      map: this.electronHaloTexture,
       transparent: true,
+      opacity: 0.65,
       blending: THREE.NormalBlending,
       depthWrite: false,
       sizeAttenuation: true,
     });
 
-    // Halo layer: radiant luminous energy wavepacket
-    this.haloMat = new THREE.PointsMaterial({
-      size: 0.034,
+    // Core layer: brilliant concentrated quantum charge point with NormalBlending (renderOrder 20)
+    this.coreMat = new THREE.PointsMaterial({
+      size: 0.026,
       map: this.electronTexture,
       transparent: true,
-      opacity: 0.70,
-      blending: THREE.AdditiveBlending,
+      opacity: 1.0,
+      blending: THREE.NormalBlending,
       depthWrite: false,
       sizeAttenuation: true,
     });
     this.disposables.push(this.coreMat, this.haloMat);
 
-    this.corePoints = new THREE.Points(this.particleGeo, this.coreMat);
     this.haloPoints = new THREE.Points(this.particleGeo, this.haloMat);
+    this.corePoints = new THREE.Points(this.particleGeo, this.coreMat);
+    this.haloPoints.renderOrder = 18;
     this.corePoints.renderOrder = 20;
-    this.haloPoints.renderOrder = 21;
     this.group.renderOrder = 20;
-    this.group.add(this.corePoints);
+
     this.group.add(this.haloPoints);
+    this.group.add(this.corePoints);
 
     // 2. Transverse Electrostatic Potential Glow Ribbons
     const glowGeo = new THREE.PlaneGeometry(this.waferLength * 0.98, this.waferThickness * 0.92);
@@ -412,6 +490,36 @@ export class HallCarrierParticleSystem {
     }
   }
 
+  private createThickArrowHelper(
+    dir: THREE.Vector3,
+    origin: THREE.Vector3,
+    length: number,
+    colorHex: number,
+    headLength = 0.014,
+    headWidth = 0.0085,
+    shaftRadius = 0.0018
+  ): THREE.ArrowHelper {
+    const arrow = new THREE.ArrowHelper(dir, origin, length, colorHex, headLength, headWidth);
+
+    // Solid 3D cylinder shaft to replace 1-pixel hairline with high-contrast volumetric shaft
+    const shaftLen = Math.max(0.002, length - headLength);
+    const shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLen, 12);
+    const shaftMat = new THREE.MeshBasicMaterial({ color: colorHex });
+    this.disposables.push(shaftGeo, shaftMat);
+
+    const shaftMesh = new THREE.Mesh(shaftGeo, shaftMat);
+    shaftMesh.position.set(0, shaftLen * 0.5, 0);
+    arrow.add(shaftMesh);
+
+    // Dim the 1px wire line to avoid artifacting
+    if (arrow.line && arrow.line.material) {
+      (arrow.line.material as THREE.LineBasicMaterial).transparent = true;
+      (arrow.line.material as THREE.LineBasicMaterial).opacity = 0;
+    }
+
+    return arrow;
+  }
+
   private buildVectorHelpers(): void {
     this.vectorGroup = new THREE.Group();
     this.vectorGroup.name = 'HallVectorIndicators';
@@ -421,41 +529,49 @@ export class HallCarrierParticleSystem {
     const halfL = this.waferLength * 0.5;
     const halfT = this.waferThickness * 0.5;
 
-    // Sleek, refined vector arrows
-    this.arrowVelocity = new THREE.ArrowHelper(
+    // Bold, high-contrast, volumetric vector arrows
+    // 1. Velocity v: Rich Saturated Emerald Green
+    this.arrowVelocity = this.createThickArrowHelper(
       new THREE.Vector3(-1, 0, 0),
-      new THREE.Vector3(halfL * 0.45, 0, halfT + 0.016),
-      0.036,
-      0x30d158, // Vibrant Emerald
-      0.007,
-      0.004
+      new THREE.Vector3(halfL * 0.45, 0, halfT + 0.018),
+      0.046,
+      0x00a843, // Deep Vivid Emerald Green
+      0.014,
+      0.0085,
+      0.0018
     );
 
-    this.arrowMagField = new THREE.ArrowHelper(
+    // 2. Magnetic Field B: Deep Royal Azure / Electric Blue
+    this.arrowMagField = this.createThickArrowHelper(
       new THREE.Vector3(0, 0, 1),
-      new THREE.Vector3(-halfL * 0.50, 0, -halfT - 0.018),
-      0.042,
-      0x00f0ff, // Electric Cyan
-      0.007,
-      0.004
+      new THREE.Vector3(-halfL * 0.50, 0, -halfT - 0.020),
+      0.052,
+      0x0066ff, // Deep Royal Azure
+      0.015,
+      0.0090,
+      0.0018
     );
 
-    this.arrowLorentz = new THREE.ArrowHelper(
+    // 3. Lorentz Force F_L: High-Contrast Fiery Crimson Red
+    this.arrowLorentz = this.createThickArrowHelper(
       new THREE.Vector3(0, -1, 0),
-      new THREE.Vector3(0, 0, halfT + 0.016),
-      0.034,
-      0x0a84ff, // Royal Azure
-      0.007,
-      0.004
+      new THREE.Vector3(0, 0, halfT + 0.018),
+      0.044,
+      0xd92d20, // Vivid Crimson Red
+      0.014,
+      0.0085,
+      0.0018
     );
 
-    this.arrowHallField = new THREE.ArrowHelper(
+    // 4. Hall Electric Field E_H: Saturated Solar Amber Ochre
+    this.arrowHallField = this.createThickArrowHelper(
       new THREE.Vector3(0, -1, 0),
-      new THREE.Vector3(-halfL * 0.45, 0, halfT + 0.016),
-      0.034,
-      0xff9f0a, // Solar Amber
-      0.007,
-      0.004
+      new THREE.Vector3(-halfL * 0.45, 0, halfT + 0.018),
+      0.044,
+      0xe67300, // Deep Saturated Amber
+      0.014,
+      0.0085,
+      0.0018
     );
 
     this.vectorGroup.add(this.arrowVelocity);
@@ -467,13 +583,14 @@ export class HallCarrierParticleSystem {
   private initParticles(): void {
     const halfL = this.waferLength * 0.46;
     const halfH = this.waferHeight * 0.40;
-    const halfT = this.waferThickness * 0.35;
+    const centerZ = this.waferThickness * 0.17;
+    const halfT = this.waferThickness * 0.22;
 
     for (let i = 0; i < this.particleCount; i++) {
       const idx = i * 3;
       this.positions[idx] = (Math.random() * 2 - 1) * halfL;
       const yOffset = (Math.random() * 2 - 1) * halfH;
-      const zOffset = (Math.random() * 2 - 1) * halfT;
+      const zOffset = centerZ + (Math.random() * 2 - 1) * halfT;
 
       this.positions[idx + 1] = yOffset;
       this.positions[idx + 2] = zOffset;
@@ -503,17 +620,21 @@ export class HallCarrierParticleSystem {
   public setCarrierType(type: CarrierType): void {
     this.carrierType = type;
     let targetTexture = this.electronTexture;
+    let targetHaloTexture = this.electronHaloTexture;
 
     if (type === 'electron') {
       targetTexture = this.electronTexture;
+      targetHaloTexture = this.electronHaloTexture;
     } else if (type === 'hole') {
       targetTexture = this.holeTexture;
+      targetHaloTexture = this.holeHaloTexture;
     } else {
       targetTexture = this.metalTexture;
+      targetHaloTexture = this.metalHaloTexture;
     }
 
     this.coreMat.map = targetTexture;
-    this.haloMat.map = targetTexture;
+    this.haloMat.map = targetHaloTexture;
     this.coreMat.needsUpdate = true;
     this.haloMat.needsUpdate = true;
 
@@ -608,42 +729,47 @@ export class HallCarrierParticleSystem {
     }
 
     const curveL = 2 * halfL;
-    const invCurveL = 1.0 / curveL;
-    const maxY = halfH * 0.94;
+    const maxY = halfH * 0.92;
     const minY = -maxY;
-    const maxZ = this.waferThickness * 0.40;
-    const minZ = -maxZ;
+    const minZ = -this.waferThickness * 0.08;
+    const maxZ = this.waferThickness * 0.44;
+    const relaxFactor = Math.min(1.0, delta * 6.0);
 
     for (let i = 0; i < this.particleCount; i++) {
       const idx = i * 3;
 
-      // Longitudinal drift along X
-      this.positions[idx] += driftDirection * speed * delta;
+      // 1. Continuous longitudinal drift along X (only when current flows)
+      if (speed > 0) {
+        this.positions[idx] += driftDirection * speed * delta;
 
-      // Seamless wrap-around when exiting wafer boundary
-      if (driftDirection > 0 && this.positions[idx] > halfL) {
-        this.positions[idx] = -halfL;
-        this.baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.75;
-      } else if (driftDirection < 0 && this.positions[idx] < -halfL) {
-        this.positions[idx] = halfL;
-        this.baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.75;
+        // Continuous modular wrap-around without positional loss or sudden Y jumps
+        if (this.positions[idx] > halfL) {
+          this.positions[idx] -= curveL;
+        } else if (this.positions[idx] < -halfL) {
+          this.positions[idx] += curveL;
+        }
       }
 
-      // Smooth parabolic deflection towards accumulating edge
-      const u = driftDirection > 0
-        ? (this.positions[idx] + halfL) * invCurveL
-        : (halfL - this.positions[idx]) * invCurveL;
+      // 2. Physical Hall equilibrium transverse distribution:
+      // In steady-state Hall equilibrium, transverse forces balance (q*E_H + q*(v x B) = 0).
+      // Carriers drift along continuous streamlines; the magnetic field biases the overall
+      // carrier concentration towards the accumulating boundary (producing the Hall voltage V_H).
+      const baseNormY = this.baseOffsetsY[i] / halfH;
+      const targetY = this.baseOffsetsY[i] + maxDeflectionY * (1.0 - 0.30 * Math.abs(baseNormY));
+      const clampedTargetY = targetY < minY ? minY : targetY > maxY ? maxY : targetY;
 
-      const clampedU = u < 0 ? 0 : u > 1 ? 1 : u;
-      const curveWeight = Math.pow(clampedU, 1.35);
+      // Smooth relaxation towards Hall equilibrium distribution (transient migration)
+      const currentY = this.positions[idx + 1];
+      const nextY = currentY + (clampedTargetY - currentY) * relaxFactor;
 
-      // Microscopic thermal jitter (Brownian quantum fluctuation)
-      const thermalPhase = this.thermalPhases[i] + timeNow;
-      const thermalY = Math.sin(thermalPhase * 3.5) * halfH * 0.045;
-      const thermalZ = Math.cos(thermalPhase * 2.8) * this.waferThickness * 0.06;
+      // 3. Gentle organic quantum Brownian fluctuation (multi-frequency, non-synchronized)
+      const p1 = this.thermalPhases[i] + timeNow * 2.2;
+      const p2 = this.thermalPhases[i] * 1.732 + timeNow * 3.7;
+      const thermalY = (Math.sin(p1) * 0.65 + Math.sin(p2) * 0.35) * halfH * 0.022;
+      const thermalZ = Math.cos(p1 * 1.2) * this.waferThickness * 0.025;
 
-      const targetY = this.baseOffsetsY[i] + maxDeflectionY * curveWeight + thermalY;
-      this.positions[idx + 1] = targetY < minY ? minY : targetY > maxY ? maxY : targetY;
+      const finalY = nextY + thermalY;
+      this.positions[idx + 1] = finalY < minY ? minY : finalY > maxY ? maxY : finalY;
 
       const targetZ = this.baseOffsetsZ[i] + thermalZ;
       this.positions[idx + 2] = targetZ < minZ ? minZ : targetZ > maxZ ? maxZ : targetZ;

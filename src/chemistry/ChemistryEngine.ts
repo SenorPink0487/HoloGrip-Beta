@@ -1,4 +1,10 @@
 import * as THREE from 'three';
+import {
+  mergeMixtureName,
+  scaleMixturePart,
+  type AnalyzedMixture,
+  type StoredMixturePart,
+} from './mixtureAnalysis.ts';
 
 export interface ChemicalReagent {
   id: string;
@@ -54,13 +60,17 @@ export interface ChemistryState {
     intensity?: number;
     duration?: number;
   }>;
+  mixtureName: string;
+  mixtureParts: StoredMixturePart[];
+  solutionTint: number;
+  solutionTintStrength: number;
 }
 
 export interface SoluteComponent {
   id: string;
   formula: string;
   name: string;
-  category: 'ion' | 'precipitate' | 'solid';
+  category: 'ion' | 'precipitate' | 'solid' | 'compound';
   categoryLabel: string;
   moles: number;
   millimoles: number;
@@ -470,6 +480,10 @@ export class ChemistryEngine {
       activeGasRate: 0,
       gasType: null,
       activeEffects: [],
+      mixtureName: '',
+      mixtureParts: [],
+      solutionTint: 0xd7f3ff,
+      solutionTintStrength: 0,
     };
     this.notify();
   }
@@ -505,6 +519,10 @@ export class ChemistryEngine {
         recentReaction: this.state.recentReactions.length > 0 ? this.state.recentReactions[0] : null,
       })
       .then((res: any) => {
+        if (this.state.mixtureParts.length > 0) {
+          this.cachedComposition = this.computeCompositionSync();
+          return;
+        }
         if (res && res.composition) {
           this.cachedComposition = res.composition;
         }
@@ -1674,6 +1692,9 @@ export class ChemistryEngine {
 
   private updateLiquidColor(): void {
     const baseColor = new THREE.Color(0xd7f3ff); // Clear water refractive tint
+    if (this.state.solutionTintStrength > 0.02) {
+      baseColor.lerp(new THREE.Color(this.state.solutionTint), Math.min(0.82, this.state.solutionTintStrength));
+    }
     const volL = Math.max(0.01, this.state.volume / 1000);
 
     // 1. Solute Ions & Halogen Molecules Absorbance Modeling (Beer-Lambert optical curve)
@@ -1885,6 +1906,8 @@ export class ChemistryEngine {
       this.state.temperature = (this.state.temperature * oldTargetVol + source.state.temperature * transferVol) / totalV;
     }
 
+    this.transferMixture(source, fraction, oldTargetVol, transferVol);
+
     // 6. Process Chemical Equilibrium and Reactions
     const occurredReactions: ChemicalReaction[] = this.processReactions();
 
@@ -1939,6 +1962,207 @@ export class ChemistryEngine {
     return occurredReactions;
   }
 
+  /** Pour an analyzed everyday substance. Reactive ions use the existing reaction table. */
+  public pourAnalyzedMixture(mixture: AnalyzedMixture): ChemicalReaction | null {
+    const pristine = this.isPristineWater();
+    const capacity = pristine ? this.state.maxVolume : this.state.maxVolume - this.state.volume;
+    const addedVol = Math.min(mixture.volumeMl, Math.max(0, capacity));
+    if (addedVol < 1 || mixture.volumeMl <= 0) return null;
+
+    const parsedColor = Number.parseInt(mixture.color.slice(1), 16);
+    const color = Number.isFinite(parsedColor) ? parsedColor : 0xc7b299;
+    const scale = addedVol / mixture.volumeMl;
+
+    if (pristine) {
+      this.state.volume = addedVol;
+      this.state.ions = new Map<string, number>();
+      this.state.precipitates = new Map();
+      this.state.solids = new Map();
+      this.state.mixtureParts = [];
+      this.state.mixtureName = mixture.name;
+      this.state.temperature = 22.5;
+      this.state.pH = 7;
+      this.state.solutionTint = color;
+      this.state.solutionTintStrength = 0.8;
+      this.state.activeGasRate = 0;
+      this.state.gasType = null;
+    } else {
+      const oldVol = this.state.volume;
+      this.receiveTint(color, 0.8, oldVol, addedVol);
+      this.state.volume = Math.min(this.state.maxVolume, oldVol + addedVol);
+      this.state.mixtureName = mergeMixtureName(this.state.mixtureName, mixture.name);
+    }
+
+    this.state.activeEffects.push({
+      type: 'pour',
+      color,
+      intensity: 1,
+      duration: 1.2,
+    });
+
+    const occurred: ChemicalReaction[] = [];
+    let hasFizz = false;
+    for (const component of mixture.components) {
+      if (component.fizz) hasFizz = true;
+      if (component.metal === 'Na') {
+        const pieces = Math.max(1, Math.min(6, Math.round((component.moles * scale) / 0.02)));
+        occurred.push(this.processSodiumReaction(pieces));
+      } else if (component.metal) {
+        const moles = component.moles * scale;
+        const current = this.state.solids.get(component.metal) || {
+          formula: component.formula || component.metal,
+          name: component.name,
+          moles: 0,
+        };
+        current.moles += moles;
+        this.state.solids.set(component.metal, current);
+      }
+      for (const spec of component.ions) {
+        this.addIon(spec.ion, spec.moles * scale);
+      }
+      this.addMixturePart(scaleMixturePart(component, scale));
+    }
+
+    const names = mixture.components.map((component) => component.name).join('、');
+    occurred.push({
+      id: 'mixture_analysis',
+      title: `成分分析 · ${mixture.name}`,
+      equation: mixture.components.map((component) => component.formula).join(' + '),
+      type: '成分拆分',
+      description: mixture.summary,
+      phenomenon: `${mixture.name}已拆成${names}。`,
+      isExothermic: false,
+      heatDelta: 0,
+    });
+
+    occurred.push(...this.processReactions());
+
+    if (hasFizz && !this.state.gasType) {
+      this.state.activeGasRate = 0.35;
+      this.state.gasType = 'CO2';
+      this.state.activeEffects.push({ type: 'gas', intensity: 0.4, duration: 2.2 });
+      occurred.push({
+        id: 'mixture_fizz',
+        title: '溶解气体逸出',
+        equation: 'CO₂(aq) ➔ CO₂↑',
+        type: '物理逸出',
+        description: `${mixture.name}里溶解的二氧化碳在倒入时逸出。`,
+        phenomenon: '液面升起一串细小气泡，像刚打开的汽水。',
+        isExothermic: false,
+        heatDelta: 0,
+        gasType: 'CO2',
+        gasRate: 0.35,
+      });
+    }
+
+    this.updatepH();
+    this.updateLiquidColor();
+
+    const priority = (reaction: ChemicalReaction): number => {
+      if (reaction.specialEffect === 'sodium_burn') return 100;
+      if (reaction.gasType && reaction.id !== 'mixture_fizz') return 90;
+      if (reaction.precipitate) return 80;
+      if (reaction.id === 'neutralization') return 50;
+      if (reaction.isExothermic) return 45;
+      if (reaction.id === 'mixture_fizz') return 16;
+      if (reaction.id === 'mixture_analysis') return 12;
+      return 10;
+    };
+    occurred.sort((a, b) => priority(a) - priority(b));
+    for (const reaction of occurred) {
+      this.state.recentReactions.unshift(reaction);
+    }
+    if (this.state.recentReactions.length > 8) {
+      this.state.recentReactions.length = 8;
+    }
+
+    this.notify();
+    return occurred[occurred.length - 1] ?? null;
+  }
+
+  private isPristineWater(): boolean {
+    if (this.state.mixtureParts.length > 0 || this.state.mixtureName) return false;
+    if (this.state.solids.size > 0 || this.state.precipitates.size > 0) return false;
+    if (this.state.indicators.phenolphthalein > 0 || this.state.indicators.litmus > 0) return false;
+    if (this.state.recentReactions.length > 0) return false;
+    if (this.state.solutionTintStrength > 0.02) return false;
+    if (Math.abs(this.state.volume - 60) > 0.05) return false;
+    for (const [, moles] of this.state.ions) {
+      if (moles > 1e-6) return false;
+    }
+    return true;
+  }
+
+  private addMixturePart(part: StoredMixturePart): void {
+    if (part.moles <= 1e-9) return;
+    const existing = this.state.mixtureParts.find((item) => item.id === part.id);
+    if (!existing) {
+      this.state.mixtureParts.push({
+        ...part,
+        ions: part.ions.map((spec) => ({ ...spec })),
+      });
+      return;
+    }
+    existing.moles += part.moles;
+    for (const spec of part.ions) {
+      const slot = existing.ions.find((item) => item.ion === spec.ion);
+      if (slot) slot.moles += spec.moles;
+      else existing.ions.push({ ...spec });
+    }
+  }
+
+  private receiveTint(hex: number, strength: number, oldVol: number, addedVol: number): void {
+    const total = oldVol + addedVol;
+    if (total <= 0) return;
+    const weight = addedVol / total;
+    if (this.state.solutionTintStrength > 0.02 && oldVol > 0.05) {
+      const mixed = new THREE.Color(this.state.solutionTint).lerp(new THREE.Color(hex), weight);
+      this.state.solutionTint = mixed.getHex();
+      this.state.solutionTintStrength = Math.min(0.85, this.state.solutionTintStrength * (1 - weight) + strength * weight);
+    } else {
+      this.state.solutionTint = hex;
+      this.state.solutionTintStrength = oldVol > 0.05 ? strength * weight : strength;
+    }
+  }
+
+  private transferMixture(source: ChemistryEngine, fraction: number, oldTargetVol: number, transferVol: number): void {
+    const staying: StoredMixturePart[] = [];
+    for (const part of source.state.mixtureParts) {
+      const partFraction = part.follows === 'solid' && fraction < 0.85 ? 0 : fraction;
+      if (partFraction <= 0) {
+        staying.push(part);
+        continue;
+      }
+      const moved = scaleMixturePart(part, partFraction);
+      const stayFraction = 1 - partFraction;
+      if (stayFraction > 0 && part.moles * stayFraction > 1e-9) {
+        staying.push(scaleMixturePart(part, stayFraction));
+      }
+      this.addMixturePart(moved);
+    }
+    source.state.mixtureParts = staying;
+
+    if (fraction > 0.02 && source.state.mixtureName) {
+      this.state.mixtureName = mergeMixtureName(this.state.mixtureName, source.state.mixtureName);
+    }
+    if (source.state.volume <= 0.05) source.state.mixtureName = '';
+
+    const sourceStrength = source.state.solutionTintStrength;
+    const total = oldTargetVol + transferVol;
+    if (sourceStrength > 0.02 && transferVol > 0 && total > 0) {
+      const weight = transferVol / total;
+      if (this.state.solutionTintStrength > 0.02 && oldTargetVol > 0.05) {
+        const mixed = new THREE.Color(this.state.solutionTint).lerp(new THREE.Color(source.state.solutionTint), weight);
+        this.state.solutionTint = mixed.getHex();
+        this.state.solutionTintStrength = Math.min(0.85, this.state.solutionTintStrength * (1 - weight) + sourceStrength * weight);
+      } else {
+        this.state.solutionTint = source.state.solutionTint;
+        this.state.solutionTintStrength = sourceStrength * weight;
+      }
+    }
+    if (source.state.volume <= 0.05) source.state.solutionTintStrength = 0;
+  }
+
   public getCompositionAnalysis(): ChemistryComposition {
     if (this.cachedComposition) {
       return this.cachedComposition;
@@ -1991,11 +2215,39 @@ export class ChemistryEngine {
       'Al(OH)3': { formula: 'Al(OH)₃↓', name: '氢氧化铝凝胶沉淀', molarMass: 78.00, color: '#eceff1' },
     };
 
+    const coveredIons = new Map<string, number>();
+    const coveredSolids = new Set<string>();
+    for (const part of this.state.mixtureParts) {
+      if (part.solidKey) coveredSolids.add(part.solidKey);
+      const displayMoles = part.solidKey
+        ? (this.state.solids.get(part.solidKey)?.moles ?? 0)
+        : part.moles;
+      if (displayMoles <= 1e-6) continue;
+      for (const spec of part.ions) {
+        coveredIons.set(spec.ion, (coveredIons.get(spec.ion) || 0) + spec.moles);
+      }
+      components.push({
+        id: `mix_${part.id}`,
+        formula: part.formula,
+        name: part.name,
+        category: 'compound',
+        categoryLabel: '成分',
+        moles: displayMoles,
+        millimoles: displayMoles * 1000,
+        molarMass: part.molarMass,
+        massGrams: displayMoles * part.molarMass,
+        concentration: displayMoles / volLiters,
+        color: part.color,
+        percentage: 0,
+      });
+    }
+
     // 1. Solvated Ions (exclude neutral autodissociated H+ / OH- from pure water if concentration <= 1e-5 M)
     for (const [ionName, moles] of this.state.ions) {
-      if (moles > 1e-6) {
+      const visibleMoles = moles - (coveredIons.get(ionName) || 0);
+      if (visibleMoles > 1e-6) {
         // In pure water autodissociation is 1e-7 mol/L. If H+ or OH- is near neutral 1e-7, ignore
-        if ((ionName === 'H+' || ionName === 'OH-') && Math.abs(this.state.pH - 7.0) < 0.1 && moles < 5e-6) {
+        if ((ionName === 'H+' || ionName === 'OH-') && Math.abs(this.state.pH - 7.0) < 0.1 && visibleMoles < 5e-6) {
           continue;
         }
 
@@ -2012,11 +2264,11 @@ export class ChemistryEngine {
           name: meta.name,
           category: 'ion',
           categoryLabel: '可溶离子',
-          moles: moles,
-          millimoles: moles * 1000,
+          moles: visibleMoles,
+          millimoles: visibleMoles * 1000,
           molarMass: meta.molarMass,
-          massGrams: moles * meta.molarMass,
-          concentration: moles / volLiters,
+          massGrams: visibleMoles * meta.molarMass,
+          concentration: visibleMoles / volLiters,
           color: meta.color,
           percentage: 0,
         });
@@ -2051,6 +2303,7 @@ export class ChemistryEngine {
 
     // 3. Solid Metals
     for (const [key, s] of this.state.solids) {
+      if (coveredSolids.has(key)) continue;
       if (s.moles > 1e-6) {
         const meta = SOLID_META[key] || {
           formula: s.formula,

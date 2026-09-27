@@ -1,9 +1,29 @@
 import type { ChemistryEngine, ChemistryState, SoluteComponent, ChemistryComposition } from '../../chemistry/ChemistryEngine';
+import { bindMixtureQuery, type MixtureQueryBinding } from './mixtureQuery.ts';
 
 export interface ExperimentStatusCardCallbacks {
   onStir?: () => void;
   onOpenPeriodicTable?: () => void;
   onSelectBeaker?: (beakerId: 'left' | 'right') => void;
+}
+
+export function formatChemicalFormula(formula: string): string {
+  if (!formula) return '';
+  const subscriptMap: Record<string, string> = {
+    '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+    '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+  };
+  return formula.replace(/(?<=[A-Za-z\)])\d+/g, (match) => {
+    return match.split('').map((ch) => subscriptMap[ch] || ch).join('');
+  });
+}
+
+export function getFormulaAvatarClass(formula: string): string {
+  const len = formula.length;
+  if (len <= 3) return 'formula-sm';
+  if (len <= 5) return 'formula-md';
+  if (len <= 8) return 'formula-lg formula-wide';
+  return 'formula-xl formula-wide';
 }
 
 export class ExperimentStatusCard {
@@ -14,6 +34,7 @@ export class ExperimentStatusCard {
   public currentActiveBeakerId: 'left' | 'right' = 'left';
 
   private callbacks: ExperimentStatusCardCallbacks;
+  private mixtureQuery: MixtureQueryBinding | null = null;
 
   constructor(
     engine: ChemistryEngine,
@@ -116,6 +137,23 @@ export class ExperimentStatusCard {
         </div>
       </div>
 
+      <div class="mixture-ai-row">
+        <input class="mixture-ai-input" id="mixture-query" type="text" maxlength="40" enterkeyhint="search" autocomplete="off" placeholder="输入一种东西，例如可乐" aria-label="要分析的物质" />
+        <button class="apple-pill-btn" id="btn-mixture-voice" type="button" title="语音输入">
+          <svg class="apple-sf-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+            <path d="M5 11a7 7 0 0 0 14 0"></path>
+            <line x1="12" y1="18" x2="12" y2="21"></line>
+          </svg>
+          <span>语音</span>
+        </button>
+        <button class="apple-pill-btn primary" id="btn-mixture-analyze" type="button" title="拆成化合物并倒入当前烧杯">
+          <span>分析</span>
+        </button>
+      </div>
+      <p class="mixture-ai-status" id="mixture-ai-status"></p>
+      <p class="mixture-reaction-line" id="mixture-reaction-line" hidden></p>
+
       <!-- 2. Apple VisionOS Minimalist Breakdown Strip (全景成分占比条) -->
       <div class="apple-breakdown-bar-wrap">
         <div class="apple-meter-bar" id="comp-segmented-bar"></div>
@@ -202,11 +240,31 @@ export class ExperimentStatusCard {
     this.element.querySelector('#btn-clean-beaker')?.addEventListener('click', () => {
       this.getCurrentEngine().reset();
     });
+
+    this.mixtureQuery = bindMixtureQuery(this.element, {
+      input: '#mixture-query',
+      voice: '#btn-mixture-voice',
+      analyze: '#btn-mixture-analyze',
+      status: '#mixture-ai-status',
+    }, {
+      getEngine: () => this.getCurrentEngine(),
+    });
   }
 
   public updateState(state: ChemistryState): void {
     const engine = this.getCurrentEngine();
     const comp: ChemistryComposition = engine.getCompositionAnalysis();
+    const reactionLine = this.element.querySelector('#mixture-reaction-line');
+    const latestReaction = state.recentReactions[0];
+    if (reactionLine) {
+      if (latestReaction) {
+        reactionLine.textContent = `${latestReaction.title} · ${latestReaction.phenomenon}`;
+        reactionLine.removeAttribute('hidden');
+      } else {
+        reactionLine.textContent = '';
+        reactionLine.setAttribute('hidden', '');
+      }
+    }
 
     // 1. Ambient Status Capsule: Volume, pH, Temp
     const volSummary = this.element.querySelector('#summary-volume');
@@ -255,7 +313,7 @@ export class ExperimentStatusCard {
             (c) => `
           <div class="legend-chip">
             <span class="chip-dot" style="background: ${c.color};"></span>
-            <span class="chip-name">${c.formula} ${c.name}</span>
+            <span class="chip-name">${formatChemicalFormula(c.formula)} ${c.name}</span>
             <span class="chip-pct">${c.percentage.toFixed(1)}%</span>
           </div>
         `
@@ -297,9 +355,11 @@ export class ExperimentStatusCard {
           .map((c) => {
             const isPrecipitate = c.category === 'precipitate';
             const isSolid = c.category === 'solid';
+            const isCompound = c.category === 'compound';
 
             let categoryLabel = '可溶离子';
-            if (isPrecipitate) categoryLabel = '沉淀';
+            if (isCompound) categoryLabel = '成分';
+            else if (isPrecipitate) categoryLabel = '沉淀';
             else if (isSolid) categoryLabel = '固态单质';
             else if (c.formula.includes('⁺') || c.formula.includes('+')) categoryLabel = '阳离子';
             else if (c.formula.includes('⁻') || c.formula.includes('-')) categoryLabel = '阴离子';
@@ -323,15 +383,18 @@ export class ExperimentStatusCard {
               ? `${(c.massGrams * 1000).toFixed(1)} mg` 
               : `${c.massGrams.toFixed(2)} g`;
 
+            const fmtFormula = formatChemicalFormula(c.formula);
+            const formulaClass = getFormulaAvatarClass(fmtFormula);
+
             return `
               <div class="apple-solute-card" style="--tint: ${c.color}">
                 <!-- Card Top: Identity & Share -->
                 <div class="card-identity-row">
-                  <div class="ion-avatar" style="color: ${c.color}; background: ${c.color}1c; border-color: ${c.color}40;">
-                    ${c.formula}
+                  <div class="ion-avatar ${formulaClass}" style="color: ${c.color}; background: ${c.color}1c; border-color: ${c.color}40;" title="${fmtFormula}">
+                    ${fmtFormula}
                   </div>
                   <div class="ion-info">
-                    <span class="ion-name">${c.name}</span>
+                    <span class="ion-name" title="${c.name}">${c.name}</span>
                     <span class="ion-category">${categoryLabel}</span>
                   </div>
                   <div class="ion-share-pill" style="color: ${c.color}; background: ${c.color}15;">
@@ -411,6 +474,7 @@ export class ExperimentStatusCard {
   }
 
   public destroy(): void {
+    this.mixtureQuery?.destroy();
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;

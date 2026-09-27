@@ -738,43 +738,43 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       } = req;
 
       const curveL = 2 * halfL;
-      const maxY = halfH * 0.94;
+      const maxY = halfH * 0.92;
       const minY = -maxY;
-      const maxZ = waferThickness * 0.40;
-      const minZ = -maxZ;
+      const minZ = -waferThickness * 0.08;
+      const maxZ = waferThickness * 0.44;
+      const relaxFactor = Math.min(1.0, delta * 6.0);
 
       for (let i = 0; i < particleCount; i++) {
         const idx = i * 3;
 
-        // Longitudinal drift along X (only when current is flowing)
+        // 1. Continuous longitudinal drift along X (only when current flows)
         if (speed > 0) {
           positions[idx] += driftDirection * speed * delta;
 
-          // Seamless wrap-around when exiting wafer boundary
-          if (driftDirection > 0 && positions[idx] > halfL) {
-            positions[idx] = -halfL;
-            baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.75;
-          } else if (driftDirection < 0 && positions[idx] < -halfL) {
-            positions[idx] = halfL;
-            baseOffsetsY[i] = (Math.random() * 2 - 1) * halfH * 0.75;
+          // Continuous modular wrap-around without positional loss or sudden Y jumps
+          if (positions[idx] > halfL) {
+            positions[idx] -= curveL;
+          } else if (positions[idx] < -halfL) {
+            positions[idx] += curveL;
           }
         }
 
-        // Smooth parabolic deflection towards accumulating edge
-        const u = driftDirection > 0
-          ? (positions[idx] + halfL) / curveL
-          : (halfL - positions[idx]) / curveL;
+        // 2. Physical Hall equilibrium transverse distribution
+        const baseNormY = baseOffsetsY[i] / halfH;
+        const targetY = baseOffsetsY[i] + maxDeflectionY * (1.0 - 0.30 * Math.abs(baseNormY));
+        const clampedTargetY = targetY < minY ? minY : targetY > maxY ? maxY : targetY;
 
-        const clampedU = u < 0 ? 0 : u > 1 ? 1 : u;
-        const curveWeight = Math.pow(clampedU, 1.35);
+        const currentY = positions[idx + 1];
+        const nextY = currentY + (clampedTargetY - currentY) * relaxFactor;
 
-        // Microscopic thermal jitter (Brownian quantum fluctuation)
-        const thermalPhase = thermalPhases[i] + timeNow;
-        const thermalY = Math.sin(thermalPhase * 3.5) * halfH * 0.045;
-        const thermalZ = Math.cos(thermalPhase * 2.8) * waferThickness * 0.06;
+        // 3. Gentle organic quantum Brownian fluctuation
+        const p1 = thermalPhases[i] + timeNow * 2.2;
+        const p2 = thermalPhases[i] * 1.732 + timeNow * 3.7;
+        const thermalY = (Math.sin(p1) * 0.65 + Math.sin(p2) * 0.35) * halfH * 0.022;
+        const thermalZ = Math.cos(p1 * 1.2) * waferThickness * 0.025;
 
-        const targetY = baseOffsetsY[i] + maxDeflectionY * curveWeight + thermalY;
-        positions[idx + 1] = targetY < minY ? minY : targetY > maxY ? maxY : targetY;
+        const finalY = nextY + thermalY;
+        positions[idx + 1] = finalY < minY ? minY : finalY > maxY ? maxY : finalY;
 
         const targetZ = baseOffsetsZ[i] + thermalZ;
         positions[idx + 2] = targetZ < minZ ? minZ : targetZ > maxZ ? maxZ : targetZ;

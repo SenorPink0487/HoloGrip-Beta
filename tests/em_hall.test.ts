@@ -282,6 +282,7 @@ console.log('Test 4: 3D Scene Assembly & Particle System Lifecycle');
   const bench = new HallBenchMesh();
   assert.ok(bench.group instanceof THREE.Group, 'HallBenchMesh group instantiated');
   assert.ok(bench.waferMesh instanceof THREE.Mesh, 'Hall wafer mesh exists');
+  assert.ok(bench.substrateMesh instanceof THREE.Mesh, 'Hall solid substrate mesh exists');
   bench.updateTelemetry(0.5, 10.0, -25.0, 'n-GaAs', 'electron');
   bench.update(0.016);
   bench.dispose();

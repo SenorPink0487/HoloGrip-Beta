@@ -18,15 +18,26 @@ export class HallBenchMesh {
   public waferMesh: THREE.Mesh;
   private waferMaterial: THREE.MeshStandardMaterial;
 
+  // Solid Physical Semiconductor Substrate (Non-transparent crystal base)
+  public substrateMesh: THREE.Mesh;
+  private substrateMaterial: THREE.MeshStandardMaterial;
+  private substrateTextures: Record<string, THREE.CanvasTexture> = {};
+
   // Crystal Chamber
   private chamberGroup: THREE.Group;
   private crystalBoxMesh: THREE.Mesh;
   private crystalMaterial: THREE.MeshStandardMaterial;
 
-  // Magnetic field flux lines (5 sleek, slender holographic flux streamlines)
+  // Magnetic field flux lines (holographic flux streamlines strictly driven by B)
   private fluxArrowsGroup: THREE.Group;
   private fluxArrowMeshes: { group: THREE.Group; shaft: THREE.Mesh; cone: THREE.Mesh; baseY: number; baseZ: number }[] = [];
   private fluxArrowMat: THREE.MeshStandardMaterial;
+  private showVectors = true;
+  private waferLength = 0.32;
+  private waferHeight = 0.125;
+  private waferThickness = 0.032;
+  private stageY = 0;
+  private arrowY = 0;
 
   // Internal chamber illumination light
   private chamberLight: THREE.PointLight;
@@ -83,40 +94,181 @@ export class HallBenchMesh {
     this.disposables.push(this.goldMat);
 
     // 3. Optical Quartz Specimen Chamber
-    // High-performance crystal-clear quartz using MeshStandardMaterial without clearcoat overhead
+    // High-performance crystal-clear quartz with ultra-clean transmission without milky haze
     this.crystalMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf2f8ff,
-      metalness: 0.08,
-      roughness: 0.06,
+      color: 0x8ec5fc,
+      metalness: 0.10,
+      roughness: 0.08,
       transparent: true,
-      opacity: 0.20,
+      opacity: 0.08,
       depthWrite: false,
     });
     this.disposables.push(this.crystalMaterial);
 
-    // 4. Polished Semiconductor Wafer Specimen
-    // High-performance crystal-clear optical quartz with ultra-clean transmission
+    // 4. Polished Semiconductor Wafer Front Window
     this.waferMaterial = new THREE.MeshStandardMaterial({
-      color: 0xd8eeff, // Crystal optical quartz tint
-      metalness: 0.08,
+      color: 0x162c42,
+      metalness: 0.12,
       roughness: 0.06,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.18,
       depthWrite: false,
     });
     this.disposables.push(this.waferMaterial);
 
-    // 5. Holographic Magnetic Flux Streamlines Material (Vivid Electric Cyan)
+    // 4b. Solid Opaque Semiconductor Crystal Substrate (Non-transparent physical base)
+    this.substrateMaterial = new THREE.MeshStandardMaterial({
+      color: 0x111c29,
+      metalness: 0.82,
+      roughness: 0.28,
+      transparent: false,
+    });
+    this.disposables.push(this.substrateMaterial);
+    this.initSubstrateTextures();
+
+    // 5. Holographic Magnetic Flux Streamlines Material (Deep Vivid Electric Azure)
     this.fluxArrowMat = new THREE.MeshStandardMaterial({
-      color: 0x00f0ff,
-      emissive: 0x00d2ff,
-      emissiveIntensity: 2.4,
-      roughness: 0.12,
-      metalness: 0.3,
-      transparent: true,
-      opacity: 0.85,
+      color: 0x0066ff,
+      emissive: 0x0044cc,
+      emissiveIntensity: 0.60,
+      roughness: 0.18,
+      metalness: 0.35,
+      transparent: false,
     });
     this.disposables.push(this.fluxArrowMat);
+  }
+
+  private initSubstrateTextures(): void {
+    this.substrateTextures['n-gaas'] = this.createSubstrateTexture(
+      'n-GaAs (100) SINGLE CRYSTAL WAFER',
+      'HIGH-MOBILITY ELECTRON CHANNEL | Nd = 1.25e21 m⁻³',
+      '#0e1926',
+      '#38bdf8',
+      'rgba(56, 189, 248, 0.10)'
+    );
+
+    this.substrateTextures['p-silicon'] = this.createSubstrateTexture(
+      'p-Si (111) MONOCRYSTALLINE SUBSTRATE',
+      'HOLE-DOMINANT TRANSPORT CHANNEL | Na = 2.50e21 m⁻³',
+      '#1c130b',
+      '#fb923c',
+      'rgba(251, 146, 60, 0.10)'
+    );
+
+    this.substrateTextures['copper'] = this.createSubstrateTexture(
+      'HIGH-PURITY PURPLE COPPER FILM (99.99%)',
+      'FERMI SURFACE CONDUCTION BAND | n = 8.49e28 m⁻³',
+      '#662916',
+      '#fca5a5',
+      'rgba(254, 202, 202, 0.12)'
+    );
+
+    this.substrateMaterial.map = this.substrateTextures['n-gaas'];
+    this.disposables.push(
+      this.substrateTextures['n-gaas'],
+      this.substrateTextures['p-silicon'],
+      this.substrateTextures['copper']
+    );
+  }
+
+  private createSubstrateTexture(
+    title: string,
+    subTitle: string,
+    baseColor: string,
+    accentColor: string,
+    gridColor: string
+  ): THREE.CanvasTexture {
+    const width = 512;
+    const height = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    if (ctx && typeof ctx.fillRect === 'function') {
+      // 1. Base semiconductor crystal fill
+      ctx.fillStyle = baseColor;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. Subtle brushed / anisotropic semiconductor crystal gradient
+      if (typeof ctx.createLinearGradient === 'function') {
+        const grad = ctx.createLinearGradient(0, 0, width, height);
+        grad.addColorStop(0.0, 'rgba(255, 255, 255, 0.05)');
+        grad.addColorStop(0.3, 'rgba(255, 255, 255, 0.01)');
+        grad.addColorStop(0.7, 'rgba(0, 0, 0, 0.15)');
+        grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.28)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      // 3. Precision laser-etched semiconductor coordinate grid
+      ctx.strokeStyle = gridColor;
+      ctx.lineWidth = 1.0;
+      const step = 32;
+      for (let x = step; x < width; x += step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let y = step; y < height; y += step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      // 4. Center fiducial alignment crosshair [100] / [010]
+      const cx = width / 2;
+      const cy = height / 2;
+      ctx.strokeStyle = accentColor;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 24, cy);
+      ctx.lineTo(cx + 24, cy);
+      ctx.moveTo(cx, cy - 24);
+      ctx.lineTo(cx, cy + 24);
+      ctx.stroke();
+
+      if (typeof ctx.arc === 'function') {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // 5. Authentic semiconductor wafer markings & technical typography
+      if (typeof ctx.fillText === 'function') {
+        ctx.fillStyle = accentColor;
+        ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(title, 20, 30);
+
+        ctx.font = '400 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillText(subTitle, 20, 48);
+
+        // Millimeter scale markings along bottom
+        ctx.textAlign = 'center';
+        ctx.font = '500 10px monospace';
+        ctx.fillText('-4mm', step * 2, height - 12);
+        ctx.fillText('-2mm', step * 5, height - 12);
+        ctx.fillText('0', cx, height - 12);
+        ctx.fillText('+2mm', width - step * 5, height - 12);
+        ctx.fillText('+4mm', width - step * 2, height - 12);
+      }
+
+      // 6. Perimeter beveled border
+      if (typeof ctx.strokeRect === 'function') {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+        ctx.lineWidth = 2.0;
+        ctx.strokeRect(1, 1, width - 2, height - 2);
+      }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    return tex;
   }
 
   private buildApparatus(options: HallBenchMeshOptions): void {
@@ -143,7 +295,7 @@ export class HallBenchMesh {
     this.buildPiercingFluxArrows(waferL, waferH, waferT, stageY);
 
     // 4. Subtle internal chamber point light for luminous glow
-    this.chamberLight = new THREE.PointLight(0x00f0ff, 1.2, 0.45);
+    this.chamberLight = new THREE.PointLight(0x00f0ff, 0.45, 0.45);
     this.chamberLight.position.set(0, stageY, 0);
     this.group.add(this.chamberLight);
   }
@@ -180,15 +332,57 @@ export class HallBenchMesh {
     wireMesh.position.set(0, stageY, 0);
     this.chamberGroup.add(wireMesh);
 
-    // 2. Inner Semiconductor Wafer (Interactive Target)
-    const waferGeo = new THREE.BoxGeometry(waferL, waferH, waferT);
+    // 2. Solid Physical Semiconductor Substrate (Opaque crystal backing plate)
+    // Seated flush against the back face of the chamber, eliminating transparent glass appearance
+    const subT = waferT * 0.35;
+    const subZ = -waferT * 0.5 + subT * 0.5;
+    const substrateGeo = new THREE.BoxGeometry(waferL * 0.998, waferH * 0.998, subT);
+    this.disposables.push(substrateGeo);
+
+    this.substrateMesh = new THREE.Mesh(substrateGeo, this.substrateMaterial);
+    this.substrateMesh.name = 'HallSubstrate';
+    this.substrateMesh.position.set(0, stageY, subZ);
+    this.substrateMesh.renderOrder = 3;
+    this.chamberGroup.add(this.substrateMesh);
+
+    // Beveled substrate framing edges for precision crystal appearance
+    const subEdgeGeo = new THREE.EdgesGeometry(substrateGeo);
+    this.disposables.push(subEdgeGeo);
+    const subEdgeMat = new THREE.LineBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.35,
+    });
+    this.disposables.push(subEdgeMat);
+    const subEdgeMesh = new THREE.LineSegments(subEdgeGeo, subEdgeMat);
+    subEdgeMesh.position.set(0, stageY, subZ);
+    this.chamberGroup.add(subEdgeMesh);
+
+    // 3. Active Conduction Channel & Inspection Crystal (Front Face)
+    // Sits flush in front of the solid substrate, filling the remaining thickness
+    const frontT = waferT - subT;
+    const frontZ = subZ + subT * 0.5 + frontT * 0.5;
+    const waferGeo = new THREE.BoxGeometry(waferL, waferH, frontT);
     this.disposables.push(waferGeo);
 
     this.waferMesh = new THREE.Mesh(waferGeo, this.waferMaterial);
     this.waferMesh.name = 'HallWafer';
-    this.waferMesh.position.set(0, stageY, 0);
+    this.waferMesh.position.set(0, stageY, frontZ);
     this.waferMesh.renderOrder = 5;
     this.chamberGroup.add(this.waferMesh);
+
+    // Crisp crystal channel edges
+    const waferEdgeGeo = new THREE.EdgesGeometry(waferGeo);
+    this.disposables.push(waferEdgeGeo);
+    const waferEdgeMat = new THREE.LineBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.45,
+    });
+    this.disposables.push(waferEdgeMat);
+    const waferEdgeMesh = new THREE.LineSegments(waferEdgeGeo, waferEdgeMat);
+    waferEdgeMesh.position.set(0, stageY, frontZ);
+    this.chamberGroup.add(waferEdgeMesh);
 
     // 3. Precision Ohmic Clamping Terminal Blocks (Left & Right Ends)
     this.buildClampingElectrodes(chamberW, chamberH, chamberT, stageY);
@@ -294,7 +488,7 @@ export class HallBenchMesh {
     this.fluxArrowsGroup.name = 'ElectromagnetYoke'; // Clicking toggles magnetic polarity
     this.group.add(this.fluxArrowsGroup);
 
-    // 5 sleek, slender holographic flux streamlines
+    // 5 bold, prominent holographic flux streamlines
     const arrowCount = 5;
     const spanX = waferL * 0.72;
     const spacing = spanX / (arrowCount - 1);
@@ -303,12 +497,12 @@ export class HallBenchMesh {
     // Placed slightly lower than center to provide clear sightline to carrier flow
     const arrowY = stageY - waferH * 0.26;
 
-    const shaftRadius = 0.0010; // Sleek hairline streamline
-    const shaftLen = 0.088;
-    const coneRadius = 0.0034;  // Delicate aerodynamic arrow tip
-    const coneHeight = 0.010;
+    const shaftRadius = 0.0024; // Bold volumetric 3D streamline
+    const shaftLen = 0.092;
+    const coneRadius = 0.0062;  // Prominent aerodynamic arrow tip
+    const coneHeight = 0.016;
 
-    const shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLen, 12);
+    const shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLen, 16);
     const coneGeo = new THREE.ConeGeometry(coneRadius, coneHeight, 16);
     this.disposables.push(shaftGeo, coneGeo);
 
@@ -335,31 +529,52 @@ export class HallBenchMesh {
 
   public setWaferAppearance(materialKey: string): void {
     if (materialKey === 'n-gaas') {
-      this.waferMaterial.color.setHex(0xd8eeff); // Crystal optical tint with pristine clarity
-      this.waferMaterial.opacity = 0.12;
-      this.waferMaterial.metalness = 0.04;
-      this.waferMaterial.roughness = 0.02;
+      this.waferMaterial.color.setHex(0x14344d); // Optical semiconductor blue-crystal tint
+      this.waferMaterial.opacity = 0.32;
+      this.waferMaterial.metalness = 0.25;
+      this.waferMaterial.roughness = 0.10;
+      if (this.substrateTextures['n-gaas']) {
+        this.substrateMaterial.map = this.substrateTextures['n-gaas'];
+        this.substrateMaterial.color.setHex(0x111c29);
+        this.substrateMaterial.metalness = 0.82;
+        this.substrateMaterial.roughness = 0.28;
+        this.substrateMaterial.needsUpdate = true;
+      }
       if (this.chamberLight) {
         this.chamberLight.color.setHex(0x00f5ff);
-        this.chamberLight.intensity = 1.6;
+        this.chamberLight.intensity = 0.45;
       }
     } else if (materialKey === 'p-silicon') {
-      this.waferMaterial.color.setHex(0xffeedd); // Warm optical tint with pristine clarity
-      this.waferMaterial.opacity = 0.12;
-      this.waferMaterial.metalness = 0.04;
-      this.waferMaterial.roughness = 0.02;
+      this.waferMaterial.color.setHex(0x3d2212); // Warm optical semiconductor amber-smoke tint
+      this.waferMaterial.opacity = 0.32;
+      this.waferMaterial.metalness = 0.25;
+      this.waferMaterial.roughness = 0.10;
+      if (this.substrateTextures['p-silicon']) {
+        this.substrateMaterial.map = this.substrateTextures['p-silicon'];
+        this.substrateMaterial.color.setHex(0x211710);
+        this.substrateMaterial.metalness = 0.82;
+        this.substrateMaterial.roughness = 0.28;
+        this.substrateMaterial.needsUpdate = true;
+      }
       if (this.chamberLight) {
         this.chamberLight.color.setHex(0xff9500);
-        this.chamberLight.intensity = 1.6;
+        this.chamberLight.intensity = 0.45;
       }
     } else if (materialKey === 'copper') {
-      this.waferMaterial.color.setHex(0xc86d48); // Polished metallic rose copper
-      this.waferMaterial.opacity = 0.55;
+      this.waferMaterial.color.setHex(0xb85d38); // Polished metallic rose copper
+      this.waferMaterial.opacity = 0.52;
       this.waferMaterial.metalness = 0.85;
       this.waferMaterial.roughness = 0.18;
+      if (this.substrateTextures['copper']) {
+        this.substrateMaterial.map = this.substrateTextures['copper'];
+        this.substrateMaterial.color.setHex(0x662916);
+        this.substrateMaterial.metalness = 0.92;
+        this.substrateMaterial.roughness = 0.16;
+        this.substrateMaterial.needsUpdate = true;
+      }
       if (this.chamberLight) {
         this.chamberLight.color.setHex(0x64d2ff);
-        this.chamberLight.intensity = 1.0;
+        this.chamberLight.intensity = 0.35;
       }
     }
   }
@@ -399,8 +614,8 @@ export class HallBenchMesh {
       this.fluxArrowsGroup.visible = arrowVisible;
 
       if (arrowVisible) {
-        const shaftLen = 0.088 * THREE.MathUtils.clamp(bMag / 1.0, 0.45, 1.15);
-        const coneHeight = 0.010;
+        const shaftLen = 0.092 * THREE.MathUtils.clamp(bMag / 1.0, 0.45, 1.15);
+        const coneHeight = 0.016;
         for (const item of this.fluxArrowMeshes) {
           item.cone.position.set(0, 0, bSign * (shaftLen * 0.5 + coneHeight * 0.5));
           item.cone.rotation.x = (bSign * Math.PI) / 2;
@@ -415,10 +630,10 @@ export class HallBenchMesh {
   public update(delta: number): void {
     this.particleSystem.update(delta);
 
-    // Subtle magnetic flux pulse animation when field is present
+    // Subtle magnetic flux pulse animation when field is present (rich azure glow, no blowout)
     if (this.fluxArrowsGroup.visible && Math.abs(this.lastB) > 0.05) {
       this.fluxPulsePhase += delta * 4.0;
-      this.fluxArrowMat.emissiveIntensity = 1.8 + Math.sin(this.fluxPulsePhase) * 0.5;
+      this.fluxArrowMat.emissiveIntensity = 0.50 + Math.sin(this.fluxPulsePhase) * 0.20;
     }
   }
 

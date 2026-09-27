@@ -163,7 +163,7 @@ export class StereometryMesh {
     // Default configuration: standard high school cube, canonical textbook oblique view
     this.currentOptions = {
       modelType: 'cube',
-      dimensions: { a: 0.38, b: 0.38, c: 0.38 },
+      dimensions: { a: 0.58, b: 0.58, c: 0.58 },
       showKeyPoints: true,
       showMidpoints: false,      // NEVER cluttered with midpoints by default
       showFaceCenters: false,    // NEVER cluttered with face centers by default
@@ -405,7 +405,7 @@ export class StereometryMesh {
     this.modelContainer.add(this.auxGroup);
 
     // Invisible interaction hit envelope for effortless direct drag-rotation
-    const hitGeo = new THREE.SphereGeometry(0.55, 16, 16);
+    const hitGeo = new THREE.SphereGeometry(0.75, 16, 16);
     const hitMat = new THREE.MeshBasicMaterial({ visible: false });
     this.hitEnvelopeMesh = new THREE.Mesh(hitGeo, hitMat);
     this.hitEnvelopeMesh.name = 'math_hit_envelope';
@@ -445,13 +445,13 @@ export class StereometryMesh {
       transparent: true,
       depthWrite: false,
     });
-    const shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.58), shadowMat);
+    const shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.88, 0.88), shadowMat);
     shadowMesh.rotation.x = -Math.PI / 2;
     shadowMesh.position.y = 0.001;
     this.stagePresentationGroup.add(shadowMesh);
 
     // 2. Holographic polar coordinate laser projection ring (Vision Pro electric cyan reticle)
-    const ringGeo = new THREE.RingGeometry(0.24, 0.244, 64);
+    const ringGeo = new THREE.RingGeometry(0.38, 0.386, 64);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x00f7ff,
       transparent: true,
@@ -466,7 +466,7 @@ export class StereometryMesh {
     this.stagePresentationGroup.add(ring);
 
     // Inner concentric ring
-    const innerRingGeo = new THREE.RingGeometry(0.12, 0.123, 48);
+    const innerRingGeo = new THREE.RingGeometry(0.19, 0.194, 48);
     const innerRingMat = new THREE.MeshBasicMaterial({
       color: 0x00d2ff,
       transparent: true,

@@ -16,7 +16,6 @@ import {
   type SphereAnalysisResult,
   type SkewLineResult,
 } from '../../../scene/math/GeometrySolver.ts';
-import { StereometryGuidanceHUD } from '../../../ui/vision/StereometryGuidanceHUD.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 import { buildRecognizedModel, type RecognizedFigure } from '../../../scene/math/figureModel.ts';
@@ -59,18 +58,17 @@ export interface StereometryTelemetryData {
 
 export default class MathStereometryExperiment extends BaseExperiment {
   public readonly metadata = metadata;
-  public override targetScale = 1.0;
+  public override targetScale = 1.6;
   public override hideCenterEmitter = true;
 
   private mesh: StereometryMesh;
   private interactionManager: StereometryInteractionManager;
-  private guidanceHud: StereometryGuidanceHUD | null = null;
   private onKeyDownBound: ((e: KeyboardEvent) => void) | null = null;
 
   // State cache
   private modelType: HighSchoolModelType = 'cube';
-  private dimA = 0.42;
-  private dimH = 0.42;
+  private dimA = 0.58;
+  private dimH = 0.58;
   private originPointId = 'v_0';
   private interactionMode: InteractionMode = 'direct';
   private lastTelemetryStateKey = '';
@@ -97,23 +95,15 @@ export default class MathStereometryExperiment extends BaseExperiment {
     this.interactionManager = new StereometryInteractionManager(this.mesh, {
       onSegmentCreated: (label, len) => {
         console.log(`[Stereometry] Segment created: ${label} (len: ${len.toFixed(3)})`);
-        this.guidanceHud?.setSegmentsCount(this.mesh.getSegments().length);
       },
       onSegmentRemoved: (label, len) => {
         console.log(`[Stereometry] Segment removed: ${label} (len: ${len.toFixed(3)})`);
-        this.guidanceHud?.setSegmentsCount(this.mesh.getSegments().length);
       },
       onCrossSectionCreated: (type, area) => {
         console.log(`[Stereometry] Cross-section created: ${type} (area: ${area.toFixed(3)})`);
       },
       onOriginChanged: (kp) => {
         this.originPointId = kp.id;
-      },
-      onClearSegments: () => {
-        this.guidanceHud?.setSegmentsCount(0);
-      },
-      onGuidanceChange: (hint, type) => {
-        this.guidanceHud?.setGuidance(hint, type);
       },
     });
 
@@ -126,15 +116,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
       context.renderer.localClippingEnabled = true;
     }
 
-    // Mount Apple VisionOS floating guidance HUD
-    if (typeof document !== 'undefined' && document.body) {
-      this.guidanceHud = new StereometryGuidanceHUD(document.body, {
-        onUndo: () => this.undoLastSegment(),
-        onResetView: () => this.interactionManager?.resetToIsometricView(),
-        onClear: () => this.interactionManager?.clearAll(),
-      });
-      this.guidanceHud.setSegmentsCount(this.mesh ? this.mesh.getSegments().length : 0);
-
+    if (typeof document !== 'undefined') {
       this.onKeyDownBound = (e: KeyboardEvent) => {
         if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
         this.interactionManager?.onKeyDown(e);
@@ -554,9 +536,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   public undoLastSegment(): any {
-    const seg = this.interactionManager?.undoLastSegment();
-    this.guidanceHud?.setSegmentsCount(this.mesh ? this.mesh.getSegments().length : 0);
-    return seg;
+    return this.interactionManager?.undoLastSegment();
   }
 
   public dispose(_context: ExperimentContext): void {
@@ -564,8 +544,6 @@ export default class MathStereometryExperiment extends BaseExperiment {
       window.removeEventListener('keydown', this.onKeyDownBound);
       this.onKeyDownBound = null;
     }
-    this.guidanceHud?.dispose();
-    this.guidanceHud = null;
     this.mesh?.dispose();
     this.rootGroup.clear();
   }

@@ -9,7 +9,7 @@ import {
 } from './GeometrySolver.ts';
 
 /** Longest axis of a recognized solid, in scene units, so it sits with the preset models. */
-export const RECOGNIZED_MODEL_SPAN = 0.5;
+export const RECOGNIZED_MODEL_SPAN = 0.58;
 
 export interface FigureVertex {
   id: string;
