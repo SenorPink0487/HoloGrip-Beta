@@ -4,6 +4,7 @@ import {
   type CategoryInfo,
 } from '../experiments/ExperimentRegistry.ts';
 import type { ExperimentMetadata, ExperimentCategory } from '../core/types.ts';
+import { blurActiveInput, isTextInputActive } from '../core/focus.ts';
 
 export class ExperimentDrawer {
   private element: HTMLElement;
@@ -69,6 +70,8 @@ export class ExperimentDrawer {
 
     this.listEl = this.element.querySelector('#drawer-list')!;
     this.searchInput = this.element.querySelector('#drawer-search-input')!;
+    this.searchInput.disabled = true;
+    this.searchInput.tabIndex = -1;
 
     // Close button
     this.element.querySelector('#drawer-close-btn')!.addEventListener('click', () => {
@@ -95,8 +98,12 @@ export class ExperimentDrawer {
 
     // Toggle shortcut (Key: 'E') and Escape to close
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey && document.activeElement?.tagName !== 'INPUT') {
-        this.toggle();
+      if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey) {
+        if (this.isOpen) {
+          this.toggle(false);
+        } else if (!isTextInputActive()) {
+          this.toggle(true);
+        }
       } else if (e.code === 'Escape' && this.isOpen) {
         this.toggle(false);
       }
@@ -110,6 +117,8 @@ export class ExperimentDrawer {
     this.element.classList.toggle('open', this.isOpen);
 
     if (this.isOpen) {
+      this.searchInput.disabled = false;
+      this.searchInput.tabIndex = 0;
       try {
         if (typeof document !== 'undefined' && typeof document.exitPointerLock === 'function') {
           document.exitPointerLock();
@@ -117,6 +126,11 @@ export class ExperimentDrawer {
       } catch (err) {
         console.warn('[ExperimentDrawer] Error exiting pointer lock:', err);
       }
+    } else {
+      this.searchInput.blur?.();
+      this.searchInput.disabled = true;
+      this.searchInput.tabIndex = -1;
+      blurActiveInput(true);
     }
 
     this.onToggle?.(this.isOpen);

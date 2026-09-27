@@ -1,5 +1,6 @@
 import type { ComputeBridge } from '../core/platform/ComputeBridge';
 import type { PlatformBridge } from '../core/platform/PlatformBridge';
+import { isTextInputActive } from '../core/focus.ts';
 
 export class PerfOverlay {
   private element: HTMLElement;
@@ -91,9 +92,7 @@ export class PerfOverlay {
         e.code === 'KeyP' &&
         !e.ctrlKey &&
         !e.metaKey &&
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA' &&
-        !(document.activeElement as HTMLElement)?.isContentEditable
+        !isTextInputActive()
       ) {
         this.toggle();
       }

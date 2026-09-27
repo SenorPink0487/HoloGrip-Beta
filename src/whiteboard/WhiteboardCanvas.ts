@@ -1,6 +1,7 @@
 import { newBoardId } from './id.ts';
 import { StrokeStream, type BoardCommand, type BoardEvent, type BoardState, type ActiveStroke } from './collaboration.ts';
 import type { Point, Stroke, WhiteboardPage, WhiteboardTool, WhiteboardTheme, WhiteboardOptions } from './types';
+import { blurActiveInput } from '../core/focus.ts';
 
 export class WhiteboardCanvas {
   public element: HTMLDivElement;
@@ -114,6 +115,7 @@ export class WhiteboardCanvas {
   }
 
   private onPointerDown(e: PointerEvent): void {
+    blurActiveInput(true);
     if (this.isDrawing || (e.button !== 0 && e.pointerType === 'mouse') || (this.collaboration && !this.sharedReady)) return;
     if (this.currentStroke) { this.finishStroke(); if (this.currentStroke) return; }
     e.preventDefault?.();

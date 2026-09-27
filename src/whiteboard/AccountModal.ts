@@ -6,6 +6,7 @@ import type { AccountUser, ClassStudent } from '../account/types.ts';
 import { AccountApiError } from '../account/types.ts';
 import type { WhiteboardCanvas } from './WhiteboardCanvas';
 import type { WhiteboardTheme } from './types';
+import { blurActiveInput } from '../core/focus.ts';
 
 const THEMES: { id: WhiteboardTheme; label: string; preview: string }[] = [
   { id: 'plain', label: '经典白板', preview: 'preview-plain' },
@@ -46,6 +47,12 @@ export class AccountModal {
   }
 
   public close(): void {
+    blurActiveInput(true);
+    try {
+      this.element.querySelectorAll('input, textarea').forEach((el) => (el as HTMLElement).blur?.());
+    } catch {
+      // Ignore
+    }
     this.isOpen = false;
     this.element.classList.remove('open');
   }

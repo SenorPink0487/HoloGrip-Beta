@@ -1,6 +1,7 @@
 import type { WhiteboardCanvas } from './WhiteboardCanvas.ts';
 import type { WhiteboardTool } from './types.ts';
 import { AppleColorPicker } from './AppleColorPicker.ts';
+import { isTextInputActive } from '../core/focus.ts';
 
 export class WhiteboardToolbar {
   public element: HTMLDivElement;
@@ -279,7 +280,8 @@ export class WhiteboardToolbar {
 
     // Keyboard shortcuts
     window.addEventListener('keydown', (e) => {
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+      if (this.element.closest('.hidden-view')) return;
+      if (isTextInputActive()) return;
 
       if (e.key === 'p' || e.key === 'P') {
         this.selectTool('pen');

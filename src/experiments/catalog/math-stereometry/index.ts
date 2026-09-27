@@ -20,7 +20,6 @@ import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 import { buildRecognizedModel, type RecognizedFigure } from '../../../scene/math/figureModel.ts';
 import { recognizeStereometryImage } from '../../../scene/math/recognizeFigure.ts';
-import { StereometryGuidanceBar } from '../../../ui/StereometryGuidanceBar.ts';
 
 export interface StereometryTelemetryData {
   modelId: HighSchoolModelType;
@@ -64,7 +63,6 @@ export default class MathStereometryExperiment extends BaseExperiment {
 
   private mesh: StereometryMesh;
   private interactionManager: StereometryInteractionManager;
-  private guidanceBar: StereometryGuidanceBar | null = null;
   private onKeyDownBound: ((e: KeyboardEvent) => void) | null = null;
 
   // State cache
@@ -91,35 +89,21 @@ export default class MathStereometryExperiment extends BaseExperiment {
       context.renderer.localClippingEnabled = true;
     }
 
-    if (typeof document !== 'undefined') {
-      this.guidanceBar = new StereometryGuidanceBar(document.body);
-    }
-
     this.mesh = new StereometryMesh();
     this.rootGroup.add(this.mesh.group);
 
     this.interactionManager = new StereometryInteractionManager(this.mesh, {
       onSegmentCreated: (label, len) => {
         console.log(`[Stereometry] Segment created: ${label} (len: ${len.toFixed(3)})`);
-        this.guidanceBar?.showSuccess(`已成功创建辅助线 ${label} (长 ${len.toFixed(3)}m)`);
       },
       onSegmentRemoved: (label, len) => {
         console.log(`[Stereometry] Segment removed: ${label} (len: ${len.toFixed(3)})`);
-        this.guidanceBar?.showWarn(`已撤销辅助线 ${label}`);
-      },
-      onClearSegments: () => {
-        this.guidanceBar?.showWarn('已清空所有辅助线');
       },
       onCrossSectionCreated: (type, area) => {
         console.log(`[Stereometry] Cross-section created: ${type} (area: ${area.toFixed(3)})`);
-        this.guidanceBar?.showSuccess(`已生成截面 ${type} (面积: ${area.toFixed(3)})`);
       },
       onOriginChanged: (kp) => {
         this.originPointId = kp.id;
-        this.guidanceBar?.showInfo(`已设基准原点为 ${kp.label}`);
-      },
-      onGuidanceChange: (hint, type, colorHex) => {
-        this.guidanceBar?.setHint(hint, type, colorHex);
       },
     });
 
@@ -552,8 +536,6 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   public dispose(_context: ExperimentContext): void {
-    this.guidanceBar?.destroy();
-    this.guidanceBar = null;
     this.mesh?.dispose();
     this.rootGroup.clear();
   }

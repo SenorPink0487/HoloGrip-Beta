@@ -1,6 +1,7 @@
 import { ExperimentDrawer } from './ExperimentDrawer.ts';
 import { PerfOverlay } from './PerfOverlay.ts';
 import { PlatformBridge } from '../core/platform/PlatformBridge.ts';
+import { isTextInputActive } from '../core/focus.ts';
 import type { ComputeBridge } from '../core/platform/ComputeBridge.ts';
 import type { IExperiment, ExperimentContext } from '../core/types.ts';
 
@@ -29,7 +30,7 @@ export class HUD {
 
     // Bind F key to fullscreen
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && document.activeElement?.tagName !== 'INPUT') {
+      if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !isTextInputActive()) {
         this.platform.toggleFullscreen();
       }
     });

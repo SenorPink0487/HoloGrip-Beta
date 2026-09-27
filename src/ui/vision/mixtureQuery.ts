@@ -59,6 +59,7 @@ export function bindMixtureQuery(
       return;
     }
     stopVoice();
+    inputEl()?.blur?.();
     analyzing = true;
     const button = root.querySelector(selectors.analyze) as HTMLButtonElement | null;
     if (button) button.disabled = true;

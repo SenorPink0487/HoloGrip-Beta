@@ -6,6 +6,7 @@ import { WhiteboardToolbar } from './WhiteboardToolbar.ts';
 import { WhiteboardDock } from './WhiteboardDock.ts';
 import { AccountModal } from './AccountModal.ts';
 import type { Engine } from '../core/Engine.ts';
+import { blurActiveInput, isTextInputActive } from '../core/focus.ts';
 import { glassLook, glassMask } from '../controls/labEntry.ts';
 import {
   returnChrome,
@@ -116,8 +117,7 @@ export class WhiteboardApp {
         e.code === 'KeyB' &&
         !e.ctrlKey &&
         !e.metaKey &&
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA'
+        !isTextInputActive()
       ) {
         if (this.currentMode === 'laboratory') {
           this.switchToWhiteboard();
@@ -360,6 +360,7 @@ export class WhiteboardApp {
   }
 
   private activateLaboratory(): void {
+    blurActiveInput(true);
     if (!this.engine) return;
     if (this.engine.inputManager?.player) {
       this.engine.inputManager.player.enabled = true;
@@ -375,6 +376,7 @@ export class WhiteboardApp {
   }
 
   private applyViewMode(mode: 'whiteboard' | 'laboratory'): void {
+    blurActiveInput(true);
     this.currentMode = mode;
     this.dock.setMode(mode);
 

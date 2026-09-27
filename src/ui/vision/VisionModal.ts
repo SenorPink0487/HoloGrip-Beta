@@ -16,6 +16,7 @@ import { MechStatusCard, type MechExperimentId } from './MechStatusCard.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
+import { blurActiveInput, isTextInputActive } from '../../core/focus.ts';
 
 export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo' | 'em' | 'mechanics';
 
@@ -435,7 +436,7 @@ export class VisionModal {
 
   private bindKeyboardShortcuts(): void {
     window.addEventListener('keydown', (e) => {
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+      if (isTextInputActive()) {
         return;
       }
 
@@ -624,7 +625,7 @@ export class VisionModal {
       titleEl.textContent = titles[tab] || '实验视窗';
     }
 
-
+    blurActiveInput(true);
     this.bodyContainer.innerHTML = '';
     this.statusCardSlot.innerHTML = '';
     this.statusCardSlot.style.display = 'none';
@@ -725,6 +726,12 @@ export class VisionModal {
   public close(): void {
     this.periodicTableModal?.closeElementPopover();
     this.element.querySelector('.vision-window-frame')?.classList.remove('has-modal-popover');
+    blurActiveInput(true);
+    try {
+      this.element.querySelectorAll('input, textarea').forEach((el) => (el as HTMLElement).blur?.());
+    } catch {
+      // Ignore
+    }
     this.isOpen = false;
     this.element.classList.add('hidden');
     this.thermoStatusCard?.setVisible(false);

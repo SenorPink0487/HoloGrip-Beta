@@ -1,4 +1,5 @@
 import type { PlayerController } from './PlayerController';
+import { blurActiveInput } from '../core/focus.ts';
 
 export class TouchController {
   private container: HTMLElement;
@@ -94,6 +95,7 @@ export class TouchController {
 
     // Joystick Touch events
     this.joystickBase.addEventListener('touchstart', (e: TouchEvent) => {
+      blurActiveInput(true);
       const touch = e.changedTouches[0];
       this.isDraggingJoystick = true;
       this.joystickTouchId = touch.identifier;
@@ -161,6 +163,7 @@ export class TouchController {
 
     // Screen touch look listener on right side
     window.addEventListener('touchstart', (e: TouchEvent) => {
+      blurActiveInput(true);
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
         // If touch is on right 60% of screen and not on a UI button/drawer

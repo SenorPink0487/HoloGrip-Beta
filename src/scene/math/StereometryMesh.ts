@@ -101,6 +101,7 @@ export class StereometryMesh {
   private selectedBeaconSprites: Map<string, THREE.Sprite> = new Map();
   private lastHoveredMeshId: string | null = null;
   private lastSelectedIds: string[] = [];
+  private lastCamera: THREE.Camera | null = null;
 
   // Current Model State
   private currentModelDef: PolyhedronModelDef;
@@ -1859,7 +1860,8 @@ export class StereometryMesh {
     startPos: THREE.Vector3,
     endPos: THREE.Vector3,
     color = 0x38d9a9,
-    badgeText?: string
+    badgeText?: string,
+    camera?: THREE.Camera
   ): void {
     const dir = new THREE.Vector3().subVectors(endPos, startPos);
     const len = dir.length();
@@ -1925,12 +1927,12 @@ export class StereometryMesh {
     (this.previewEndBead.material as THREE.MeshStandardMaterial).color.setHex(color);
     (this.previewEndBead.material as THREE.MeshStandardMaterial).emissive.setHex(color);
 
-    // 3. Floating Midpoint Distance Badge Sprite
-    const labelToDisplay = badgeText || `${len.toFixed(3)} m`;
+    // 3. Pure Typography Indicator on Connecting Line (Zero Bubble / Pure Text Aligned along Line)
+    const labelToDisplay = badgeText || `${len.toFixed(3)}m`;
     if (!this.previewBadgeSprite) {
       this.previewBadgeCanvas = document.createElement('canvas');
-      this.previewBadgeCanvas.width = 256;
-      this.previewBadgeCanvas.height = 64;
+      this.previewBadgeCanvas.width = 768;
+      this.previewBadgeCanvas.height = 160;
       this.previewBadgeTex = new THREE.CanvasTexture(this.previewBadgeCanvas);
       this.previewBadgeTex.minFilter = THREE.LinearFilter;
       const bMat = new THREE.SpriteMaterial({
@@ -1939,7 +1941,7 @@ export class StereometryMesh {
         depthTest: false,
       });
       this.previewBadgeSprite = new THREE.Sprite(bMat);
-      this.previewBadgeSprite.scale.set(0.062, 0.0155, 1);
+      this.previewBadgeSprite.scale.set(0.180, 0.0375, 1);
       this.previewBadgeSprite.renderOrder = 9;
       this.previewSegmentGroup.add(this.previewBadgeSprite);
     }
@@ -1948,35 +1950,69 @@ export class StereometryMesh {
       this.lastPreviewBadgeKey = `${labelToDisplay}_${color}`;
       const bctx = this.previewBadgeCanvas.getContext('2d');
       if (bctx) {
-        bctx.clearRect(0, 0, 256, 64);
+        bctx.clearRect(0, 0, 768, 160);
         const isEmerald = (color === 0x10b981 || color === 0x38d9a9);
-        bctx.fillStyle = isEmerald ? 'rgba(5, 150, 105, 0.92)' : 'rgba(15, 23, 42, 0.88)';
-        if (typeof (bctx as any).roundRect === 'function') {
-          bctx.beginPath();
-          (bctx as any).roundRect(8, 8, 240, 48, 24);
-          bctx.fill();
-        } else {
-          bctx.fillRect(8, 8, 240, 48);
-        }
-        bctx.lineWidth = 2.5;
-        bctx.strokeStyle = isEmerald ? 'rgba(52, 211, 153, 0.95)' : 'rgba(56, 189, 248, 0.75)';
-        if (typeof (bctx as any).roundRect === 'function') {
-          bctx.beginPath();
-          (bctx as any).roundRect(8, 8, 240, 48, 24);
-          bctx.stroke();
-        }
 
-        bctx.font = 'bold 26px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+        // Pure typography directly on the line without any background bubble or box (identical clean style as vertex labels B1)
+        bctx.font = 'bold 60px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif';
         bctx.textAlign = 'center';
         bctx.textBaseline = 'middle';
-        bctx.fillStyle = '#ffffff';
-        bctx.fillText(labelToDisplay, 128, 32);
+
+        // Dark stroke outline for razor-sharp legibility over 3D geometry without any background rectangle
+        bctx.lineWidth = 9.0;
+        bctx.lineJoin = 'round';
+        bctx.strokeStyle = 'rgba(8, 14, 26, 0.95)';
+        if (typeof bctx.strokeText === 'function') {
+          bctx.strokeText(labelToDisplay, 384, 80);
+        }
+
+        // Crisp glyph fill
+        bctx.fillStyle = isEmerald ? '#34d399' : '#ffffff';
+        bctx.fillText(labelToDisplay, 384, 80);
         this.previewBadgeTex.needsUpdate = true;
       }
     }
 
-    this.previewBadgeSprite.position.copy(mid).add(new THREE.Vector3(0, 0.015, 0));
-    this.previewBadgeSprite.visible = false;
+    // Dynamic Orientation & Position: Align with the 3D line in Camera View Space
+    const cam = camera || this.lastCamera;
+    let angle = 0;
+    if (cam && typeof (cam as any).matrixWorldInverse !== 'undefined' && typeof (cam as any).matrixWorld !== 'undefined') {
+      const startWorld = startPos.clone().applyMatrix4(this.modelContainer.matrixWorld);
+      const endWorld = endPos.clone().applyMatrix4(this.modelContainer.matrixWorld);
+      const midWorld = mid.clone().applyMatrix4(this.modelContainer.matrixWorld);
+
+      const vStart = startWorld.clone().applyMatrix4((cam as any).matrixWorldInverse);
+      const vEnd = endWorld.clone().applyMatrix4((cam as any).matrixWorldInverse);
+      const dx = vEnd.x - vStart.x;
+      const dy = vEnd.y - vStart.y;
+      const len2D = Math.hypot(dx, dy);
+
+      if (len2D > 1e-4) {
+        angle = Math.atan2(dy, dx);
+        // Ensure text is always readable left-to-right (never upside down)
+        if (angle > Math.PI / 2) angle -= Math.PI;
+        if (angle < -Math.PI / 2) angle += Math.PI;
+
+        // Offset perpendicular to line in camera view space so text floats cleanly right along top of line
+        const nx = -Math.sin(angle);
+        const ny = Math.cos(angle);
+        const offsetDist = 0.020; // 2.0cm above wire
+
+        const midView = midWorld.clone().applyMatrix4((cam as any).matrixWorldInverse);
+        midView.x += nx * offsetDist;
+        midView.y += ny * offsetDist;
+        const targetWorld = midView.applyMatrix4((cam as any).matrixWorld);
+        const targetLocal = targetWorld.applyMatrix4(this.modelContainer.matrixWorld.clone().invert());
+        this.previewBadgeSprite.position.copy(targetLocal);
+      } else {
+        this.previewBadgeSprite.position.copy(mid).add(new THREE.Vector3(0, 0.020, 0));
+      }
+    } else {
+      this.previewBadgeSprite.position.copy(mid).add(new THREE.Vector3(0, 0.020, 0));
+    }
+
+    (this.previewBadgeSprite.material as THREE.SpriteMaterial).rotation = angle;
+    this.previewBadgeSprite.visible = true;
     this.previewSegmentGroup.visible = true;
   }
 
@@ -2031,6 +2067,9 @@ export class StereometryMesh {
    * 3. Update active segment birth animations and beacon pulses
    */
   public update(delta: number, elapsed?: number, camera?: THREE.Camera): void {
+    if (camera) {
+      this.lastCamera = camera;
+    }
     const t = elapsed !== undefined ? elapsed : (this.hoverTime += delta);
     this.hoverTime = t;
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LAB_ENTRY_REST } from './labEntry.ts';
+import { blurActiveInput, isTextInputActive, isTextInputElement, isElementVisibleAndActive } from '../core/focus.ts';
 
 export class PlayerController {
   public camera: THREE.PerspectiveCamera;
@@ -68,6 +69,7 @@ export class PlayerController {
 
   public requestLock(): void {
     if (this.enabled && this.allowPointerLock && !this.isLocked) {
+      blurActiveInput(true);
       try {
         this.domElement.requestPointerLock();
       } catch (err) {
@@ -114,6 +116,7 @@ export class PlayerController {
       if (this.isLocked || !this.enabled) return;
       // Right-click anywhere, or left-click on canvas
       if (e.button === 2 || (e.button === 0 && e.target === this.domElement)) {
+        blurActiveInput(true);
         isDragging = true;
         dragButton = e.button;
         dragStartX = e.clientX;
@@ -176,8 +179,16 @@ export class PlayerController {
 
   public onKey(event: KeyboardEvent, isDown: boolean): void {
     if (!this.enabled) return;
+
     const target = event.target as HTMLElement | null;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+    // If user is actively typing in a valid, visible text input, ignore player movement keys
+    if (target && isTextInputElement(target)) {
+      if (isElementVisibleAndActive(target) && !this.isLocked) {
+        return;
+      }
+      // Target was stale/hidden input or player is pointer-locked -> blur it immediately
+      blurActiveInput(true);
+    } else if (isTextInputActive()) {
       return;
     }
 
@@ -185,23 +196,27 @@ export class PlayerController {
       case 'KeyW':
       case 'ArrowUp':
         this.keys.forward = isDown;
+        if (event.cancelable) event.preventDefault?.();
         break;
       case 'KeyS':
       case 'ArrowDown':
         this.keys.backward = isDown;
+        if (event.cancelable) event.preventDefault?.();
         break;
       case 'KeyA':
       case 'ArrowLeft':
         this.keys.left = isDown;
+        if (event.cancelable) event.preventDefault?.();
         break;
       case 'KeyD':
       case 'ArrowRight':
         this.keys.right = isDown;
+        if (event.cancelable) event.preventDefault?.();
         break;
       case 'Space':
         this.keys.up = isDown;
         if (event.cancelable) {
-          event.preventDefault();
+          event.preventDefault?.();
         }
         break;
       case 'ShiftLeft':
@@ -212,7 +227,7 @@ export class PlayerController {
         if (event.key === ' ' || event.key === 'Spacebar') {
           this.keys.up = isDown;
           if (event.cancelable) {
-            event.preventDefault();
+            event.preventDefault?.();
           }
         } else if (event.key === 'Shift') {
           this.keys.down = isDown;

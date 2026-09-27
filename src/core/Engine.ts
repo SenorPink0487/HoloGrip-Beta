@@ -47,6 +47,7 @@ import {
   createLabReturnClock,
   type LabReturnClock,
 } from '../controls/labReturn.ts';
+import { blurActiveInput, isTextInputActive, isTextInputElement, isElementVisibleAndActive } from './focus.ts';
 
 export class Engine {
   public container: HTMLElement;
@@ -1465,7 +1466,10 @@ export class Engine {
       if (this.labEntryActive) return;
       if (this.visionModal && this.visionModal.visible) return;
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      if (target && isTextInputElement(target)) {
+        if (isElementVisibleAndActive(target)) return;
+        blurActiveInput(true);
+      } else if (isTextInputActive()) {
         return;
       }
       if (this.currentExperimentId === 'math-stereometry') {
@@ -1481,6 +1485,7 @@ export class Engine {
 
     // 3D Pointer interactions (Single-click Reagent Select & Long-press Drag & Pour)
     canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+      blurActiveInput(true);
       if (this.labEntryActive) return;
       if (this.visionModal && this.visionModal.visible) return;
 
