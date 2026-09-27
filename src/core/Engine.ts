@@ -48,6 +48,7 @@ import {
   type LabReturnClock,
 } from '../controls/labReturn.ts';
 import { blurActiveInput, isTextInputActive, isTextInputElement, isElementVisibleAndActive } from './focus.ts';
+import { HandGestureService, VisionProCursor, HandTrackingHUD } from '../vision/index.ts';
 
 export class Engine {
   public container: HTMLElement;
@@ -79,6 +80,9 @@ export class Engine {
   public reactionEffectsRight: ReactionEffects;
   public activeBeakerId: 'left' | 'right' = 'left';
   public visionModal: VisionModal;
+  public handGestureService: HandGestureService | null = null;
+  public visionProCursor: VisionProCursor | null = null;
+  public handTrackingHUD: HandTrackingHUD | null = null;
 
   public get chemistryEngine(): ChemistryEngine {
     return this.activeBeakerId === 'left' ? this.chemistryEngineLeft : this.chemistryEngineRight;
@@ -139,6 +143,8 @@ export class Engine {
   private lastCss3dWinRotY = Infinity;
   private lastCss3dWinScale = 1.0;
   private lastCss3dVisible = false;
+  private spatialWindowTargetPos = new THREE.Vector3(0, 2.20, 0);
+  private spatialWindowTargetRotY = 0;
 
   public clock = new THREE.Clock();
   private lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -166,6 +172,7 @@ export class Engine {
     this.initControls();
     this.initHUD();
     this.initVisionOS();
+    this.initHandTracking();
     this.initEvents();
 
     this.initDefaultExperiment();
@@ -637,37 +644,28 @@ export class Engine {
       return;
     }
 
-    // Target height suspended directly above the table (table top is 0.99m)
-    const targetY = 2.20;
-
-    // Angle of the camera relative to table center (0, 0)
-    const dx = this.camera.position.x;
-    const dz = this.camera.position.z;
-    const angleY = Math.atan2(dx, dz);
-
-    // Position window directly at the center of the table (0, targetY, 0)
-    const backOffset = 0;
-    const targetX = 0;
-    const targetZ = 0;
+    const targetX = this.spatialWindowTargetPos.x;
+    const targetY = this.spatialWindowTargetPos.y;
+    const targetZ = this.spatialWindowTargetPos.z;
+    const targetRotY = this.spatialWindowTargetRotY;
 
     // Keep window strictly upright (pitch = 0, roll = 0) facing the user around the Y axis
-    // This prevents the window from slanting / tilting sideways or pitching when the user ascends or descends
     if (snap) {
       this.spatialWindowObject.position.set(targetX, targetY, targetZ);
-      this.spatialWindowObject.rotation.set(0, angleY, 0);
+      this.spatialWindowObject.rotation.set(0, targetRotY, 0);
     } else {
       const lerpSpeed = Math.min(1.0, delta * 7.0);
       const pos = this.spatialWindowObject.position;
       const rot = this.spatialWindowObject.rotation;
 
-      if (Math.hypot(pos.x - targetX, pos.y - targetY, pos.z - targetZ) > 1e-4) {
+      if (pos.distanceTo(this.spatialWindowTargetPos) > 1e-4) {
         pos.x = THREE.MathUtils.lerp(pos.x, targetX, lerpSpeed);
         pos.y = THREE.MathUtils.lerp(pos.y, targetY, lerpSpeed);
         pos.z = THREE.MathUtils.lerp(pos.z, targetZ, lerpSpeed);
       }
 
       // Handle angular wrap-around for smooth rotation
-      let diffY = angleY - rot.y;
+      let diffY = targetRotY - rot.y;
       while (diffY < -Math.PI) diffY += Math.PI * 2;
       while (diffY > Math.PI) diffY -= Math.PI * 2;
       if (Math.abs(diffY) > 1e-4) {
@@ -679,6 +677,31 @@ export class Engine {
   }
 
   private positionWindowInFrontOfCamera(snap = true): void {
+    const cam = this.camera;
+    if (!cam) return;
+
+    const dir = new THREE.Vector3();
+    cam.getWorldDirection(dir);
+
+    // Compute horizontal forward direction vector to keep the window perfectly upright
+    const forwardX = dir.x;
+    const forwardZ = dir.z;
+    const horizontalLen = Math.hypot(forwardX, forwardZ) || 1e-4;
+    const normForwardX = forwardX / horizontalLen;
+    const normForwardZ = forwardZ / horizontalLen;
+
+    // Position window 2.2m directly in front of the camera gaze at eye level
+    const distance = 2.2;
+    const targetX = cam.position.x + normForwardX * distance;
+    const targetZ = cam.position.z + normForwardZ * distance;
+    const targetY = Math.max(0.95, Math.min(2.6, cam.position.y + dir.y * 1.0));
+
+    // Angle around Y axis so the front side (+Z) of the CSS3DObject points toward the camera
+    const angleY = Math.atan2(cam.position.x - targetX, cam.position.z - targetZ);
+
+    this.spatialWindowTargetPos.set(targetX, targetY, targetZ);
+    this.spatialWindowTargetRotY = angleY;
+
     this.updateSpatialWindowTransform(0.1, snap);
     this.lastCss3dCamPos.set(Infinity, Infinity, Infinity);
   }
@@ -1416,6 +1439,82 @@ export class Engine {
     }
 
     return null;
+  }
+
+  private initHandTracking(): void {
+    if (typeof document === 'undefined') return;
+
+    this.handGestureService = new HandGestureService({
+      modelAssetPath: '/models/hand_landmarker.task',
+      wasmBasePath: '/mediapipe/wasm',
+      mirrorX: true,
+      activeMarginX: 0.12,
+      activeMarginY: 0.12,
+      pinchThresholdEnter: 0.21,
+      pinchThresholdExit: 0.27,
+      quickPinchMaxDurationMs: 200,
+    });
+
+    this.visionProCursor = new VisionProCursor(document.body);
+    this.handTrackingHUD = new HandTrackingHUD(this.handGestureService, document.body);
+
+    // Synchronize hand gestures with Vision Pro cursor and crosshair visibility
+    this.handGestureService.onFrame((frame) => {
+      this.visionProCursor?.update(frame);
+
+      if (frame.hasHand) {
+        if (this.inputManager?.player?.isLocked) {
+          this.inputManager.player.exitLock();
+        }
+        if (this.crosshair?.getVisible()) {
+          this.crosshair.setVisible(false);
+        }
+      } else {
+        if (
+          !this.labEntryActive &&
+          (!this.visionModal || !this.visionModal.visible) &&
+          !this.isWhiteboardMode &&
+          (!this.hud?.drawer || !this.hud.drawer.open) &&
+          this.currentExperimentId !== 'math-stereometry'
+        ) {
+          if (!this.crosshair?.getVisible()) {
+            this.crosshair?.setVisible(true);
+          }
+        }
+      }
+    });
+
+    // Left Hand Quick Pinch: Open/Toggle Floating Spatial Window (VisionModal)
+    this.handGestureService.onQuickPinchMenu(() => {
+      if (this.visionModal) {
+        if (this.visionModal.visible) {
+          console.log('[Engine] Left Hand Quick Pinch: closing floating window');
+          this.visionModal.close();
+        } else {
+          console.log('[Engine] Left Hand Quick Pinch: opening floating window in front of camera');
+          this.visionModal.open();
+        }
+      }
+    });
+
+    // Left Hand Long Pinch: Control Camera Perspective / View Orientation
+    this.handGestureService.onCameraRotate((dx: number, dy: number) => {
+      if (this.inputManager?.player && !this.labEntryActive) {
+        this.inputManager.player.rotate(dx, dy, 0.0035);
+      }
+    });
+
+    this.handGestureService.onStatusChange((telemetry) => {
+      if (telemetry.status === 'running') {
+        if (this.inputManager?.player) {
+          this.inputManager.player.allowPointerLock = false;
+        }
+      } else {
+        if (this.inputManager?.player && !this.visionModal?.visible) {
+          this.inputManager.player.allowPointerLock = this.currentExperimentId !== 'math-stereometry';
+        }
+      }
+    });
   }
 
   private initEvents(): void {

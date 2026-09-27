@@ -37,6 +37,7 @@ export class PlayerController {
 
   public isLocked = false;
   public enabled = true;
+  public allowMouseRotation = false; // 严格规则：只有左手手势能转动视角，完全禁用鼠标与右手的拖拽视角旋转
   private _allowPointerLock = true;
 
   public get allowPointerLock(): boolean {
@@ -113,7 +114,7 @@ export class PlayerController {
     });
 
     window.addEventListener('mousedown', (e) => {
-      if (this.isLocked || !this.enabled) return;
+      if (this.isLocked || !this.enabled || !this.allowMouseRotation) return;
       // Right-click anywhere, or left-click on canvas
       if (e.button === 2 || (e.button === 0 && e.target === this.domElement)) {
         blurActiveInput(true);
@@ -127,6 +128,7 @@ export class PlayerController {
     });
 
     window.addEventListener('mouseup', (e) => {
+      if (!this.allowMouseRotation) return;
       if (!this.isLocked && isDragging) {
         const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
         isDragging = false;
@@ -148,7 +150,7 @@ export class PlayerController {
     });
 
     document.addEventListener('mousemove', (e) => {
-      if (!this.enabled) return;
+      if (!this.enabled || !this.allowMouseRotation) return;
 
       if (this.isLocked) {
         const sensitivity = 0.0022;
@@ -240,6 +242,14 @@ export class PlayerController {
     this.camera.rotation.x = this.pitch;
     this.camera.rotation.y = this.yaw;
     this.camera.rotation.z = 0;
+  }
+
+  public rotate(dx: number, dy: number, sensitivity = 0.0028): void {
+    if (!this.enabled) return;
+    this.yaw -= dx * sensitivity;
+    this.pitch -= dy * sensitivity;
+    this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
+    this.updateCameraRotation();
   }
 
   public update(delta: number): void {

@@ -118,8 +118,8 @@ export class TouchController {
           this.updateJoystick(touch.clientX, touch.clientY);
         }
 
-        // 2. Camera Look drag (any touch on right half of screen)
-        if (touch.identifier === this.lookTouchId) {
+        // 2. Camera Look drag (disabled when only left hand can rotate)
+        if (touch.identifier === this.lookTouchId && this.player.allowMouseRotation) {
           const dx = touch.clientX - this.lastLookPos.x;
           const dy = touch.clientY - this.lastLookPos.y;
           this.lastLookPos = { x: touch.clientX, y: touch.clientY };
