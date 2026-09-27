@@ -283,7 +283,9 @@ export class DetectorScreenMesh {
     polarizerAngle?: number;
     analyzerAngle?: number;
   }): void {
-    const key = `${params.mode}_${params.wavelengthNm.toFixed(1)}_${params.intensity.toFixed(3)}_${(params.slitWidthMm ?? 0).toFixed(3)}_${(params.slitDistanceMm ?? 0).toFixed(3)}_${params.gratingLinesPerMm || 0}_${(params.screenDistanceM ?? 0).toFixed(3)}_${(params.polarizerAngle ?? 0).toFixed(1)}_${(params.analyzerAngle ?? 0).toFixed(1)}_calipers_${this.showCalipers}`;
+    const intensity = typeof params.intensity === 'number' && !isNaN(params.intensity) ? params.intensity : 1.0;
+    const wavelength = typeof params.wavelengthNm === 'number' && !isNaN(params.wavelengthNm) ? params.wavelengthNm : 550;
+    const key = `${params.mode}_${wavelength.toFixed(1)}_${intensity.toFixed(3)}_${(params.slitWidthMm ?? 0).toFixed(3)}_${(params.slitDistanceMm ?? 0).toFixed(3)}_${params.gratingLinesPerMm || 0}_${(params.screenDistanceM ?? 0).toFixed(3)}_${(params.polarizerAngle ?? 0).toFixed(1)}_${(params.analyzerAngle ?? 0).toFixed(1)}_calipers_${this.showCalipers}`;
     if (key === this.lastRenderKey) return;
     this.lastRenderKey = key;
 
@@ -295,7 +297,7 @@ export class DetectorScreenMesh {
     const cx = w * 0.5;
     const cy = h * 0.5;
 
-    const color = OpticalPhysics.wavelengthToColor(params.wavelengthNm);
+    const color = OpticalPhysics.wavelengthToColor(wavelength);
     const rVal = Math.round(color.r * 255);
     const gVal = Math.round(color.g * 255);
     const bVal = Math.round(color.b * 255);
@@ -305,9 +307,9 @@ export class DetectorScreenMesh {
       // Gaussian laser spot on matte white surface
       const r = 28;
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.2);
-      grad.addColorStop(0, `${rgbStr}, ${params.intensity * 0.95})`);
-      grad.addColorStop(0.35, `${rgbStr}, ${params.intensity * 0.75})`);
-      grad.addColorStop(0.7, `${rgbStr}, ${params.intensity * 0.25})`);
+      grad.addColorStop(0, `${rgbStr}, ${intensity * 0.95})`);
+      grad.addColorStop(0.35, `${rgbStr}, ${intensity * 0.75})`);
+      grad.addColorStop(0.7, `${rgbStr}, ${intensity * 0.25})`);
       grad.addColorStop(1, `${rgbStr}, 0.0)`);
 
       ctx.fillStyle = grad;
@@ -349,7 +351,7 @@ export class DetectorScreenMesh {
       const d = (params.slitDistanceMm || 0.25) * 1e-3;
       const a = (params.slitWidthMm || 0.04) * 1e-3;
       const L = params.screenDistanceM || 1.0;
-      const lambda = params.wavelengthNm * 1e-9;
+      const lambda = wavelength * 1e-9;
       const mmPerPx = 0.16 / w;
 
       for (let x = 0; x < w; x += 2) {
@@ -359,7 +361,7 @@ export class DetectorScreenMesh {
         const beta = (Math.PI * a * sinTheta) / lambda;
         const sinc = Math.abs(beta) < 1e-7 ? 1.0 : Math.sin(beta) / beta;
         const alpha = (Math.PI * d * sinTheta) / lambda;
-        const I = Math.cos(alpha) * Math.cos(alpha) * sinc * sinc * params.intensity;
+        const I = Math.cos(alpha) * Math.cos(alpha) * sinc * sinc * intensity;
 
         if (I > 0.008) {
           const colAlpha = Math.min(1.0, I * 0.95);
@@ -380,7 +382,7 @@ export class DetectorScreenMesh {
       // Fraunhofer single-slit pattern
       const a = (params.slitWidthMm || 0.05) * 1e-3;
       const L = params.screenDistanceM || 1.0;
-      const lambda = params.wavelengthNm * 1e-9;
+      const lambda = wavelength * 1e-9;
       const mmPerPx = 0.16 / w;
 
       for (let x = 0; x < w; x += 2) {
@@ -389,7 +391,7 @@ export class DetectorScreenMesh {
 
         const beta = (Math.PI * a * sinTheta) / lambda;
         const sinc = Math.abs(beta) < 1e-7 ? 1.0 : Math.sin(beta) / beta;
-        const I = sinc * sinc * params.intensity;
+        const I = sinc * sinc * intensity;
 
         if (I > 0.008) {
           const colAlpha = Math.min(1.0, I * 0.95);
@@ -410,7 +412,7 @@ export class DetectorScreenMesh {
       // Diffraction grating spectral orders
       const gratingLines = params.gratingLinesPerMm || 300;
       const d = 1e-3 / gratingLines;
-      const lambda = params.wavelengthNm * 1e-9;
+      const lambda = wavelength * 1e-9;
       const L = params.screenDistanceM || 0.48;
       const pxPerM = w / 0.16;
 
@@ -432,7 +434,7 @@ export class DetectorScreenMesh {
         if (xp < 10 || xp > w - 10) continue;
 
         const slitGrad = ctx.createLinearGradient(xp - 14, 0, xp + 14, 0);
-        const alpha = params.intensity * ord.scale * 0.92;
+        const alpha = intensity * ord.scale * 0.92;
         slitGrad.addColorStop(0, `${rgbStr}, 0)`);
         slitGrad.addColorStop(0.5, `${rgbStr}, ${alpha})`);
         slitGrad.addColorStop(1, `${rgbStr}, 0)`);
@@ -450,13 +452,29 @@ export class DetectorScreenMesh {
   }
 
   /**
+   * High sensitivity 32-bit FNV-1a buffer hash to accurately detect fringe alterations without string serialization
+   */
+  private computeBufferHash(buf: Float32Array): number {
+    let h = 2166136261 >>> 0;
+    const step = Math.max(1, Math.floor(buf.length / 64));
+    for (let i = 0; i < buf.length; i += step) {
+      const v = Math.round(buf[i] * 10000);
+      h = Math.imul(h ^ v, 16777619) >>> 0;
+    }
+    return h;
+  }
+
+  /**
    * Render fringe intensity pattern directly from Multi-Core Worker calculation buffer
    */
   public renderFringesFromBuffer(intensityBuffer: Float32Array, wavelengthNm: number, intensity = 1.0): void {
     const bLen = intensityBuffer.length;
     if (bLen === 0) return;
 
-    const sampleHash = `buf_${wavelengthNm}_${intensity.toFixed(2)}_${intensityBuffer[0]?.toFixed(2)}_${intensityBuffer[Math.floor(bLen * 0.5)]?.toFixed(2)}_${intensityBuffer[bLen - 1]?.toFixed(2)}_calipers_${this.showCalipers}`;
+    const safeWavelength = typeof wavelengthNm === 'number' && !isNaN(wavelengthNm) ? wavelengthNm : 550;
+    const safeIntensity = typeof intensity === 'number' && !isNaN(intensity) ? intensity : 1.0;
+    const bufHash = this.computeBufferHash(intensityBuffer);
+    const sampleHash = `buf_${safeWavelength.toFixed(1)}_${safeIntensity.toFixed(3)}_${bufHash}_calipers_${this.showCalipers}`;
     if (sampleHash === this.lastRenderKey) return;
     this.lastRenderKey = sampleHash;
 
@@ -467,14 +485,14 @@ export class DetectorScreenMesh {
     const h = this.screenCanvas.height;
     const cy = h * 0.5;
 
-    const color = OpticalPhysics.wavelengthToColor(wavelengthNm);
+    const color = OpticalPhysics.wavelengthToColor(safeWavelength);
     const rVal = Math.round(color.r * 255);
     const gVal = Math.round(color.g * 255);
     const bVal = Math.round(color.b * 255);
 
     const colW = w / bLen;
     for (let i = 0; i < bLen; i++) {
-      const I = intensityBuffer[i] * intensity;
+      const I = intensityBuffer[i] * safeIntensity;
       if (I < 0.008) continue;
       const x = i * colW;
       const alpha = Math.min(1.0, I * 0.95);

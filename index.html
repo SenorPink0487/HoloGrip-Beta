@@ -1996,22 +1996,6 @@
       color: #ff9f0a;
     }
 
-    .mixture-reaction-line {
-      margin: 0;
-      padding: 0 8px;
-      font-size: 12.5px;
-      line-height: 1.4;
-      color: #ffd60a;
-      flex-shrink: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .mixture-reaction-line[hidden] {
-      display: none;
-    }
-
     #btn-mixture-voice.listening,
     #btn-periodic-mixture-voice.listening {
       color: #ff453a;
@@ -3456,53 +3440,34 @@
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid rgba(255, 255, 255, 0.09);
       border-radius: 16px;
-      padding: 10px 18px;
-      min-width: 68px;
-      min-height: 56px;
+      padding: 8px 16px 6px 16px;
+      min-width: 74px;
+      height: 58px;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       user-select: none;
-      touch-action: none;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .hall-token-btn[data-param="b"],
-    .hall-token-btn[data-param="i"],
-    .hall-token-btn[data-param="d"] {
-      cursor: ew-resize;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     .hall-token-btn:hover {
       background: rgba(255, 255, 255, 0.08);
       border-color: rgba(255, 255, 255, 0.22);
-      transform: translateY(-1px);
     }
 
     .hall-token-btn.active {
-      background: rgba(10, 132, 255, 0.14);
+      background: rgba(10, 132, 255, 0.15);
       border-color: #0a84ff;
-      box-shadow: 0 0 20px rgba(10, 132, 255, 0.3);
-    }
-
-    .hall-token-btn.dragging {
-      background: rgba(10, 132, 255, 0.22) !important;
-      border-color: #0a84ff !important;
-      box-shadow: 0 0 28px rgba(10, 132, 255, 0.5) !important;
-      transform: scale(1.05) !important;
-    }
-
-    .hall-token-btn.response-active {
-      background: rgba(255, 159, 10, 0.16) !important;
-      border-color: rgba(255, 159, 10, 0.8) !important;
-      box-shadow: 0 0 22px rgba(255, 159, 10, 0.4) !important;
-      transform: scale(1.03);
+      box-shadow: 0 0 16px rgba(10, 132, 255, 0.35);
     }
 
     .hall-token-math {
-      font-size: 27px;
+      font-size: 26px;
       font-weight: 500;
       color: #ffffff;
       font-family: "SF Pro Display", -apple-system, "Times New Roman", serif;
@@ -3512,13 +3477,8 @@
       transition: color 0.2s ease;
     }
 
-    .hall-token-btn.active .hall-token-math,
-    .hall-token-btn.dragging .hall-token-math {
+    .hall-token-btn.active .hall-token-math {
       color: #64d2ff;
-    }
-
-    .hall-token-btn.response-active .hall-token-math {
-      color: #ff9f0a;
     }
 
     .hall-token-math sub {
@@ -3527,9 +3487,13 @@
       margin-left: 1px;
     }
 
-    /* Dynamic Value Badge on Tokens (Hidden when idle -> pure clean; revealed on active/drag) */
+    /* Dynamic Value Badge on Tokens: constant height reserved; only active token is visible */
     .hall-token-dynamic-val {
-      display: none;
+      display: block;
+      visibility: hidden;
+      opacity: 0;
+      height: 14px;
+      line-height: 14px;
       font-family: -apple-system, BlinkMacSystemFont, "SF Mono", monospace;
       font-size: 11px;
       font-weight: 600;
@@ -3537,23 +3501,12 @@
       margin-top: 3px;
       letter-spacing: -0.2px;
       white-space: nowrap;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
     }
 
-    .hall-token-btn.active .hall-token-dynamic-val,
-    .hall-token-btn.dragging .hall-token-dynamic-val {
-      display: block;
-      animation: popIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .hall-token-btn.response-active .hall-token-dynamic-val {
-      display: block;
-      color: #ff9f0a;
-      animation: popIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    @keyframes popIn {
-      from { opacity: 0; transform: scale(0.85); }
-      to { opacity: 1; transform: scale(1); }
+    .hall-token-btn.active .hall-token-dynamic-val {
+      visibility: visible;
+      opacity: 1;
     }
 
     .hall-math-equal {

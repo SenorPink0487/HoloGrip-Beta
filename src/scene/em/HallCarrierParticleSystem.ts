@@ -8,6 +8,7 @@ export interface HallCarrierOptions {
   waferWidth?: number;     // Backwards-compatible alias for waferHeight
   particleCount?: number;
   computeBridge?: ComputeBridge;
+  useWorkerSimulation?: boolean;
 }
 
 export type CarrierType = 'electron' | 'hole' | 'metal';
@@ -33,6 +34,8 @@ export class HallCarrierParticleSystem {
   private computeBridge?: ComputeBridge;
   public useWorkerSimulation = false;
   private isWorkerBusy = false;
+  private workerPositions?: Float32Array;
+  private workerBaseOffsetsY?: Float32Array;
 
   // Quantum Luminous Point System (Core + Halo dual-layer)
   private particleGeo: THREE.BufferGeometry;
@@ -55,12 +58,16 @@ export class HallCarrierParticleSystem {
   private topGlowMat: THREE.MeshBasicMaterial;
   private bottomGlowMat: THREE.MeshBasicMaterial;
 
-  // Precision Hall Voltage Probe Badges (Only 2 elegant micro-badges at center probes)
+  // Surface Charge Badges (Apple Vision Pro Micro-Pills)
   private probeBadgeGroup: THREE.Group;
-  private topProbeSprite: THREE.Sprite;
-  private bottomProbeSprite: THREE.Sprite;
+  private topProbeSprites: THREE.Sprite[] = [];
+  private bottomProbeSprites: THREE.Sprite[] = [];
+  public topProbeSprite: THREE.Sprite;
+  public bottomProbeSprite: THREE.Sprite;
   private plusBadgeTex: THREE.CanvasTexture;
   private minusBadgeTex: THREE.CanvasTexture;
+  private badgeMatTop: THREE.SpriteMaterial;
+  private badgeMatBottom: THREE.SpriteMaterial;
 
   // Sleek 3D Vector Indicators
   private vectorGroup: THREE.Group;
@@ -90,6 +97,7 @@ export class HallCarrierParticleSystem {
     this.waferThickness = options.waferThickness ?? 0.032;
     this.particleCount = options.particleCount ?? 180;
     this.computeBridge = options.computeBridge;
+    this.useWorkerSimulation = options.useWorkerSimulation ?? Boolean(options.computeBridge);
 
     this.group = new THREE.Group();
     this.group.name = 'HallCarrierParticleSystem';
@@ -106,6 +114,7 @@ export class HallCarrierParticleSystem {
 
   public setComputeBridge(bridge: ComputeBridge): void {
     this.computeBridge = bridge;
+    this.useWorkerSimulation = Boolean(bridge);
   }
 
   /**
@@ -377,32 +386,42 @@ export class HallCarrierParticleSystem {
     this.minusBadgeTex = this.createProbeBadgeTexture('−', '#0a84ff');
     this.disposables.push(this.plusBadgeTex, this.minusBadgeTex);
 
-    const badgeMatTop = new THREE.SpriteMaterial({
+    this.badgeMatTop = new THREE.SpriteMaterial({
       map: this.plusBadgeTex,
       transparent: true,
       depthTest: false,
     });
-    const badgeMatBottom = new THREE.SpriteMaterial({
+    this.badgeMatBottom = new THREE.SpriteMaterial({
       map: this.minusBadgeTex,
       transparent: true,
       depthTest: false,
     });
-    this.disposables.push(badgeMatTop, badgeMatBottom);
+    this.disposables.push(this.badgeMatTop, this.badgeMatBottom);
 
-    const badgeScale = 0.026;
-    const topY = this.waferHeight * 0.5 + 0.022;
-    const bottomY = -this.waferHeight * 0.5 - 0.022;
+    const badgeScale = 0.020;
+    const topY = this.waferHeight * 0.5 + 0.018;
+    const bottomY = -this.waferHeight * 0.5 - 0.018;
     const frontZ = this.waferThickness * 0.5 + 0.010;
 
-    this.topProbeSprite = new THREE.Sprite(badgeMatTop);
-    this.topProbeSprite.scale.set(badgeScale, badgeScale, 1.0);
-    this.topProbeSprite.position.set(0, topY, frontZ);
-    this.probeBadgeGroup.add(this.topProbeSprite);
+    const maxBadges = 11;
+    for (let i = 0; i < maxBadges; i++) {
+      const topSprite = new THREE.Sprite(this.badgeMatTop);
+      topSprite.scale.set(badgeScale, badgeScale, 1.0);
+      topSprite.position.set(0, topY, frontZ);
+      topSprite.visible = false;
+      this.topProbeSprites.push(topSprite);
+      this.probeBadgeGroup.add(topSprite);
 
-    this.bottomProbeSprite = new THREE.Sprite(badgeMatBottom);
-    this.bottomProbeSprite.scale.set(badgeScale, badgeScale, 1.0);
-    this.bottomProbeSprite.position.set(0, bottomY, frontZ);
-    this.probeBadgeGroup.add(this.bottomProbeSprite);
+      const bottomSprite = new THREE.Sprite(this.badgeMatBottom);
+      bottomSprite.scale.set(badgeScale, badgeScale, 1.0);
+      bottomSprite.position.set(0, bottomY, frontZ);
+      bottomSprite.visible = false;
+      this.bottomProbeSprites.push(bottomSprite);
+      this.probeBadgeGroup.add(bottomSprite);
+    }
+
+    this.topProbeSprite = this.topProbeSprites[0];
+    this.bottomProbeSprite = this.bottomProbeSprites[0];
   }
 
   private createProbeBadgeTexture(symbol: string, color: string): THREE.CanvasTexture {
@@ -455,20 +474,80 @@ export class HallCarrierParticleSystem {
     return tex;
   }
 
+  /**
+   * Surface charge accumulation on boundaries follows Gauss's Law: sigma = epsilon * E_H = epsilon * V_H / h.
+   * Number of charges increases visibly with |V_H| (governed by I * B / (n * q * d)).
+   * Zero field (B=0) or zero current (I=0) -> 0 accumulated surface charges.
+   */
+  private getChargeCountForVoltage(vhMv: number, currentMa: number, bTesla: number): number {
+    if (Math.abs(currentMa) < 1e-3 || Math.abs(bTesla) < 0.01) {
+      return 0;
+    }
+    const absVh = Math.abs(vhMv);
+    if (absVh < 0.05) return 0;
+    if (absVh < 4.0) return 1;
+    if (absVh < 10.0) return 3;
+    if (absVh < 22.0) return 5;
+    if (absVh < 40.0) return 7;
+    if (absVh < 70.0) return 9;
+    return 11;
+  }
+
   private updateProbeBadges(): void {
-    const hasField = Math.abs(this.magFieldStrength) > 0.01 && Math.abs(this.currentMa) > 0.01;
-    const isTopPositive = this.hallVoltageMv < 0;
-    const badgeVisible = hasField && Math.abs(this.hallVoltageMv) > 0.005;
+    const activeChargeCount = this.getChargeCountForVoltage(
+      this.hallVoltageMv,
+      this.currentMa,
+      this.magFieldStrength
+    );
+    const badgeVisible = activeChargeCount > 0;
 
     this.probeBadgeGroup.visible = badgeVisible;
     this.topGlowMesh.visible = badgeVisible;
     this.bottomGlowMesh.visible = badgeVisible;
 
-    if (!badgeVisible) return;
+    if (!badgeVisible) {
+      for (let i = 0; i < this.topProbeSprites.length; i++) {
+        this.topProbeSprites[i].visible = false;
+        this.bottomProbeSprites[i].visible = false;
+      }
+      return;
+    }
 
-    // Intensity scaling based on voltage magnitude
-    const normVh = Math.min(1.0, Math.abs(this.hallVoltageMv) / 40.0);
-    const glowOpacity = 0.15 + normVh * 0.35;
+    const isTopPositive = this.hallVoltageMv < 0;
+    const topTex = isTopPositive ? this.plusBadgeTex : this.minusBadgeTex;
+    const bottomTex = isTopPositive ? this.minusBadgeTex : this.plusBadgeTex;
+
+    if (this.badgeMatTop.map !== topTex) {
+      this.badgeMatTop.map = topTex;
+      this.badgeMatTop.needsUpdate = true;
+    }
+    if (this.badgeMatBottom.map !== bottomTex) {
+      this.badgeMatBottom.map = bottomTex;
+      this.badgeMatBottom.needsUpdate = true;
+    }
+
+    // Dynamic symmetric distribution along top and bottom surfaces
+    const spanX = this.waferLength * 0.78;
+    const topY = this.waferHeight * 0.5 + 0.018;
+    const bottomY = -this.waferHeight * 0.5 - 0.018;
+    const frontZ = this.waferThickness * 0.5 + 0.010;
+
+    for (let i = 0; i < this.topProbeSprites.length; i++) {
+      if (i < activeChargeCount) {
+        const x = activeChargeCount === 1 ? 0 : -spanX * 0.5 + i * (spanX / (activeChargeCount - 1));
+        this.topProbeSprites[i].position.set(x, topY, frontZ);
+        this.topProbeSprites[i].visible = true;
+        this.bottomProbeSprites[i].position.set(x, bottomY, frontZ);
+        this.bottomProbeSprites[i].visible = true;
+      } else {
+        this.topProbeSprites[i].visible = false;
+        this.bottomProbeSprites[i].visible = false;
+      }
+    }
+
+    // Glow intensity scaling based on Hall voltage magnitude
+    const normVh = Math.min(1.0, Math.abs(this.hallVoltageMv) / 60.0);
+    const glowOpacity = 0.12 + normVh * 0.38;
 
     const topColor = isTopPositive ? 0xff453a : 0x0a84ff;
     const bottomColor = isTopPositive ? 0x0a84ff : 0xff453a;
@@ -477,17 +556,6 @@ export class HallCarrierParticleSystem {
     this.topGlowMat.opacity = glowOpacity;
     this.bottomGlowMat.color.setHex(bottomColor);
     this.bottomGlowMat.opacity = glowOpacity;
-
-    const topTex = isTopPositive ? this.plusBadgeTex : this.minusBadgeTex;
-    const bottomTex = isTopPositive ? this.minusBadgeTex : this.plusBadgeTex;
-    if (this.topProbeSprite.material.map !== topTex) {
-      this.topProbeSprite.material.map = topTex;
-      this.topProbeSprite.material.needsUpdate = true;
-    }
-    if (this.bottomProbeSprite.material.map !== bottomTex) {
-      this.bottomProbeSprite.material.map = bottomTex;
-      this.bottomProbeSprite.material.needsUpdate = true;
-    }
   }
 
   private createThickArrowHelper(
@@ -609,15 +677,20 @@ export class HallCarrierParticleSystem {
     hallVoltageMv: number,
     carrierType: CarrierType
   ): void {
+    const typeChanged = this.carrierType !== carrierType;
     this.currentMa = currentMa;
     this.magFieldStrength = magFieldTesla;
     this.hallVoltageMv = hallVoltageMv;
-    this.setCarrierType(carrierType);
-    this.updateProbeBadges();
+    if (typeChanged) {
+      this.setCarrierType(carrierType);
+    } else {
+      this.updateProbeBadges();
+    }
     this.updateVectorHelpers();
   }
 
   public setCarrierType(type: CarrierType): void {
+    if (this.carrierType === type && this.coreMat.map) return;
     this.carrierType = type;
     let targetTexture = this.electronTexture;
     let targetHaloTexture = this.electronHaloTexture;
@@ -633,10 +706,14 @@ export class HallCarrierParticleSystem {
       targetHaloTexture = this.metalHaloTexture;
     }
 
-    this.coreMat.map = targetTexture;
-    this.haloMat.map = targetHaloTexture;
-    this.coreMat.needsUpdate = true;
-    this.haloMat.needsUpdate = true;
+    if (this.coreMat.map !== targetTexture) {
+      this.coreMat.map = targetTexture;
+      this.coreMat.needsUpdate = true;
+    }
+    if (this.haloMat.map !== targetHaloTexture) {
+      this.haloMat.map = targetHaloTexture;
+      this.haloMat.needsUpdate = true;
+    }
 
     this.updateProbeBadges();
   }
@@ -648,7 +725,12 @@ export class HallCarrierParticleSystem {
     this.corePoints.visible = showParticles;
     this.haloPoints.visible = showParticles;
 
-    const badgeActive = Math.abs(this.hallVoltageMv) > 0.005;
+    const activeChargeCount = this.getChargeCountForVoltage(
+      this.hallVoltageMv,
+      this.currentMa,
+      this.magFieldStrength
+    );
+    const badgeActive = activeChargeCount > 0;
     this.probeBadgeGroup.visible = badgeActive;
     this.topGlowMesh.visible = badgeActive;
     this.bottomGlowMesh.visible = badgeActive;
@@ -676,15 +758,23 @@ export class HallCarrierParticleSystem {
     // Downwards when I > 0 and B > 0 for both electron and hole
     const flSign = -currentSign * bSign;
 
-    const deflectionIntensity = THREE.MathUtils.clamp(
-      (Math.abs(b) / 1.0) * (Math.abs(this.currentMa) / 10.0),
+    const hasCurrent = Math.abs(this.currentMa) > 1e-4;
+    const hasField = Math.abs(b) > 1e-4;
+
+    // Physical Lorentz driving factor: normalized around nominal operation (B = 0.5 T, I = 10 mA)
+    const driveNorm = (hasCurrent && hasField)
+      ? (Math.abs(b) / 0.5) * (Math.abs(this.currentMa) / 10.0)
+      : 0;
+
+    // High dynamic range saturation curve with significantly raised upper limit (up to 1.60)
+    const deflectionAlpha = THREE.MathUtils.clamp(
+      Math.pow(driveNorm, 0.55) * 0.92,
       0,
-      1
+      1.60
     );
-    const maxDeflectionY = halfH * 0.82 * deflectionIntensity * flSign;
+    const maxDeflectionY = halfH * deflectionAlpha * flSign;
 
     // Longitudinal drift velocity: strictly 0 when current is 0 (no forward drift)
-    const hasCurrent = Math.abs(this.currentMa) > 1e-4;
     const speed = hasCurrent ? Math.max(0.04, Math.min(0.28, Math.abs(this.currentMa) * 0.016)) : 0;
 
     this.thermalPhaseClock = (this.thermalPhaseClock + delta * 3.0) % (Math.PI * 2000);
@@ -693,13 +783,21 @@ export class HallCarrierParticleSystem {
     if (this.useWorkerSimulation && this.computeBridge) {
       if (!this.isWorkerBusy) {
         this.isWorkerBusy = true;
-        const positionsCopy = new Float32Array(this.positions);
-        const baseOffsetsYCopy = new Float32Array(this.baseOffsetsY);
+        if (!this.workerPositions || this.workerPositions.byteLength === 0) {
+          this.workerPositions = new Float32Array(this.positions);
+        } else {
+          this.workerPositions.set(this.positions);
+        }
+        if (!this.workerBaseOffsetsY || this.workerBaseOffsetsY.byteLength === 0) {
+          this.workerBaseOffsetsY = new Float32Array(this.baseOffsetsY);
+        } else {
+          this.workerBaseOffsetsY.set(this.baseOffsetsY);
+        }
 
         this.computeBridge
           .simulateHallCarriers({
-            positions: positionsCopy,
-            baseOffsetsY: baseOffsetsYCopy,
+            positions: this.workerPositions,
+            baseOffsetsY: this.workerBaseOffsetsY,
             baseOffsetsZ: this.baseOffsetsZ,
             thermalPhases: this.thermalPhases,
             particleCount: this.particleCount,
@@ -714,6 +812,8 @@ export class HallCarrierParticleSystem {
           })
           .then((res) => {
             if (res && res.positions && res.baseOffsetsY) {
+              this.workerPositions = res.positions;
+              this.workerBaseOffsetsY = res.baseOffsetsY;
               this.positions.set(res.positions);
               this.baseOffsetsY.set(res.baseOffsetsY);
               const posAttr = this.particleGeo.getAttribute('position') as THREE.BufferAttribute;
@@ -722,6 +822,12 @@ export class HallCarrierParticleSystem {
             this.isWorkerBusy = false;
           })
           .catch(() => {
+            if (!this.workerPositions || this.workerPositions.byteLength === 0) {
+              this.workerPositions = new Float32Array(this.positions);
+            }
+            if (!this.workerBaseOffsetsY || this.workerBaseOffsetsY.byteLength === 0) {
+              this.workerBaseOffsetsY = new Float32Array(this.baseOffsetsY);
+            }
             this.isWorkerBusy = false;
           });
       }
@@ -733,7 +839,7 @@ export class HallCarrierParticleSystem {
     const minY = -maxY;
     const minZ = -this.waferThickness * 0.08;
     const maxZ = this.waferThickness * 0.44;
-    const relaxFactor = Math.min(1.0, delta * 6.0);
+    const relaxFactor = Math.min(1.0, delta * 12.0);
 
     for (let i = 0; i < this.particleCount; i++) {
       const idx = i * 3;
@@ -750,15 +856,41 @@ export class HallCarrierParticleSystem {
         }
       }
 
-      // 2. Physical Hall equilibrium transverse distribution:
-      // In steady-state Hall equilibrium, transverse forces balance (q*E_H + q*(v x B) = 0).
-      // Carriers drift along continuous streamlines; the magnetic field biases the overall
-      // carrier concentration towards the accumulating boundary (producing the Hall voltage V_H).
-      const baseNormY = this.baseOffsetsY[i] / halfH;
-      const targetY = this.baseOffsetsY[i] + maxDeflectionY * (1.0 - 0.30 * Math.abs(baseNormY));
+      // 2. Physical Hall equilibrium transverse distribution ("中间平两边弯" Streamline Curvature):
+      // In the central observation region (|u| <= 0.38), Hall electric force perfectly balances
+      // Lorentz force (q*E_H = -F_L), so streamlines are completely horizontal and flat (dY/dx = 0).
+      // Near electrode contacts (|u| > 0.38), equipotential boundaries restore contact injection spread,
+      // producing smooth C^1 Hermite boundary curvature.
+      const absU = Math.abs(this.positions[idx] / halfL);
+      let curvFactor = 1.0;
+      if (absU > 0.38) {
+        const t = Math.min(1.0, (absU - 0.38) / 0.62);
+        // Smooth Hermite C1-continuous transition: 1.0 at center down to 0.12 at electrodes
+        curvFactor = 1.0 - 0.88 * t * t * (3.0 - 2.0 * t);
+      }
+
+      const localAlpha = deflectionAlpha * curvFactor;
+      const normA = Math.min(1.0, localAlpha / 1.60);
+      const u0 = THREE.MathUtils.clamp(this.baseOffsetsY[i] / halfH, -1.0, 1.0);
+      const p = (u0 + 1.0) * 0.5;
+
+      // Nonlinear Boltzmann-Hall carrier accumulation & depletion layer dynamics with raised upper limit
+      let uSkew: number;
+      const gamma = 1.0 + 2.2 * Math.min(1.5, localAlpha);
+      if (flSign < 0) {
+        const pSkew = Math.pow(Math.max(0, Math.min(1, p)), gamma);
+        uSkew = 2.0 * pSkew - 1.0;
+      } else {
+        const pSkew = 1.0 - Math.pow(Math.max(0, Math.min(1, 1.0 - p)), gamma);
+        uSkew = 2.0 * pSkew - 1.0;
+      }
+
+      const yShift = flSign * halfH * Math.min(0.85, 0.68 * localAlpha);
+      const span = halfH * (0.90 - 0.55 * normA);
+      const targetY = yShift + uSkew * span;
       const clampedTargetY = targetY < minY ? minY : targetY > maxY ? maxY : targetY;
 
-      // Smooth relaxation towards Hall equilibrium distribution (transient migration)
+      // Smooth relaxation towards Hall equilibrium streamline (transient migration)
       const currentY = this.positions[idx + 1];
       const nextY = currentY + (clampedTargetY - currentY) * relaxFactor;
 
@@ -790,9 +922,17 @@ export class HallCarrierParticleSystem {
     const b = this.magFieldStrength;
     const bSign = b >= 0 ? 1 : -1;
     const flSign = -currentSign * bSign;
-    const deflectionIntensity = THREE.MathUtils.clamp((Math.abs(b) / 1.0) * (Math.abs(this.currentMa) / 10.0), 0, 1);
-    const maxDeflectionY = halfH * 0.82 * deflectionIntensity * flSign;
     const hasCurrent = Math.abs(this.currentMa) > 1e-4;
+    const hasField = Math.abs(b) > 1e-4;
+    const driveNorm = (hasCurrent && hasField)
+      ? (Math.abs(b) / 0.5) * (Math.abs(this.currentMa) / 10.0)
+      : 0;
+    const deflectionAlpha = THREE.MathUtils.clamp(
+      Math.pow(driveNorm, 0.55) * 0.92,
+      0,
+      1.60
+    );
+    const maxDeflectionY = halfH * deflectionAlpha * flSign;
     const speed = hasCurrent ? Math.max(0.04, Math.min(0.28, Math.abs(this.currentMa) * 0.016)) : 0;
     this.thermalPhaseClock = (this.thermalPhaseClock + delta * 3.0) % (Math.PI * 2000);
 

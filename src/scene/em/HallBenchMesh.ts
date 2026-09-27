@@ -272,10 +272,16 @@ export class HallBenchMesh {
   }
 
   private buildApparatus(options: HallBenchMeshOptions): void {
-    const waferL = options.waferLength ?? 0.32;
-    const waferH = options.waferHeight ?? options.waferWidth ?? 0.125;
-    const waferT = options.waferThickness ?? 0.032;
-    const stageY = waferH * 0.5 + 0.015;
+    this.waferLength = options.waferLength ?? 0.32;
+    this.waferHeight = options.waferHeight ?? options.waferWidth ?? 0.125;
+    this.waferThickness = options.waferThickness ?? 0.032;
+    this.stageY = this.waferHeight * 0.5 + 0.015;
+    this.arrowY = this.stageY - this.waferHeight * 0.26;
+
+    const waferL = this.waferLength;
+    const waferH = this.waferHeight;
+    const waferT = this.waferThickness;
+    const stageY = this.stageY;
 
     // 1. Specimen Chamber & Clamping Electrodes
     this.buildSpecimenChamber(waferL, waferH, waferT, stageY);
@@ -488,28 +494,20 @@ export class HallBenchMesh {
     this.fluxArrowsGroup.name = 'ElectromagnetYoke'; // Clicking toggles magnetic polarity
     this.group.add(this.fluxArrowsGroup);
 
-    // 5 bold, prominent holographic flux streamlines
-    const arrowCount = 5;
-    const spanX = waferL * 0.72;
-    const spacing = spanX / (arrowCount - 1);
-    const startX = -spanX / 2;
-
-    // Placed slightly lower than center to provide clear sightline to carrier flow
-    const arrowY = stageY - waferH * 0.26;
-
-    const shaftRadius = 0.0024; // Bold volumetric 3D streamline
+    this.arrowY = stageY - waferH * 0.26;
+    const maxArrows = 11;
+    const shaftRadius = 0.0022; // Sleek volumetric 3D streamline
     const shaftLen = 0.092;
-    const coneRadius = 0.0062;  // Prominent aerodynamic arrow tip
-    const coneHeight = 0.016;
+    const coneRadius = 0.0055;  // Aerodynamic arrow tip
+    const coneHeight = 0.015;
 
     const shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLen, 16);
     const coneGeo = new THREE.ConeGeometry(coneRadius, coneHeight, 16);
     this.disposables.push(shaftGeo, coneGeo);
 
-    for (let i = 0; i < arrowCount; i++) {
-      const x = startX + i * spacing;
+    for (let i = 0; i < maxArrows; i++) {
       const arrowGroup = new THREE.Group();
-      arrowGroup.position.set(x, arrowY, 0);
+      arrowGroup.position.set(0, this.arrowY, 0);
 
       // Slender shaft passing along Z
       const shaft = new THREE.Mesh(shaftGeo, this.fluxArrowMat);
@@ -523,7 +521,59 @@ export class HallBenchMesh {
       arrowGroup.add(cone);
 
       this.fluxArrowsGroup.add(arrowGroup);
-      this.fluxArrowMeshes.push({ group: arrowGroup, shaft, cone, baseY: arrowY, baseZ: 0 });
+      this.fluxArrowMeshes.push({ group: arrowGroup, shaft, cone, baseY: this.arrowY, baseZ: 0 });
+    }
+
+    this.updateFluxArrows(0.5);
+  }
+
+  /**
+   * Density of magnetic field lines represents magnetic induction B:
+   * Higher |B| -> more arrows (higher flux density); B = 0 -> 0 arrows.
+   * Strictly depends ONLY on B (unaffected by current I, thickness d, or material).
+   */
+  private getArrowCountForField(bTesla: number): number {
+    const bMag = Math.abs(bTesla);
+    if (bMag < 0.02) return 0;
+    if (bMag < 0.12) return 1;
+    if (bMag < 0.25) return 3;
+    if (bMag < 0.45) return 5;
+    if (bMag < 0.65) return 7;
+    if (bMag < 0.85) return 9;
+    return 11;
+  }
+
+  private updateFluxArrows(bTesla: number): void {
+    const bMag = Math.abs(bTesla);
+    const activeCount = this.getArrowCountForField(bTesla);
+    const arrowVisible = this.showVectors && activeCount > 0;
+    this.fluxArrowsGroup.visible = arrowVisible;
+
+    if (!arrowVisible) {
+      for (const item of this.fluxArrowMeshes) {
+        item.group.visible = false;
+      }
+      return;
+    }
+
+    const bSign = bTesla >= 0 ? 1 : -1;
+    const shaftLen = 0.092 * THREE.MathUtils.clamp(bMag / 0.8, 0.55, 1.15);
+    const coneHeight = 0.015;
+    const spanX = this.waferLength * 0.74;
+
+    for (let i = 0; i < this.fluxArrowMeshes.length; i++) {
+      const item = this.fluxArrowMeshes[i];
+      if (i < activeCount) {
+        item.group.visible = true;
+        const x = activeCount === 1 ? 0 : -spanX * 0.5 + i * (spanX / (activeCount - 1));
+        item.group.position.set(x, this.arrowY, 0);
+
+        item.cone.position.set(0, 0, bSign * (shaftLen * 0.5 + coneHeight * 0.5));
+        item.cone.rotation.x = (bSign * Math.PI) / 2;
+        item.shaft.scale.set(1, THREE.MathUtils.clamp(bMag / 0.8, 0.5, 1.2), 1);
+      } else {
+        item.group.visible = false;
+      }
     }
   }
 
@@ -580,8 +630,9 @@ export class HallBenchMesh {
   }
 
   public setToggles(showVectors: boolean, showParticles: boolean): void {
+    this.showVectors = showVectors;
     this.particleSystem.setToggles(showVectors, showParticles);
-    this.fluxArrowsGroup.visible = showVectors;
+    this.updateFluxArrows(this.lastB);
   }
 
   public updateTelemetry(
@@ -593,35 +644,24 @@ export class HallBenchMesh {
     _nConcentration = 1.25e21,
     _thicknessMm = 0.50
   ): void {
+    // 1. Magnetic flux arrows: strictly depend ONLY on B (unaffected by I, d, or material)
+    if (Math.abs(this.lastB - bTesla) > 0.002) {
+      this.lastB = bTesla;
+      this.updateFluxArrows(bTesla);
+    }
+
+    // 2. Carrier particle physics & surface charges: depend on (I, B, V_H, carrierType)
     const isDifferent =
-      Math.abs(this.lastB - bTesla) > 0.002 ||
       Math.abs(this.lastI - currentMa) > 0.02 ||
       Math.abs(this.lastVh - vhMv) > 0.005 ||
       this.lastMaterial !== materialName ||
       this.lastCarrierType !== carrierType;
 
     if (isDifferent) {
-      this.lastB = bTesla;
       this.lastI = currentMa;
       this.lastVh = vhMv;
       this.lastMaterial = materialName;
       this.lastCarrierType = carrierType;
-
-      // Update Holographic Magnetic Flux Streamlines
-      const bSign = bTesla >= 0 ? 1 : -1;
-      const bMag = Math.abs(bTesla);
-      const arrowVisible = bMag > 0.02;
-      this.fluxArrowsGroup.visible = arrowVisible;
-
-      if (arrowVisible) {
-        const shaftLen = 0.092 * THREE.MathUtils.clamp(bMag / 1.0, 0.45, 1.15);
-        const coneHeight = 0.016;
-        for (const item of this.fluxArrowMeshes) {
-          item.cone.position.set(0, 0, bSign * (shaftLen * 0.5 + coneHeight * 0.5));
-          item.cone.rotation.x = (bSign * Math.PI) / 2;
-          item.shaft.scale.set(1, THREE.MathUtils.clamp(bMag / 0.8, 0.5, 1.2), 1);
-        }
-      }
 
       this.particleSystem.setPhysicsState(currentMa, bTesla, vhMv, carrierType);
     }

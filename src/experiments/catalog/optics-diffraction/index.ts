@@ -35,6 +35,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
   private gratingLinesPerMm = 300;
 
   private workerBuffer: Float32Array = new Float32Array(512);
+  private displayBuffer: Float32Array = new Float32Array(512);
   private isWorkerBusy = false;
   private hasWorkerResult = false;
   private lastStateHash = '';
@@ -162,11 +163,27 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
       );
     }
 
-    // Multi-Core Worker physics computation with state hash dirty checking
+    // Multi-Core Worker physics computation
     const stateHash = `${this.diffractionType}_${this.wavelength}_${this.slitWidth.toFixed(3)}_${this.gratingLinesPerMm}_${screenDistM.toFixed(3)}`;
-    if (stateHash !== this.lastStateHash) {
-      this.lastStateHash = stateHash;
-      this.dispatchWorkerDiffraction(context, screenDistM);
+    const hasWorker = Boolean(
+      context.computeBridge || (context.workerPool && context.workerPool.size > 0)
+    );
+    if (hasWorker) {
+      if (!this.isWorkerBusy) {
+        this.dispatchWorkerDiffraction(context, screenDistM);
+      }
+    } else {
+      if (stateHash !== this.lastStateHash) {
+        this.lastStateHash = stateHash;
+      }
+      this.detectorScreen.renderFringesPattern({
+        mode: isGrating ? 'grating' : 'single_slit',
+        wavelengthNm: this.wavelength,
+        intensity: 1.0,
+        slitWidthMm: this.slitWidth,
+        gratingLinesPerMm: this.gratingLinesPerMm,
+        screenDistanceM: screenDistM,
+      });
     }
 
     if (isGrating) {
@@ -179,8 +196,8 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
         screenDistanceM: screenDistM,
       });
     } else if (this.hasWorkerResult) {
-      this.detectorScreen.renderFringesFromBuffer(this.workerBuffer, this.wavelength, 1.0);
-    } else {
+      this.detectorScreen.renderFringesFromBuffer(this.displayBuffer, this.wavelength, 1.0);
+    } else if (hasWorker) {
       this.detectorScreen.renderFringesPattern({
         mode: 'single_slit',
         wavelengthNm: this.wavelength,
@@ -202,6 +219,10 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
     this.isWorkerBusy = true;
 
     try {
+      if (!this.workerBuffer || this.workerBuffer.byteLength === 0) {
+        this.workerBuffer = new Float32Array(512);
+      }
+
       if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalDiffraction === 'function') {
         const resp = await (context.computeBridge as any).simulateOpticalDiffraction({
           intensityBuffer: this.workerBuffer,
@@ -215,6 +236,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
         });
         if (resp && resp.intensityBuffer) {
           this.workerBuffer = resp.intensityBuffer;
+          this.displayBuffer.set(this.workerBuffer);
           this.hasWorkerResult = true;
         }
       } else if (context.workerPool && context.workerPool.size > 0) {
@@ -234,11 +256,14 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
         );
         if (resp && resp.intensityBuffer) {
           this.workerBuffer = resp.intensityBuffer;
+          this.displayBuffer.set(this.workerBuffer);
           this.hasWorkerResult = true;
         }
       }
     } catch {
-      // Worker silent fallback
+      if (!this.workerBuffer || this.workerBuffer.byteLength === 0) {
+        this.workerBuffer = new Float32Array(512);
+      }
     } finally {
       this.isWorkerBusy = false;
     }

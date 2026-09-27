@@ -742,7 +742,10 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       const minY = -maxY;
       const minZ = -waferThickness * 0.08;
       const maxZ = waferThickness * 0.44;
-      const relaxFactor = Math.min(1.0, delta * 6.0);
+      const relaxFactor = Math.min(1.0, delta * 12.0);
+
+      const flSign = maxDeflectionY >= 0 ? 1 : -1;
+      const deflectionAlpha = halfH > 1e-4 ? Math.min(1.60, Math.abs(maxDeflectionY) / halfH) : 0;
 
       for (let i = 0; i < particleCount; i++) {
         const idx = i * 3;
@@ -759,9 +762,34 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
           }
         }
 
-        // 2. Physical Hall equilibrium transverse distribution
-        const baseNormY = baseOffsetsY[i] / halfH;
-        const targetY = baseOffsetsY[i] + maxDeflectionY * (1.0 - 0.30 * Math.abs(baseNormY));
+        // 2. Physical Hall equilibrium transverse distribution ("中间平两边弯" Streamline Curvature)
+        const absU = Math.abs(positions[idx] / halfL);
+        let curvFactor = 1.0;
+        if (absU > 0.38) {
+          const t = Math.min(1.0, (absU - 0.38) / 0.62);
+          // Smooth Hermite C1-continuous transition: 1.0 at center down to 0.12 at electrodes
+          curvFactor = 1.0 - 0.88 * t * t * (3.0 - 2.0 * t);
+        }
+
+        const localAlpha = deflectionAlpha * curvFactor;
+        const normA = Math.min(1.0, localAlpha / 1.60);
+        const u0 = Math.max(-1.0, Math.min(1.0, baseOffsetsY[i] / halfH));
+        const p = (u0 + 1.0) * 0.5;
+
+        // Nonlinear Boltzmann-Hall carrier accumulation & depletion layer dynamics with raised upper limit
+        let uSkew: number;
+        const gamma = 1.0 + 2.2 * Math.min(1.5, localAlpha);
+        if (flSign < 0) {
+          const pSkew = Math.pow(Math.max(0, Math.min(1, p)), gamma);
+          uSkew = 2.0 * pSkew - 1.0;
+        } else {
+          const pSkew = 1.0 - Math.pow(Math.max(0, Math.min(1, 1.0 - p)), gamma);
+          uSkew = 2.0 * pSkew - 1.0;
+        }
+
+        const yShift = flSign * halfH * Math.min(0.85, 0.68 * localAlpha);
+        const span = halfH * (0.90 - 0.55 * normA);
+        const targetY = yShift + uSkew * span;
         const clampedTargetY = targetY < minY ? minY : targetY > maxY ? maxY : targetY;
 
         const currentY = positions[idx + 1];

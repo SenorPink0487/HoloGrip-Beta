@@ -97,9 +97,12 @@ export class ReactionEffects {
   private pourStream: THREE.Mesh;
   private pourStreamMat: THREE.MeshBasicMaterial;
   private pourSplashParticles: THREE.Points;
+  private pourSplashMat!: THREE.PointsMaterial;
   private pourSplashPositions: Float32Array;
   private pourSplashVelocities: Float32Array;
   private pourSplashLifespans: Float32Array;
+  private impactX = 0;
+  private impactZ = 0;
   private isPouring = false;
   private hasActiveSplash = false;
   private pourTimer = 0;
@@ -226,7 +229,7 @@ export class ReactionEffects {
     }
 
     splashGeo.setAttribute('position', new THREE.BufferAttribute(this.pourSplashPositions, 3));
-    const splashMat = new THREE.PointsMaterial({
+    this.pourSplashMat = new THREE.PointsMaterial({
       color: 0xffffff,
       map: this.softDisc,
       size: 0.012,
@@ -235,7 +238,7 @@ export class ReactionEffects {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    this.pourSplashParticles = new THREE.Points(splashGeo, splashMat);
+    this.pourSplashParticles = new THREE.Points(splashGeo, this.pourSplashMat);
     this.pourSplashParticles.frustumCulled = false;
     this.pourSplashParticles.visible = false;
     this.pourSplashParticles.renderOrder = 7;
@@ -480,14 +483,27 @@ export class ReactionEffects {
     this.group.add(this.heatWisps);
   }
 
+  /** Local XZ on the receiving liquid where the stream lands. */
+  public setPourImpact(x: number, z: number): void {
+    const limit = this.beaker.getLiquidRadius() * 0.72;
+    const radius = Math.hypot(x, z);
+    if (radius > limit && radius > 1e-6) {
+      this.impactX = (x * limit) / radius;
+      this.impactZ = (z * limit) / radius;
+    } else {
+      this.impactX = x;
+      this.impactZ = z;
+    }
+  }
+
   public triggerPour(hexColor: number): void {
     this.isPouring = true;
     this.hasActiveSplash = true;
     this.pourTimer = 1.1;
     this.pourColor.setHex(hexColor);
-    this.pourStreamMat.color.copy(this.pourColor);
-    this.pourStreamMat.opacity = 0.85;
-    this.beaker.disturbSurface(0.45);
+    this.pourStream.visible = false;
+    this.pourSplashMat.color.copy(this.pourColor);
+    this.beaker.disturbSurface(0.55);
   }
 
   public triggerPrecipitation(hexColor: number): void {
@@ -625,23 +641,13 @@ export class ReactionEffects {
       }
     }
 
+    this.pourStream.visible = false;
     if (this.isPouring) {
       this.pourTimer -= delta;
       if (this.pourTimer <= 0) {
         this.isPouring = false;
         this.pourStreamMat.opacity = 0;
-        this.pourStream.visible = false;
-      } else {
-        this.pourStreamMat.opacity = Math.min(0.85, this.pourTimer * 2.5);
-        this.pourStream.visible = true;
-        const topY = 0.42;
-        const bottomY = liquidSurfaceLocalY;
-        const streamH = Math.max(0.05, topY - bottomY);
-        this.pourStream.scale.set(1, streamH / 0.35, 1);
-        this.pourStream.position.set(0.015, bottomY + streamH / 2, 0.015);
       }
-    } else {
-      this.pourStream.visible = false;
     }
 
     if (this.isPrecipitating) {
@@ -1001,9 +1007,9 @@ export class ReactionEffects {
       for (let i = 0; i < this.pourSplashLifespans.length; i++) {
         if (this.pourSplashLifespans[i] <= 0 && Math.random() < 0.4) {
           this.pourSplashLifespans[i] = 0.3 + Math.random() * 0.2;
-          splashPos[i * 3] = 0.015 + (Math.random() - 0.5) * 0.015;
+          splashPos[i * 3] = this.impactX + (Math.random() - 0.5) * 0.02;
           splashPos[i * 3 + 1] = liquidSurfaceLocalY + 0.002;
-          splashPos[i * 3 + 2] = 0.015 + (Math.random() - 0.5) * 0.015;
+          splashPos[i * 3 + 2] = this.impactZ + (Math.random() - 0.5) * 0.02;
 
           const angle = Math.random() * Math.PI * 2;
           const spd = 0.06 + Math.random() * 0.08;

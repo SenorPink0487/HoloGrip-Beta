@@ -154,9 +154,27 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
       }
 
       const stateHash = `${this.laser.isOn}_${this.wavelength}_${this.prismAngle.toFixed(2)}_${this.refractiveIndex.toFixed(3)}_${this.laserSaddle.position.z.toFixed(4)}_${this.prismSaddle.position.z.toFixed(4)}_${screenZ.toFixed(4)}`;
-      if (stateHash !== this.lastDispersionStateHash) {
-        this.lastDispersionStateHash = stateHash;
-        this.dispatchWorkerDispersion(context, screenZ);
+      const hasWorker = Boolean(
+        context.computeBridge || (context.workerPool && context.workerPool.size > 0)
+      );
+      if (hasWorker) {
+        if (!this.isWorkerBusy) {
+          this.dispatchWorkerDispersion(context, screenZ);
+        }
+      } else {
+        if (stateHash !== this.lastDispersionStateHash) {
+          this.lastDispersionStateHash = stateHash;
+          const incomingPos = new THREE.Vector3(0, 0.186, this.laserSaddle.position.z + 0.123);
+          const apexPos = new THREE.Vector3(0, 0.186, this.prismSaddle.position.z);
+          const rays = OpticalPhysics.calculatePrismDispersionRays(
+            apexPos,
+            THREE.MathUtils.degToRad(this.prismAngle),
+            this.refractiveIndex,
+            incomingPos,
+            screenZ
+          );
+          this.beamSystem.updateDispersionRays(rays);
+        }
       }
 
       this.detectorScreen.renderFringesPattern({

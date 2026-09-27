@@ -89,6 +89,15 @@ export class StereometryMesh {
 
   // Focus Halo / Reticle Billboard Sprite (No clipping, camera-facing)
   private snapCursorSprite: THREE.Sprite | null = null;
+  private snapRippleSprite: THREE.Sprite | null = null;
+  private snapHoverBead: THREE.Mesh | null = null;
+  private snapHoverBeadMat: THREE.MeshStandardMaterial | null = null;
+  private snapBadgeSprite: THREE.Sprite | null = null;
+  private snapBadgeCanvas: HTMLCanvasElement | null = null;
+  private snapBadgeTex: THREE.CanvasTexture | null = null;
+  private lastSnapBadgeKey = '';
+  private snapEnterTime = 0;
+  private snapRipplePhase = 0;
   private selectedBeaconSprites: Map<string, THREE.Sprite> = new Map();
   private lastHoveredMeshId: string | null = null;
   private lastSelectedIds: string[] = [];
@@ -482,40 +491,66 @@ export class StereometryMesh {
   }
 
   private createSnapCursor(): void {
-    // Generate camera-facing Billboard Sprite for pristine, non-clipping focus reticle
+    // 1. Generate camera-facing Billboard Sprite for pristine, non-clipping focus reticle
+    // High-resolution 256x256 monochrome white canvas ensures 100% pure, vibrant multiplicative color tinting
     const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
+    canvas.width = 256;
+    canvas.height = 256;
     const ctx = typeof (canvas as any).getContext === 'function' ? (canvas as any).getContext('2d') : null;
     if (ctx) {
-      const cx = 64, cy = 64;
-      // Soft radial glow aura
+      const cx = 128, cy = 128;
+
+      // Soft radial glow aura (pure white gradient for rich multiplicative color saturation)
       if (typeof ctx.createRadialGradient === 'function') {
-        const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 58);
-        grad.addColorStop(0, 'rgba(56, 189, 248, 0.45)');
-        grad.addColorStop(0.65, 'rgba(56, 189, 248, 0.15)');
-        grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+        const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 120);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0.50)');
+        grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.22)');
+        grad.addColorStop(0.8, 'rgba(255, 255, 255, 0.05)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(cx, cy, 58, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 120, 0, Math.PI * 2);
         ctx.fill();
       }
-      // Inner crisp focus ring (radius 36 hugs the pearl cleanly without touching text at radius 60+)
+
+      // Outer precision dashed tick ring
       ctx.beginPath();
-      ctx.arc(cx, cy, 36, 0, Math.PI * 2);
-      ctx.lineWidth = 3.5;
-      ctx.strokeStyle = '#38bdf8';
+      ctx.arc(cx, cy, 96, 0, Math.PI * 2);
+      ctx.lineWidth = 2.5;
+      if (typeof ctx.setLineDash === 'function') {
+        ctx.setLineDash([6, 6]);
+      }
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.stroke();
+      if (typeof ctx.setLineDash === 'function') {
+        ctx.setLineDash([]);
+      }
+
+      // Inner solid focus targeting ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, 64, 0, Math.PI * 2);
+      ctx.lineWidth = 4.5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
       ctx.stroke();
 
-      // Outer delicate dashed tick ring
-      ctx.beginPath();
-      ctx.arc(cx, cy, 48, 0, Math.PI * 2);
-      ctx.lineWidth = 1.8;
-      if (typeof ctx.setLineDash === 'function') {
-        ctx.setLineDash([5, 6]);
+      // 4 Cardinal targeting ticks / brackets pointing inward
+      ctx.lineWidth = 3.0;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.90)';
+      const tickAngles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+      for (const ang of tickAngles) {
+        const cos = Math.cos(ang);
+        const sin = Math.sin(ang);
+        ctx.beginPath();
+        ctx.moveTo(cx + cos * 84, cy + sin * 84);
+        ctx.lineTo(cx + cos * 52, cy + sin * 52);
+        ctx.stroke();
       }
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-      ctx.stroke();
+
+      // Central crosshair micro-pip
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.fill();
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -529,6 +564,78 @@ export class StereometryMesh {
     this.snapCursorSprite.scale.set(0.024, 0.024, 1);
     this.snapCursorSprite.renderOrder = 8;
     this.snapCursorGroup.add(this.snapCursorSprite);
+
+    // 2. Magnetic Sonar Ripple Sprite (Pulsing holographic wave ring)
+    const rippleCanvas = document.createElement('canvas');
+    rippleCanvas.width = 128;
+    rippleCanvas.height = 128;
+    const rctx = typeof (rippleCanvas as any).getContext === 'function' ? (rippleCanvas as any).getContext('2d') : null;
+    if (rctx) {
+      const cx = 64, cy = 64;
+      if (typeof rctx.createRadialGradient === 'function') {
+        const rGrad = rctx.createRadialGradient(cx, cy, 25, cx, cy, 60);
+        rGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        rGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.70)');
+        rGrad.addColorStop(0.85, 'rgba(255, 255, 255, 0.95)');
+        rGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        rctx.fillStyle = rGrad;
+        rctx.beginPath();
+        rctx.arc(cx, cy, 60, 0, Math.PI * 2);
+        rctx.fill();
+      } else {
+        rctx.beginPath();
+        rctx.arc(cx, cy, 50, 0, Math.PI * 2);
+        rctx.lineWidth = 3;
+        rctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        rctx.stroke();
+      }
+    }
+    const rippleTex = new THREE.CanvasTexture(rippleCanvas);
+    rippleTex.minFilter = THREE.LinearFilter;
+    const rippleMat = new THREE.SpriteMaterial({
+      map: rippleTex,
+      transparent: true,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      opacity: 0.8,
+    });
+    this.snapRippleSprite = new THREE.Sprite(rippleMat);
+    this.snapRippleSprite.scale.set(0.04, 0.04, 1);
+    this.snapRippleSprite.renderOrder = 8;
+    this.snapCursorGroup.add(this.snapRippleSprite);
+
+    // 3. 3D Hover Anchor Pearl Bead (Guarantees visible tactile 3D anchor even on unrendered midpoints/thirds)
+    const beadGeo = new THREE.SphereGeometry(0.0075, 16, 16);
+    this.snapHoverBeadMat = new THREE.MeshStandardMaterial({
+      color: 0xfbbf24,
+      emissive: 0xfbbf24,
+      emissiveIntensity: 1.2,
+      roughness: 0.10,
+      metalness: 0.85,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+    });
+    this.snapHoverBead = new THREE.Mesh(beadGeo, this.snapHoverBeadMat);
+    this.snapHoverBead.renderOrder = 8;
+    this.snapCursorGroup.add(this.snapHoverBead);
+
+    // 4. Floating 3D Holographic Snap Label Badge (e.g. ✦ 棱 D₁A₁ 中点 (1/2))
+    this.snapBadgeCanvas = document.createElement('canvas');
+    this.snapBadgeCanvas.width = 320;
+    this.snapBadgeCanvas.height = 72;
+    this.snapBadgeTex = new THREE.CanvasTexture(this.snapBadgeCanvas);
+    this.snapBadgeTex.minFilter = THREE.LinearFilter;
+    const badgeMat = new THREE.SpriteMaterial({
+      map: this.snapBadgeTex,
+      transparent: true,
+      depthTest: false,
+    });
+    this.snapBadgeSprite = new THREE.Sprite(badgeMat);
+    this.snapBadgeSprite.scale.set(0.076, 0.0171, 1);
+    this.snapBadgeSprite.position.set(0, 0.038, 0);
+    this.snapBadgeSprite.renderOrder = 9;
+    this.snapCursorGroup.add(this.snapBadgeSprite);
 
     // Keep snapRing & snapRingOuter for backwards compatibility with any existing property lookups
     const dummyRing = new THREE.Object3D();
@@ -973,7 +1080,7 @@ export class StereometryMesh {
       if (kp.type !== 'vertex' && kp.type !== 'custom') continue;
 
       const sprite = this.createLabelSprite(kp.label);
-      // Offset slightly outward from centroid
+      // Offset outward from centroid so prominent label never overlaps the vertex bead
       const dir = kp.position.clone();
       if (dir.lengthSq() < 1e-4) {
         dir.set(0, 1, 0);
@@ -981,35 +1088,40 @@ export class StereometryMesh {
         dir.normalize();
       }
 
-      sprite.position.copy(kp.position).addScaledVector(dir, 0.024);
+      sprite.position.copy(kp.position).addScaledVector(dir, 0.042);
       this.labelsGroup.add(sprite);
     }
   }
 
   private createLabelSprite(text: string): THREE.Sprite {
     const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
+    canvas.width = 256;
+    canvas.height = 256;
     const ctx = typeof (canvas as any).getContext === 'function' ? (canvas as any).getContext('2d') : null;
     if (ctx) {
-      ctx.clearRect(0, 0, 128, 128);
+      ctx.clearRect(0, 0, 256, 256);
 
-      // Pure Mathematical Typography (No bubble badge, unadorned letters)
-      ctx.font = 'bold 56px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Times New Roman", sans-serif';
+      // High-resolution textbook typography: large, bold, and high-contrast
+      ctx.font = 'bold 136px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Times New Roman", "PingFang SC", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      // Subtle dark stroke outline for maximum legibility on light laboratory walls
-      ctx.lineWidth = 5.0;
+      // Soft ambient shadow for spatial pop
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = 10;
+
+      // Dark stroke outline for razor-sharp legibility against both bright and dark backgrounds
+      ctx.lineWidth = 11.0;
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(15, 23, 42, 0.90)';
+      ctx.strokeStyle = 'rgba(10, 16, 32, 0.95)';
       if (typeof ctx.strokeText === 'function') {
-        ctx.strokeText(text, 64, 64);
+        ctx.strokeText(text, 128, 128);
       }
 
-      // Pure crisp white glyph fill for contrast against azure crystal faces and dark tables
+      // Pure crisp white glyph fill
+      ctx.shadowBlur = 0;
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(text, 64, 64);
+      ctx.fillText(text, 128, 128);
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -1020,7 +1132,8 @@ export class StereometryMesh {
       depthTest: false,
     });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(0.046, 0.046, 1);
+    // Enlarged scale: 0.082m gives clear, effortless readability from default camera distance
+    sprite.scale.set(0.082, 0.082, 1);
     sprite.renderOrder = 10;
     return sprite;
   }
@@ -1472,7 +1585,7 @@ export class StereometryMesh {
   // -------------------------------------------------------------
   // Magnetic Snapping & Raycast Target (Camera-Facing Reticles)
   // -------------------------------------------------------------
-  public setHoveredKeyPoint(id: string | null): void {
+  public setHoveredKeyPoint(id: string | null, snapLabel?: string): void {
     if (this.hoveredKeyPointId === id) return;
 
     // Reset previous hovered mesh scale
@@ -1490,34 +1603,139 @@ export class StereometryMesh {
       if (kp) {
         this.snapCursorGroup.position.copy(kp.position);
         this.snapCursorGroup.visible = true;
+        this.snapEnterTime = 0;
 
-        // Tactile node scaling: smoothly grow the pearl bead
+        // Tactile node scaling: smoothly grow existing pearl bead
         const currMesh = this.keyPointMeshes.get(id);
         if (currMesh && !this.lastSelectedIds.includes(id)) {
-          currMesh.scale.set(1.30, 1.30, 1.30);
+          currMesh.scale.set(1.55, 1.55, 1.55);
+          if (this.snapHoverBead) this.snapHoverBead.visible = false;
+        } else {
+          // If no static mesh rendered (midpoints/thirds by default), show luminous 3D hover bead
+          if (this.snapHoverBead) this.snapHoverBead.visible = true;
         }
 
-        let hex = 0x38bdf8; // vertex: vivid cyan
+        let hex = 0x00f0ff; // vertex: vivid electric cyan (pure & brilliant)
         if (kp.type === 'midpoint') {
-          hex = 0xf59e0b; // 1/2: golden amber
+          hex = 0xfbbf24; // 1/2: radiant golden amber
         } else if (kp.type === 'third') {
-          hex = 0x10b981; // 1/3: emerald mint
+          hex = 0x10b981; // 1/3: vibrant emerald mint
         } else if (kp.type === 'center') {
-          hex = 0xa855f7; // center: violet
+          hex = 0xc084fc; // center: neon violet
         }
 
         if (this.snapCursorSprite) {
           (this.snapCursorSprite.material as THREE.SpriteMaterial).color.setHex(hex);
+          this.snapCursorSprite.scale.set(0.065, 0.065, 1);
+        }
+        if (this.snapRippleSprite) {
+          this.snapRippleSprite.visible = false;
+        }
+        if (this.snapHoverBeadMat) {
+          this.snapHoverBeadMat.color.setHex(hex);
+          this.snapHoverBeadMat.emissive.setHex(hex);
+        }
+
+        // Update floating 3D holographic badge
+        const badgeText = this.formatKeyPointSnapLabel(kp, snapLabel);
+        this.updateSnapBadge(badgeText, hex);
+        if (this.snapBadgeSprite) {
+          this.snapBadgeSprite.visible = true;
         }
         return;
       }
     }
+
     this.snapCursorGroup.visible = false;
+    if (this.snapCursorSprite) {
+      this.snapCursorSprite.scale.set(0.024, 0.024, 1);
+    }
+    if (this.snapRippleSprite) {
+      this.snapRippleSprite.visible = false;
+    }
+    if (this.snapHoverBead) {
+      this.snapHoverBead.visible = false;
+    }
+    if (this.snapBadgeSprite) {
+      this.snapBadgeSprite.visible = false;
+    }
+  }
+
+  private formatKeyPointSnapLabel(kp: KeyPoint, customLabel?: string): string {
+    if (customLabel && customLabel.trim().length > 0) {
+      return customLabel.replace(/^(✦\s*|磁吸捕捉[:：]\s*)/, '');
+    }
+    if (kp.subLabel) {
+      const edge = kp.edgeVertices ? `${kp.edgeVertices[0]}${kp.edgeVertices[1]}` : '';
+      if (kp.subLabel === '1/2') {
+        return edge ? `棱 ${edge} 中点 (1/2)` : `${kp.label} 中点 (1/2)`;
+      } else if (kp.subLabel === '1/3') {
+        return edge ? `棱 ${edge} 三等分点 (1/3)` : `${kp.label} (1/3)`;
+      } else if (kp.subLabel === '2/3') {
+        return edge ? `棱 ${edge} 三等分点 (2/3)` : `${kp.label} (2/3)`;
+      }
+    }
+    if (kp.type === 'vertex') {
+      return `顶点 ${kp.label}`;
+    }
+    if (kp.type === 'center') {
+      return `${kp.label} 中心`;
+    }
+    return kp.label;
+  }
+
+  private updateSnapBadge(labelToDisplay: string, colorHex: number): void {
+    if (!this.snapBadgeCanvas || !this.snapBadgeTex) return;
+    if (this.lastSnapBadgeKey === `${labelToDisplay}_${colorHex}`) return;
+    this.lastSnapBadgeKey = `${labelToDisplay}_${colorHex}`;
+
+    const bctx = this.snapBadgeCanvas.getContext('2d');
+    if (!bctx) return;
+
+    bctx.clearRect(0, 0, 320, 72);
+
+    const r = (colorHex >> 16) & 255;
+    const g = (colorHex >> 8) & 255;
+    const b = colorHex & 255;
+    const strokeColor = `rgba(${r}, ${g}, ${b}, 0.95)`;
+    const glowColor = `rgba(${r}, ${g}, ${b}, 0.40)`;
+
+    // Pill background: Frosted sci-fi glass
+    bctx.fillStyle = 'rgba(11, 19, 38, 0.90)';
+    if (typeof (bctx as any).roundRect === 'function') {
+      bctx.beginPath();
+      (bctx as any).roundRect(8, 8, 304, 56, 28);
+      bctx.fill();
+    } else {
+      bctx.fillRect(8, 8, 304, 56);
+    }
+
+    // Outer glow border
+    bctx.lineWidth = 2.5;
+    bctx.strokeStyle = strokeColor;
+    if (typeof (bctx as any).roundRect === 'function') {
+      bctx.beginPath();
+      (bctx as any).roundRect(8, 8, 304, 56, 28);
+      bctx.stroke();
+    }
+
+    // High-contrast text with soft halo shadow
+    bctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif';
+    bctx.textAlign = 'center';
+    bctx.textBaseline = 'middle';
+
+    bctx.shadowColor = glowColor;
+    bctx.shadowBlur = 10;
+    bctx.fillStyle = '#ffffff';
+    bctx.fillText(`✦ ${labelToDisplay}`, 160, 36);
+
+    bctx.shadowBlur = 0;
+    this.snapBadgeTex.needsUpdate = true;
   }
 
   public findClosestSnapPoint(
     ray: THREE.Ray,
-    threshold = 0.055
+    threshold = 0.060
   ): { keyPoint: KeyPoint; snapType: string; distance: number; snapLabel: string } | null {
     return GeometrySolver.findClosestSnapPoint(ray, this.currentModelDef, this.modelContainer.matrixWorld, threshold);
   }
@@ -1672,7 +1890,7 @@ export class StereometryMesh {
     const pMat = this.previewPipeMesh.material as THREE.MeshStandardMaterial;
     pMat.color.setHex(color);
     pMat.emissive.setHex(color);
-    pMat.emissiveIntensity = 0.85 + 0.25 * Math.sin(this.hoverTime * 8);
+    pMat.emissiveIntensity = 0.95;
 
     this.previewPipeMesh.scale.set(1, len, 1);
     this.previewPipeMesh.position.copy(mid);
@@ -1831,14 +2049,38 @@ export class StereometryMesh {
       stageRing.rotation.z += delta * 0.12;
     }
 
-    // Magnetic snap reticle pulse
-    if (this.snapCursorGroup.visible && this.snapCursorSprite) {
-      const snapPulse = 0.024 * (1.0 + 0.08 * Math.sin(this.hoverTime * 6));
-      this.snapCursorSprite.scale.set(snapPulse, snapPulse, 1);
+    // Steady, stable magnetic snap indicator (no continuous flickering, pulsing, or spinning)
+    if (this.snapCursorGroup.visible) {
+      // 1. Camera-facing targeting reticle: completely stable scale, zero spin
+      if (this.snapCursorSprite) {
+        this.snapCursorSprite.scale.set(0.065, 0.065, 1);
+        this.snapCursorSprite.material.rotation = 0;
+      }
+
+      // 2. Ripple disabled to prevent flashing
+      if (this.snapRippleSprite) {
+        this.snapRippleSprite.visible = false;
+      }
+
+      // 3. 3D Hover Pearl Bead: steady, stable anchor
+      if (this.snapHoverBead && this.snapHoverBead.visible) {
+        this.snapHoverBead.scale.setScalar(1.0);
+      }
+
+      // 4. Floating 3D holographic badge: steady floating above point
+      if (this.snapBadgeSprite && this.snapBadgeSprite.visible) {
+        if (camera) {
+          const upWorld = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+          const upLocal = upWorld.applyQuaternion(this.modelContainer.quaternion.clone().invert());
+          this.snapBadgeSprite.position.copy(upLocal.multiplyScalar(0.040));
+        } else {
+          this.snapBadgeSprite.position.set(0, 0.038, 0);
+        }
+      }
     }
 
-    // Selected keypoints beacon pulsation
-    const beaconScale = 0.026 * (1.0 + 0.12 * Math.sin(this.hoverTime * 5));
+    // Selected keypoints beacon: stable, clean highlight
+    const beaconScale = 0.026;
     for (const sprite of this.selectedBeaconSprites.values()) {
       sprite.scale.set(beaconScale, beaconScale, 1);
     }
@@ -1893,5 +2135,23 @@ export class StereometryMesh {
     this.thirdNodeMat.dispose();
     this.centerNodeMat.dispose();
     this.originNodeMat.dispose();
+    if (this.snapHoverBead) {
+      this.snapHoverBead.geometry.dispose();
+    }
+    if (this.snapHoverBeadMat) {
+      this.snapHoverBeadMat.dispose();
+    }
+    if (this.snapRippleSprite) {
+      this.snapRippleSprite.material.dispose();
+    }
+    if (this.snapBadgeTex) {
+      this.snapBadgeTex.dispose();
+    }
+    if (this.snapBadgeSprite) {
+      this.snapBadgeSprite.material.dispose();
+    }
+    if (this.snapCursorSprite) {
+      this.snapCursorSprite.material.dispose();
+    }
   }
 }

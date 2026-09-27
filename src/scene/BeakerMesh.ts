@@ -1,5 +1,12 @@
 import * as THREE from 'three';
 import type { ChemistryState } from '../chemistry/ChemistryEngine';
+import {
+  buildTiltedLiquidGeometry,
+  lipContactLocal,
+  lipInsetLocal,
+  solveLiquidPlane,
+  type LiquidPlane,
+} from '../chemistry/pourKinematics.ts';
 
 export class BeakerMesh {
   public readonly group = new THREE.Group();
@@ -33,6 +40,12 @@ export class BeakerMesh {
   public readonly maxLiquidHeight = 0.28; // Max height in meters
   public readonly beakerHeight = 0.36;
   public readonly beakerRadius = 0.14;
+  public readonly liquidRadius = this.beakerRadius - 0.009;
+  public readonly liquidBottomY = 0.009;
+  /** Outer edge of the flared lip. Matches the lathe profile. */
+  public readonly glassLipRadius = this.beakerRadius + 0.008;
+  /** How far the waterline may flare toward the mouth when it reaches the rim. */
+  public readonly liquidRimRadius = this.beakerRadius - 0.004;
 
   public restingPosition = new THREE.Vector3(0, 0.852, 1.10);
   public currentTiltZ = 0;
@@ -47,6 +60,10 @@ export class BeakerMesh {
   private surfaceDisturbance = 0;
   private heatPulse = 0;
   private surfacePhase = 0;
+  private liquidPlane!: LiquidPlane;
+  private liquidGeo: THREE.BufferGeometry | null = null;
+  private builtTilt = Number.NaN;
+  private builtLevel = Number.NaN;
 
   /** Fizz, pour, or precipitation disturbing the free surface. Amount is 0–1. */
   public disturbSurface(amount: number): void {
@@ -208,12 +225,7 @@ export class BeakerMesh {
   }
 
   private createLiquid(): void {
-    const liquidRadius = this.beakerRadius - 0.009;
-    const maxH = this.maxLiquidHeight;
-
-    const liquidGeo = new THREE.CylinderGeometry(liquidRadius, liquidRadius, maxH, 64, 8, false);
-    // Offset geometry origin so bottom of liquid is at local y=0
-    liquidGeo.translate(0, maxH / 2, 0);
+    const liquidRadius = this.liquidRadius;
 
     this.liquidMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xd7f3ff,
@@ -223,15 +235,17 @@ export class BeakerMesh {
       transparent: true,
       opacity: 0.82,
       depthWrite: false,
+      side: THREE.FrontSide,
     });
 
-    this.liquidMesh = new THREE.Mesh(liquidGeo, this.liquidMaterial);
-    this.liquidMesh.position.y = 0.009; // Just above beaker bottom
-    this.liquidMesh.scale.set(1, this.currentLiquidLevel, 1);
+    this.liquidGeo = new THREE.BufferGeometry();
+    this.liquidMesh = new THREE.Mesh(this.liquidGeo, this.liquidMaterial);
     this.liquidMesh.renderOrder = 3;
+    this.liquidMesh.frustumCulled = false;
     this.group.add(this.liquidMesh);
+    this.refreshLiquidBody(true);
 
-    // Top surface disc (meniscus reflection)
+    // Top surface disc (meniscus reflection while the beaker is upright)
     const discGeo = new THREE.CircleGeometry(liquidRadius, 64);
     const discMat = new THREE.MeshPhysicalMaterial({
       color: 0xd7f3ff,
@@ -245,7 +259,7 @@ export class BeakerMesh {
     });
     this.liquidTopDisc = new THREE.Mesh(discGeo, discMat);
     this.liquidTopDisc.rotation.x = -Math.PI / 2;
-    this.liquidTopDisc.position.y = 0.009 + maxH * this.currentLiquidLevel;
+    this.liquidTopDisc.position.y = this.liquidBottomY + this.maxLiquidHeight * this.currentLiquidLevel;
     this.liquidTopDisc.renderOrder = 4;
     this.group.add(this.liquidTopDisc);
   }
@@ -307,6 +321,63 @@ export class BeakerMesh {
     return worldPos;
   }
 
+  /** Outer flared lip, the point water actually leaves. */
+  public glassLipLocal(direction: 'left' | 'right'): THREE.Vector3 {
+    const sign = direction === 'right' ? 1 : -1;
+    return new THREE.Vector3(sign * this.glassLipRadius, this.beakerHeight, 0);
+  }
+
+  public getGlassLipWorld(direction: 'left' | 'right'): THREE.Vector3 {
+    return this.group.localToWorld(this.glassLipLocal(direction));
+  }
+
+  /** Move the beaker so the chosen lip sits on `worldLip`. Rotation is left as-is, so the body pivots about the lip. */
+  public placeLipAt(worldLip: THREE.Vector3, direction: 'left' | 'right'): void {
+    this.group.updateWorldMatrix(true, false);
+    const current = this.group.localToWorld(this.glassLipLocal(direction));
+    const delta = worldLip.clone().sub(current);
+    if (delta.lengthSq() < 1e-14) return;
+    const parent = this.group.parent;
+    if (parent) {
+      parent.updateWorldMatrix(true, false);
+      const invParent = new THREE.Quaternion();
+      parent.getWorldQuaternion(invParent).invert();
+      delta.applyQuaternion(invParent);
+    }
+    this.group.position.add(delta);
+  }
+
+  public isSpilling(): boolean {
+    return this.liquidPlane?.spilling ?? false;
+  }
+
+  public getPourOverflow(): number {
+    return this.liquidPlane?.overflow ?? 0;
+  }
+
+  /** Free-surface points leading to the outer lip: inset on the water, contact at the wall, then the glass lip. */
+  public getPourApproachWorld(): THREE.Vector3[] {
+    const plane = this.liquidPlane;
+    const sign = plane.xLip >= 0 ? 1 : -1;
+    const locals = [
+      lipInsetLocal(plane),
+      lipContactLocal(plane, this.liquidRimRadius),
+      { x: sign * this.glassLipRadius, y: this.beakerHeight, z: 0 },
+    ];
+    const world = locals.map((p) => this.group.localToWorld(new THREE.Vector3(p.x, p.y, p.z)));
+    world[0].y += 0.0022;
+    world[1].y += 0.0016;
+    return world;
+  }
+
+  public getPourOutwardWorld(): THREE.Vector3 {
+    const sign = (this.liquidPlane?.xLip ?? 1) >= 0 ? 1 : -1;
+    const outward = new THREE.Vector3(sign, 0, 0);
+    const q = new THREE.Quaternion();
+    this.group.getWorldQuaternion(q);
+    return outward.applyQuaternion(q).normalize();
+  }
+
   public getMouthWorldPosition(): THREE.Vector3 {
     const localMouth = new THREE.Vector3(0, this.beakerHeight, 0);
     const worldPos = localMouth.clone();
@@ -361,14 +432,65 @@ export class BeakerMesh {
   }
 
   public getLiquidSurfaceWorldY(): number {
-    const localTopY = 0.009 + this.maxLiquidHeight * this.currentLiquidLevel;
-    const worldPos = new THREE.Vector3(0, localTopY, 0);
-    this.group.localToWorld(worldPos);
-    return worldPos.y;
+    const localTopY = this.liquidPlane
+      ? this.liquidPlane.yAtZero
+      : this.liquidBottomY + this.maxLiquidHeight * this.currentLiquidLevel;
+    return this.group.localToWorld(new THREE.Vector3(0, localTopY, 0)).y;
   }
 
   public getLiquidRadius(): number {
     return this.beakerRadius - 0.01;
+  }
+
+  /** Rebuild the liquid so its free surface stays horizontal and meets the low lip. */
+  private refreshLiquidBody(force: boolean): void {
+    const tiltChanged = Math.abs(this.currentTiltZ - this.builtTilt) > 1e-4;
+    const levelChanged = Math.abs(this.currentLiquidLevel - this.builtLevel) > 1e-4;
+    if (!force && !tiltChanged && !levelChanged && this.liquidPlane) return;
+
+    const fillHeight = this.maxLiquidHeight * this.currentLiquidLevel;
+    this.liquidPlane = solveLiquidPlane(
+      this.currentTiltZ,
+      fillHeight,
+      this.liquidRadius,
+      this.liquidBottomY,
+      this.beakerHeight,
+    );
+    this.builtTilt = this.currentTiltZ;
+    this.builtLevel = this.currentLiquidLevel;
+    if (!this.liquidGeo || !this.liquidMesh) return;
+
+    const built = buildTiltedLiquidGeometry(this.liquidPlane, 64, this.liquidRimRadius);
+    const pos = this.liquidGeo.getAttribute('position') as THREE.BufferAttribute | undefined;
+    const idx = this.liquidGeo.getIndex();
+    const reusable =
+      !!pos &&
+      !!idx &&
+      pos.array.length === built.positions.length &&
+      idx.array.length === built.indices.length &&
+      pos.array.constructor === built.positions.constructor &&
+      idx.array.constructor === built.indices.constructor;
+
+    if (reusable && pos && idx) {
+      (pos.array as Float32Array).set(built.positions);
+      pos.needsUpdate = true;
+      (idx.array as Uint32Array).set(built.indices);
+      idx.needsUpdate = true;
+    } else {
+      this.liquidGeo.dispose();
+      this.liquidGeo = new THREE.BufferGeometry();
+      this.liquidGeo.setAttribute('position', new THREE.BufferAttribute(built.positions, 3));
+      this.liquidGeo.setIndex(new THREE.BufferAttribute(built.indices, 1));
+      this.liquidMesh.geometry = this.liquidGeo;
+    }
+
+    this.liquidMesh.position.set(0, 0, 0);
+    this.liquidMesh.scale.set(1, 1, 1);
+    this.liquidMesh.visible = built.indices.length > 0;
+    if (built.indices.length > 0) {
+      this.liquidGeo.computeVertexNormals();
+      this.liquidGeo.computeBoundingSphere();
+    }
   }
 
   public update(delta: number): void {
@@ -386,38 +508,36 @@ export class BeakerMesh {
       }
     }
 
-    // 2. Smooth beaker tilt animation & physics
+    // 2. Smooth beaker tilt. Slow enough that the waterline can be seen climbing the wall.
     const tiltDiff = Math.abs(this.currentTiltZ - this.targetTiltZ);
     if (tiltDiff > 1e-4) {
-      this.currentTiltZ = THREE.MathUtils.lerp(this.currentTiltZ, this.targetTiltZ, delta * 12.0);
+      const blend = 1 - Math.exp(-Math.max(0, delta) * 4.2);
+      this.currentTiltZ = THREE.MathUtils.lerp(this.currentTiltZ, this.targetTiltZ, Math.min(1, blend));
       if (Math.abs(this.currentTiltZ - this.targetTiltZ) < 1e-4) {
         this.currentTiltZ = this.targetTiltZ;
       }
       this.group.rotation.z = this.currentTiltZ;
     }
 
-    // 3. Smooth level change
+    // 3. Smooth level change. The body itself is rebuilt to the horizontal free surface below.
     const levelDiff = Math.abs(this.currentLiquidLevel - this.targetLiquidLevel);
     if (levelDiff > 1e-4) {
       this.currentLiquidLevel = THREE.MathUtils.lerp(this.currentLiquidLevel, this.targetLiquidLevel, delta * 3.5);
       if (Math.abs(this.currentLiquidLevel - this.targetLiquidLevel) < 1e-4) {
         this.currentLiquidLevel = this.targetLiquidLevel;
       }
-      this.liquidMesh.scale.set(1, this.currentLiquidLevel, 1);
     }
 
-    const surfaceY = 0.009 + this.maxLiquidHeight * this.currentLiquidLevel;
+    this.refreshLiquidBody(false);
 
-    // Strict fluid mechanics: liquid free surface remains horizontal in world space
-    if (Math.abs(this.currentTiltZ) > 0.001) {
-      this.liquidTopDisc.rotation.z = -this.currentTiltZ;
-      this.liquidTopDisc.position.y = surfaceY;
-    } else {
+    const surfaceY = this.liquidBottomY + this.maxLiquidHeight * this.currentLiquidLevel;
+    const tilting = Math.abs(this.currentTiltZ) > 0.02;
+    this.liquidTopDisc.visible = !tilting;
+    if (!tilting) {
       if (this.liquidTopDisc.position.y !== surfaceY || this.liquidTopDisc.rotation.z !== 0) {
         this.liquidTopDisc.position.y = surfaceY;
         this.liquidTopDisc.rotation.z = 0;
       }
-      // Slight wave / wobble on top disc only during noticeable volume change
       if (levelDiff > 0.005) {
         this.liquidTopDisc.rotation.z = Math.sin(Date.now() * 0.01) * 0.015 * Math.min(1.0, levelDiff * 20);
       }

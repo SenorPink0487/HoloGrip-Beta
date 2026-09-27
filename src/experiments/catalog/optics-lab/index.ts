@@ -62,12 +62,14 @@ export default class OpticsLabExperiment extends BaseExperiment {
 
   // Multi-core Worker State
   private workerIntensityBuffer: Float32Array = new Float32Array(512);
+  private displayBuffer: Float32Array = new Float32Array(512);
   private isWorkerBusy = false;
   private hasWorkerResult = false;
 
   private workerPositions: Float32Array = new Float32Array(122 * 3);
   private workerColors: Float32Array = new Float32Array(122 * 3);
   private isWorkerPolBusy = false;
+  private hasReceivedWorkerPolResult = false;
   private lastMalusIntensity = 1.0;
 
   private isWorkerDispBusy = false;
@@ -236,9 +238,27 @@ export default class OpticsLabExperiment extends BaseExperiment {
       // Multi-Core Worker prism dispersion offload with dirty state check
       const screenZ = this.screenSaddle.position.z - 0.006;
       const dispHash = `${this.centerSaddle.position.z.toFixed(4)}_${this.laserSaddle.position.z.toFixed(4)}_${this.prismAngle.toFixed(2)}_${this.prism.refractiveIndex.toFixed(4)}_${screenZ.toFixed(4)}`;
-      if (dispHash !== this.lastDispersionStateHash) {
-        this.lastDispersionStateHash = dispHash;
-        this.dispatchWorkerDispersion(context);
+      const hasWorker = Boolean(
+        context.computeBridge || (context.workerPool && context.workerPool.size > 0)
+      );
+      if (hasWorker) {
+        if (!this.isWorkerDispBusy) {
+          this.dispatchWorkerDispersion(context);
+        }
+      } else {
+        if (dispHash !== this.lastDispersionStateHash) {
+          this.lastDispersionStateHash = dispHash;
+          const incomingPos = new THREE.Vector3(0, 0.186, this.laserSaddle.position.z + 0.123);
+          const apexPos = new THREE.Vector3(0, 0.186, this.centerSaddle.position.z);
+          const rays = OpticalPhysics.calculatePrismDispersionRays(
+            apexPos,
+            THREE.MathUtils.degToRad(this.prismAngle),
+            this.prism.refractiveIndex,
+            incomingPos,
+            screenZ
+          );
+          this.beamSystem.updateDispersionRays(rays);
+        }
       }
 
       this.detectorScreen.renderFringesPattern({
@@ -286,16 +306,32 @@ export default class OpticsLabExperiment extends BaseExperiment {
         screenDistM
       );
 
-      // Multi-Core Worker physics computation with state hash dirty checking
+      // Multi-Core Worker physics computation
       const diffHash = `inter_${this.wavelength}_${this.slitDistance.toFixed(3)}_${this.slitWidth.toFixed(3)}_${screenDistM.toFixed(3)}`;
-      if (diffHash !== this.lastDiffractionStateHash) {
-        this.lastDiffractionStateHash = diffHash;
-        this.dispatchWorkerComputation(context, 2, screenDistM);
+      const hasWorker = Boolean(
+        context.computeBridge || (context.workerPool && context.workerPool.size > 0)
+      );
+      if (hasWorker) {
+        if (!this.isWorkerBusy) {
+          this.dispatchWorkerComputation(context, 2, screenDistM);
+        }
+      } else {
+        if (diffHash !== this.lastDiffractionStateHash) {
+          this.lastDiffractionStateHash = diffHash;
+        }
+        this.detectorScreen.renderFringesPattern({
+          mode: 'double_slit',
+          wavelengthNm: this.wavelength,
+          intensity: 1.0,
+          slitDistanceMm: this.slitDistance,
+          slitWidthMm: this.slitWidth,
+          screenDistanceM: screenDistM,
+        });
       }
 
       if (this.hasWorkerResult) {
-        this.detectorScreen.renderFringesFromBuffer(this.workerIntensityBuffer, this.wavelength, 1.0);
-      } else {
+        this.detectorScreen.renderFringesFromBuffer(this.displayBuffer, this.wavelength, 1.0);
+      } else if (hasWorker) {
         this.detectorScreen.renderFringesPattern({
           mode: 'double_slit',
           wavelengthNm: this.wavelength,
@@ -345,11 +381,29 @@ export default class OpticsLabExperiment extends BaseExperiment {
         );
       }
 
-      // Multi-Core Worker physics computation with state hash dirty checking
+      // Multi-Core Worker physics computation
       const diffHash = `diff_${this.wavelength}_${this.slitDistance.toFixed(3)}_${this.slitWidth.toFixed(3)}_${screenDistM.toFixed(3)}_${slitCount}_${this.gratingLinesPerMm}`;
-      if (diffHash !== this.lastDiffractionStateHash) {
-        this.lastDiffractionStateHash = diffHash;
-        this.dispatchWorkerComputation(context, slitCount, screenDistM);
+      const hasWorker = Boolean(
+        context.computeBridge || (context.workerPool && context.workerPool.size > 0)
+      );
+      if (hasWorker) {
+        if (!this.isWorkerBusy) {
+          this.dispatchWorkerComputation(context, slitCount, screenDistM);
+        }
+      } else {
+        if (diffHash !== this.lastDiffractionStateHash) {
+          this.lastDiffractionStateHash = diffHash;
+        }
+        if (!isGrating) {
+          this.detectorScreen.renderFringesPattern({
+            mode: 'single_slit',
+            wavelengthNm: this.wavelength,
+            intensity: 1.0,
+            slitWidthMm: this.slitWidth,
+            gratingLinesPerMm: this.gratingLinesPerMm,
+            screenDistanceM: screenDistM,
+          });
+        }
       }
 
       if (isGrating) {
@@ -362,8 +416,8 @@ export default class OpticsLabExperiment extends BaseExperiment {
           screenDistanceM: screenDistM,
         });
       } else if (this.hasWorkerResult) {
-        this.detectorScreen.renderFringesFromBuffer(this.workerIntensityBuffer, this.wavelength, 1.0);
-      } else {
+        this.detectorScreen.renderFringesFromBuffer(this.displayBuffer, this.wavelength, 1.0);
+      } else if (hasWorker) {
         this.detectorScreen.renderFringesPattern({
           mode: 'single_slit',
           wavelengthNm: this.wavelength,
@@ -395,27 +449,59 @@ export default class OpticsLabExperiment extends BaseExperiment {
         { start: _P2_POS, end: _END_POS, intensity: this.lastMalusIntensity },
       ]);
 
-      // Multi-Core Worker polarization physics offload (state-hashed)
+      // Multi-Core Worker polarization physics offload
       const polHash = `${this.pol1Angle.toFixed(1)}_${this.pol2Angle.toFixed(1)}_${this.analyzer2.hasWavePlate}_${this.wavelength}`;
-      if (polHash !== this.lastPolStateHash) {
+      const polStateChanged = polHash !== this.lastPolStateHash;
+      if (polStateChanged) {
         this.lastPolStateHash = polHash;
-        this.dispatchWorkerPolarization(context, elapsed);
       }
 
-      // 60+ FPS Real-time continuous 3D electric field vector wave
+      const hasWorker = Boolean(
+        context.computeBridge || (context.workerPool && context.workerPool.size > 0)
+      );
+
+      // Continuous 3D electric field vector wave offloaded to multi-core worker
       if (this.show3DWave) {
-        this.beamSystem.updatePolarizationWave({
-          startZ: _START_POS.z,
-          endZ: _END_POS.z,
-          polarizerZ: _P1_POS.z,
-          polarizerAngleDeg: this.pol1Angle,
-          analyzerZ: _P2_POS.z,
-          analyzerAngleDeg: this.pol2Angle,
-          hasQuarterWavePlate: this.analyzer2.hasWavePlate,
-          time: elapsed,
-        });
+        if (hasWorker) {
+          if (!this.isWorkerPolBusy) {
+            this.dispatchWorkerPolarization(context, elapsed);
+          }
+          if (!this.hasReceivedWorkerPolResult) {
+            this.beamSystem.updatePolarizationWave({
+              startZ: _START_POS.z,
+              endZ: _END_POS.z,
+              polarizerZ: _P1_POS.z,
+              polarizerAngleDeg: this.pol1Angle,
+              analyzerZ: _P2_POS.z,
+              analyzerAngleDeg: this.pol2Angle,
+              hasQuarterWavePlate: this.analyzer2.hasWavePlate,
+              time: elapsed,
+            });
+          }
+        } else {
+          if (polStateChanged) {
+            this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
+          }
+          this.beamSystem.updatePolarizationWave({
+            startZ: _START_POS.z,
+            endZ: _END_POS.z,
+            polarizerZ: _P1_POS.z,
+            polarizerAngleDeg: this.pol1Angle,
+            analyzerZ: _P2_POS.z,
+            analyzerAngleDeg: this.pol2Angle,
+            hasQuarterWavePlate: this.analyzer2.hasWavePlate,
+            time: elapsed,
+          });
+        }
       } else {
         this.beamSystem.clearWaveVectors();
+        if (polStateChanged) {
+          if (hasWorker && !this.isWorkerPolBusy) {
+            this.dispatchWorkerPolarization(context, elapsed);
+          } else if (!hasWorker) {
+            this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
+          }
+        }
       }
 
       this.detectorScreen.renderFringesPattern({
@@ -455,7 +541,9 @@ export default class OpticsLabExperiment extends BaseExperiment {
         });
         if (resp && resp.rays) {
           this.workerRays = resp.rays;
-          this.beamSystem.updateDispersionRaysFromWorker(this.workerRays);
+          if (this.currentMode === 'propagation') {
+            this.beamSystem.updateDispersionRaysFromWorker(this.workerRays);
+          }
         }
       } else if (context.workerPool && context.workerPool.size > 0) {
         const resp = await context.workerPool.execute<OpticalDispersionStepResponse>({
@@ -468,7 +556,9 @@ export default class OpticsLabExperiment extends BaseExperiment {
         });
         if (resp && resp.rays) {
           this.workerRays = resp.rays;
-          this.beamSystem.updateDispersionRaysFromWorker(this.workerRays);
+          if (this.currentMode === 'propagation') {
+            this.beamSystem.updateDispersionRaysFromWorker(this.workerRays);
+          }
         }
       } else {
         // Node / unit test fallback
@@ -518,10 +608,13 @@ export default class OpticsLabExperiment extends BaseExperiment {
           time: elapsed,
         });
         if (resp) {
+          this.hasReceivedWorkerPolResult = true;
           this.workerPositions = resp.positions;
           this.workerColors = resp.colors;
-          this.lastMalusIntensity = resp.malusIntensity;
-          if (this.show3DWave) {
+          if (typeof resp.malusIntensity === 'number' && !isNaN(resp.malusIntensity)) {
+            this.lastMalusIntensity = resp.malusIntensity;
+          }
+          if (this.currentMode === 'polarization' && this.show3DWave) {
             this.beamSystem.applyPolarizationWaveBuffer(this.workerPositions, this.workerColors);
           }
         }
@@ -545,10 +638,13 @@ export default class OpticsLabExperiment extends BaseExperiment {
           [this.workerPositions.buffer, this.workerColors.buffer]
         );
         if (resp) {
+          this.hasReceivedWorkerPolResult = true;
           this.workerPositions = resp.positions;
           this.workerColors = resp.colors;
-          this.lastMalusIntensity = resp.malusIntensity;
-          if (this.show3DWave) {
+          if (typeof resp.malusIntensity === 'number' && !isNaN(resp.malusIntensity)) {
+            this.lastMalusIntensity = resp.malusIntensity;
+          }
+          if (this.currentMode === 'polarization' && this.show3DWave) {
             this.beamSystem.applyPolarizationWaveBuffer(this.workerPositions, this.workerColors);
           }
         }
@@ -557,7 +653,12 @@ export default class OpticsLabExperiment extends BaseExperiment {
         this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
       }
     } catch {
-      // Fallback silently if worker thread is terminating
+      if (!this.workerPositions || this.workerPositions.byteLength === 0) {
+        this.workerPositions = new Float32Array(122 * 3);
+      }
+      if (!this.workerColors || this.workerColors.byteLength === 0) {
+        this.workerColors = new Float32Array(122 * 3);
+      }
     } finally {
       this.isWorkerPolBusy = false;
     }
@@ -571,6 +672,10 @@ export default class OpticsLabExperiment extends BaseExperiment {
     this.isWorkerBusy = true;
 
     try {
+      if (!this.workerIntensityBuffer || this.workerIntensityBuffer.byteLength === 0) {
+        this.workerIntensityBuffer = new Float32Array(512);
+      }
+
       if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalDiffraction === 'function') {
         const resp = await (context.computeBridge as any).simulateOpticalDiffraction({
           intensityBuffer: this.workerIntensityBuffer,
@@ -584,7 +689,10 @@ export default class OpticsLabExperiment extends BaseExperiment {
         });
         if (resp && resp.intensityBuffer) {
           this.workerIntensityBuffer = resp.intensityBuffer;
-          this.hasWorkerResult = true;
+          this.displayBuffer.set(this.workerIntensityBuffer);
+          if (this.currentMode === 'interference' || this.currentMode === 'diffraction') {
+            this.hasWorkerResult = true;
+          }
         }
       } else if (context.workerPool && context.workerPool.size > 0) {
         const resp = await context.workerPool.execute<OpticalDiffractionStepResponse>(
@@ -603,11 +711,16 @@ export default class OpticsLabExperiment extends BaseExperiment {
         );
         if (resp && resp.intensityBuffer) {
           this.workerIntensityBuffer = resp.intensityBuffer;
-          this.hasWorkerResult = true;
+          this.displayBuffer.set(this.workerIntensityBuffer);
+          if (this.currentMode === 'interference' || this.currentMode === 'diffraction') {
+            this.hasWorkerResult = true;
+          }
         }
       }
     } catch {
-      // Fallback silently if worker thread is terminating
+      if (!this.workerIntensityBuffer || this.workerIntensityBuffer.byteLength === 0) {
+        this.workerIntensityBuffer = new Float32Array(512);
+      }
     } finally {
       this.isWorkerBusy = false;
     }
@@ -649,14 +762,34 @@ export default class OpticsLabExperiment extends BaseExperiment {
     if (!isProp) {
       this.beamSystem.clearDispersionRays();
       this.lastDispersionStateHash = '';
+      this.workerRays = [];
     }
     if (!isPol) {
       this.beamSystem.clearWaveVectors();
       this.beamSystem.setIntensity(1.0);
       this.lastPolStateHash = '';
+      this.hasReceivedWorkerPolResult = false;
     }
-    if (!isInter) {
+    if (!isInter && !isDiff) {
       this.beamSystem.clearWavefronts();
+      this.beamSystem.clearDiffractionFan();
+      this.beamSystem.clearGratingOrders();
+      this.lastDiffractionStateHash = '';
+      this.hasWorkerResult = false;
+    } else if (isInter) {
+      this.beamSystem.clearGratingOrders();
+      this.lastDiffractionStateHash = '';
+      this.hasWorkerResult = false;
+    } else if (isDiff) {
+      const isGrating = this.gratingLinesPerMm > 0;
+      if (isGrating) {
+        this.beamSystem.clearWavefronts();
+        this.beamSystem.clearDiffractionFan();
+      } else {
+        this.beamSystem.clearGratingOrders();
+      }
+      this.lastDiffractionStateHash = '';
+      this.hasWorkerResult = false;
     }
   }
 

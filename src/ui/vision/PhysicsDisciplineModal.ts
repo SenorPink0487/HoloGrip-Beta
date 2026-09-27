@@ -44,7 +44,6 @@ export class PhysicsDisciplineModal {
       name: '法拉第电磁感应与楞次定律',
       category: '电磁感应',
       formula: 'ℰ = - dΦ_B / dt',
-      planned: true,
       iconSvg: `
         <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
           <ellipse cx="18" cy="18" rx="12" ry="7" stroke-width="2.2"/>
@@ -60,7 +59,6 @@ export class PhysicsDisciplineModal {
       name: '磁聚焦与带电粒子质谱仪',
       category: '带电粒子运动',
       formula: 'r = mv / (qB) · q/m',
-      planned: true,
       iconSvg: `
         <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="18" cy="18" r="13" stroke-width="2" stroke-dasharray="2 2" opacity="0.4"/>
@@ -76,7 +74,6 @@ export class PhysicsDisciplineModal {
       name: '铁磁材料磁化与磁滞回线',
       category: '磁介质物理',
       formula: 'B = μ₀ (H + M)',
-      planned: true,
       iconSvg: `
         <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
           <line x1="5" y1="18" x2="31" y2="18" stroke-width="1.5" opacity="0.5"/>

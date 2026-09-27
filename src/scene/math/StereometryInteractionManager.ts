@@ -126,7 +126,8 @@ export class StereometryInteractionManager {
       );
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouseNDC, context.camera);
-      const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, 0.060);
+      const snapThreshold = this.currentHoveredKp ? 0.075 : 0.060;
+      const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, snapThreshold);
       if (snapRes) {
         snapKp = snapRes.keyPoint;
         snapLabel = snapRes.snapLabel;
@@ -140,7 +141,7 @@ export class StereometryInteractionManager {
       this.dragStartKp = snapKp;
       this.currentHoveredKp = snapKp;
       this.currentSnapLabel = snapLabel;
-      this.mesh.setHoveredKeyPoint(snapKp.id);
+      this.mesh.setHoveredKeyPoint(snapKp.id, snapLabel);
     } else {
       // Pressed on empty space / model background: initiate orbit drag
       this.isConnectingDrag = false;
@@ -191,7 +192,8 @@ export class StereometryInteractionManager {
     if (context?.camera) {
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouseNDC, context.camera);
-      const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, 0.055);
+      const snapThreshold = this.currentHoveredKp ? 0.075 : 0.055;
+      const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, snapThreshold);
       if (snapRes) {
         hoveredKp = snapRes.keyPoint;
         hoveredLabel = snapRes.snapLabel;
@@ -232,12 +234,30 @@ export class StereometryInteractionManager {
     this.currentSnapLabel = hoveredLabel;
 
     if (hoveredKp) {
-      this.mesh.setHoveredKeyPoint(hoveredKp.id);
+      this.mesh.setHoveredKeyPoint(hoveredKp.id, hoveredLabel);
       this.callbacks.onKeyPointHover?.(hoveredKp, hoveredLabel);
       document.body.style.cursor = 'pointer';
     } else {
       this.mesh.setHoveredKeyPoint(null);
       this.callbacks.onKeyPointHover?.(null);
+      document.body.style.cursor = 'default';
+    }
+  }
+
+  /**
+   * Resets any active hover state, preview wire, and dragging when modal opens or view blurs.
+   */
+  public clearHover(): void {
+    this.currentHoveredKp = null;
+    this.currentSnapLabel = '';
+    this.isOrbitDragging = false;
+    this.isConnectingDrag = false;
+    this.isPointerDown = false;
+    this.rotationVelocity.set(0, 0);
+    this.mesh?.setHoveredKeyPoint(null);
+    this.mesh?.clearPreviewWire();
+    this.callbacks.onKeyPointHover?.(null);
+    if (typeof document !== 'undefined') {
       document.body.style.cursor = 'default';
     }
   }

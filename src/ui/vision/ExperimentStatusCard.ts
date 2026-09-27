@@ -152,7 +152,6 @@ export class ExperimentStatusCard {
         </button>
       </div>
       <p class="mixture-ai-status" id="mixture-ai-status"></p>
-      <p class="mixture-reaction-line" id="mixture-reaction-line" hidden></p>
 
       <!-- 2. Apple VisionOS Minimalist Breakdown Strip (全景成分占比条) -->
       <div class="apple-breakdown-bar-wrap">
@@ -254,17 +253,6 @@ export class ExperimentStatusCard {
   public updateState(state: ChemistryState): void {
     const engine = this.getCurrentEngine();
     const comp: ChemistryComposition = engine.getCompositionAnalysis();
-    const reactionLine = this.element.querySelector('#mixture-reaction-line');
-    const latestReaction = state.recentReactions[0];
-    if (reactionLine) {
-      if (latestReaction) {
-        reactionLine.textContent = `${latestReaction.title} · ${latestReaction.phenomenon}`;
-        reactionLine.removeAttribute('hidden');
-      } else {
-        reactionLine.textContent = '';
-        reactionLine.setAttribute('hidden', '');
-      }
-    }
 
     // 1. Ambient Status Capsule: Volume, pH, Temp
     const volSummary = this.element.querySelector('#summary-volume');

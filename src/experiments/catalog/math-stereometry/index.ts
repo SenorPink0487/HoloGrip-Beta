@@ -115,14 +115,6 @@ export default class MathStereometryExperiment extends BaseExperiment {
     if (context.renderer) {
       context.renderer.localClippingEnabled = true;
     }
-
-    if (typeof document !== 'undefined') {
-      this.onKeyDownBound = (e: KeyboardEvent) => {
-        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-        this.interactionManager?.onKeyDown(e);
-      };
-      window.addEventListener('keydown', this.onKeyDownBound);
-    }
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
@@ -510,7 +502,6 @@ export default class MathStereometryExperiment extends BaseExperiment {
     }
 
     if (kp) {
-      this.mesh.setHoveredKeyPoint(kp.id);
       let desc = `顶点 ${kp.label}`;
       if (kp.subLabel === '1/2') {
         const edge = kp.edgeVertices ? `${kp.edgeVertices[0]}${kp.edgeVertices[1]}` : '';
@@ -524,6 +515,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
       } else if (kp.type === 'center') {
         desc = `${kp.label} (中心点)`;
       }
+      this.mesh.setHoveredKeyPoint(kp.id, desc);
       return {
         id: `math_${kp.id}`,
         label: `${desc} · 点击或拖拽接线`,
@@ -539,11 +531,11 @@ export default class MathStereometryExperiment extends BaseExperiment {
     return this.interactionManager?.undoLastSegment();
   }
 
+  public clearHover(): void {
+    this.interactionManager?.clearHover();
+  }
+
   public dispose(_context: ExperimentContext): void {
-    if (this.onKeyDownBound && typeof window !== 'undefined') {
-      window.removeEventListener('keydown', this.onKeyDownBound);
-      this.onKeyDownBound = null;
-    }
     this.mesh?.dispose();
     this.rootGroup.clear();
   }

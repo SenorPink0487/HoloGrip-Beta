@@ -8,6 +8,9 @@ import { ConductionStatusCard } from './ConductionStatusCard.ts';
 import { PhaseStatusCard } from './PhaseStatusCard.ts';
 import { StereometryStatusCard } from './StereometryStatusCard.ts';
 import { HallStatusCard } from './HallStatusCard.ts';
+import { InductionStatusCard, type InductionCommand } from './InductionStatusCard.ts';
+import { MassSpecStatusCard, type MassSpecCommand } from './MassSpecStatusCard.ts';
+import { HysteresisStatusCard, type HysteresisCommand } from './HysteresisStatusCard.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
@@ -56,6 +59,9 @@ export interface VisionModalCallbacks {
   onHallToggleCurrentPolarity?: () => void;
   onHallToggleVectors?: (show: boolean) => void;
   onHallToggleParticles?: (show: boolean) => void;
+  onInductionCommand?: (cmd: InductionCommand) => void;
+  onMassSpecCommand?: (cmd: MassSpecCommand) => void;
+  onHysteresisCommand?: (cmd: HysteresisCommand) => void;
   // Stereometry Math Callbacks
   onMathModelChange?: (type: HighSchoolModelType) => void;
   onMathDimensionChange?: (dims: { a?: number; h?: number }) => void;
@@ -102,6 +108,9 @@ export class VisionModal {
   private phaseStatusCard: PhaseStatusCard;
   private stereometryStatusCard: StereometryStatusCard;
   private hallStatusCard: HallStatusCard;
+  private inductionStatusCard: InductionStatusCard;
+  private massSpecStatusCard: MassSpecStatusCard;
+  private hysteresisStatusCard: HysteresisStatusCard;
   private currentExperimentId = '';
 
   private bodyContainer: HTMLElement;
@@ -174,6 +183,11 @@ export class VisionModal {
     this.statusCardSlot = this.element.querySelector('#vision-status-slot') as HTMLElement;
     this.btnBack = this.element.querySelector('#btn-window-back');
     this.scaleIndicatorEl = this.element.querySelector('#vision-scale-indicator');
+
+    // Stop propagation of pointer, mouse, and wheel events so floating screen interactions don't leak to 3D scene
+    this.element.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.element.addEventListener('mousedown', (e) => e.stopPropagation());
+    this.element.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
 
     // Sub-components
     this.disciplineSelector = new DisciplineSelector({
@@ -335,6 +349,10 @@ export class VisionModal {
       onToggleVectors: (v) => this.callbacks.onHallToggleVectors?.(v),
       onToggleParticles: (p) => this.callbacks.onHallToggleParticles?.(p),
     });
+
+    this.inductionStatusCard = new InductionStatusCard((cmd) => this.callbacks.onInductionCommand?.(cmd));
+    this.massSpecStatusCard = new MassSpecStatusCard((cmd) => this.callbacks.onMassSpecCommand?.(cmd));
+    this.hysteresisStatusCard = new HysteresisStatusCard((cmd) => this.callbacks.onHysteresisCommand?.(cmd));
 
     // Mount initial view
     this.switchTab('disciplines');
@@ -515,6 +533,18 @@ export class VisionModal {
     return this.hallStatusCard;
   }
 
+  public get inductionCard(): InductionStatusCard {
+    return this.inductionStatusCard;
+  }
+
+  public get massSpecCard(): MassSpecStatusCard {
+    return this.massSpecStatusCard;
+  }
+
+  public get hysteresisCard(): HysteresisStatusCard {
+    return this.hysteresisStatusCard;
+  }
+
   public setCurrentExperimentId(id: string): void {
     this.currentExperimentId = id;
     if (id === 'math-stereometry') {
@@ -538,6 +568,17 @@ export class VisionModal {
     const isCarnot = this.currentExperimentId === 'thermo-carnot';
     const isConduction = this.currentExperimentId === 'thermo-conduction';
     const isPhase = this.currentExperimentId === 'thermo-phase';
+    const emId = this.currentExperimentId;
+    const emCard =
+      emId === 'em-induction' ? this.inductionStatusCard
+      : emId === 'em-mass-spec' ? this.massSpecStatusCard
+      : emId === 'em-hysteresis' ? this.hysteresisStatusCard
+      : this.hallStatusCard;
+    const emTitle =
+      emId === 'em-induction' ? '电磁感应'
+      : emId === 'em-mass-spec' ? '质谱仪'
+      : emId === 'em-hysteresis' ? '磁滞回线'
+      : '霍尔效应';
 
     let thermoTitle = '热力学';
     if (isCarnot) {
@@ -556,7 +597,7 @@ export class VisionModal {
       physics: '物理学',
       math: '立体几何',
       thermo: thermoTitle,
-      em: '霍尔效应',
+      em: emTitle,
     };
     if (titleEl) {
       titleEl.textContent = titles[tab] || '实验视窗';
@@ -582,9 +623,11 @@ export class VisionModal {
     if (this.stereometryStatusCard) {
       this.stereometryStatusCard.setVisible(tab === 'math');
     }
-    if (this.hallStatusCard) {
-      this.hallStatusCard.setVisible(tab === 'em');
-    }
+    if (this.hallStatusCard) this.hallStatusCard.setVisible(false);
+    if (this.inductionStatusCard) this.inductionStatusCard.setVisible(false);
+    if (this.massSpecStatusCard) this.massSpecStatusCard.setVisible(false);
+    if (this.hysteresisStatusCard) this.hysteresisStatusCard.setVisible(false);
+    if (tab === 'em') emCard.setVisible(true);
 
     if (tab === 'disciplines') {
       this.bodyContainer.appendChild(this.disciplineSelector.element);
@@ -620,8 +663,8 @@ export class VisionModal {
         this.bodyContainer.appendChild(this.thermoStatusCard.element);
       }
     } else if (tab === 'em') {
-      this.hallStatusCard.setVisible(true);
-      this.bodyContainer.appendChild(this.hallStatusCard.element);
+      emCard.setVisible(true);
+      this.bodyContainer.appendChild(emCard.element);
     }
   }
 
@@ -658,6 +701,9 @@ export class VisionModal {
     this.phaseStatusCard?.setVisible(false);
     this.stereometryStatusCard?.setVisible(false);
     this.hallStatusCard?.setVisible(false);
+    this.inductionStatusCard?.setVisible(false);
+    this.massSpecStatusCard?.setVisible(false);
+    this.hysteresisStatusCard?.setVisible(false);
     this.callbacks.onClose();
   }
 

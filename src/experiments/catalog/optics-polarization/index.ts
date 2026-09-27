@@ -39,6 +39,7 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
   private workerPositions: Float32Array = new Float32Array(122 * 3);
   private workerColors: Float32Array = new Float32Array(122 * 3);
   private isWorkerBusy = false;
+  private hasReceivedWorkerResult = false;
   private lastMalusIntensity = 1.0;
   private lastPolStateHash = '';
 
@@ -158,27 +159,58 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
       { start: this.p2Pos, end: this.endPos, intensity: this.lastMalusIntensity },
     ]);
 
-    // Multi-Core Worker physics offload for Malus Law calibration (dirty-checked on state change)
     const polHash = `${this.pol1Angle.toFixed(1)}_${this.pol2Angle.toFixed(1)}_${this.quarterWavePlate}_${this.wavelength}`;
-    if (polHash !== this.lastPolStateHash) {
+    const polStateChanged = polHash !== this.lastPolStateHash;
+    if (polStateChanged) {
       this.lastPolStateHash = polHash;
-      this.dispatchWorkerPolarization(context, elapsed);
     }
 
-    // 60+ FPS Real-time continuous 3D electric field vector wave
+    const hasWorker = Boolean(
+      context.computeBridge || (context.workerPool && context.workerPool.size > 0)
+    );
+
+    // Continuous 3D electric field vector wave offloaded to multi-core worker
     if (this.show3DWave) {
-      this.beamSystem.updatePolarizationWave({
-        startZ: this.startPos.z,
-        endZ: this.endPos.z,
-        polarizerZ: this.p1Pos.z,
-        polarizerAngleDeg: this.pol1Angle,
-        analyzerZ: this.p2Pos.z,
-        analyzerAngleDeg: this.pol2Angle,
-        hasQuarterWavePlate: this.quarterWavePlate,
-        time: elapsed,
-      });
+      if (hasWorker) {
+        if (!this.isWorkerBusy) {
+          this.dispatchWorkerPolarization(context, elapsed);
+        }
+        if (!this.hasReceivedWorkerResult) {
+          this.beamSystem.updatePolarizationWave({
+            startZ: this.startPos.z,
+            endZ: this.endPos.z,
+            polarizerZ: this.p1Pos.z,
+            polarizerAngleDeg: this.pol1Angle,
+            analyzerZ: this.p2Pos.z,
+            analyzerAngleDeg: this.pol2Angle,
+            hasQuarterWavePlate: this.quarterWavePlate,
+            time: elapsed,
+          });
+        }
+      } else {
+        if (polStateChanged) {
+          this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
+        }
+        this.beamSystem.updatePolarizationWave({
+          startZ: this.startPos.z,
+          endZ: this.endPos.z,
+          polarizerZ: this.p1Pos.z,
+          polarizerAngleDeg: this.pol1Angle,
+          analyzerZ: this.p2Pos.z,
+          analyzerAngleDeg: this.pol2Angle,
+          hasQuarterWavePlate: this.quarterWavePlate,
+          time: elapsed,
+        });
+      }
     } else {
       this.beamSystem.clearWaveVectors();
+      if (polStateChanged) {
+        if (hasWorker && !this.isWorkerBusy) {
+          this.dispatchWorkerPolarization(context, elapsed);
+        } else if (!hasWorker) {
+          this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
+        }
+      }
     }
 
     this.detectorScreen.renderFringesPattern({
@@ -222,9 +254,12 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
           time: elapsed,
         });
         if (resp) {
+          this.hasReceivedWorkerResult = true;
           this.workerPositions = resp.positions;
           this.workerColors = resp.colors;
-          this.lastMalusIntensity = resp.malusIntensity;
+          if (typeof resp.malusIntensity === 'number' && !isNaN(resp.malusIntensity)) {
+            this.lastMalusIntensity = resp.malusIntensity;
+          }
           if (this.show3DWave) {
             this.beamSystem.applyPolarizationWaveBuffer(this.workerPositions, this.workerColors);
           }
@@ -249,9 +284,12 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
           [this.workerPositions.buffer, this.workerColors.buffer]
         );
         if (resp) {
+          this.hasReceivedWorkerResult = true;
           this.workerPositions = resp.positions;
           this.workerColors = resp.colors;
-          this.lastMalusIntensity = resp.malusIntensity;
+          if (typeof resp.malusIntensity === 'number' && !isNaN(resp.malusIntensity)) {
+            this.lastMalusIntensity = resp.malusIntensity;
+          }
           if (this.show3DWave) {
             this.beamSystem.applyPolarizationWaveBuffer(this.workerPositions, this.workerColors);
           }
@@ -261,7 +299,12 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
         this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
       }
     } catch {
-      // Fallback silently if worker thread is terminating
+      if (!this.workerPositions || this.workerPositions.byteLength === 0) {
+        this.workerPositions = new Float32Array(122 * 3);
+      }
+      if (!this.workerColors || this.workerColors.byteLength === 0) {
+        this.workerColors = new Float32Array(122 * 3);
+      }
     } finally {
       this.isWorkerBusy = false;
     }

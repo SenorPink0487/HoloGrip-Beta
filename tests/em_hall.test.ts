@@ -549,6 +549,151 @@ console.log('Test 11: HallStatusCard Granular Change Detection & Focus Safety');
   console.log('✓ Test 11 passed: HallStatusCard granular change detection and focus safety verified');
 }
 
+// ================= Test 12: Dynamic Multi-Charge & B-Only Magnetic Arrow Kinetics =================
+console.log('Test 12: Dynamic Multi-Charge & B-Only Magnetic Arrow Kinetics');
+{
+  const particleSys = new HallCarrierParticleSystem({
+    waferLength: 0.32,
+    waferHeight: 0.125,
+    waferThickness: 0.032,
+  });
+  particleSys.setToggles(true, true);
+
+  const topSprites = (particleSys as any).topProbeSprites as THREE.Sprite[];
+  const bottomSprites = (particleSys as any).bottomProbeSprites as THREE.Sprite[];
+  const plusTex = (particleSys as any).plusBadgeTex;
+  const minusTex = (particleSys as any).minusBadgeTex;
+
+  // 1. Zero Current or Zero Field -> 0 charges visible
+  particleSys.setPhysicsState(0, 0.5, 0, 'electron');
+  const visibleTopZeroI = topSprites.filter(s => s.visible).length;
+  assert.strictEqual(visibleTopZeroI, 0, 'Zero current must have 0 surface charges');
+
+  particleSys.setPhysicsState(10.0, 0, 0, 'electron');
+  const visibleTopZeroB = topSprites.filter(s => s.visible).length;
+  assert.strictEqual(visibleTopZeroB, 0, 'Zero B-field must have 0 surface charges');
+
+  // 2. Charges scale with V_H: Low voltage -> fewer charges, High voltage -> more charges
+  // Low V_H (~2 mV) -> 1 charge
+  particleSys.setPhysicsState(2.0, 0.1, -2.0, 'electron');
+  const lowCount = topSprites.filter(s => s.visible).length;
+  assert.ok(lowCount >= 1 && lowCount <= 2, `Low V_H should have 1-2 charges, got ${lowCount}`);
+
+  // Medium V_H (~25 mV) -> 7 charges
+  particleSys.setPhysicsState(10.0, 0.5, -25.0, 'electron');
+  const medCount = topSprites.filter(s => s.visible).length;
+  assert.ok(medCount >= 5 && medCount <= 8, `Medium V_H should have 5-8 charges, got ${medCount}`);
+  assert.ok(medCount > lowCount, 'Charges must increase with |V_H|');
+  assert.strictEqual(topSprites[0].material.map, plusTex, 'V_H < 0 top must be positive');
+  assert.strictEqual(bottomSprites[0].material.map, minusTex, 'V_H < 0 bottom must be negative');
+
+  // High V_H (~90 mV) -> 11 charges (raised upper limit)
+  particleSys.setPhysicsState(30.0, 1.0, -90.0, 'electron');
+  const highCount = topSprites.filter(s => s.visible).length;
+  assert.strictEqual(highCount, 11, `High V_H should reach max 11 charges, got ${highCount}`);
+  assert.ok(highCount > medCount, 'Charges must reach raised upper limit of 11 with higher |V_H|');
+
+  // Reverse polarity (V_H > 0): Top becomes negative, bottom becomes positive
+  particleSys.setPhysicsState(10.0, 0.5, 25.0, 'hole');
+  assert.strictEqual(topSprites[0].material.map, minusTex, 'V_H > 0 top must be negative');
+  assert.strictEqual(bottomSprites[0].material.map, plusTex, 'V_H > 0 bottom must be positive');
+
+  // 3. "中间平两边弯" (Flat in middle, curved at ends) Kinematics Invariant
+  // Verify that particles in middle region (|x| <= 0.38 halfL) have flat horizontal deflection
+  particleSys.setPhysicsState(10.0, 0.5, -25.0, 'electron');
+  const posArr = (particleSys as any).positions as Float32Array;
+  const halfL = (particleSys as any).waferLength * 0.46;
+  const phases = (particleSys as any).thermalPhases as Float32Array;
+  phases[0] = 0;
+  phases[1] = 0;
+  phases[2] = 0;
+  (particleSys as any).baseOffsetsY[0] = 0;
+  (particleSys as any).baseOffsetsY[1] = 0;
+  (particleSys as any).baseOffsetsY[2] = 0;
+
+  // Place test particles: 0 at x=0 (middle), 1 at x=0.15*halfL (middle), 2 at x=0.95*halfL (near end)
+  posArr[0] = 0;
+  posArr[3] = 0.15 * halfL;
+  posArr[6] = 0.95 * halfL;
+  posArr[1] = 0;
+  posArr[4] = 0;
+  posArr[7] = 0;
+
+  // Run simulation ticks to reach steady-state streamlines
+  for (let t = 0; t < 10; t++) {
+    particleSys.update(0.016);
+  }
+
+  // Particle 0 (near center) and Particle 1 (inside flat region |x| <= 0.38*halfL) must be flat
+  const diffMiddleY = Math.abs(posArr[1] - posArr[4]);
+  assert.ok(diffMiddleY < 0.002, `Middle streamline must be completely flat, diff: ${diffMiddleY}`);
+
+  // Prominent deflection verification: central carriers must deflect strongly under nominal B=0.5T, I=10mA
+  assert.ok(posArr[1] < -0.020, `Central carrier deflection must be prominent, posArr[1]: ${posArr[1]}`);
+
+  // Particle 2 (at x=0.95*halfL) must be curved (significantly less deflected than middle)
+  const diffEndY = Math.abs(posArr[1] - posArr[7]);
+  assert.ok(diffEndY > 0.005, `End streamline must be noticeably curved compared to middle, diff: ${diffEndY}`);
+
+  particleSys.dispose();
+
+  // 4. Magnetic Flux Arrows: depend SOLELY on B with raised 11 arrow upper limit
+  const bench = new HallBenchMesh();
+  const arrowMeshes = (bench as any).fluxArrowMeshes as { group: THREE.Group; cone: THREE.Mesh }[];
+
+  // B = 0 -> 0 arrows
+  bench.updateTelemetry(0, 10.0, 0, 'n-GaAs', 'electron');
+  assert.strictEqual((bench as any).fluxArrowsGroup.visible, false, 'B = 0 must hide arrows');
+
+  // B = 0.1 T -> 1 arrow
+  bench.updateTelemetry(0.1, 10.0, -5.0, 'n-GaAs', 'electron');
+  let visibleArrows = arrowMeshes.filter(a => a.group.visible).length;
+  assert.strictEqual(visibleArrows, 1, 'B = 0.1T should have 1 arrow');
+
+  // B = 0.2 T -> 3 arrows
+  bench.updateTelemetry(0.2, 10.0, -10.0, 'n-GaAs', 'electron');
+  visibleArrows = arrowMeshes.filter(a => a.group.visible).length;
+  assert.strictEqual(visibleArrows, 3, 'B = 0.2T should have 3 arrows');
+
+  // B = 0.5 T -> 7 arrows
+  bench.updateTelemetry(0.5, 10.0, -25.0, 'n-GaAs', 'electron');
+  visibleArrows = arrowMeshes.filter(a => a.group.visible).length;
+  assert.strictEqual(visibleArrows, 7, 'B = 0.5T should have 7 arrows');
+
+  // B = 0.75 T -> 9 arrows
+  bench.updateTelemetry(0.75, 10.0, -37.5, 'n-GaAs', 'electron');
+  visibleArrows = arrowMeshes.filter(a => a.group.visible).length;
+  assert.strictEqual(visibleArrows, 9, 'B = 0.75T should have 9 arrows');
+
+  // B = 0.95 T -> 11 arrows (raised upper limit)
+  bench.updateTelemetry(0.95, 10.0, -47.5, 'n-GaAs', 'electron');
+  visibleArrows = arrowMeshes.filter(a => a.group.visible).length;
+  assert.strictEqual(visibleArrows, 11, 'B = 0.95T should have 11 arrows (raised upper limit)');
+
+  // Crucial test: Changing Current I from 10 mA to 50 mA does NOT change magnetic arrows!
+  bench.updateTelemetry(0.95, 50.0, -237.5, 'n-GaAs', 'electron');
+  const arrowsAfterIChange = arrowMeshes.filter(a => a.group.visible).length;
+  assert.strictEqual(arrowsAfterIChange, 11, 'Changing Current I must NOT alter magnetic field arrows');
+
+  // Changing thickness d does NOT change magnetic arrows!
+  bench.updateTelemetry(0.95, 50.0, -475.0, 'n-GaAs', 'electron', 1.25e21, 0.2);
+  const arrowsAfterDChange = arrowMeshes.filter(a => a.group.visible).length;
+  assert.strictEqual(arrowsAfterDChange, 11, 'Changing thickness d must NOT alter magnetic field arrows');
+
+  // Changing material does NOT change magnetic arrows!
+  bench.updateTelemetry(0.95, 50.0, 0.001, 'copper', 'metal');
+  const arrowsAfterMatChange = arrowMeshes.filter(a => a.group.visible).length;
+  assert.strictEqual(arrowsAfterMatChange, 11, 'Changing material must NOT alter magnetic field arrows');
+
+  // Reversing field polarity: B = -0.5 T -> arrows point opposite direction
+  bench.updateTelemetry(-0.5, 10.0, 25.0, 'n-GaAs', 'electron');
+  assert.strictEqual(arrowMeshes.filter(a => a.group.visible).length, 7, 'B = -0.5T has 7 arrows');
+  assert.ok(arrowMeshes[0].cone.position.z < 0, 'Reversing B must invert arrow cone Z position');
+
+  bench.dispose();
+  console.log('✓ Test 12 passed: Dynamic multi-charge scaling (max 11), flat-middle curved-ends kinematics, and B-only magnetic arrow kinetics (max 11) verified');
+}
+
 console.log('\n========================================================');
-console.log('All Electromagnetism Hall Effect Tests Passed (11/11)!');
+console.log('All Electromagnetism Hall Effect Tests Passed (12/12)!');
 console.log('========================================================');

@@ -271,7 +271,7 @@ export class HallStatusCard {
                 </svg>
               </button>
               <div class="hall-slider-track-wrap">
-                <input type="range" class="hall-apple-slider" id="slider-hall-b" min="-1.50" max="1.50" step="0.02" value="0.50" />
+                <input type="range" class="hall-apple-slider" id="slider-hall-b" min="-2.00" max="2.00" step="0.02" value="0.50" />
               </div>
               <span class="hall-focus-val" id="drawer-val-b">+0.50 T</span>
             </div>
@@ -285,7 +285,7 @@ export class HallStatusCard {
                 </svg>
               </button>
               <div class="hall-slider-track-wrap">
-                <input type="range" class="hall-apple-slider" id="slider-hall-i" min="-20.0" max="20.0" step="0.5" value="10.0" />
+                <input type="range" class="hall-apple-slider" id="slider-hall-i" min="-30.0" max="30.0" step="0.5" value="10.0" />
               </div>
               <span class="hall-focus-val" id="drawer-val-i">+10.0 mA</span>
             </div>
@@ -390,7 +390,7 @@ export class HallStatusCard {
 
     this.cacheDOMElements();
     this.bindEvents();
-    this.bindScrubGestures();
+    this.switchActiveParam('b');
   }
 
   private cacheDOMElements(): void {
@@ -464,12 +464,19 @@ export class HallStatusCard {
   private switchActiveParam(param: 'b' | 'i' | 'd' | 'rh' | 'vh'): void {
     this.activeParam = param;
 
-    // 1. Update token active states
-    this.tokenVh?.classList.toggle('active', param === 'vh');
-    this.tokenB?.classList.toggle('active', param === 'b');
-    this.tokenI?.classList.toggle('active', param === 'i');
-    this.tokenD?.classList.toggle('active', param === 'd');
-    this.tokenRh?.classList.toggle('active', param === 'rh');
+    // 1. Update token active states - strictly single selection (only clicked param is active/blue)
+    const tokens: Array<{ el: HTMLElement | null; key: string }> = [
+      { el: this.tokenVh, key: 'vh' },
+      { el: this.tokenB, key: 'b' },
+      { el: this.tokenI, key: 'i' },
+      { el: this.tokenD, key: 'd' },
+      { el: this.tokenRh, key: 'rh' },
+    ];
+    tokens.forEach(({ el, key }) => {
+      if (!el) return;
+      el.classList.toggle('active', key === param);
+      el.classList.remove('dragging', 'response-active');
+    });
 
     // 2. Toggle drawer panes
     if (this.paneB) this.paneB.style.display = param === 'b' ? 'flex' : 'none';
@@ -566,200 +573,6 @@ export class HallStatusCard {
 
     this.btnResetStandard?.addEventListener('click', handleReset);
     this.btnTopReset?.addEventListener('click', handleReset);
-  }
-
-  // Direct Horizontal Scrubbing / Dragging on Formula Parameter Tokens
-  private bindScrubGestures(): void {
-    const positionHud = (tokenEl: HTMLElement, isBelow: boolean = false) => {
-      if (!this.dragHud || !this.stageEl) return;
-      const tokenRect = tokenEl.getBoundingClientRect();
-      const stageRect = this.stageEl.getBoundingClientRect();
-      const centerX = tokenRect.left + tokenRect.width / 2 - stageRect.left;
-
-      if (isBelow) {
-        const bottomY = tokenRect.bottom - stageRect.top + 10;
-        this.dragHud.style.left = `${centerX}px`;
-        this.dragHud.style.top = `${bottomY}px`;
-        this.dragHud.classList.add('hud-below');
-      } else {
-        const topY = tokenRect.top - stageRect.top - 12;
-        this.dragHud.style.left = `${centerX}px`;
-        this.dragHud.style.top = `${topY}px`;
-        this.dragHud.classList.remove('hud-below');
-      }
-    };
-
-    const showHud = (param: 'b' | 'i' | 'd', formattedVal: string, percent: number, tokenEl: HTMLElement) => {
-      if (!this.dragHud || !this.hudValText || !this.hudBarFill) return;
-      const isBelow = param === 'd';
-      positionHud(tokenEl, isBelow);
-      this.hudValText.textContent = formattedVal;
-      this.hudBarFill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
-
-      if (this.hudParamName) {
-        this.hudParamName.textContent = param === 'b' ? '垂直磁场 B' : (param === 'i' ? '纵向电流 I_S' : '晶片厚度 d');
-      }
-      if (this.hudRangeMin && this.hudRangeMax) {
-        if (param === 'b') {
-          this.hudRangeMin.textContent = '-1.5 T';
-          this.hudRangeMax.textContent = '+1.5 T';
-        } else if (param === 'i') {
-          this.hudRangeMin.textContent = '-20 mA';
-          this.hudRangeMax.textContent = '+20 mA';
-        } else {
-          this.hudRangeMin.textContent = '0.05 mm';
-          this.hudRangeMax.textContent = '1.50 mm';
-        }
-      }
-
-      this.dragHud.style.display = 'block';
-    };
-
-    const hideHud = () => {
-      if (this.dragHud) {
-        this.dragHud.style.display = 'none';
-      }
-    };
-
-    const attachScrub = (
-      el: HTMLElement | null,
-      param: 'b' | 'i' | 'd',
-      onDelta: (dx: number, startVal: number) => { valStr: string; pct: number },
-      getStartVal: () => number
-    ) => {
-      if (!el) return;
-      let isDragging = false;
-      let startX = 0;
-      let startVal = 0;
-
-      el.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0) return;
-        this.switchActiveParam(param);
-        isDragging = true;
-        startX = e.clientX;
-        startVal = getStartVal();
-        el.classList.add('dragging');
-        this.tokenVh?.classList.add('response-active');
-        try {
-          el.setPointerCapture(e.pointerId);
-        } catch {}
-
-        // Immediate responsive visual feedback upon press
-        const { valStr, pct } = onDelta(0, startVal);
-        showHud(param, valStr, pct, el);
-      });
-
-      el.addEventListener('pointermove', (e) => {
-        if (!isDragging) return;
-        const dx = e.clientX - startX;
-        const { valStr, pct } = onDelta(dx, startVal);
-        showHud(param, valStr, pct, el);
-      });
-
-      const stopDrag = (e: PointerEvent) => {
-        if (!isDragging) return;
-        isDragging = false;
-        el.classList.remove('dragging');
-        this.tokenVh?.classList.remove('response-active');
-        hideHud();
-        try {
-          el.releasePointerCapture(e.pointerId);
-        } catch {}
-      };
-
-      el.addEventListener('pointerup', stopDrag);
-      el.addEventListener('pointercancel', stopDrag);
-    };
-
-    // Scrub for Field B (-1.50 to +1.50 T)
-    attachScrub(
-      this.tokenB,
-      'b',
-      (dx, startVal) => {
-        const raw = startVal + dx * 0.005;
-        const clamped = Math.max(-1.50, Math.min(1.50, raw));
-        const val = parseFloat(clamped.toFixed(2));
-        const valStr = `${val >= 0 ? '+' : ''}${val.toFixed(2)} T`;
-        if (this.tokenValB) this.tokenValB.textContent = valStr;
-        if (this.drawerValB) this.drawerValB.textContent = valStr;
-        if (this.sliderB) this.sliderB.value = val.toString();
-
-        // Optimistic live response calculation
-        const i_ma = this.currentData.currentMa;
-        const d_mm = this.currentData.waferThicknessMm;
-        const rh = this.currentData.hallCoefficientRh;
-        const liveVh = d_mm > 0.001 ? (rh * i_ma * val / d_mm) * 1000 : 0;
-        const vhText = `${liveVh >= 0 ? '+' : ''}${liveVh.toFixed(2)} mV`;
-        if (this.tokenValVh) this.tokenValVh.textContent = vhText;
-        if (this.drawerValVh) this.drawerValVh.textContent = vhText;
-        if (this.respVhB) this.respVhB.textContent = vhText;
-
-        this.callbacks.onMagFieldChange?.(val);
-        const pct = ((val - (-1.50)) / 3.0) * 100;
-        return { valStr, pct };
-      },
-      () => this.currentData.magFieldTesla
-    );
-
-    // Scrub for Current I (-20.0 to +20.0 mA)
-    attachScrub(
-      this.tokenI,
-      'i',
-      (dx, startVal) => {
-        const raw = startVal + dx * 0.08;
-        const clamped = Math.max(-20.0, Math.min(20.0, raw));
-        const val = parseFloat(clamped.toFixed(1));
-        const valStr = `${val >= 0 ? '+' : ''}${val.toFixed(1)} mA`;
-        if (this.tokenValI) this.tokenValI.textContent = valStr;
-        if (this.drawerValI) this.drawerValI.textContent = valStr;
-        if (this.sliderI) this.sliderI.value = val.toString();
-
-        // Optimistic live response calculation
-        const b_t = this.currentData.magFieldTesla;
-        const d_mm = this.currentData.waferThicknessMm;
-        const rh = this.currentData.hallCoefficientRh;
-        const liveVh = d_mm > 0.001 ? (rh * val * b_t / d_mm) * 1000 : 0;
-        const vhText = `${liveVh >= 0 ? '+' : ''}${liveVh.toFixed(2)} mV`;
-        if (this.tokenValVh) this.tokenValVh.textContent = vhText;
-        if (this.drawerValVh) this.drawerValVh.textContent = vhText;
-        if (this.respVhI) this.respVhI.textContent = vhText;
-
-        this.callbacks.onCurrentChange?.(val);
-        const pct = ((val - (-20.0)) / 40.0) * 100;
-        return { valStr, pct };
-      },
-      () => this.currentData.currentMa
-    );
-
-    // Scrub for Thickness d (0.05 to 1.50 mm)
-    attachScrub(
-      this.tokenD,
-      'd',
-      (dx, startVal) => {
-        const raw = startVal + dx * 0.003;
-        const clamped = Math.max(0.05, Math.min(1.50, raw));
-        const val = parseFloat(clamped.toFixed(2));
-        const valStr = `${val.toFixed(2)} mm`;
-        if (this.tokenValD) this.tokenValD.textContent = valStr;
-        if (this.drawerValD) this.drawerValD.textContent = valStr;
-        if (this.sliderD) this.sliderD.value = val.toString();
-
-        // Optimistic live response calculation
-        const b_t = this.currentData.magFieldTesla;
-        const i_ma = this.currentData.currentMa;
-        const rh = this.currentData.hallCoefficientRh;
-        const liveVh = val > 0.001 ? (rh * i_ma * b_t / val) * 1000 : 0;
-        const vhText = `${liveVh >= 0 ? '+' : ''}${liveVh.toFixed(2)} mV`;
-        if (this.tokenValVh) this.tokenValVh.textContent = vhText;
-        if (this.drawerValVh) this.drawerValVh.textContent = vhText;
-        if (this.respVhD) this.respVhD.textContent = vhText;
-
-        this.callbacks.onThicknessChange?.(val);
-        const pct = ((val - 0.05) / 1.45) * 100;
-        return { valStr, pct };
-      },
-      () => this.currentData.waferThicknessMm
-    );
   }
 
   public setVisible(visible: boolean): void {

@@ -580,8 +580,8 @@ for (const child of labelsGroup.children) {
   assert(child instanceof THREE.Sprite, 'Label must be a THREE.Sprite');
   const sprite = child as THREE.Sprite;
   assert.strictEqual(sprite.renderOrder, 10, 'Vertex sprite renderOrder must be 10 for spatial legibility');
-  assert.strictEqual(sprite.scale.x, 0.046, 'Sprite scale X must be 0.046m for pure typography');
-  assert.strictEqual(sprite.scale.y, 0.046, 'Sprite scale Y must be 0.046m for pure typography');
+  assert.strictEqual(sprite.scale.x, 0.082, 'Sprite scale X must be 0.082m for pure typography');
+  assert.strictEqual(sprite.scale.y, 0.082, 'Sprite scale Y must be 0.082m for pure typography');
   const mat = sprite.material as THREE.SpriteMaterial;
   assert.strictEqual(mat.transparent, true, 'Label material must be transparent');
   assert.strictEqual(mat.depthTest, false, 'Label material must have depthTest false so labels are never clipped');
@@ -836,7 +836,34 @@ figureExp.dispose(mockContext);
 
 console.log('✓ Test 17 passed: oblique figure keeps lengths, right angles, auxiliary points, and stays interactive\n');
 
+// -------------------------------------------------------------
+// Test 18: Spatial Modal Isolation & clearHover Invariant
+// -------------------------------------------------------------
+console.log('Test 18: Spatial Modal Isolation & clearHover Invariant');
+const isolationExp = new MathStereometryExperiment();
+isolationExp.init(mockContext);
+isolationExp.mount(mockContext);
+
+// Verify clearHover method exists and resets state properly
+assert.strictEqual(typeof isolationExp.clearHover, 'function', 'clearHover must be exposed on experiment');
+isolationExp.clearHover();
+
+// Test interactionManager clearHover
+const im = (isolationExp as any).interactionManager;
+assert.strictEqual(typeof im.clearHover, 'function', 'clearHover must be exposed on interaction manager');
+im.currentHoveredKp = { id: 'v_0', label: 'A', position: new THREE.Vector3() };
+im.isOrbitDragging = true;
+im.isPointerDown = true;
+im.clearHover();
+assert.strictEqual(im.currentHoveredKp, null, 'currentHoveredKp must be null after clearHover');
+assert.strictEqual(im.isOrbitDragging, false, 'isOrbitDragging must be false after clearHover');
+assert.strictEqual(im.isPointerDown, false, 'isPointerDown must be false after clearHover');
+
+isolationExp.dispose(mockContext);
+console.log('✓ Test 18 passed: clearHover and interaction state reset verified\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (17/17)!');
+console.log('All High School Stereometry Tests Passed Successfully (18/18)!');
 console.log('========================================================');
+
 

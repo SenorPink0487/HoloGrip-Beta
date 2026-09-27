@@ -20,6 +20,21 @@ if (typeof (globalThis as any).document === 'undefined') {
 import { ChemistryEngine } from '../src/chemistry/ChemistryEngine.ts';
 import { BeakerMesh } from '../src/scene/BeakerMesh.ts';
 import { HoloTable } from '../src/scene/HoloTable.ts';
+import {
+  POUR_EXIT_SPEED,
+  POUR_GRAVITY,
+  POUR_LIP_CLEARANCE,
+  POUR_STREAM_RADIAL,
+  POUR_TILT,
+  buildTiltedLiquidGeometry,
+  composePourStream,
+  ellipticTubeIndices,
+  lipContactLocal,
+  lipGoalForPour,
+  lipOutwardFromTilt,
+  solveLiquidPlane,
+  writeEllipticTube,
+} from '../src/chemistry/pourKinematics.ts';
 
 console.log('=== Starting Dual-Beaker Mixing & Composition Analysis Deep Verification ===\n');
 
@@ -400,6 +415,318 @@ console.log('Test 11: SVG Pie Chart Arc Geometry Non-Inversion for Small Percent
   console.log('✓ Test 11 passed: Pie chart SVG arc geometry non-inversion guaranteed across all percentage scales\n');
 }
 
+// --------------------------------------------------------------------------
+// Test 12: Pour leaves the lip on a level surface and falls into the other beaker
+// --------------------------------------------------------------------------
+console.log('Test 12: Lip pour, level free surface, and ballistic stream');
+{
+  const radius = 0.131;
+  const yBottom = 0.009;
+  const yRim = 0.36;
+  const fill = 0.28 * 0.24;
+
+  const mild = solveLiquidPlane(-0.35, fill, radius, yBottom, yRim);
+  assert.strictEqual(mild.spilling, false, '60 mL must not spill at 20°');
+  assert(mild.yAtZero + mild.slope * radius > mild.yAtZero - mild.slope * radius, 'water climbs the lowered +X wall');
+
+  const steep = solveLiquidPlane(-POUR_TILT, fill, radius, yBottom, yRim);
+  assert.strictEqual(steep.spilling, true, '60 mL must spill at the pour tilt');
+  assert(Math.abs((steep.yAtZero + steep.slope * steep.xLip) - yRim) < 1e-3, 'spilling surface is pinned to the lip');
+
+  const level = solveLiquidPlane(-0.45, fill, radius, yBottom, yRim);
+  const geo = buildTiltedLiquidGeometry(level, 64, 0.136);
+  let topCount = 0;
+  const localUp = { x: Math.sin(-0.45), y: Math.cos(-0.45), z: 0 };
+  for (let i = 0; i < geo.indices.length; i += 3) {
+    const ia = geo.indices[i] * 3;
+    const ib = geo.indices[i + 1] * 3;
+    const ic = geo.indices[i + 2] * 3;
+    const ax = geo.positions[ia];
+    const ay = geo.positions[ia + 1];
+    const az = geo.positions[ia + 2];
+    const bx = geo.positions[ib];
+    const by = geo.positions[ib + 1];
+    const bz = geo.positions[ib + 2];
+    const cx = geo.positions[ic];
+    const cy = geo.positions[ic + 1];
+    const cz = geo.positions[ic + 2];
+    const abx = bx - ax;
+    const aby = by - ay;
+    const abz = bz - az;
+    const acx = cx - ax;
+    const acy = cy - ay;
+    const acz = cz - az;
+    const nx = aby * acz - abz * acy;
+    const ny = abz * acx - abx * acz;
+    const nz = abx * acy - aby * acx;
+    const nLen = Math.hypot(nx, ny, nz);
+    if (nLen < 1e-8) continue;
+    const px = (ax + bx + cx) / 3;
+    const py = (ay + by + cy) / 3;
+    const pz = (az + bz + cz) / 3;
+    const planeDist = Math.abs(localUp.x * px + localUp.y * (py - level.yAtZero) + localUp.z * pz);
+    if (planeDist < 0.004 && py > yBottom + 0.01) {
+      topCount++;
+      const align = (nx * localUp.x + ny * localUp.y + nz * localUp.z) / nLen;
+      assert(align > 0.85, `free-surface normal must point up out of the liquid, got ${align.toFixed(3)}`);
+    }
+    const radial = Math.hypot(px, pz);
+    if (radial > radius * 0.7 && py > yBottom + 0.01 && py < yRim - 0.02 && planeDist > 0.01) {
+      const outward = (nx * px + nz * pz) / (nLen * radial);
+      if (outward < 0.45) {
+        throw new Error(`side wall faces inward (${outward.toFixed(3)}) at (${px.toFixed(3)}, ${py.toFixed(3)}, ${pz.toFixed(3)})`);
+      }
+    }
+  }
+  assert(topCount > 8, 'tilted liquid needs a free-surface cap');
+
+  let surfaceSamples = 0;
+  let meanY = 0;
+  const ys: number[] = [];
+  for (let v = 0; v < geo.positions.length; v += 3) {
+    const x = geo.positions[v];
+    const y = geo.positions[v + 1];
+    const z = geo.positions[v + 2];
+    const dist = Math.abs(localUp.x * x + localUp.y * (y - level.yAtZero));
+    if (y > yBottom + 0.015 && dist < 0.003 && Math.hypot(x, z) > radius * 0.2) {
+      const wy = x * Math.sin(-0.45) + y * Math.cos(-0.45);
+      ys.push(wy);
+      meanY += wy;
+      surfaceSamples++;
+    }
+  }
+  assert(surfaceSamples > 12, 'expected samples on the free surface');
+  meanY /= surfaceSamples;
+  let variance = 0;
+  for (const wy of ys) variance += (wy - meanY) ** 2;
+  assert(Math.sqrt(variance / surfaceSamples) < 0.0015, 'free surface must be level in world space');
+
+  const upright = buildTiltedLiquidGeometry(solveLiquidPlane(0, fill, radius, yBottom, yRim), 64, 0.136);
+  const uprightVol = meshVolume(upright.positions, upright.indices);
+  const expected = Math.PI * radius * radius * fill;
+  assert(Math.abs(uprightVol - expected) / expected < 0.06, `upright volume ${uprightVol} vs ${expected}`);
+
+  const beaker = new BeakerMesh();
+  beaker.setVisible(true, false);
+  beaker.group.position.set(-0.38, 0.998, 1.1);
+  beaker.setTilt(-POUR_TILT);
+  for (let i = 0; i < 80; i++) beaker.update(0.016);
+  assert(beaker.currentTiltZ < -1.2, 'the beaker actually tips toward the pour angle');
+  beaker.currentTiltZ = -POUR_TILT;
+  beaker.group.rotation.z = -POUR_TILT;
+  beaker.update(0.016);
+  assert(beaker.isSpilling(), 'tipped 60 mL beaker spills');
+  const positions = (beaker['liquidMesh'] as THREE.Mesh).geometry.attributes.position.array as Float32Array;
+  let maxY = 0;
+  let lipX = 0;
+  for (let v = 0; v < positions.length; v += 3) {
+    if (positions[v + 1] > maxY) {
+      maxY = positions[v + 1];
+      lipX = positions[v];
+    }
+  }
+  assert(maxY > beaker.beakerHeight - 0.004, `waterline must reach the rim, got y=${maxY}`);
+  assert(lipX > 0.12, 'waterline reaches the lowered lip, not the middle of the cup');
+  const contact = lipContactLocal(beaker['liquidPlane'], beaker.liquidRimRadius);
+  let nearest = Infinity;
+  for (let v = 0; v < positions.length; v += 3) {
+    nearest = Math.min(nearest, Math.hypot(positions[v] - contact.x, positions[v + 1] - contact.y, positions[v + 2] - contact.z));
+  }
+  assert(nearest < 0.002, `liquid mesh must include the pour contact, nearest ${nearest}`);
+  const spillPlane = beaker['liquidPlane'] as { yAtZero: number };
+  const spillUp = { x: Math.sin(-POUR_TILT), y: Math.cos(-POUR_TILT), z: 0 };
+  const spillIndex = (beaker['liquidMesh'] as THREE.Mesh).geometry.index!.array as Uint32Array;
+  let spillAlign = 0;
+  let spillFaces = 0;
+  for (let i = 0; i < spillIndex.length; i += 3) {
+    const ia = spillIndex[i] * 3;
+    const ib = spillIndex[i + 1] * 3;
+    const ic = spillIndex[i + 2] * 3;
+    const ax = positions[ia];
+    const ay = positions[ia + 1];
+    const az = positions[ia + 2];
+    const bx = positions[ib];
+    const by = positions[ib + 1];
+    const bz = positions[ib + 2];
+    const cx = positions[ic];
+    const cy = positions[ic + 1];
+    const cz = positions[ic + 2];
+    const px = (ax + bx + cx) / 3;
+    const py = (ay + by + cy) / 3;
+    const pz = (az + bz + cz) / 3;
+    const planeDist = Math.abs(spillUp.x * px + spillUp.y * (py - spillPlane.yAtZero) + spillUp.z * pz);
+    if (planeDist > 0.006 || py < 0.05) continue;
+    const nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+    const ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+    const nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    const nLen = Math.hypot(nx, ny, nz);
+    if (nLen < 1e-8) continue;
+    spillAlign += (nx * spillUp.x + ny * spillUp.y + nz * spillUp.z) / nLen;
+    spillFaces++;
+  }
+  assert(spillFaces > 4 && spillAlign / spillFaces > 0.8, `spilling surface must face out of the liquid (${spillFaces} faces)`);
+
+  const target = new BeakerMesh();
+  target.setVisible(true, false);
+  target.group.position.set(0.38, 0.998, 1.1);
+  target.update(0.016);
+  const mouth = target.getMouthWorldPosition();
+  const surfaceY = target.getLiquidSurfaceWorldY();
+  const outward = lipOutwardFromTilt(-POUR_TILT, 'right');
+  const goal = lipGoalForPour({
+    outward,
+    mouth: { x: mouth.x, y: mouth.y, z: mouth.z },
+    surfaceY,
+    clearance: POUR_LIP_CLEARANCE,
+    exitSpeed: POUR_EXIT_SPEED,
+    gravity: POUR_GRAVITY,
+  });
+  beaker.placeLipAt(new THREE.Vector3(goal.x, goal.y, goal.z), 'right');
+  const pinned = beaker.getGlassLipWorld('right');
+  assert(pinned.distanceTo(new THREE.Vector3(goal.x, goal.y, goal.z)) < 1e-4, 'lip pivots onto the pour point');
+
+  const liveOut = beaker.getPourOutwardWorld();
+  assert(liveOut.x > 0.15 && liveOut.y < -0.7, `pour direction must leave the lip downward, got (${liveOut.x}, ${liveOut.y})`);
+  assert(Math.abs(liveOut.x - outward.x) < 1e-4 && Math.abs(liveOut.y - outward.y) < 1e-4, 'live lip normal must match the tilt formula');
+
+  const approach = beaker.getPourApproachWorld();
+  assert(approach[2].distanceTo(pinned) < 1e-4, 'stream origin is the outer lip');
+  const dropToLip = approach[1].y - approach[2].y;
+  const sheetStep = approach[0].y - approach[1].y;
+  assert(
+    approach[0].y + 0.001 >= approach[1].y && dropToLip > 0.004,
+    `sheet runs downhill off the lip (step ${sheetStep.toFixed(4)}, drop ${dropToLip.toFixed(4)}, ys ${approach.map((p) => p.y.toFixed(4)).join(',')})`,
+  );
+
+  const samples = composePourStream({
+    approach: approach.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+    outward: { x: liveOut.x, y: liveOut.y, z: liveOut.z },
+    surfaceY,
+    targetX: mouth.x,
+    targetZ: mouth.z,
+    targetRadius: target.beakerRadius,
+    gravity: POUR_GRAVITY,
+    exitSpeed: POUR_EXIT_SPEED,
+    phase: 0.4,
+  });
+  assert(samples, 'stream must be generated once the lip is over the cup');
+  for (let i = 1; i < samples!.length; i++) {
+    assert(samples![i].y <= samples![i - 1].y + 0.0008, `stream rose between ${i - 1} and ${i}`);
+  }
+  const hit = samples![samples!.length - 1];
+  assert(Math.abs(hit.y - surfaceY) < 0.004, `stream must meet the receiving surface, Δy=${hit.y - surfaceY}`);
+  assert(Math.hypot(hit.x - mouth.x, hit.z - mouth.z) < 0.02, 'stream must land inside the receiving mouth');
+  assert(samples![2].halfWidth > samples![samples!.length - 1].halfWidth, 'jet narrows as it falls');
+
+  const tube = new Float32Array(samples!.length * (POUR_STREAM_RADIAL + 1) * 3);
+  writeEllipticTube(samples!, POUR_STREAM_RADIAL, tube);
+  const indices = ellipticTubeIndices(samples!.length, POUR_STREAM_RADIAL);
+  const ring0 = averageRing(tube, 0, POUR_STREAM_RADIAL);
+  assert(Math.hypot(ring0.x - samples![0].x, ring0.y - samples![0].y, ring0.z - samples![0].z) < 1e-4, 'tube starts on the sheet');
+  const outwardDot = tubeShellOutward(tube, indices, samples!, POUR_STREAM_RADIAL);
+  assert(outwardDot > 0.5, `stream shell must face outward, got ${outwardDot.toFixed(3)}`);
+
+  const parent = new THREE.Group();
+  parent.position.set(2, 0.4, -1);
+  parent.rotation.y = 0.55;
+  const child = new BeakerMesh();
+  child.setVisible(true, false);
+  parent.add(child.group);
+  parent.updateWorldMatrix(true, true);
+  child.group.position.set(0.2, 1, 0.3);
+  child.group.rotation.z = -0.8;
+  const marker = new THREE.Vector3(4, 2, -2);
+  child.placeLipAt(marker, 'right');
+  parent.updateWorldMatrix(true, true);
+  const placed = child.getGlassLipWorld('right');
+  assert(placed.distanceTo(marker) < 1e-4, `lip placement must honor the parent frame, off by ${placed.distanceTo(marker)}`);
+
+  console.log('✓ Test 12 passed: Water reaches the lip and falls into the other beaker\n');
+}
+
+function meshVolume(positions: Float32Array, indices: Uint32Array): number {
+  let vol = 0;
+  for (let i = 0; i < indices.length; i += 3) {
+    const a = indices[i] * 3;
+    const b = indices[i + 1] * 3;
+    const c = indices[i + 2] * 3;
+    const ax = positions[a];
+    const ay = positions[a + 1];
+    const az = positions[a + 2];
+    const bx = positions[b];
+    const by = positions[b + 1];
+    const bz = positions[b + 2];
+    const cx = positions[c];
+    const cy = positions[c + 1];
+    const cz = positions[c + 2];
+    vol += ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx);
+  }
+  return Math.abs(vol) / 6;
+}
+
+function averageRing(tube: Float32Array, ring: number, radial: number): { x: number; y: number; z: number } {
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  const stride = radial + 1;
+  for (let j = 0; j < radial; j++) {
+    const o = (ring * stride + j) * 3;
+    x += tube[o];
+    y += tube[o + 1];
+    z += tube[o + 2];
+  }
+  return { x: x / radial, y: y / radial, z: z / radial };
+}
+
+function tubeShellOutward(
+  tube: Float32Array,
+  indices: Uint32Array,
+  samples: { x: number; y: number; z: number }[],
+  radial: number,
+): number {
+  const stride = radial + 1;
+  let score = 0;
+  let count = 0;
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t];
+    const ib = indices[t + 1];
+    const ic = indices[t + 2];
+    const ring = Math.floor(ia / stride);
+    if (ring < 3 || ring > 8) continue;
+    const ax = tube[ia * 3];
+    const ay = tube[ia * 3 + 1];
+    const az = tube[ia * 3 + 2];
+    const bx = tube[ib * 3];
+    const by = tube[ib * 3 + 1];
+    const bz = tube[ib * 3 + 2];
+    const cx = tube[ic * 3];
+    const cy = tube[ic * 3 + 1];
+    const cz = tube[ic * 3 + 2];
+    const nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+    const ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+    const nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    const nLen = Math.hypot(nx, ny, nz);
+    if (nLen < 1e-8) continue;
+    const next = Math.min(samples.length - 1, ring + 1);
+    const axisX = samples[next].x - samples[ring].x;
+    const axisY = samples[next].y - samples[ring].y;
+    const axisZ = samples[next].z - samples[ring].z;
+    const axisLen2 = axisX * axisX + axisY * axisY + axisZ * axisZ || 1;
+    let px = (ax + bx + cx) / 3 - samples[ring].x;
+    let py = (ay + by + cy) / 3 - samples[ring].y;
+    let pz = (az + bz + cz) / 3 - samples[ring].z;
+    const along = (px * axisX + py * axisY + pz * axisZ) / axisLen2;
+    px -= along * axisX;
+    py -= along * axisY;
+    pz -= along * axisZ;
+    const pLen = Math.hypot(px, py, pz);
+    if (pLen < 1e-5) continue;
+    score += (nx * px + ny * py + nz * pz) / (nLen * pLen);
+    count++;
+  }
+  return count ? score / count : 0;
+}
+
 console.log('========================================================');
-console.log('All Dual-Beaker Mixing & Composition Analysis Tests Passed (11/11)!');
+console.log('All Dual-Beaker Mixing & Composition Analysis Tests Passed (12/12)!');
 console.log('========================================================\n');

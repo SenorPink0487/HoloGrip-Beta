@@ -51,6 +51,10 @@ export class OpticalBeamSystem {
   private diffractionFanMesh: THREE.Mesh | null = null;
   private diffractionFanGeo: THREE.BufferGeometry | null = null;
   private diffractionFanMat: THREE.MeshBasicMaterial | null = null;
+  private lastFanZStart = -999;
+  private lastFanZEnd = -999;
+  private lastFanHalfWidth = -999;
+  private cachedWorkerDispersionRays: DispersionRay[] = [];
 
   // Grating discrete orders beams
   private gratingOrderMeshes: THREE.Mesh[] = [];
@@ -104,6 +108,11 @@ export class OpticalBeamSystem {
     this.group.add(this.waveFrontsGroup);
     this.group.add(this.diffractionFanGroup);
     this.group.add(this.gratingOrdersGroup);
+    this.dispersionGroup.visible = false;
+    this.waveVectorGroup.visible = false;
+    this.waveFrontsGroup.visible = false;
+    this.diffractionFanGroup.visible = false;
+    this.gratingOrdersGroup.visible = false;
     this.updateWavelength(wavelength);
   }
 
@@ -342,7 +351,9 @@ export class OpticalBeamSystem {
       const pIn = rays[0].points[0];
       const pEnter = rays[0].points[1];
       this.updateSegmentedBeam([{ start: pIn, end: pEnter, intensity: this.intensity }]);
+      this.dispersionGroup.visible = true;
     } else {
+      this.dispersionGroup.visible = false;
       for (let i = 0; i < this.maxSegments; i++) {
         this.segmentCores[i].visible = false;
         this.segmentGlows[i].visible = false;
@@ -423,6 +434,7 @@ export class OpticalBeamSystem {
     for (const segs of this.dispersionGlows) {
       for (const m of segs) m.visible = false;
     }
+    this.dispersionGroup.visible = false;
   }
 
   /**
@@ -433,14 +445,31 @@ export class OpticalBeamSystem {
     colorRgb: [number, number, number];
     points: [number, number, number][];
   }>): void {
-    const formattedRays: DispersionRay[] = raysData.map((r) => ({
-      wavelengthNm: r.wavelengthNm,
-      color: new THREE.Color(r.colorRgb[0], r.colorRgb[1], r.colorRgb[2]),
-      refractiveIndex: 1.54,
-      deviationAngleRad: 0,
-      points: r.points.map((p) => new THREE.Vector3(p[0], p[1], p[2])),
-    }));
-    this.updateDispersionRays(formattedRays);
+    while (this.cachedWorkerDispersionRays.length < raysData.length) {
+      this.cachedWorkerDispersionRays.push({
+        wavelengthNm: 550,
+        color: new THREE.Color(),
+        refractiveIndex: 1.54,
+        deviationAngleRad: 0,
+        points: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()],
+      });
+    }
+
+    for (let i = 0; i < raysData.length; i++) {
+      const src = raysData[i];
+      const target = this.cachedWorkerDispersionRays[i];
+      target.wavelengthNm = src.wavelengthNm;
+      target.color.setRGB(src.colorRgb[0], src.colorRgb[1], src.colorRgb[2]);
+      while (target.points.length < src.points.length) {
+        target.points.push(new THREE.Vector3());
+      }
+      target.points.length = src.points.length;
+      for (let p = 0; p < src.points.length; p++) {
+        target.points[p].set(src.points[p][0], src.points[p][1], src.points[p][2]);
+      }
+    }
+    this.cachedWorkerDispersionRays.length = raysData.length;
+    this.updateDispersionRays(this.cachedWorkerDispersionRays);
   }
 
   /**
@@ -458,8 +487,13 @@ export class OpticalBeamSystem {
       this.waveVectorColors = new Float32Array(totalFloats);
 
       this.waveVectorGeo = new THREE.BufferGeometry();
-      this.waveVectorGeo.setAttribute('position', new THREE.BufferAttribute(this.waveVectorPositions, 3));
-      this.waveVectorGeo.setAttribute('color', new THREE.BufferAttribute(this.waveVectorColors, 3));
+      const posAttr = new THREE.BufferAttribute(this.waveVectorPositions, 3);
+      posAttr.setUsage(THREE.DynamicDrawUsage);
+      this.waveVectorGeo.setAttribute('position', posAttr);
+
+      const colAttr = new THREE.BufferAttribute(this.waveVectorColors, 3);
+      colAttr.setUsage(THREE.DynamicDrawUsage);
+      this.waveVectorGeo.setAttribute('color', colAttr);
 
       const lineMat = new THREE.LineBasicMaterial({
         vertexColors: true,
@@ -507,7 +541,9 @@ export class OpticalBeamSystem {
 
     (this.waveVectorGeo!.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     (this.waveVectorGeo!.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
-    this.waveVectorLines!.visible = this.intensity > 0.001;
+    const isVis = this.intensity > 0.001;
+    this.waveVectorLines!.visible = isVis;
+    this.waveVectorGroup.visible = isVis;
   }
 
   /**
@@ -541,8 +577,13 @@ export class OpticalBeamSystem {
       this.waveVectorColors = new Float32Array(totalVertices * 3);
 
       this.waveVectorGeo = new THREE.BufferGeometry();
-      this.waveVectorGeo.setAttribute('position', new THREE.BufferAttribute(this.waveVectorPositions, 3));
-      this.waveVectorGeo.setAttribute('color', new THREE.BufferAttribute(this.waveVectorColors, 3));
+      const posAttr = new THREE.BufferAttribute(this.waveVectorPositions, 3);
+      posAttr.setUsage(THREE.DynamicDrawUsage);
+      this.waveVectorGeo.setAttribute('position', posAttr);
+
+      const colAttr = new THREE.BufferAttribute(this.waveVectorColors, 3);
+      colAttr.setUsage(THREE.DynamicDrawUsage);
+      this.waveVectorGeo.setAttribute('color', colAttr);
 
       const lineMat = new THREE.LineBasicMaterial({
         vertexColors: true,
@@ -638,13 +679,16 @@ export class OpticalBeamSystem {
     const colAttr = this.waveVectorGeo!.getAttribute('color') as THREE.BufferAttribute;
     posAttr.needsUpdate = true;
     colAttr.needsUpdate = true;
-    this.waveVectorLines!.visible = this.intensity > 0.001;
+    const isVis = this.intensity > 0.001;
+    this.waveVectorLines!.visible = isVis;
+    this.waveVectorGroup.visible = isVis;
   }
 
   public clearWaveVectors(): void {
     if (this.waveVectorLines) {
       this.waveVectorLines.visible = false;
     }
+    this.waveVectorGroup.visible = false;
   }
 
   /**
@@ -672,8 +716,13 @@ export class OpticalBeamSystem {
       this.wavefrontColors = new Float32Array(totalVertices * 3);
 
       this.wavefrontGeo = new THREE.BufferGeometry();
-      this.wavefrontGeo.setAttribute('position', new THREE.BufferAttribute(this.wavefrontPositions, 3));
-      this.wavefrontGeo.setAttribute('color', new THREE.BufferAttribute(this.wavefrontColors, 3));
+      const posAttr = new THREE.BufferAttribute(this.wavefrontPositions, 3);
+      posAttr.setUsage(THREE.DynamicDrawUsage);
+      this.wavefrontGeo.setAttribute('position', posAttr);
+
+      const colAttr = new THREE.BufferAttribute(this.wavefrontColors, 3);
+      colAttr.setUsage(THREE.DynamicDrawUsage);
+      this.wavefrontGeo.setAttribute('color', colAttr);
 
       this.wavefrontMat = new THREE.LineBasicMaterial({
         vertexColors: true,
@@ -780,8 +829,13 @@ export class OpticalBeamSystem {
       this.wavefrontColors = new Float32Array(totalVertices * 3);
 
       this.wavefrontGeo = new THREE.BufferGeometry();
-      this.wavefrontGeo.setAttribute('position', new THREE.BufferAttribute(this.wavefrontPositions, 3));
-      this.wavefrontGeo.setAttribute('color', new THREE.BufferAttribute(this.wavefrontColors, 3));
+      const posAttr = new THREE.BufferAttribute(this.wavefrontPositions, 3);
+      posAttr.setUsage(THREE.DynamicDrawUsage);
+      this.wavefrontGeo.setAttribute('position', posAttr);
+
+      const colAttr = new THREE.BufferAttribute(this.wavefrontColors, 3);
+      colAttr.setUsage(THREE.DynamicDrawUsage);
+      this.wavefrontGeo.setAttribute('color', colAttr);
 
       this.wavefrontMat = new THREE.LineBasicMaterial({
         vertexColors: true,
@@ -899,8 +953,13 @@ export class OpticalBeamSystem {
         halfWidth, beamY, endZ,
         0, beamY - halfHeight * 0.4, startZ,
       ]);
-      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const posAttr = new THREE.BufferAttribute(positions, 3);
+      posAttr.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute('position', posAttr);
       this.diffractionFanGeo = geo;
+      this.lastFanZStart = startZ;
+      this.lastFanZEnd = endZ;
+      this.lastFanHalfWidth = halfWidth;
 
       this.diffractionFanMat = new THREE.MeshBasicMaterial({
         color: baseColor,
@@ -915,45 +974,59 @@ export class OpticalBeamSystem {
       this.diffractionFanMesh.raycast = () => {};
       this.diffractionFanGroup.add(this.diffractionFanMesh);
     } else {
-      const pos = (this.diffractionFanGeo!.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
-      // Mid fan
-      pos[0] = 0; pos[1] = beamY; pos[2] = startZ;
-      pos[3] = -halfWidth; pos[4] = beamY; pos[5] = endZ;
-      pos[6] = halfWidth; pos[7] = beamY; pos[8] = endZ;
+      const isFanGeometryDifferent =
+        Math.abs(this.lastFanZStart - startZ) > 1e-4 ||
+        Math.abs(this.lastFanZEnd - endZ) > 1e-4 ||
+        Math.abs(this.lastFanHalfWidth - halfWidth) > 1e-4;
 
-      // Top slope
-      pos[9] = 0; pos[10] = beamY + halfHeight * 0.4; pos[11] = startZ;
-      pos[12] = -halfWidth * 0.85; pos[13] = beamY + halfHeight; pos[14] = endZ;
-      pos[15] = halfWidth * 0.85; pos[16] = beamY + halfHeight; pos[17] = endZ;
+      if (isFanGeometryDifferent) {
+        this.lastFanZStart = startZ;
+        this.lastFanZEnd = endZ;
+        this.lastFanHalfWidth = halfWidth;
 
-      // Bottom slope
-      pos[18] = 0; pos[19] = beamY - halfHeight * 0.4; pos[20] = startZ;
-      pos[21] = halfWidth * 0.85; pos[22] = beamY - halfHeight; pos[23] = endZ;
-      pos[24] = -halfWidth * 0.85; pos[25] = beamY - halfHeight; pos[26] = endZ;
+        const pos = (this.diffractionFanGeo!.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
+        // Mid fan
+        pos[0] = 0; pos[1] = beamY; pos[2] = startZ;
+        pos[3] = -halfWidth; pos[4] = beamY; pos[5] = endZ;
+        pos[6] = halfWidth; pos[7] = beamY; pos[8] = endZ;
 
-      // Left wing
-      pos[27] = 0; pos[28] = beamY + halfHeight * 0.4; pos[29] = startZ;
-      pos[30] = 0; pos[31] = beamY - halfHeight * 0.4; pos[32] = startZ;
-      pos[33] = -halfWidth; pos[34] = beamY; pos[35] = endZ;
+        // Top slope
+        pos[9] = 0; pos[10] = beamY + halfHeight * 0.4; pos[11] = startZ;
+        pos[12] = -halfWidth * 0.85; pos[13] = beamY + halfHeight; pos[14] = endZ;
+        pos[15] = halfWidth * 0.85; pos[16] = beamY + halfHeight; pos[17] = endZ;
 
-      // Right wing
-      pos[36] = 0; pos[37] = beamY + halfHeight * 0.4; pos[38] = startZ;
-      pos[39] = halfWidth; pos[40] = beamY; pos[41] = endZ;
-      pos[42] = 0; pos[43] = beamY - halfHeight * 0.4; pos[44] = startZ;
+        // Bottom slope
+        pos[18] = 0; pos[19] = beamY - halfHeight * 0.4; pos[20] = startZ;
+        pos[21] = halfWidth * 0.85; pos[22] = beamY - halfHeight; pos[23] = endZ;
+        pos[24] = -halfWidth * 0.85; pos[25] = beamY - halfHeight; pos[26] = endZ;
 
-      this.diffractionFanGeo!.getAttribute('position').needsUpdate = true;
+        // Left wing
+        pos[27] = 0; pos[28] = beamY + halfHeight * 0.4; pos[29] = startZ;
+        pos[30] = 0; pos[31] = beamY - halfHeight * 0.4; pos[32] = startZ;
+        pos[33] = -halfWidth; pos[34] = beamY; pos[35] = endZ;
+
+        // Right wing
+        pos[36] = 0; pos[37] = beamY + halfHeight * 0.4; pos[38] = startZ;
+        pos[39] = halfWidth; pos[40] = beamY; pos[41] = endZ;
+        pos[42] = 0; pos[43] = beamY - halfHeight * 0.4; pos[44] = startZ;
+
+        this.diffractionFanGeo!.getAttribute('position').needsUpdate = true;
+      }
       this.diffractionFanMat!.color.copy(baseColor);
     }
 
     const effIntensity = this.intensity * intensity;
     this.diffractionFanMat!.opacity = effIntensity * 0.16;
-    this.diffractionFanMesh.visible = effIntensity > 0.001;
+    const isFanVis = effIntensity > 0.001;
+    this.diffractionFanMesh.visible = isFanVis;
+    this.diffractionFanGroup.visible = isFanVis;
   }
 
   public clearDiffractionFan(): void {
     if (this.diffractionFanMesh) {
       this.diffractionFanMesh.visible = false;
     }
+    this.diffractionFanGroup.visible = false;
   }
 
   /**
@@ -1021,12 +1094,14 @@ export class OpticalBeamSystem {
       mat.opacity = this.intensity * intensity * 0.75 * orderFalloff;
       mesh.visible = true;
     }
+    this.gratingOrdersGroup.visible = this.intensity * intensity > 0.001;
   }
 
   public clearGratingOrders(): void {
     for (const mesh of this.gratingOrderMeshes) {
       mesh.visible = false;
     }
+    this.gratingOrdersGroup.visible = false;
   }
 
   public dispose(): void {

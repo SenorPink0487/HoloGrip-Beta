@@ -37,6 +37,7 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
 
   // Multi-Core Worker Buffer
   private workerIntensityBuffer: Float32Array = new Float32Array(512);
+  private displayIntensityBuffer: Float32Array = new Float32Array(512);
   private isWorkerBusy = false;
   private hasWorkerResult = false;
   private lastStateHash = '';
@@ -161,16 +162,32 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
       screenDistM
     );
 
-    // Multi-Core Worker physics computation with state hash dirty checking
+    // Multi-Core Worker physics computation
     const stateHash = `${this.wavelength}_${this.slitDistance.toFixed(3)}_${this.slitWidth.toFixed(3)}_${screenDistM.toFixed(3)}`;
-    if (stateHash !== this.lastStateHash) {
-      this.lastStateHash = stateHash;
-      this.dispatchWorkerComputation(context, screenDistM);
+    const hasWorker = Boolean(
+      context.computeBridge || (context.workerPool && context.workerPool.size > 0)
+    );
+    if (hasWorker) {
+      if (!this.isWorkerBusy) {
+        this.dispatchWorkerComputation(context, screenDistM);
+      }
+    } else {
+      if (stateHash !== this.lastStateHash) {
+        this.lastStateHash = stateHash;
+      }
+      this.detectorScreen.renderFringesPattern({
+        mode: 'double_slit',
+        wavelengthNm: this.wavelength,
+        intensity: 1.0,
+        slitDistanceMm: this.slitDistance,
+        slitWidthMm: this.slitWidth,
+        screenDistanceM: screenDistM,
+      });
     }
 
     if (this.hasWorkerResult) {
-      this.detectorScreen.renderFringesFromBuffer(this.workerIntensityBuffer, this.wavelength, 1.0);
-    } else {
+      this.detectorScreen.renderFringesFromBuffer(this.displayIntensityBuffer, this.wavelength, 1.0);
+    } else if (hasWorker) {
       this.detectorScreen.renderFringesPattern({
         mode: 'double_slit',
         wavelengthNm: this.wavelength,
@@ -193,6 +210,10 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
     this.isWorkerBusy = true;
 
     try {
+      if (!this.workerIntensityBuffer || this.workerIntensityBuffer.byteLength === 0) {
+        this.workerIntensityBuffer = new Float32Array(512);
+      }
+
       if (context.computeBridge && typeof (context.computeBridge as any).simulateOpticalDiffraction === 'function') {
         const resp = await (context.computeBridge as any).simulateOpticalDiffraction({
           intensityBuffer: this.workerIntensityBuffer,
@@ -205,6 +226,7 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
         });
         if (resp && resp.intensityBuffer) {
           this.workerIntensityBuffer = resp.intensityBuffer;
+          this.displayIntensityBuffer.set(this.workerIntensityBuffer);
           this.hasWorkerResult = true;
         }
       } else if (context.workerPool && context.workerPool.size > 0) {
@@ -223,11 +245,14 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
         );
         if (resp && resp.intensityBuffer) {
           this.workerIntensityBuffer = resp.intensityBuffer;
+          this.displayIntensityBuffer.set(this.workerIntensityBuffer);
           this.hasWorkerResult = true;
         }
       }
     } catch {
-      // Fallback silently if worker thread is terminating
+      if (!this.workerIntensityBuffer || this.workerIntensityBuffer.byteLength === 0) {
+        this.workerIntensityBuffer = new Float32Array(512);
+      }
     } finally {
       this.isWorkerBusy = false;
     }

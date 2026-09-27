@@ -19,6 +19,20 @@ import { Crosshair } from '../ui/Crosshair.ts';
 import { ChemistryEngine } from '../chemistry/ChemistryEngine.ts';
 import { BeakerMesh } from '../scene/BeakerMesh.ts';
 import { ReactionEffects } from '../scene/ReactionEffects.ts';
+import {
+  POUR_EXIT_SPEED,
+  POUR_GRAVITY,
+  POUR_LIP_CLEARANCE,
+  POUR_STREAM_RADIAL,
+  POUR_STREAM_RINGS,
+  POUR_TILT,
+  composePourStream,
+  ellipticTubeIndices,
+  lipGoalForPour,
+  lipOutwardFromTilt,
+  writeEllipticTube,
+  type StreamSample,
+} from '../chemistry/pourKinematics.ts';
 import { VisionModal } from '../ui/vision/VisionModal.ts';
 import type { ExperimentContext, IExperiment } from './types.ts';
 import {
@@ -106,6 +120,7 @@ export class Engine {
     targetTilt: number;
     targetPosition: THREE.Vector3;
     lastPouredVolume: number;
+    lipAim: THREE.Vector3 | null;
   } | null = null;
 
   private raycaster = new THREE.Raycaster();
@@ -394,75 +409,132 @@ export class Engine {
     this.initPourVolumeBadge();
   }
 
-  private pourStreamVertexBuffer = new Float32Array(153 * 3);
-  private isPourStreamWorkerBusy = false;
+  private pourStreamPositions = new Float32Array(POUR_STREAM_RINGS * (POUR_STREAM_RADIAL + 1) * 3);
+  private pourStreamPhase = 0;
 
   private initPourStreamMesh(): void {
     this.pourStreamMat = new THREE.MeshPhysicalMaterial({
       color: 0xd7f3ff,
-      roughness: 0.05,
-      metalness: 0.02,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.05,
+      roughness: 0.035,
+      metalness: 0.0,
+      clearcoat: 1,
+      clearcoatRoughness: 0.06,
+      reflectivity: 0.9,
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.9,
       depthWrite: false,
+      side: THREE.FrontSide,
     });
-    const defaultCurve = new THREE.LineCurve3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.1, 0));
-    const pooledGeo = new THREE.TubeGeometry(defaultCurve, 16, 0.007, 8, false);
-    this.pourStreamMesh = new THREE.Mesh(pooledGeo, this.pourStreamMat);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this.pourStreamPositions, 3));
+    geo.setIndex(new THREE.BufferAttribute(ellipticTubeIndices(POUR_STREAM_RINGS, POUR_STREAM_RADIAL), 1));
+    this.pourStreamMesh = new THREE.Mesh(geo, this.pourStreamMat);
     this.pourStreamMesh.visible = false;
+    this.pourStreamMesh.frustumCulled = false;
+    this.pourStreamMesh.renderOrder = 4;
     this.scene.add(this.pourStreamMesh);
   }
 
-  private updatePourStream(startWorld: THREE.Vector3, endWorld: THREE.Vector3, color: THREE.Color): void {
+  private writePourStream(samples: StreamSample[], color: THREE.Color): void {
     if (!this.pourStreamMesh || !this.pourStreamMat) return;
-    if (!this.pourStreamVertexBuffer || this.pourStreamVertexBuffer.byteLength === 0) {
-      this.pourStreamVertexBuffer = new Float32Array(153 * 3);
+    if (samples.length !== POUR_STREAM_RINGS) return;
+    writeEllipticTube(samples, POUR_STREAM_RADIAL, this.pourStreamPositions);
+    const posAttr = this.pourStreamMesh.geometry.attributes.position as THREE.BufferAttribute;
+    posAttr.needsUpdate = true;
+    this.pourStreamMesh.geometry.computeVertexNormals();
+    this.pourStreamMat.color.copy(color);
+    this.pourStreamMesh.visible = true;
+  }
+
+  private stepBeakerPour(
+    state: {
+      sourceId: 'left' | 'right';
+      targetId: 'left' | 'right';
+      sourceMesh: BeakerMesh;
+      targetMesh: BeakerMesh;
+      sourceEngine: ChemistryEngine;
+      targetEngine: ChemistryEngine;
+      targetTilt: number;
+      lastPouredVolume: number;
+      lipAim: THREE.Vector3 | null;
+    },
+    delta: number,
+  ): void {
+    const direction = state.sourceId === 'left' ? 'right' : 'left';
+    const source = state.sourceMesh;
+    const target = state.targetMesh;
+    const mouth = target.getMouthWorldPosition();
+    const surfaceY = target.getLiquidSurfaceWorldY();
+    const parent = source.group.parent;
+    const outwardLocal = lipOutwardFromTilt(state.targetTilt, direction);
+    const outward = new THREE.Vector3(outwardLocal.x, outwardLocal.y, outwardLocal.z);
+    if (parent) {
+      parent.updateWorldMatrix(true, false);
+      const q = new THREE.Quaternion();
+      parent.getWorldQuaternion(q);
+      outward.applyQuaternion(q);
+    }
+    const goal = lipGoalForPour({
+      outward: { x: outward.x, y: outward.y, z: outward.z },
+      mouth: { x: mouth.x, y: mouth.y, z: mouth.z },
+      surfaceY,
+      clearance: POUR_LIP_CLEARANCE,
+      exitSpeed: POUR_EXIT_SPEED,
+      gravity: POUR_GRAVITY,
+    });
+
+    const goalPoint = new THREE.Vector3(goal.x, goal.y, goal.z);
+    if (!state.lipAim) state.lipAim = source.getGlassLipWorld(direction).clone();
+    state.lipAim.lerp(goalPoint, 1 - Math.exp(-Math.max(0, delta) * 6));
+    source.placeLipAt(state.lipAim, direction);
+    const lipSettled = state.lipAim.distanceTo(goalPoint) < 0.04;
+    const volume = state.sourceEngine.state.volume;
+    this.updatePourVolumeBadge(source, volume);
+
+    const room = state.targetEngine.state.maxVolume - state.targetEngine.state.volume;
+    if (!source.isSpilling() || !lipSettled || volume <= 0.4 || room <= 0.4) {
+      this.hidePourStream();
+      return;
     }
 
-    this.pourStreamMat.color.copy(color);
+    this.pourStreamPhase += delta;
+    const approach = source.getPourApproachWorld();
+    const liveOut = source.getPourOutwardWorld();
+    const samples = composePourStream({
+      approach: approach.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+      outward: { x: liveOut.x, y: liveOut.y, z: liveOut.z },
+      surfaceY,
+      targetX: mouth.x,
+      targetZ: mouth.z,
+      targetRadius: target.beakerRadius,
+      gravity: POUR_GRAVITY,
+      exitSpeed: POUR_EXIT_SPEED,
+      phase: this.pourStreamPhase,
+    });
+    if (!samples) {
+      this.hidePourStream();
+      return;
+    }
 
-    const midWorld = startWorld.clone().lerp(endWorld, 0.45).add(new THREE.Vector3(0, 0.025, 0));
+    const hit = samples[samples.length - 1];
+    if (Math.hypot(hit.x - mouth.x, hit.z - mouth.z) > target.beakerRadius * 0.9) {
+      this.hidePourStream();
+      return;
+    }
 
-    if (this.computeBridge && !this.isPourStreamWorkerBusy) {
-      this.isPourStreamWorkerBusy = true;
-      this.computeBridge
-        .generatePourStreamTube({
-          startWorld: [startWorld.x, startWorld.y, startWorld.z],
-          midWorld: [midWorld.x, midWorld.y, midWorld.z],
-          endWorld: [endWorld.x, endWorld.y, endWorld.z],
-          tubularSegments: 16,
-          radialSegments: 8,
-          radius: 0.007,
-          vertexBuffer: this.pourStreamVertexBuffer,
-        })
-        .then((res: any) => {
-          this.pourStreamVertexBuffer = res.vertexBuffer;
-          if (this.pourStreamMesh) {
-            const posAttr = this.pourStreamMesh.geometry.attributes.position as THREE.BufferAttribute;
-            if (posAttr) {
-              posAttr.copyArray(res.vertexBuffer);
-              posAttr.needsUpdate = true;
-              this.pourStreamMesh.geometry.computeVertexNormals();
-            }
-            this.pourStreamMesh.visible = true;
-          }
-        })
-        .catch((err: any) => {
-          console.warn('[Engine] Pour stream worker error:', err);
-        })
-        .finally(() => {
-          this.isPourStreamWorkerBusy = false;
-        });
-    } else if (!this.computeBridge) {
-      // Sync fallback for test environments
-      const curve = new THREE.CatmullRomCurve3([startWorld, midWorld, endWorld]);
-      this.pourStreamMesh.geometry.dispose();
-      this.pourStreamMesh.geometry = new THREE.TubeGeometry(curve, 16, 0.007, 8, false);
-      this.pourStreamMesh.visible = true;
-    } else {
-      this.pourStreamMesh.visible = true;
+    this.writePourStream(samples, source.liquidColor);
+
+    const rate = 22 + Math.min(38, source.getPourOverflow() * 280);
+    const transferAmt = Math.min(volume, Math.max(0, room), rate * delta);
+    if (transferAmt > 0.02 && room > 0.4) {
+      state.targetEngine.mixFrom(state.sourceEngine, transferAmt);
+      state.lastPouredVolume += transferAmt;
+      const effects = state.targetId === 'left' ? this.reactionEffectsLeft : this.reactionEffectsRight;
+      if (effects) {
+        const localHit = target.group.worldToLocal(new THREE.Vector3(hit.x, hit.y, hit.z));
+        effects.setPourImpact(localHit.x, localHit.z);
+        effects.triggerPour(source.liquidColor.getHex());
+      }
     }
   }
 
@@ -489,7 +561,8 @@ export class Engine {
   private updatePourVolumeBadge(beaker: BeakerMesh, volume: number): void {
     if (!this.pourVolumeBadgeEl || !this.camera) return;
 
-    const topWorld = beaker.group.position.clone().add(new THREE.Vector3(0, beaker.beakerHeight + 0.12, 0));
+    const topWorld = beaker.getMouthWorldPosition();
+    topWorld.y += 0.1;
     topWorld.project(this.camera);
     if (topWorld.z > 1.0) {
       this.hidePourVolumeBadge();
@@ -617,6 +690,9 @@ export class Engine {
         if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
           this.crosshair.setVisible(true);
         }
+        this.isExperimentInteracting = false;
+        const exp = this.holoStage?.activeExperiment as any;
+        exp?.clearHover?.();
       },
       onOpen: () => {
         this.positionWindowInFrontOfCamera(true);
@@ -625,6 +701,9 @@ export class Engine {
         this.inputManager.player.exitLock();
         this.inputManager.player.allowPointerLock = false;
         this.crosshair.setVisible(false);
+        this.isExperimentInteracting = false;
+        const exp = this.holoStage?.activeExperiment as any;
+        exp?.clearHover?.();
       },
       onRecenter: () => {
         this.positionWindowInFrontOfCamera(true);
@@ -921,6 +1000,61 @@ export class Engine {
             exp.setToggles(exp.getTelemetryData().showVectors, show);
           }
         }
+      },
+      onInductionCommand: (cmd) => {
+        if (this.currentExperimentId !== 'em-induction') return;
+        const exp = this.holoStage?.activeExperiment as any;
+        if (!exp) return;
+        if (cmd.type === 'turns') {
+          this.currentContext.setParameter('turns', cmd.turns);
+          exp.setTurns?.(cmd.turns);
+        } else if (cmd.type === 'resistance') {
+          this.currentContext.setParameter('resistance', cmd.ohm);
+          exp.setResistance?.(cmd.ohm);
+        } else if (cmd.type === 'axial') {
+          this.currentContext.setParameter('axial', cmd.axial);
+          exp.setAxial?.(cmd.axial);
+        } else if (cmd.type === 'probe') {
+          this.currentContext.setParameter('probe', cmd.axial);
+          exp.setProbe?.(cmd.axial);
+        } else if (cmd.type === 'flip') exp.flipPole?.();
+        else if (cmd.type === 'pass') exp.startPass?.();
+        else if (cmd.type === 'reset') exp.resetGolden?.();
+      },
+      onMassSpecCommand: (cmd) => {
+        if (this.currentExperimentId !== 'em-mass-spec') return;
+        const exp = this.holoStage?.activeExperiment as any;
+        if (!exp) return;
+        if (cmd.type === 'sample') {
+          this.currentContext.setParameter('sample', cmd.id);
+          exp.setSample?.(cmd.id);
+        } else if (cmd.type === 'accel') {
+          this.currentContext.setParameter('accelVoltage', cmd.voltage);
+          exp.setAccel?.(cmd.voltage);
+        } else if (cmd.type === 'field') {
+          this.currentContext.setParameter('analyzerField', cmd.tesla);
+          exp.setAnalyzerMagnitude?.(cmd.tesla);
+        } else if (cmd.type === 'jaw') {
+          this.currentContext.setParameter('jaw', cmd.opening);
+          exp.setJaw?.(cmd.opening);
+        } else if (cmd.type === 'plate') {
+          this.currentContext.setParameter('plateVoltage', cmd.voltage);
+          exp.setPlate?.(cmd.voltage);
+        } else if (cmd.type === 'flip') exp.flipAnalyzer?.();
+        else if (cmd.type === 'reset') exp.resetGolden?.();
+      },
+      onHysteresisCommand: (cmd) => {
+        if (this.currentExperimentId !== 'em-hysteresis') return;
+        const exp = this.holoStage?.activeExperiment as any;
+        if (!exp) return;
+        if (cmd.type === 'material') {
+          this.currentContext.setParameter('material', cmd.id);
+          exp.setMaterial?.(cmd.id);
+        } else if (cmd.type === 'field') {
+          this.currentContext.setParameter('fieldH', cmd.H);
+          exp.setH?.(cmd.H);
+        } else if (cmd.type === 'sweep') exp.setAuto?.(!exp.getTelemetry?.().auto);
+        else if (cmd.type === 'reset') exp.resetGolden?.();
       },
       // Stereometry Math Callbacks
       onMathModelChange: (type) => {
@@ -1296,6 +1430,7 @@ export class Engine {
       'wheel',
       (e: WheelEvent) => {
         if (this.labEntryActive) return;
+        if (this.visionModal && this.visionModal.visible) return;
         if (this.currentExperimentId === 'math-stereometry') {
           const exp = this.holoStage?.activeExperiment as any;
           if (exp && typeof exp.onWheel === 'function') {
@@ -1312,6 +1447,7 @@ export class Engine {
     // Keyboard Shortcuts for 3D Model Zoom (+ / -) and Actions
     window.addEventListener('keydown', (e: KeyboardEvent) => {
       if (this.labEntryActive) return;
+      if (this.visionModal && this.visionModal.visible) return;
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
@@ -1330,9 +1466,7 @@ export class Engine {
     // 3D Pointer interactions (Single-click Reagent Select & Long-press Drag & Pour)
     canvas.addEventListener('pointerdown', (e: PointerEvent) => {
       if (this.labEntryActive) return;
-      if (this.visionModal && this.visionModal.visible) {
-        if (e.target !== canvas) return;
-      }
+      if (this.visionModal && this.visionModal.visible) return;
 
       const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
       const mouseNDC = isPointerLocked ? this.centerScreen : new THREE.Vector2(
@@ -1365,6 +1499,7 @@ export class Engine {
           targetTilt: 0,
           targetPosition: sourceMesh.restingPosition.clone(),
           lastPouredVolume: 0,
+          lipAim: null,
         };
         return;
       }
@@ -1422,6 +1557,7 @@ export class Engine {
       );
 
       if (
+        !this.visionModal?.visible &&
         (this.isExperimentInteracting || this.currentExperimentId === 'math-stereometry') &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
@@ -1467,21 +1603,14 @@ export class Engine {
           const distToTarget = Math.hypot(hitPoint.x - targetBase.x, hitPoint.z - targetBase.z);
 
           if (distToTarget < 0.38) {
-            // Hover pouring pose directly above target beaker mouth
+            // Tip about the lip; the animate loop pins that lip over the receiving mouth.
             this.beakerDragState.isPouring = true;
             const isLeftToRight = this.beakerDragState.sourceId === 'left';
-            const hoverOffset = isLeftToRight ? -0.16 : 0.16;
-            const tiltAngle = isLeftToRight ? -Math.PI * 0.38 : Math.PI * 0.38;
-
-            this.beakerDragState.targetPosition.set(
-              targetBase.x + hoverOffset,
-              targetBase.y + this.beakerDragState.targetMesh.beakerHeight + 0.08,
-              targetBase.z
-            );
-            this.beakerDragState.targetTilt = tiltAngle;
+            this.beakerDragState.targetTilt = isLeftToRight ? -POUR_TILT : POUR_TILT;
           } else {
             // Moving in air
             this.beakerDragState.isPouring = false;
+            this.beakerDragState.lipAim = null;
             this.beakerDragState.targetPosition.set(hitPoint.x, 1.08, hitPoint.z);
             this.beakerDragState.targetTilt = 0;
           }
@@ -1847,6 +1976,12 @@ export class Engine {
           const exp = this.holoStage.activeExperiment as any;
           if (this.currentExperimentId === 'em-hall' && typeof exp?.getTelemetryData === 'function') {
             this.visionModal.hallCard.updateTelemetry(exp.getTelemetryData());
+          } else if (this.currentExperimentId === 'em-induction' && typeof exp?.getTelemetry === 'function') {
+            this.visionModal.inductionCard.updateTelemetry(exp.getTelemetry());
+          } else if (this.currentExperimentId === 'em-mass-spec' && typeof exp?.getTelemetry === 'function') {
+            this.visionModal.massSpecCard.updateTelemetry(exp.getTelemetry());
+          } else if (this.currentExperimentId === 'em-hysteresis' && typeof exp?.getTelemetry === 'function') {
+            this.visionModal.hysteresisCard.updateTelemetry(exp.getTelemetry());
           }
         }
       }
@@ -1859,52 +1994,16 @@ export class Engine {
       this.chemistryEngineRight.update(delta);
     }
 
-    // Beaker drag, pour stream, volume transfer & physics
+    // Beaker drag. The pour itself runs after the meshes update, so the stream
+    // uses the tilt and the horizontal free surface from this frame.
     if (this.beakerDragState && this.beakerDragState.isDragging) {
-      const { sourceMesh, targetMesh, sourceEngine, targetEngine, targetPosition, targetTilt, isPouring } = this.beakerDragState;
-
-      // Smoothly lerp dragged beaker position towards target position
-      const posLerp = Math.min(1.0, delta * 12.0);
-      sourceMesh.group.position.lerp(targetPosition, posLerp);
-
-      // Smoothly tilt beaker towards target tilt
+      const { sourceMesh, targetPosition, targetTilt, isPouring } = this.beakerDragState;
       sourceMesh.setTilt(targetTilt);
-
-      // Pouring mechanics
-      if (isPouring) {
-        // Liquid begins flowing when beaker is sufficiently tilted and has remaining volume
-        if (Math.abs(sourceMesh.currentTiltZ) > 0.18 && sourceEngine.state.volume > 0.05) {
-          const transferRate = 35.0; // mL/s
-          const transferAmt = Math.min(sourceEngine.state.volume, transferRate * delta);
-          if (transferAmt > 0) {
-            targetEngine.mixFrom(sourceEngine, transferAmt);
-            this.beakerDragState.lastPouredVolume += transferAmt;
-
-            // Trigger pour splash & reaction effects in target beaker
-            const targetEffects = this.beakerDragState.targetId === 'left' ? this.reactionEffectsLeft : this.reactionEffectsRight;
-            targetEffects.triggerPour(sourceMesh.liquidColor.getHex());
-          }
-
-          // Dynamic fluid pouring stream connecting source lip to target mouth
-          const pourDirection = this.beakerDragState.sourceId === 'left' ? 'right' : 'left';
-          const lipPos = sourceMesh.getLipWorldPosition(pourDirection);
-          const mouthPos = targetMesh.getMouthWorldPosition();
-          this.updatePourStream(lipPos, mouthPos, sourceMesh.liquidColor);
-
-          // Update floating volume badge above tilted source beaker
-          this.updatePourVolumeBadge(sourceMesh, sourceEngine.state.volume);
-        } else if (sourceEngine.state.volume <= 0.05) {
-          // Source beaker emptied
-          this.hidePourStream();
-          this.updatePourVolumeBadge(sourceMesh, 0);
-        }
-      } else {
-        this.hidePourStream();
-        // Show remaining volume badge while holding and moving beaker in air
-        this.updatePourVolumeBadge(sourceMesh, sourceEngine.state.volume);
+      if (!isPouring) {
+        const posLerp = Math.min(1.0, delta * 12.0);
+        sourceMesh.group.position.lerp(targetPosition, posLerp);
       }
     } else {
-      // Not dragging: smoothly return both beakers to symmetrical resting positions & reset tilt
       if (this.beakerLeft) {
         const dist = this.beakerLeft.group.position.distanceTo(this.beakerLeft.restingPosition);
         if (dist > 0.0005) {
@@ -1923,19 +2022,27 @@ export class Engine {
       this.hidePourVolumeBadge();
     }
 
-    // Update both beaker meshes and reaction particle systems
     if (this.beakerLeft && (this.beakerLeft.group.visible || this.beakerLeft.isVisible())) {
       this.beakerLeft.update(delta);
-      if (this.reactionEffectsLeft && this.chemistryEngineLeft && this.beakerLeft.isVisible()) {
-        this.reactionEffectsLeft.update(delta, this.chemistryEngineLeft.state);
+    }
+    if (this.beakerRight && (this.beakerRight.group.visible || this.beakerRight.isVisible())) {
+      this.beakerRight.update(delta);
+    }
+
+    if (this.beakerDragState && this.beakerDragState.isDragging) {
+      if (this.beakerDragState.isPouring) {
+        this.stepBeakerPour(this.beakerDragState, delta);
+      } else {
+        this.hidePourStream();
+        this.updatePourVolumeBadge(this.beakerDragState.sourceMesh, this.beakerDragState.sourceEngine.state.volume);
       }
     }
 
-    if (this.beakerRight && (this.beakerRight.group.visible || this.beakerRight.isVisible())) {
-      this.beakerRight.update(delta);
-      if (this.reactionEffectsRight && this.chemistryEngineRight && this.beakerRight.isVisible()) {
-        this.reactionEffectsRight.update(delta, this.chemistryEngineRight.state);
-      }
+    if (this.reactionEffectsLeft && this.chemistryEngineLeft && this.beakerLeft?.isVisible()) {
+      this.reactionEffectsLeft.update(delta, this.chemistryEngineLeft.state);
+    }
+    if (this.reactionEffectsRight && this.chemistryEngineRight && this.beakerRight?.isVisible()) {
+      this.reactionEffectsRight.update(delta, this.chemistryEngineRight.state);
     }
 
     if (this.hud) {
