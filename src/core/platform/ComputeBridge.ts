@@ -14,6 +14,9 @@ import type {
   TextureBakeTaskResponse,
   ChemistryCompositionStepResponse,
   HallCarrierStepResponse,
+  MassSpecStepResponse,
+  HysteresisStepResponse,
+  InductionStepResponse,
 } from '../../workers/workerMessages';
 
 export interface ComputeMetrics {
@@ -471,6 +474,81 @@ export class ComputeBridge {
       baseOffsetsY: res.baseOffsetsY,
       computeTimeMs: res.computeTimeMs,
     };
+  }
+
+  /**
+   * Run mass spectrometer ion trajectory & spectrum simulation in worker
+   */
+  public async simulateMassSpec(params: {
+    sampleId: string;
+    accelVoltage: number;
+    analyzerBz: number;
+    selectorBz: number;
+    plateVoltage: number;
+    gapM: number;
+    jawOpening: number;
+    probeX: number;
+    phases: number[];
+    dt: number;
+  }): Promise<MassSpecStepResponse> {
+    const res = await this.workerPool.execute<MassSpecStepResponse>({
+      action: 'MASS_SPEC_STEP',
+      ...params,
+    });
+
+    this.recordMetrics(res.computeTimeMs);
+    return res;
+  }
+
+  /**
+   * Run ferromagnetism hysteresis loop & domain simulation in worker
+   */
+  public async simulateHysteresis(params: {
+    materialId: string;
+    H: number;
+    B: number;
+    direction: 1 | -1;
+    major: boolean;
+    sawPositive: boolean;
+    sawNegative: boolean;
+    auto: boolean;
+    phase: number;
+    probeAxial: number;
+    dt: number;
+  }): Promise<HysteresisStepResponse> {
+    const res = await this.workerPool.execute<HysteresisStepResponse>({
+      action: 'HYSTERESIS_STEP',
+      ...params,
+    });
+
+    this.recordMetrics(res.computeTimeMs);
+    return res;
+  }
+
+  /**
+   * Run electromagnetic induction & Faraday/Lenz dynamics in worker
+   */
+  public async simulateInduction(params: {
+    axial: number;
+    velocity: number;
+    poleSign: 1 | -1;
+    turns: number;
+    resistanceOhm: number;
+    probeAxial: number;
+    driven: boolean;
+    scripted: boolean;
+    sampleClock: number;
+    dt: number;
+    fluxHistory: number[];
+    emfHistory: number[];
+  }): Promise<InductionStepResponse> {
+    const res = await this.workerPool.execute<InductionStepResponse>({
+      action: 'INDUCTION_STEP',
+      ...params,
+    });
+
+    this.recordMetrics(res.computeTimeMs);
+    return res;
   }
 }
 

@@ -16,8 +16,98 @@ export class PhysicsDisciplineModal {
   public element: HTMLElement;
   private callbacks: PhysicsDisciplineCallbacks;
   private currentLevel: 1 | 2 = 1;
-  private currentDiscipline: 'optics' | 'thermo' | 'em' = 'optics';
+  private currentDiscipline: 'optics' | 'thermo' | 'em' | 'mechanics' = 'optics';
   private toastTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  public static readonly MECHANICS_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
+    {
+      id: 'mech-newton',
+      name: '牛顿第二定律与斜面滑块',
+      category: '牛顿动力学',
+      formula: 'F_{net} = Ma · a = \\Delta x / T²',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="28" x2="30" y2="18" stroke-width="2.2"/>
+          <rect x="12" y="19" width="8" height="4.5" rx="1" transform="rotate(-18.4 16 21.25)" fill="currentColor" fill-opacity="0.12" stroke-width="2"/>
+          <circle cx="30" cy="18" r="2.2" stroke-width="2"/>
+          <line x1="30" y1="18" x2="30" y2="27" stroke-width="1.8" stroke-dasharray="2 1"/>
+          <rect x="28.5" y="27" width="3" height="4" rx="0.5" fill="currentColor"/>
+          <path d="M14 13 L22 10.2" stroke="#38bdf8" stroke-width="2"/>
+          <polyline points="20,8.5 22,10.2 19.5,12" stroke="#38bdf8" stroke-width="1.8"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'mech-collision',
+      name: '动量守恒与气轨多体碰撞',
+      category: '动量与碰撞',
+      formula: 'm₁v₁ + m₂v₂ = m₁v₁\' + m₂v₂\'',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="26" x2="32" y2="26" stroke-width="2.2"/>
+          <rect x="7" y="16" width="9" height="7" rx="1.5" fill="#38bdf8" fill-opacity="0.2" stroke="#38bdf8" stroke-width="2"/>
+          <rect x="20" y="16" width="9" height="7" rx="1.5" fill="#facc15" fill-opacity="0.2" stroke="#facc15" stroke-width="2"/>
+          <line x1="11.5" y1="12" x2="11.5" y2="16" stroke-width="2"/>
+          <line x1="24.5" y1="12" x2="24.5" y2="16" stroke-width="2"/>
+          <line x1="6" y1="10" x2="11" y2="10" stroke="#38bdf8" stroke-width="1.8"/>
+          <polyline points="9.5,8 11.5,10 9.5,12" stroke="#38bdf8" stroke-width="1.6"/>
+          <line x1="30" y1="10" x2="25" y2="10" stroke="#facc15" stroke-width="1.8"/>
+          <polyline points="26.5,8 24.5,10 26.5,12" stroke="#facc15" stroke-width="1.6"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'mech-projectile',
+      name: '平抛运动与机械能守恒',
+      category: '曲线运动与能量',
+      formula: 'y = (g/2v₀²)x² · ΔE_k = ΔE_p',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 8 L12 8 Q15 8 15 11 L15 14" stroke-width="2.2"/>
+          <circle cx="15" cy="14" r="2.5" fill="#38bdf8"/>
+          <path d="M15 14 Q23 15 29 28" stroke="#38bdf8" stroke-width="2" stroke-dasharray="3 1.5"/>
+          <polyline points="27,24 29,28 25,28" stroke="#38bdf8" stroke-width="1.8"/>
+          <line x1="20" y1="30" x2="33" y2="30" stroke-width="2"/>
+          <line x1="5" y1="12" x2="5" y2="30" stroke-width="2" opacity="0.4"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'mech-pendulum',
+      name: '单摆简谐运动测重力加速度',
+      category: '简谐振动',
+      formula: 'T = 2π√(L/g) · T² = (4π²/g)L',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="10" y1="6" x2="26" y2="6" stroke-width="2.4"/>
+          <circle cx="18" cy="6" r="1.5" fill="currentColor"/>
+          <line x1="18" y1="6" x2="25" y2="24" stroke-width="1.8"/>
+          <circle cx="26" cy="26" r="3.2" fill="#ef4444" stroke="currentColor" stroke-width="1.8"/>
+          <line x1="18" y1="6" x2="18" y2="28" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.4"/>
+          <circle cx="18" cy="28" r="2.5" stroke="currentColor" stroke-width="1.2" opacity="0.3"/>
+          <path d="M12 28 Q 18 31 24 28" stroke="#38bdf8" stroke-width="1.8"/>
+          <polyline points="22,26 24,28 22,30" stroke="#38bdf8" stroke-width="1.5"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'mech-centripetal',
+      name: '圆周运动向心力定量探究',
+      category: '圆周动力学',
+      formula: 'F_n = m ω² r = m v² / r',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="18" r="13" stroke-width="1.8" stroke-dasharray="3 2" opacity="0.6"/>
+          <circle cx="18" cy="18" r="3" fill="currentColor"/>
+          <circle cx="31" cy="18" r="2.8" fill="#a855f7" stroke="currentColor" stroke-width="1.8"/>
+          <line x1="31" y1="18" x2="23" y2="18" stroke="#a855f7" stroke-width="2.2"/>
+          <polyline points="25.5,15.5 22.5,18 25.5,20.5" stroke="#a855f7" stroke-width="2"/>
+          <path d="M18 7 A11 11 0 0 1 29 18" stroke="#38bdf8" stroke-width="1.8"/>
+          <polyline points="27,15 29,18 31,15" stroke="#38bdf8" stroke-width="1.6"/>
+        </svg>
+      `,
+    },
+  ];
 
   public static readonly EM_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
     {
@@ -36,6 +126,27 @@ export class PhysicsDisciplineModal {
           <rect x="13" y="24.5" width="10" height="2.5" rx="1" fill="#3b82f6"/>
           <path d="M8 18 Q 18 19 27 24" stroke="#38bdf8" stroke-width="1.8" stroke-dasharray="3 1.5"/>
           <circle cx="27" cy="24" r="1.8" fill="#38bdf8"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'em-field',
+      name: '静电场探索与电力线叠加',
+      category: '静电场与高斯定理',
+      formula: 'E = ∑ k q_i / r_i² · r̂_i',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="18" r="4.5" stroke="#ef4444" stroke-width="2.2" fill="currentColor" fill-opacity="0.12"/>
+          <line x1="9" y1="18" x2="13" y2="18" stroke="#ef4444" stroke-width="2"/>
+          <line x1="11" y1="16" x2="11" y2="20" stroke="#ef4444" stroke-width="2"/>
+          <circle cx="25" cy="18" r="4.5" stroke="#3b82f6" stroke-width="2.2" fill="currentColor" fill-opacity="0.12"/>
+          <line x1="23" y1="18" x2="27" y2="18" stroke="#3b82f6" stroke-width="2"/>
+          <path d="M15.5 18 L20.5 18" stroke="#38bdf8" stroke-width="2"/>
+          <polyline points="18.5,16 20.5,18 18.5,20" stroke="#38bdf8" stroke-width="1.8"/>
+          <path d="M13 14 C15 7 21 7 23 14" stroke="#facc15" stroke-width="1.8"/>
+          <polyline points="19,8.5 21,8.5 20,10.5" stroke="#facc15" stroke-width="1.5"/>
+          <path d="M13 22 C15 29 21 29 23 22" stroke="#facc15" stroke-width="1.8"/>
+          <polyline points="19,27.5 21,27.5 20,25.5" stroke="#facc15" stroke-width="1.5"/>
         </svg>
       `,
     },
@@ -295,8 +406,8 @@ export class PhysicsDisciplineModal {
             <h3 class="branch-tile-name">光学实验</h3>
           </div>
 
-          <!-- 2. Mechanics (In planning) -->
-          <div class="physics-branch-tile planned" id="branch-tile-mechanics" role="button" tabindex="0" title="规划中">
+          <!-- 2. Mechanics (Ready -> Click to enter Level 2) -->
+          <div class="physics-branch-tile ready" id="branch-tile-mechanics" role="button" tabindex="0" title="进入力学实验">
             <div class="branch-tile-icon-box">
               <svg class="apple-sf-icon branch-tile-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="8"/>
@@ -307,7 +418,6 @@ export class PhysicsDisciplineModal {
               </svg>
             </div>
             <h3 class="branch-tile-name">力学实验</h3>
-            <span class="branch-tile-badge planned">规划中</span>
           </div>
 
           <!-- 3. Thermodynamics (Ready) -->
@@ -340,15 +450,17 @@ export class PhysicsDisciplineModal {
   }
 
   /**
-   * Render Level 2: Experiment Catalog (Optics, Thermodynamics, or Electromagnetism)
+   * Render Level 2: Experiment Catalog (Optics, Mechanics, Thermodynamics, or Electromagnetism)
    */
-  public showLevel2(discipline: 'optics' | 'thermo' | 'em' = 'optics'): void {
+  public showLevel2(discipline: 'optics' | 'thermo' | 'em' | 'mechanics' = 'optics'): void {
     this.currentLevel = 2;
     this.currentDiscipline = discipline;
     const title = discipline === 'thermo'
       ? '热学实验'
       : discipline === 'em'
       ? '电磁学实验'
+      : discipline === 'mechanics'
+      ? '力学实验'
       : '光学实验';
     this.callbacks.onLevelChange?.(2, title);
 
@@ -356,6 +468,8 @@ export class PhysicsDisciplineModal {
       ? PhysicsDisciplineModal.THERMO_EXPERIMENTS
       : discipline === 'em'
       ? PhysicsDisciplineModal.EM_EXPERIMENTS
+      : discipline === 'mechanics'
+      ? PhysicsDisciplineModal.MECHANICS_EXPERIMENTS
       : PhysicsDisciplineModal.OPTICS_EXPERIMENTS;
 
     this.element.innerHTML = `
@@ -446,20 +560,18 @@ export class PhysicsDisciplineModal {
       }
     });
 
-    // Planned tiles -> Apple visionOS toast
-    const bindPlanned = (selector: string, name: string) => {
-      const tile = this.element.querySelector(selector);
-      tile?.addEventListener('click', () => {
-        this.showToast(`${name}正在规划中`);
-      });
-      tile?.addEventListener('keydown', (e) => {
-        if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-          this.showToast(`${name}正在规划中`);
-        }
-      });
-    };
+    // Mechanics tile -> navigate to Level 2 (Mechanics)
+    const mechTile = this.element.querySelector('#branch-tile-mechanics');
+    mechTile?.addEventListener('click', () => {
+      this.showLevel2('mechanics');
+    });
+    mechTile?.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+        this.showLevel2('mechanics');
+      }
+    });
 
-    bindPlanned('#branch-tile-mechanics', '力学实验');
+    // Planned tiles -> Apple visionOS toast (none currently for physics branches)
   }
 
   private bindLevel2Events(): void {

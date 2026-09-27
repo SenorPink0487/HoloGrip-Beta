@@ -46,7 +46,8 @@ export type ExperimentCategory =
   | 'thermodynamics'
   | 'physics'
   | 'math'
-  | 'chemistry';
+  | 'chemistry'
+  | 'mechanics';
 
 export interface ExperimentMetadata {
   id: string;

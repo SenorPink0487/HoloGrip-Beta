@@ -89,6 +89,10 @@ export class ReadoutPanel {
   }
 
   public write(lines: Array<{ text: string; color: string; size?: number }>): void {
+    if (!this.mesh.visible) {
+      this.last = '';
+      return;
+    }
     const key = lines.map((line) => line.text).join('|');
     if (key === this.last) return;
     this.last = key;

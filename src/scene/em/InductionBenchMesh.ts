@@ -14,6 +14,8 @@ import {
   ReadoutPanel,
 } from './labKit.ts';
 
+import type { ComputeBridge } from '../../core/platform/ComputeBridge.ts';
+
 /** Coil center height. Axial offset 0 puts the magnet in the middle of the coil. */
 export const COIL_AXIS_Y = 0.3;
 const FULL_SCALE_AMP = 0.08;
@@ -28,6 +30,10 @@ export interface InductionVisual {
   inducedField: number;
 }
 
+export interface InductionBenchMeshOptions {
+  computeBridge?: ComputeBridge;
+}
+
 export class InductionBenchMesh {
   public readonly group = new THREE.Group();
   public readonly magnetGroup = new THREE.Group();
@@ -36,6 +42,7 @@ export class InductionBenchMesh {
   public readonly needlePivot = new THREE.Group();
   public readonly driveLever = new THREE.Group();
   public readonly flowArrow = new THREE.Group();
+  public computeBridge?: ComputeBridge;
   public topCap!: THREE.Mesh;
   public bottomCap!: THREE.Mesh;
 
@@ -54,8 +61,10 @@ export class InductionBenchMesh {
   private readonly readout: ReadoutPanel;
   private readonly nPlate: THREE.Mesh;
   private readonly sPlate: THREE.Mesh;
+  private lastMagnetY = -9999;
 
-  constructor() {
+  constructor(options: InductionBenchMeshOptions = {}) {
+    this.computeBridge = options.computeBridge;
     this.group.name = 'InductionBench';
     this.redMat = labGlow(0xef4444, 0.45);
     this.blueMat = labGlow(0x2563eb, 0.45);
@@ -97,26 +106,34 @@ export class InductionBenchMesh {
     this.needlePivot.rotation.z = swing * 1.05;
 
     const flow = state.currentAmp === 0 ? 0 : Math.sign(state.currentAmp);
-    this.flowArrow.visible = flow !== 0;
-    this.flowArrow.rotation.z = flow > 0 ? -Math.PI / 2 : Math.PI / 2;
-
-    const phase = performance.now() * 0.003 * flow;
-    this.beads.forEach((bead, index) => {
-      bead.visible = flow !== 0;
-      const angle = phase + (index / this.beads.length) * Math.PI * 2;
-      bead.position.set(Math.sin(angle) * 0.052, COIL_AXIS_Y, Math.cos(angle) * 0.052);
-    });
+    if (flow === 0) {
+      if (this.flowArrow.visible) this.flowArrow.visible = false;
+      if (this.beads[0]?.visible) {
+        for (let i = 0; i < this.beads.length; i++) this.beads[i].visible = false;
+      }
+    } else {
+      this.flowArrow.visible = true;
+      this.flowArrow.rotation.z = flow > 0 ? -Math.PI / 2 : Math.PI / 2;
+      const phase = performance.now() * 0.003 * flow;
+      this.beads.forEach((bead, index) => {
+        bead.visible = true;
+        const angle = phase + (index / this.beads.length) * Math.PI * 2;
+        bead.position.set(Math.sin(angle) * 0.052, COIL_AXIS_Y, Math.cos(angle) * 0.052);
+      });
+    }
 
     this.placeFieldArrow(this.magnetArrow, state.magnetField);
     this.placeFieldArrow(this.inducedArrow, state.inducedField);
     this.inducedArrow.position.x = 0.12;
     this.writeFieldLines(magnetY);
 
-    this.readout.write([
-      { text: `${(state.currentAmp * 1000).toFixed(1)} mA`, color: '#fbbf24', size: 60 },
-      { text: `B ${(state.magnetField * 1000).toFixed(1)} mT`, color: '#38bdf8', size: 36 },
-      { text: state.poleSign > 0 ? 'N 极朝上' : 'N 极朝下', color: '#e2e8f0', size: 30 },
-    ]);
+    if (this.readout.mesh.visible) {
+      this.readout.write([
+        { text: `${(state.currentAmp * 1000).toFixed(1)} mA`, color: '#fbbf24', size: 60 },
+        { text: `B ${(state.magnetField * 1000).toFixed(1)} mT`, color: '#38bdf8', size: 36 },
+        { text: state.poleSign > 0 ? 'N 极朝上' : 'N 极朝下', color: '#e2e8f0', size: 30 },
+      ]);
+    }
   }
 
   public dispose(): void {
@@ -446,6 +463,7 @@ export class InductionBenchMesh {
     for (const layout of layouts) {
       const geometry = new THREE.BufferGeometry();
       const attr = new THREE.BufferAttribute(new Float32Array(36 * 3), 3);
+      attr.setUsage(THREE.DynamicDrawUsage);
       geometry.setAttribute('position', attr);
       const line = new THREE.Line(geometry, mat);
       line.frustumCulled = false;
@@ -456,6 +474,8 @@ export class InductionBenchMesh {
   }
 
   private writeFieldLines(magnetY: number): void {
+    if (Math.abs(this.lastMagnetY - magnetY) < 1e-4) return;
+    this.lastMagnetY = magnetY;
     this.fieldPos.forEach((attr, index) => {
       const layout = this.fieldLayout[index];
       const count = attr.count;

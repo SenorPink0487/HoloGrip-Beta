@@ -9,6 +9,13 @@ import OpticsLabExperiment from '../src/experiments/catalog/optics-lab/index.ts'
 import { DetectorScreenMesh } from '../src/scene/optics/DetectorScreenMesh.ts';
 import { OpticalBeamSystem } from '../src/scene/optics/OpticalBeamSystem.ts';
 import { ComputeBridge } from '../src/core/platform/ComputeBridge.ts';
+import EmMassSpecExperiment from '../src/experiments/catalog/em-mass-spec/index.ts';
+import EmHysteresisExperiment from '../src/experiments/catalog/em-hysteresis/index.ts';
+import EmInductionExperiment from '../src/experiments/catalog/em-induction/index.ts';
+import { MassSpecBenchMesh } from '../src/scene/em/MassSpecBenchMesh.ts';
+import { HysteresisBenchMesh } from '../src/scene/em/HysteresisBenchMesh.ts';
+import { InductionBenchMesh } from '../src/scene/em/InductionBenchMesh.ts';
+import { ReadoutPanel } from '../src/scene/em/labKit.ts';
 
 console.log('=== Starting Boost Multi-Core Compute & Frame Rate Bottleneck Deep Verification ===\n');
 
@@ -574,6 +581,567 @@ console.log('Test 9: Rapid Mode Switching in OpticsLab Cross-Mode Visual Guard')
   console.log('✓ Test 9 passed: OpticsLab mode switching isolation and in-flight guard verified\n');
 }
 
+// ---------------------------------------------------------------------------
+// Test 10: EmMassSpecExperiment Continuous Worker Simulation & Metric Invariants
+// ---------------------------------------------------------------------------
+console.log('Test 10: EmMassSpecExperiment Continuous Worker Simulation & Metric Invariants');
+{
+  let massSpecWorkerCalls = 0;
+  const mockWorkerPool = {
+    execute: async (req: any) => {
+      if (req.action === 'MASS_SPEC_STEP') {
+        massSpecWorkerCalls++;
+        return {
+          id: req.id,
+          action: 'MASS_SPEC_STEP',
+          phases: req.phases.map((p: number) => (p + 0.05) % 1),
+          ionVisuals: [
+            { visible: true, x: 0.1, y: 0.2, color: 0x38bdf8, opacity: 1, spotVisible: true, spotY: 0.2, magVisible: true, magX: 0.42 },
+            { visible: true, x: 0.12, y: 0.22, color: 0x22d3ee, opacity: 1, spotVisible: true, spotY: 0.22, magVisible: true, magX: 0.43 },
+            { visible: false, x: 0, y: 0, color: 0, opacity: 0, spotVisible: false, spotY: 0, magVisible: false, magX: 0 },
+            { visible: false, x: 0, y: 0, color: 0, opacity: 0, spotVisible: false, spotY: 0, magVisible: false, magX: 0 },
+          ],
+          hits: [],
+          caption: 'worker caption',
+          fluxWb: 0.005,
+          probeTesla: -0.15,
+          probeRegion: '分析磁铁',
+          computeTimeMs: 0.18,
+        };
+      }
+      throw new Error(`Unexpected action: ${req.action}`);
+    },
+    size: 4,
+  } as any;
+
+  const bridge = new ComputeBridge(mockWorkerPool);
+  const context: any = {
+    scene: new THREE.Scene(),
+    computeBridge: bridge,
+    workerPool: mockWorkerPool,
+  };
+
+  const expMassSpec = new EmMassSpecExperiment();
+  expMassSpec.init(context);
+
+  for (let i = 0; i < 5; i++) {
+    expMassSpec.update(0.016, i * 0.016, context);
+    await new Promise((r) => setTimeout(r, 5));
+  }
+
+  assert.ok(massSpecWorkerCalls >= 2, `Mass spec experiment must offload trajectory to worker continuously (got ${massSpecWorkerCalls} calls)`);
+  assert.ok(bridge.currentMetrics.avgComputeTimeMs > 0, `Multi-core compute metric must be > 0 (got ${bridge.currentMetrics.avgComputeTimeMs} ms)`);
+  assert.strictEqual((expMassSpec as any).ionVisuals[0].visible, true);
+
+  expMassSpec.dispose(context);
+  console.log('✓ Test 10 passed: EmMassSpecExperiment continuous worker offloading and active metrics verified\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 11: EmHysteresisExperiment Continuous Worker Simulation & Metric Invariants
+// ---------------------------------------------------------------------------
+console.log('Test 11: EmHysteresisExperiment Continuous Worker Simulation & Metric Invariants');
+{
+  let hystWorkerCalls = 0;
+  const mockWorkerPool = {
+    execute: async (req: any) => {
+      if (req.action === 'HYSTERESIS_STEP') {
+        hystWorkerCalls++;
+        return {
+          id: req.id,
+          action: 'HYSTERESIS_STEP',
+          phase: req.phase + 0.02,
+          H: req.H,
+          B: 1.25,
+          direction: req.direction,
+          major: req.major,
+          sawPositive: req.sawPositive,
+          sawNegative: req.sawNegative,
+          domainSigns: [1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1],
+          probeTesla: 1.25,
+          fluxWb: 0.005,
+          currentAmp: 0.5,
+          area: 120,
+          remanence: 0.8,
+          caption: 'worker caption',
+          loop: [],
+          computeTimeMs: 0.15,
+        };
+      }
+      throw new Error(`Unexpected action: ${req.action}`);
+    },
+    size: 4,
+  } as any;
+
+  const bridge = new ComputeBridge(mockWorkerPool);
+  const context: any = {
+    scene: new THREE.Scene(),
+    computeBridge: bridge,
+    workerPool: mockWorkerPool,
+  };
+
+  const expHyst = new EmHysteresisExperiment();
+  expHyst.init(context);
+
+  for (let i = 0; i < 5; i++) {
+    expHyst.update(0.016, i * 0.016, context);
+    await new Promise((r) => setTimeout(r, 5));
+  }
+
+  assert.ok(hystWorkerCalls >= 2, `Hysteresis experiment must offload physics to worker continuously (got ${hystWorkerCalls} calls)`);
+  assert.ok(bridge.currentMetrics.avgComputeTimeMs > 0, `Multi-core compute metric must be > 0 (got ${bridge.currentMetrics.avgComputeTimeMs} ms)`);
+  assert.strictEqual(expHyst.getTelemetry().B, 1.25);
+
+  expHyst.dispose(context);
+  console.log('✓ Test 11 passed: EmHysteresisExperiment continuous worker offloading and active metrics verified\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 12: EmInductionExperiment Continuous Worker Simulation & Metric Invariants
+// ---------------------------------------------------------------------------
+console.log('Test 12: EmInductionExperiment Continuous Worker Simulation & Metric Invariants');
+{
+  let indWorkerCalls = 0;
+  const mockWorkerPool = {
+    execute: async (req: any) => {
+      if (req.action === 'INDUCTION_STEP') {
+        indWorkerCalls++;
+        return {
+          id: req.id,
+          action: 'INDUCTION_STEP',
+          axial: req.axial,
+          velocity: req.velocity,
+          scripted: req.scripted,
+          sampleClock: req.sampleClock,
+          reading: {
+            magnetFieldTesla: -0.02,
+            probeFieldTesla: -0.02,
+            inducedFieldTesla: 0.001,
+            fluxSingleWb: -0.0001,
+            fluxLinkageWb: -0.02,
+            emfVolt: 0.05,
+            currentAmp: 0.006,
+            frontFlowX: 1,
+          },
+          caption: 'worker caption',
+          fluxHistory: [-0.02],
+          emfHistory: [0.05],
+          computeTimeMs: 0.14,
+        };
+      }
+      throw new Error(`Unexpected action: ${req.action}`);
+    },
+    size: 4,
+  } as any;
+
+  const bridge = new ComputeBridge(mockWorkerPool);
+  const context: any = {
+    scene: new THREE.Scene(),
+    computeBridge: bridge,
+    workerPool: mockWorkerPool,
+  };
+
+  const expInd = new EmInductionExperiment();
+  expInd.init(context);
+
+  for (let i = 0; i < 5; i++) {
+    expInd.update(0.016, i * 0.016, context);
+    await new Promise((r) => setTimeout(r, 5));
+  }
+
+  assert.ok(indWorkerCalls >= 2, `Induction experiment must offload physics to worker continuously (got ${indWorkerCalls} calls)`);
+  assert.ok(bridge.currentMetrics.avgComputeTimeMs > 0, `Multi-core compute metric must be > 0 (got ${bridge.currentMetrics.avgComputeTimeMs} ms)`);
+  assert.strictEqual(expInd.getTelemetry().emfVolt, 0.05);
+
+  expInd.dispose(context);
+  console.log('✓ Test 12 passed: EmInductionExperiment continuous worker offloading and active metrics verified\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 13: ReadoutPanel Canvas Zero-Overhead Invariant When Invisible
+// ---------------------------------------------------------------------------
+console.log('Test 13: ReadoutPanel Canvas Zero-Overhead Invariant When Invisible');
+{
+  let fillRectCalls = 0;
+  const panel = new ReadoutPanel(0.2, 0.08);
+  const mockCanvas = (panel as any).canvas;
+  mockCanvas.getContext = () => ({
+    fillRect: () => { fillRectCalls++; },
+    strokeRect: () => {},
+    fillText: () => {},
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 1,
+    font: '',
+    textAlign: '',
+    textBaseline: '',
+  });
+
+  // 1. When panel.mesh.visible is false -> write must NOT touch canvas 2D
+  panel.mesh.visible = false;
+  fillRectCalls = 0;
+  panel.write([{ text: 'Line 1', color: '#fff' }]);
+  panel.write([{ text: 'Line 2', color: '#fff' }]);
+  assert.strictEqual(fillRectCalls, 0, 'Invisible ReadoutPanel must skip all canvas 2D draws');
+
+  // 2. When panel.mesh.visible is set to true -> write must redraw canvas
+  panel.mesh.visible = true;
+  panel.write([{ text: 'Line 3', color: '#fff' }]);
+  assert.ok(fillRectCalls > 0, 'Visible ReadoutPanel must draw canvas');
+
+  // 3. Repeated write with identical text -> skips redraw (caching)
+  const prevDraws = fillRectCalls;
+  panel.write([{ text: 'Line 3', color: '#fff' }]);
+  assert.strictEqual(fillRectCalls, prevDraws, 'Calling with identical lines must skip redraw');
+
+  console.log('✓ Test 13 passed: ReadoutPanel canvas zero-overhead when invisible verified\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 14: DynamicDrawUsage Invariants on Electromagnetism Bench Geometries
+// ---------------------------------------------------------------------------
+console.log('Test 14: DynamicDrawUsage Invariants on Electromagnetism Bench Geometries');
+{
+  // 1. MassSpec trails
+  const massBench = new MassSpecBenchMesh();
+  const trails = (massBench as any).trails as THREE.BufferAttribute[];
+  assert.ok(trails.length > 0, 'MassSpecBenchMesh trails must exist');
+  for (const attr of trails) {
+    assert.strictEqual(attr.usage, THREE.DynamicDrawUsage, 'MassSpec trails must use DynamicDrawUsage');
+  }
+
+  // 2. Hysteresis loopAttr
+  const hystBench = new HysteresisBenchMesh();
+  const loopAttr = (hystBench as any).loopAttr as THREE.BufferAttribute;
+  assert.ok(loopAttr, 'HysteresisBenchMesh loopAttr must exist');
+  assert.strictEqual(loopAttr.usage, THREE.DynamicDrawUsage, 'Hysteresis loopAttr must use DynamicDrawUsage');
+
+  // 3. Induction fieldPos
+  const indBench = new InductionBenchMesh();
+  const fieldPos = (indBench as any).fieldPos as THREE.BufferAttribute[];
+  assert.ok(fieldPos.length > 0, 'InductionBenchMesh fieldPos must exist');
+  for (const attr of fieldPos) {
+    assert.strictEqual(attr.usage, THREE.DynamicDrawUsage, 'Induction field lines must use DynamicDrawUsage');
+  }
+
+  // 4. Induction field lines dirty check
+  const firstAttr = fieldPos[0];
+  const initialVer = firstAttr.version;
+  // Calling sync with identical axial coordinates should skip updating field lines
+  indBench.sync({
+    axial: 0.22,
+    poleSign: -1,
+    probeAxial: 0,
+    turns: 200,
+    currentAmp: 0,
+    magnetField: -0.01,
+    inducedField: 0,
+  });
+  assert.strictEqual(firstAttr.version, initialVer, 'Identical magnet position must skip setting needsUpdate on fieldPos');
+
+  // Moving magnet must update version
+  indBench.sync({
+    axial: 0.10,
+    poleSign: -1,
+    probeAxial: 0,
+    turns: 200,
+    currentAmp: 0,
+    magnetField: -0.01,
+    inducedField: 0,
+  });
+  assert.ok(firstAttr.version > initialVer, 'Changed magnet position must update field lines');
+
+  massBench.dispose();
+  hystBench.dispose();
+  indBench.dispose();
+  console.log('✓ Test 14 passed: DynamicDrawUsage and dirty-check invariants on all EM benches verified\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 15: Zero-Dependency Fallback Invariants When ComputeBridge Is Not Provided
+// ---------------------------------------------------------------------------
+console.log('Test 15: Zero-Dependency Fallback Invariants When ComputeBridge Is Not Provided');
+{
+  const emptyContext: any = { scene: new THREE.Scene() };
+
+  // MassSpec fallback
+  const expMassNoBridge = new EmMassSpecExperiment();
+  expMassNoBridge.init(emptyContext);
+  const xBefore = (expMassNoBridge as any).ionVisuals[0].x;
+  expMassNoBridge.update(0.016, 0.016, emptyContext);
+  const xAfter = (expMassNoBridge as any).ionVisuals[0].x;
+  assert.notStrictEqual(xBefore, xAfter, 'Mass spec must update ions on main thread when bridge is absent');
+  expMassNoBridge.dispose(emptyContext);
+
+  // Hysteresis fallback
+  const expHystNoBridge = new EmHysteresisExperiment();
+  expHystNoBridge.init(emptyContext);
+  expHystNoBridge.setAuto(true);
+  expHystNoBridge.update(0.016, 0.016, emptyContext);
+  assert.notStrictEqual(expHystNoBridge.getTelemetry().B, 0, 'Hysteresis must update auto sweep on main thread');
+  expHystNoBridge.dispose(emptyContext);
+
+  // Induction fallback
+  const expIndNoBridge = new EmInductionExperiment();
+  expIndNoBridge.init(emptyContext);
+  expIndNoBridge.startPass();
+  const axialBefore = expIndNoBridge.getTelemetry().axial;
+  expIndNoBridge.update(0.016, 0.016, emptyContext);
+  const axialAfter = expIndNoBridge.getTelemetry().axial;
+  assert.notStrictEqual(axialBefore, axialAfter, 'Induction must update scripted pass on main thread');
+  expIndNoBridge.dispose(emptyContext);
+
+  console.log('✓ Test 15 passed: Zero-dependency synchronous fallback across all EM experiments verified\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 16: EmInductionExperiment In-Flight Interaction & startPass Immunity
+// ---------------------------------------------------------------------------
+console.log('Test 16: EmInductionExperiment In-Flight Interaction & startPass Immunity');
+{
+  const mockWorkerPool = {
+    execute: async (req: any) => {
+      // Simulate real asynchronous worker latency
+      await new Promise((r) => setTimeout(r, 15));
+      return {
+        id: req.id,
+        action: 'INDUCTION_STEP',
+        axial: req.axial,
+        velocity: req.velocity,
+        scripted: req.scripted,
+        sampleClock: req.sampleClock,
+        reading: {
+          magnetFieldTesla: -0.02,
+          probeFieldTesla: -0.02,
+          inducedFieldTesla: 0.001,
+          fluxSingleWb: -0.0001,
+          fluxLinkageWb: -0.02,
+          emfVolt: 0.05,
+          currentAmp: 0.006,
+          frontFlowX: 1,
+        },
+        caption: 'worker caption',
+        fluxHistory: [-0.02],
+        emfHistory: [0.05],
+        computeTimeMs: 0.14,
+      };
+    },
+    size: 4,
+  } as any;
+
+  const bridge = new ComputeBridge(mockWorkerPool);
+  const context: any = {
+    scene: new THREE.Scene(),
+    computeBridge: bridge,
+    workerPool: mockWorkerPool,
+  };
+
+  const expInd = new EmInductionExperiment();
+  expInd.init(context);
+
+  // 1. startPass() during in-flight worker task must NOT be clobbered
+  expInd.update(0.016, 0.016, context); // Dispatches worker task with scripted: false, velocity: 0
+  expInd.startPass(); // User starts pass
+  assert.strictEqual(expInd.getTelemetry().velocity !== 0, true, 'Velocity must be non-zero after startPass()');
+
+  // Wait for worker task to resolve
+  await new Promise((r) => setTimeout(r, 25));
+
+  // The older worker response (scripted: false, velocity: 0) must NOT have cancelled the pass!
+  assert.strictEqual(expInd.getTelemetry().velocity !== 0, true, 'In-flight worker response must NOT cancel startPass()');
+  assert.strictEqual((expInd as any).scripted, true, 'Scripted pass must remain active');
+
+  // 2. setAxial(-0.1) during in-flight worker task must NOT be clobbered
+  expInd.update(0.016, 0.032, context);
+  expInd.setAxial(-0.1);
+  assert.strictEqual(expInd.getTelemetry().axial, -0.1, 'Axial must be set to -0.1');
+
+  await new Promise((r) => setTimeout(r, 25));
+  assert.strictEqual(expInd.getTelemetry().axial, -0.1, 'In-flight worker response must NOT clobber user-set axial position');
+
+  expInd.dispose(context);
+  console.log('✓ Test 16 passed: EmInductionExperiment in-flight interaction & startPass immunity verified\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 17: EmHysteresisExperiment In-Flight Interaction & Material Switching Immunity
+// ---------------------------------------------------------------------------
+console.log('Test 17: EmHysteresisExperiment In-Flight Interaction & Material Switching Immunity');
+{
+  const mockWorkerPool = {
+    execute: async (req: any) => {
+      await new Promise((r) => setTimeout(r, 15));
+      return {
+        id: req.id,
+        action: 'HYSTERESIS_STEP',
+        phase: req.phase,
+        H: req.H,
+        B: 1.5,
+        direction: req.direction,
+        major: req.major,
+        sawPositive: req.sawPositive,
+        sawNegative: req.sawNegative,
+        domainSigns: [1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1],
+        probeTesla: 1.5,
+        fluxWb: 0.005,
+        currentAmp: 0.5,
+        area: 1200,
+        remanence: 0.8,
+        caption: 'stale silicon-steel caption',
+        loop: [{ h: 0, b: 0 }],
+        computeTimeMs: 0.15,
+      };
+    },
+    size: 4,
+  } as any;
+
+  const bridge = new ComputeBridge(mockWorkerPool);
+  const context: any = {
+    scene: new THREE.Scene(),
+    computeBridge: bridge,
+    workerPool: mockWorkerPool,
+  };
+
+  const expHyst = new EmHysteresisExperiment();
+  expHyst.init(context);
+
+  // 1. setH(600) during in-flight worker task must NOT be clobbered
+  expHyst.update(0.016, 0.016, context); // Dispatches worker task with H: 0
+  expHyst.setH(600);
+  assert.strictEqual(expHyst.getTelemetry().H, 600, 'H must be 600');
+
+  await new Promise((r) => setTimeout(r, 25));
+  assert.strictEqual(expHyst.getTelemetry().H, 600, 'In-flight worker response must NOT reset H to 0');
+
+  // 2. setMaterial('ferrite') during in-flight worker task must NOT be corrupted
+  expHyst.update(0.016, 0.032, context);
+  expHyst.setMaterial('ferrite');
+  assert.strictEqual(expHyst.getTelemetry().materialId, 'ferrite');
+
+  await new Promise((r) => setTimeout(r, 25));
+  assert.strictEqual(expHyst.getTelemetry().materialId, 'ferrite', 'Material must remain ferrite');
+  assert.notStrictEqual(expHyst.getTelemetry().caption, 'stale silicon-steel caption', 'Caption must not be overwritten by stale worker caption');
+
+  expHyst.dispose(context);
+  console.log('✓ Test 17 passed: EmHysteresisExperiment in-flight interaction & material switching immunity verified\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 18: EmMassSpecExperiment In-Flight Interaction & Sample Switching Immunity
+// ---------------------------------------------------------------------------
+console.log('Test 18: EmMassSpecExperiment In-Flight Interaction & Sample Switching Immunity');
+{
+  const mockWorkerPool = {
+    execute: async (req: any) => {
+      await new Promise((r) => setTimeout(r, 15));
+      return {
+        id: req.id,
+        action: 'MASS_SPEC_STEP',
+        phases: req.phases.map((p: number) => (p + 0.05) % 1),
+        ionVisuals: [
+          { visible: true, x: 0.1, y: 0.2, color: 0x38bdf8, opacity: 1, spotVisible: true, spotY: 0.2, magVisible: true, magX: 0.42 },
+        ],
+        hits: [{ ion: { id: 'h', label: '¹H⁺' } }] as any,
+        caption: 'stale hydrogen caption',
+        fluxWb: 0.005,
+        probeTesla: -0.15,
+        probeRegion: '分析磁铁',
+        computeTimeMs: 0.18,
+      };
+    },
+    size: 4,
+  } as any;
+
+  const bridge = new ComputeBridge(mockWorkerPool);
+  const context: any = {
+    scene: new THREE.Scene(),
+    computeBridge: bridge,
+    workerPool: mockWorkerPool,
+  };
+
+  const expMass = new EmMassSpecExperiment();
+  expMass.init(context);
+
+  // 1. setSample('neon') during in-flight worker task must NOT be corrupted
+  expMass.update(0.016, 0.016, context); // Dispatches worker task for hydrogen
+  expMass.setSample('neon');
+  assert.strictEqual(expMass.getTelemetry().sampleId, 'neon');
+
+  await new Promise((r) => setTimeout(r, 25));
+  assert.strictEqual(expMass.getTelemetry().sampleId, 'neon', 'Sample must remain neon');
+  assert.strictEqual(expMass.getTelemetry().hits[0].ion.id, 'ne20', 'Hits must remain neon hits, not overwritten with hydrogen');
+
+  // 2. setAccel(4000) during in-flight worker task
+  expMass.update(0.016, 0.032, context);
+  expMass.setAccel(4000);
+  assert.strictEqual(expMass.getTelemetry().accelVoltage, 4000);
+
+  await new Promise((r) => setTimeout(r, 25));
+  assert.strictEqual(expMass.getTelemetry().accelVoltage, 4000, 'In-flight worker response must NOT reset accel voltage');
+
+  expMass.dispose(context);
+  console.log('✓ Test 18 passed: EmMassSpecExperiment in-flight interaction & sample switching immunity verified\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 19: Electromagnetism In-Flight Disposal Safety
+// ---------------------------------------------------------------------------
+console.log('Test 19: Electromagnetism In-Flight Disposal Safety');
+{
+  const mockWorkerPool = {
+    execute: async (req: any) => {
+      await new Promise((r) => setTimeout(r, 20));
+      return {
+        id: req.id,
+        action: req.action,
+        phases: [0, 0, 0, 0],
+        ionVisuals: [],
+        hits: [],
+        reading: { magnetFieldTesla: 0, probeFieldTesla: 0, inducedFieldTesla: 0, fluxSingleWb: 0, fluxLinkageWb: 0, emfVolt: 0, currentAmp: 0, frontFlowX: 0 },
+        fluxHistory: [],
+        emfHistory: [],
+        computeTimeMs: 0.1,
+      };
+    },
+    size: 4,
+  } as any;
+
+  const bridge = new ComputeBridge(mockWorkerPool);
+  const context: any = {
+    scene: new THREE.Scene(),
+    computeBridge: bridge,
+    workerPool: mockWorkerPool,
+  };
+
+  // 1. Induction dispose with in-flight worker
+  const expInd = new EmInductionExperiment();
+  expInd.init(context);
+  expInd.update(0.016, 0.016, context);
+  assert.doesNotThrow(() => expInd.dispose(context), 'Disposing Induction during in-flight worker must not throw');
+
+  // 2. Hysteresis dispose with in-flight worker
+  const expHyst = new EmHysteresisExperiment();
+  expHyst.init(context);
+  expHyst.update(0.016, 0.016, context);
+  assert.doesNotThrow(() => expHyst.dispose(context), 'Disposing Hysteresis during in-flight worker must not throw');
+
+  // 3. MassSpec dispose with in-flight worker
+  const expMass = new EmMassSpecExperiment();
+  expMass.init(context);
+  expMass.update(0.016, 0.016, context);
+  assert.doesNotThrow(() => expMass.dispose(context), 'Disposing MassSpec during in-flight worker must not throw');
+
+  // Wait for all in-flight workers to return and execute .then() handlers
+  await new Promise((r) => setTimeout(r, 40));
+
+  // Confirm disposed state flags
+  assert.strictEqual((expInd as any).isDisposed, true, 'Induction isDisposed must be true');
+  assert.strictEqual((expHyst as any).isDisposed, true, 'Hysteresis isDisposed must be true');
+  assert.strictEqual((expMass as any).isDisposed, true, 'MassSpec isDisposed must be true');
+
+  console.log('✓ Test 19 passed: Electromagnetism in-flight disposal safety verified\n');
+}
+
 console.log('========================================================');
-console.log('All Boost Multi-Core Fix Tests Passed Successfully (9/9)!');
+console.log('All Boost Multi-Core Fix Tests Passed Successfully (19/19)!');
 console.log('========================================================\n');

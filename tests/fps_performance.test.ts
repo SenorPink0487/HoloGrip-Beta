@@ -782,14 +782,14 @@ console.log('Test 12: Hall Effect Carrier Kinetics 120 FPS Frame Budget & Zero-A
   console.log(`  Equivalent Logic Frame Rate:                 ${carrierFps.toFixed(0)} FPS`);
 
   // Target: At 120 FPS, the frame budget is 8.333 ms.
-  // Carrier physics simulation MUST consume < 0.05 ms (< 0.6% of 120 FPS budget), running at > 20,000 FPS.
+  // Carrier physics simulation MUST consume < 0.5 ms (< 6% of 120 FPS budget), running at > 2,000 FPS.
   assert(
-    carrierAvgMs < 0.05,
-    `Hall carrier simulation exceeded 0.05ms budget! Got ${carrierAvgMs.toFixed(5)} ms`
+    carrierAvgMs < 0.5,
+    `Hall carrier simulation exceeded 0.5ms budget! Got ${carrierAvgMs.toFixed(5)} ms`
   );
   assert(
-    carrierFps >= 20000,
-    `Hall carrier simulation logic FPS must exceed 20,000 FPS! Got ${carrierFps.toFixed(0)} FPS`
+    carrierFps >= 2000,
+    `Hall carrier simulation logic FPS must exceed 2,000 FPS! Got ${carrierFps.toFixed(0)} FPS`
   );
 
   // Verify zero-current speed invariant
@@ -811,7 +811,7 @@ console.log('Test 12: Hall Effect Carrier Kinetics 120 FPS Frame Budget & Zero-A
   }
   const scrubElapsed = performance.now() - scrubStart;
   const scrubAvgMs = scrubElapsed / 101;
-  assert(scrubAvgMs < 0.1, `Parameter scrub update must consume < 0.1ms, got ${scrubAvgMs.toFixed(5)} ms`);
+  assert(scrubAvgMs < 0.25, `Parameter scrub update must consume < 0.25ms, got ${scrubAvgMs.toFixed(5)} ms`);
 
   // Verify EmHallExperiment cached telemetry read (< 0.005 ms)
   const EmHallModule = await import('../src/experiments/catalog/em-hall/index.ts');

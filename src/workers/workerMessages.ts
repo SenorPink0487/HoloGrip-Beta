@@ -11,7 +11,10 @@ export type WorkerAction =
   | 'STREAM_TUBE_STEP'
   | 'TEXTURE_BAKE_TASK'
   | 'CHEMISTRY_COMPOSITION_STEP'
-  | 'HALL_CARRIER_STEP';
+  | 'HALL_CARRIER_STEP'
+  | 'MASS_SPEC_STEP'
+  | 'HYSTERESIS_STEP'
+  | 'INDUCTION_STEP';
 
 export interface BaseWorkerRequest {
   id: number;
@@ -170,6 +173,51 @@ export interface HallCarrierStepRequest extends BaseWorkerRequest {
   delta: number;
 }
 
+export interface MassSpecStepRequest extends BaseWorkerRequest {
+  action: 'MASS_SPEC_STEP';
+  sampleId: string;
+  accelVoltage: number;
+  analyzerBz: number;
+  selectorBz: number;
+  plateVoltage: number;
+  gapM: number;
+  jawOpening: number;
+  probeX: number;
+  phases: number[];
+  dt: number;
+}
+
+export interface HysteresisStepRequest extends BaseWorkerRequest {
+  action: 'HYSTERESIS_STEP';
+  materialId: string;
+  H: number;
+  B: number;
+  direction: 1 | -1;
+  major: boolean;
+  sawPositive: boolean;
+  sawNegative: boolean;
+  auto: boolean;
+  phase: number;
+  probeAxial: number;
+  dt: number;
+}
+
+export interface InductionStepRequest extends BaseWorkerRequest {
+  action: 'INDUCTION_STEP';
+  axial: number;
+  velocity: number;
+  poleSign: 1 | -1;
+  turns: number;
+  resistanceOhm: number;
+  probeAxial: number;
+  driven: boolean;
+  scripted: boolean;
+  sampleClock: number;
+  dt: number;
+  fluxHistory: number[];
+  emfHistory: number[];
+}
+
 export type WorkerRequest =
   | NBodyStepRequest
   | WaveStepRequest
@@ -182,7 +230,10 @@ export type WorkerRequest =
   | StreamTubeStepRequest
   | TextureBakeTaskRequest
   | ChemistryCompositionStepRequest
-  | HallCarrierStepRequest;
+  | HallCarrierStepRequest
+  | MassSpecStepRequest
+  | HysteresisStepRequest
+  | InductionStepRequest;
 
 export type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
 
@@ -289,6 +340,97 @@ export interface HallCarrierStepResponse {
   computeTimeMs: number;
 }
 
+export interface WorkerIonVisual {
+  visible: boolean;
+  x: number;
+  y: number;
+  color: number;
+  opacity: number;
+  spotVisible: boolean;
+  spotY: number;
+  magVisible: boolean;
+  magX: number;
+}
+
+export interface WorkerIonHit {
+  ion: {
+    id: string;
+    label: string;
+    massU: number;
+    chargeNumber: number;
+    color: number;
+  };
+  massKg: number;
+  chargeC: number;
+  speed: number;
+  passSpeed: number;
+  transmission: number;
+  radiusM: number;
+  side: 1 | -1;
+  hitY: number;
+  onPlate: boolean;
+  chargeToMass: number;
+}
+
+export interface MassSpecStepResponse {
+  id: number;
+  action: 'MASS_SPEC_STEP';
+  phases: number[];
+  ionVisuals: WorkerIonVisual[];
+  hits: WorkerIonHit[];
+  caption: string;
+  fluxWb: number;
+  probeTesla: number;
+  probeRegion: string;
+  computeTimeMs: number;
+}
+
+export interface HysteresisStepResponse {
+  id: number;
+  action: 'HYSTERESIS_STEP';
+  phase: number;
+  H: number;
+  B: number;
+  direction: 1 | -1;
+  major: boolean;
+  sawPositive: boolean;
+  sawNegative: boolean;
+  domainSigns: number[];
+  probeTesla: number;
+  fluxWb: number;
+  currentAmp: number;
+  area: number;
+  remanence: number;
+  caption: string;
+  loop: Array<{ h: number; b: number }>;
+  computeTimeMs: number;
+}
+
+export interface WorkerInductionReading {
+  magnetFieldTesla: number;
+  probeFieldTesla: number;
+  inducedFieldTesla: number;
+  fluxSingleWb: number;
+  fluxLinkageWb: number;
+  emfVolt: number;
+  currentAmp: number;
+  frontFlowX: number;
+}
+
+export interface InductionStepResponse {
+  id: number;
+  action: 'INDUCTION_STEP';
+  axial: number;
+  velocity: number;
+  scripted: boolean;
+  sampleClock: number;
+  reading: WorkerInductionReading;
+  caption: string;
+  fluxHistory: number[];
+  emfHistory: number[];
+  computeTimeMs: number;
+}
+
 export type WorkerResponse =
   | NBodyStepResponse
   | WaveStepResponse
@@ -301,4 +443,7 @@ export type WorkerResponse =
   | StreamTubeStepResponse
   | TextureBakeTaskResponse
   | ChemistryCompositionStepResponse
-  | HallCarrierStepResponse;
+  | HallCarrierStepResponse
+  | MassSpecStepResponse
+  | HysteresisStepResponse
+  | InductionStepResponse;

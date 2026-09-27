@@ -296,6 +296,59 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   console.log('✓ Test 5 passed: Thermodynamics branch accurately presents 4 classic experiments\n');
 }
 
+// Test 6: Mechanics branch activation and Level 2 display
+{
+  console.log('Test 6: Mechanics branch activation and Level 2 5-experiment display');
+  let levelReported: number = 0;
+  let titleReported: string = '';
+
+  const modal = new PhysicsDisciplineModal({
+    onBackToDisciplines: () => {},
+    onLevelChange: (lvl, title) => {
+      levelReported = lvl;
+      titleReported = title;
+    },
+  });
+
+  // Verify Level 1 mechanics tile is ready
+  const l1Html = modal.element.innerHTML;
+  assert(l1Html.includes('id="branch-tile-mechanics"'), 'Must have mechanics branch tile');
+  assert(l1Html.includes('class="physics-branch-tile ready" id="branch-tile-mechanics"'), 'Mechanics tile must have ready class');
+  assert(!l1Html.includes('id="branch-tile-mechanics" role="button" tabindex="0" title="规划中"'), 'Mechanics tile must not be planned');
+
+  // Enter Level 2 Mechanics
+  modal.showLevel2('mechanics');
+
+  assert.strictEqual(modal.getCurrentLevel(), 2, 'Must be Level 2 after entering mechanics');
+  assert.strictEqual(levelReported, 2, 'Should report Level 2 to callback');
+  assert.strictEqual(titleReported, '力学实验', 'Should report 力学实验 title');
+
+  const html = modal.element.innerHTML;
+  assert(html.includes('physics-level-2'), 'Must render Level 2 container');
+  assert(html.includes('力学实验'), 'Header must contain 力学实验');
+
+  // Verify all 5 core mechanics experiments
+  assert(html.includes('牛顿第二定律与斜面滑块'), 'Must contain 牛顿第二定律与斜面滑块');
+  assert(html.includes('动量守恒与气轨多体碰撞'), 'Must contain 动量守恒与气轨多体碰撞');
+  assert(html.includes('平抛运动与机械能守恒'), 'Must contain 平抛运动与机械能守恒');
+  assert(html.includes('单摆简谐运动测重力加速度'), 'Must contain 单摆简谐运动测重力加速度');
+  assert(html.includes('圆周运动向心力定量探究'), 'Must contain 圆周运动向心力定量探究');
+
+  // Verify core formulas
+  assert(html.includes('F_{net} = Ma'), 'Must contain Newton 2nd law formula');
+  assert(html.includes('m₁v₁ + m₂v₂'), 'Must contain Momentum conservation formula');
+  assert(html.includes('y = (g/2v₀²)x²'), 'Must contain Projectile motion formula');
+  assert(html.includes('T = 2π√(L/g)'), 'Must contain Pendulum period formula');
+  assert(html.includes('F_n = m ω² r'), 'Must contain Centripetal force formula');
+
+  // Go back to Level 1
+  assert.strictEqual(modal.canGoBack(), true);
+  modal.goBack();
+  assert.strictEqual(modal.getCurrentLevel(), 1, 'Should return to Level 1 from mechanics Level 2');
+
+  console.log('✓ Test 6 passed: Mechanics branch accurately presents 5 classic experiments and formulas\n');
+}
+
 console.log('========================================================');
-console.log('All Physics Discipline Modal Tests Passed (5/5)!');
+console.log('All Physics Discipline Modal Tests Passed (6/6)!');
 console.log('========================================================\n');

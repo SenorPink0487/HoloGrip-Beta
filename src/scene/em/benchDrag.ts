@@ -21,6 +21,7 @@ export function localPointOnBenchFace(
   camera: THREE.Camera,
   bench: THREE.Object3D,
   viewport?: Viewport,
+  elevation = 0,
 ): THREE.Vector3 | null {
   const width = viewport?.width || (typeof window !== 'undefined' ? window.innerWidth : 0) || 1;
   const height = viewport?.height || (typeof window !== 'undefined' ? window.innerHeight : 0) || 1;
@@ -29,6 +30,9 @@ export function localPointOnBenchFace(
   bench.updateWorldMatrix(true, false);
   planeNormal.set(0, 0, 1).transformDirection(bench.matrixWorld);
   planeOrigin.setFromMatrixPosition(bench.matrixWorld);
+  if (elevation !== 0) {
+    planeOrigin.addScaledVector(planeNormal, elevation);
+  }
   facePlane.setFromNormalAndCoplanarPoint(planeNormal, planeOrigin);
   if (!raycaster.ray.intersectPlane(facePlane, hitPoint)) return null;
   return bench.worldToLocal(hitPoint.clone());

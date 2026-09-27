@@ -8,14 +8,16 @@ import { ConductionStatusCard } from './ConductionStatusCard.ts';
 import { PhaseStatusCard } from './PhaseStatusCard.ts';
 import { StereometryStatusCard } from './StereometryStatusCard.ts';
 import { HallStatusCard } from './HallStatusCard.ts';
+import { FieldStatusCard, type FieldCommand } from './FieldStatusCard.ts';
 import { InductionStatusCard, type InductionCommand } from './InductionStatusCard.ts';
 import { MassSpecStatusCard, type MassSpecCommand } from './MassSpecStatusCard.ts';
 import { HysteresisStatusCard, type HysteresisCommand } from './HysteresisStatusCard.ts';
+import { MechStatusCard, type MechExperimentId } from './MechStatusCard.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 
-export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo' | 'em';
+export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo' | 'em' | 'mechanics';
 
 export interface VisionModalCallbacks {
   onClose: () => void;
@@ -59,6 +61,7 @@ export interface VisionModalCallbacks {
   onHallToggleCurrentPolarity?: () => void;
   onHallToggleVectors?: (show: boolean) => void;
   onHallToggleParticles?: (show: boolean) => void;
+  onFieldCommand?: (cmd: FieldCommand) => void;
   onInductionCommand?: (cmd: InductionCommand) => void;
   onMassSpecCommand?: (cmd: MassSpecCommand) => void;
   onHysteresisCommand?: (cmd: HysteresisCommand) => void;
@@ -108,9 +111,11 @@ export class VisionModal {
   private phaseStatusCard: PhaseStatusCard;
   private stereometryStatusCard: StereometryStatusCard;
   private hallStatusCard: HallStatusCard;
+  private fieldStatusCard: FieldStatusCard;
   private inductionStatusCard: InductionStatusCard;
   private massSpecStatusCard: MassSpecStatusCard;
   private hysteresisStatusCard: HysteresisStatusCard;
+  private mechStatusCard: MechStatusCard;
   private currentExperimentId = '';
 
   private bodyContainer: HTMLElement;
@@ -299,6 +304,9 @@ export class VisionModal {
           this.switchTab('thermo');
         } else if (id.startsWith('em-')) {
           this.switchTab('em');
+        } else if (id.startsWith('mech-')) {
+          this.mechStatusCard.setExperiment(id as MechExperimentId);
+          this.switchTab('mechanics');
         } else {
           this.close();
         }
@@ -350,9 +358,11 @@ export class VisionModal {
       onToggleParticles: (p) => this.callbacks.onHallToggleParticles?.(p),
     });
 
+    this.fieldStatusCard = new FieldStatusCard((cmd) => this.callbacks.onFieldCommand?.(cmd));
     this.inductionStatusCard = new InductionStatusCard((cmd) => this.callbacks.onInductionCommand?.(cmd));
     this.massSpecStatusCard = new MassSpecStatusCard((cmd) => this.callbacks.onMassSpecCommand?.(cmd));
     this.hysteresisStatusCard = new HysteresisStatusCard((cmd) => this.callbacks.onHysteresisCommand?.(cmd));
+    this.mechStatusCard = new MechStatusCard();
 
     // Mount initial view
     this.switchTab('disciplines');
@@ -533,6 +543,10 @@ export class VisionModal {
     return this.hallStatusCard;
   }
 
+  public get fieldCard(): FieldStatusCard {
+    return this.fieldStatusCard;
+  }
+
   public get inductionCard(): InductionStatusCard {
     return this.inductionStatusCard;
   }
@@ -543,6 +557,10 @@ export class VisionModal {
 
   public get hysteresisCard(): HysteresisStatusCard {
     return this.hysteresisStatusCard;
+  }
+
+  public get mechCard(): MechStatusCard {
+    return this.mechStatusCard;
   }
 
   public setCurrentExperimentId(id: string): void {
@@ -570,12 +588,14 @@ export class VisionModal {
     const isPhase = this.currentExperimentId === 'thermo-phase';
     const emId = this.currentExperimentId;
     const emCard =
-      emId === 'em-induction' ? this.inductionStatusCard
+      emId === 'em-field' ? this.fieldStatusCard
+      : emId === 'em-induction' ? this.inductionStatusCard
       : emId === 'em-mass-spec' ? this.massSpecStatusCard
       : emId === 'em-hysteresis' ? this.hysteresisStatusCard
       : this.hallStatusCard;
     const emTitle =
-      emId === 'em-induction' ? '电磁感应'
+      emId === 'em-field' ? '静电场探索'
+      : emId === 'em-induction' ? '电磁感应'
       : emId === 'em-mass-spec' ? '质谱仪'
       : emId === 'em-hysteresis' ? '磁滞回线'
       : '霍尔效应';
@@ -598,6 +618,7 @@ export class VisionModal {
       math: '立体几何',
       thermo: thermoTitle,
       em: emTitle,
+      mechanics: '力学实验',
     };
     if (titleEl) {
       titleEl.textContent = titles[tab] || '实验视窗';
@@ -624,9 +645,11 @@ export class VisionModal {
       this.stereometryStatusCard.setVisible(tab === 'math');
     }
     if (this.hallStatusCard) this.hallStatusCard.setVisible(false);
+    if (this.fieldStatusCard) this.fieldStatusCard.setVisible(false);
     if (this.inductionStatusCard) this.inductionStatusCard.setVisible(false);
     if (this.massSpecStatusCard) this.massSpecStatusCard.setVisible(false);
     if (this.hysteresisStatusCard) this.hysteresisStatusCard.setVisible(false);
+    if (this.mechStatusCard) this.mechStatusCard.setVisible(tab === 'mechanics');
     if (tab === 'em') emCard.setVisible(true);
 
     if (tab === 'disciplines') {
@@ -665,7 +688,14 @@ export class VisionModal {
     } else if (tab === 'em') {
       emCard.setVisible(true);
       this.bodyContainer.appendChild(emCard.element);
+    } else if (tab === 'mechanics') {
+      this.mechStatusCard.setVisible(true);
+      this.bodyContainer.appendChild(this.mechStatusCard.element);
     }
+  }
+
+  public updateMechanicsTelemetry(telemetry: any): void {
+    this.mechStatusCard?.updateTelemetry(telemetry);
   }
 
   public open(tab?: VisionTab, beakerId?: 'left' | 'right'): void {
@@ -677,6 +707,8 @@ export class VisionModal {
         ? 'thermo'
         : this.currentExperimentId?.startsWith('em-')
         ? 'em'
+        : this.currentExperimentId?.startsWith('mech-')
+        ? 'mechanics'
         : this.activeTab) ||
       'disciplines';
 
@@ -701,9 +733,11 @@ export class VisionModal {
     this.phaseStatusCard?.setVisible(false);
     this.stereometryStatusCard?.setVisible(false);
     this.hallStatusCard?.setVisible(false);
+    this.fieldStatusCard?.setVisible(false);
     this.inductionStatusCard?.setVisible(false);
     this.massSpecStatusCard?.setVisible(false);
     this.hysteresisStatusCard?.setVisible(false);
+    this.mechStatusCard?.setVisible(false);
     this.callbacks.onClose();
   }
 

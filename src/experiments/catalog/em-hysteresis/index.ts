@@ -20,6 +20,7 @@ import {
 import type { HysteresisTelemetry } from '../../../ui/vision/HysteresisStatusCard.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
+import type { ComputeBridge } from '../../../core/platform/ComputeBridge.ts';
 
 export default class EmHysteresisExperiment extends BaseExperiment {
   public readonly metadata = metadata;
@@ -28,6 +29,10 @@ export default class EmHysteresisExperiment extends BaseExperiment {
 
   private bench!: HysteresisBenchMesh;
   private interaction!: HysteresisInteractionManager;
+  private computeBridge?: ComputeBridge;
+  private isWorkerBusy = false;
+  private isDisposed = false;
+  private stateVersion = 0;
 
   private materialId = 'silicon-steel';
   private H = 0;
@@ -42,9 +47,10 @@ export default class EmHysteresisExperiment extends BaseExperiment {
   private loop = majorLoopPoints(materialById('silicon-steel'));
   private cached!: HysteresisTelemetry;
 
-  public init(_context: ExperimentContext): void {
+  public init(context: ExperimentContext): void {
     this.rootGroup.position.set(0, 0.10, 1.55);
-    this.bench = new HysteresisBenchMesh();
+    this.computeBridge = context?.computeBridge;
+    this.bench = new HysteresisBenchMesh({ computeBridge: this.computeBridge });
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
     this.interaction = new HysteresisInteractionManager({
@@ -55,6 +61,12 @@ export default class EmHysteresisExperiment extends BaseExperiment {
       onProbeY: (y) => this.setProbeY(y),
     });
     this.publish();
+  }
+
+  public override dispose(context: ExperimentContext): void {
+    this.isDisposed = true;
+    this.stateVersion++;
+    super.dispose(context);
   }
 
   public override getHoverTarget(raycaster: THREE.Raycaster) {
@@ -73,14 +85,90 @@ export default class EmHysteresisExperiment extends BaseExperiment {
     this.interaction?.onPointerUp(event, context);
   }
 
-  public update(delta: number, _elapsed: number, _context: ExperimentContext): void {
-    if (!this.auto) return;
+  public update(delta: number, _elapsed: number, context: ExperimentContext): void {
+    if (this.isDisposed) return;
+    const bridge = this.computeBridge ?? context?.computeBridge;
     const dt = Math.min(delta, 0.05);
+
+    if (bridge) {
+      if (!this.isWorkerBusy) {
+        this.isWorkerBusy = true;
+        const currentVersion = this.stateVersion;
+        bridge.simulateHysteresis({
+          materialId: this.materialId,
+          H: this.H,
+          B: this.B,
+          direction: this.direction,
+          major: this.major,
+          sawPositive: this.sawPositive,
+          sawNegative: this.sawNegative,
+          auto: this.auto,
+          phase: this.phase,
+          probeAxial: this.probeAxial,
+          dt,
+        }).then((res) => {
+          this.isWorkerBusy = false;
+          if (this.isDisposed || !res) return;
+
+          // Discard results if user modified the state while worker computation was in flight
+          if (currentVersion !== this.stateVersion) {
+            return;
+          }
+
+          this.phase = res.phase;
+          this.H = res.H;
+          this.B = res.B;
+          this.direction = res.direction;
+          this.major = res.major;
+          this.sawPositive = res.sawPositive;
+          this.sawNegative = res.sawNegative;
+          const mat = this.material();
+          this.cached = {
+            materialId: mat.id,
+            materialName: mat.name,
+            H: this.H,
+            B: this.B,
+            currentAmp: res.currentAmp,
+            probeTesla: res.probeTesla,
+            fluxWb: res.fluxWb,
+            area: res.area,
+            remanence: res.remanence,
+            coercivity: mat.hcAmpPerM,
+            major: this.major,
+            auto: this.auto,
+            caption: res.caption,
+            loop: res.loop?.length ? res.loop : this.loop,
+          };
+          this.bench?.sync({
+            materialColor: mat.color,
+            H: this.H,
+            B: this.B,
+            domainSigns: res.domainSigns,
+            probeAxial: this.probeAxial,
+            auto: this.auto,
+            loop: res.loop?.length ? res.loop : this.loop,
+            loopKey: mat.id,
+          });
+        }).catch(() => {
+          this.isWorkerBusy = false;
+          if (!this.isDisposed) {
+            this.advanceAutoMainThread(dt);
+          }
+        });
+      }
+    } else {
+      this.advanceAutoMainThread(dt);
+    }
+  }
+
+  private advanceAutoMainThread(dt: number): void {
+    if (!this.auto) return;
     this.phase += dt * 1.35;
     this.applyH(H_MAX * Math.sin(this.phase), true);
   }
 
   public setMaterial(id: string): void {
+    this.stateVersion++;
     this.materialId = materialById(id).id;
     this.loop = majorLoopPoints(this.material());
     this.recomputeB();
@@ -88,6 +176,7 @@ export default class EmHysteresisExperiment extends BaseExperiment {
   }
 
   public cycleMaterial(): void {
+    this.stateVersion++;
     const index = FERRO_MATERIALS.findIndex((item) => item.id === this.materialId);
     this.setMaterial(FERRO_MATERIALS[(index + 1) % FERRO_MATERIALS.length].id);
   }
@@ -101,6 +190,7 @@ export default class EmHysteresisExperiment extends BaseExperiment {
   }
 
   public setAuto(on: boolean): void {
+    this.stateVersion++;
     this.auto = on;
     if (on) {
       this.major = true;
@@ -111,11 +201,13 @@ export default class EmHysteresisExperiment extends BaseExperiment {
   }
 
   public setProbeY(y: number): void {
+    this.stateVersion++;
     this.probeAxial = THREE.MathUtils.clamp(y - SAMPLE_CENTER_Y, -0.22, 0.22);
     this.publish();
   }
 
   public resetGolden(): void {
+    this.stateVersion++;
     this.materialId = 'silicon-steel';
     this.H = 0;
     this.B = 0;
@@ -146,6 +238,7 @@ export default class EmHysteresisExperiment extends BaseExperiment {
   }
 
   private applyH(value: number, keepAuto: boolean): void {
+    this.stateVersion++;
     const next = THREE.MathUtils.clamp(value, -H_MAX, H_MAX);
     const delta = next - this.H;
     if (Math.abs(delta) > 1e-3) {

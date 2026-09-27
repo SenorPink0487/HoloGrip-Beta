@@ -14,6 +14,8 @@ import {
   ReadoutPanel,
 } from './labKit.ts';
 
+import type { ComputeBridge } from '../../core/platform/ComputeBridge.ts';
+
 export const SAMPLE_CENTER_Y = 0.34;
 export const SAMPLE_HALF = 0.12;
 const DOMAIN_COUNT = 12;
@@ -29,12 +31,17 @@ export interface HysteresisVisual {
   loopKey: string;
 }
 
+export interface HysteresisBenchMeshOptions {
+  computeBridge?: ComputeBridge;
+}
+
 export class HysteresisBenchMesh {
   public readonly group = new THREE.Group();
   public readonly sampleGroup = new THREE.Group();
   public readonly knobGroup = new THREE.Group();
   public readonly sweepSwitch = new THREE.Group();
   public readonly probeGroup = new THREE.Group();
+  public computeBridge?: ComputeBridge;
   public readonly cursor = new THREE.Mesh(
     new THREE.SphereGeometry(0.006, 16, 12),
     labGlow(0x38bdf8, 0.95),
@@ -43,7 +50,7 @@ export class HysteresisBenchMesh {
   private readonly sampleMat: THREE.MeshStandardMaterial;
   private readonly domains: THREE.Mesh[] = [];
   private readonly loopGeo = new THREE.BufferGeometry();
-  private readonly loopAttr = new THREE.BufferAttribute(new Float32Array(160 * 3), 3);
+  private readonly loopAttr = new THREE.BufferAttribute(new Float32Array(160 * 3), 3).setUsage(THREE.DynamicDrawUsage);
   private loopKey = '';
   private readonly copperMat: THREE.MeshStandardMaterial;
   private readonly instrumentChassisMat: THREE.MeshStandardMaterial;
@@ -52,7 +59,8 @@ export class HysteresisBenchMesh {
   private readonly goldMat: THREE.MeshStandardMaterial;
   private readonly readout: ReadoutPanel;
 
-  constructor() {
+  constructor(options: HysteresisBenchMeshOptions = {}) {
+    this.computeBridge = options.computeBridge;
     this.group.name = 'HysteresisBench';
     this.sampleMat = new THREE.MeshStandardMaterial({
       color: 0x94a3b8,
@@ -99,11 +107,13 @@ export class HysteresisBenchMesh {
       this.writeLoop(state.loop);
     }
 
-    this.readout.write([
-      { text: `H ${Math.round(state.H)} A/m`, color: '#fbbf24', size: 40 },
-      { text: `B ${state.B.toFixed(3)} T`, color: '#86efac', size: 48 },
-      { text: state.auto ? '自动循环扫描' : '手动励磁中', color: '#e2e8f0', size: 28 },
-    ]);
+    if (this.readout.mesh.visible) {
+      this.readout.write([
+        { text: `H ${Math.round(state.H)} A/m`, color: '#fbbf24', size: 40 },
+        { text: `B ${state.B.toFixed(3)} T`, color: '#86efac', size: 48 },
+        { text: state.auto ? '自动循环扫描' : '手动励磁中', color: '#e2e8f0', size: 28 },
+      ]);
+    }
   }
 
   public dispose(): void {

@@ -11,6 +11,7 @@ import {
 import type { InductionTelemetry } from '../../../ui/vision/InductionStatusCard.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
+import type { ComputeBridge } from '../../../core/platform/ComputeBridge.ts';
 
 const AXIAL_MIN = -0.18;
 const AXIAL_MAX = 0.26;
@@ -23,6 +24,10 @@ export default class EmInductionExperiment extends BaseExperiment {
 
   private bench!: InductionBenchMesh;
   private interaction!: InductionInteractionManager;
+  private computeBridge?: ComputeBridge;
+  private isWorkerBusy = false;
+  private isDisposed = false;
+  private stateVersion = 0;
 
   private axial = INDUCTION_GOLDEN.axial;
   private velocity = 0;
@@ -38,9 +43,10 @@ export default class EmInductionExperiment extends BaseExperiment {
   private emfHistory: number[] = [];
   private cached!: InductionTelemetry;
 
-  public init(_context: ExperimentContext): void {
+  public init(context: ExperimentContext): void {
     this.rootGroup.position.set(0, 0.10, 1.55);
-    this.bench = new InductionBenchMesh();
+    this.computeBridge = context?.computeBridge;
+    this.bench = new InductionBenchMesh({ computeBridge: this.computeBridge });
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
     this.interaction = new InductionInteractionManager({
@@ -52,6 +58,12 @@ export default class EmInductionExperiment extends BaseExperiment {
       onStartPass: () => this.startPass(),
     });
     this.refresh(true);
+  }
+
+  public override dispose(context: ExperimentContext): void {
+    this.isDisposed = true;
+    this.stateVersion++;
+    super.dispose(context);
   }
 
   public override getHoverTarget(raycaster: THREE.Raycaster) {
@@ -68,11 +80,92 @@ export default class EmInductionExperiment extends BaseExperiment {
 
   public override onPointerUp(event: PointerEvent, context: ExperimentContext): void {
     this.interaction?.onPointerUp(event, context);
-    this.driven = false;
+    if (this.driven) {
+      this.driven = false;
+      this.stateVersion++;
+    }
   }
 
-  public update(delta: number, _elapsed: number, _context: ExperimentContext): void {
+  public update(delta: number, _elapsed: number, context: ExperimentContext): void {
+    if (this.isDisposed) return;
+    const bridge = this.computeBridge ?? context?.computeBridge;
     const dt = Math.min(delta, 0.05);
+
+    if (bridge) {
+      if (!this.isWorkerBusy) {
+        this.isWorkerBusy = true;
+        const currentVersion = this.stateVersion;
+        bridge.simulateInduction({
+          axial: this.axial,
+          velocity: this.velocity,
+          poleSign: this.poleSign,
+          turns: this.turns,
+          resistanceOhm: this.resistanceOhm,
+          probeAxial: this.probeAxial,
+          driven: this.driven,
+          scripted: this.scripted,
+          sampleClock: this.sampleClock,
+          dt,
+          fluxHistory: this.fluxHistory,
+          emfHistory: this.emfHistory,
+        }).then((res) => {
+          this.isWorkerBusy = false;
+          if (this.isDisposed || !res) return;
+
+          // Discard results if user modified the state while worker computation was in flight
+          if (currentVersion !== this.stateVersion) {
+            return;
+          }
+
+          if (!this.driven) {
+            this.axial = res.axial;
+            this.velocity = res.velocity;
+            this.scripted = res.scripted;
+          }
+          this.sampleClock = res.sampleClock;
+          this.fluxHistory = res.fluxHistory;
+          this.emfHistory = res.emfHistory;
+          const reading = res.reading;
+          this.bench.sync({
+            axial: this.axial,
+            poleSign: this.poleSign,
+            probeAxial: this.probeAxial,
+            turns: this.turns,
+            currentAmp: reading.currentAmp,
+            magnetField: reading.magnetFieldTesla,
+            inducedField: reading.inducedFieldTesla,
+          });
+          this.cached = {
+            axial: this.axial,
+            velocity: this.velocity,
+            poleSign: this.poleSign,
+            turns: this.turns,
+            resistanceOhm: this.resistanceOhm,
+            probeAxial: this.probeAxial,
+            magnetFieldTesla: reading.magnetFieldTesla,
+            probeFieldTesla: reading.probeFieldTesla,
+            inducedFieldTesla: reading.inducedFieldTesla,
+            fluxLinkageWb: reading.fluxLinkageWb,
+            fluxSingleWb: reading.fluxSingleWb,
+            emfVolt: reading.emfVolt,
+            currentAmp: reading.currentAmp,
+            caption: res.caption,
+            fluxHistory: this.fluxHistory,
+            emfHistory: this.emfHistory,
+          };
+        }).catch(() => {
+          this.isWorkerBusy = false;
+          if (!this.isDisposed) {
+            this.advanceKinematicsMainThread(dt);
+          }
+        });
+      }
+    } else {
+      this.advanceKinematicsMainThread(dt);
+    }
+  }
+
+  private advanceKinematicsMainThread(dt: number): void {
     if (!this.driven) {
       if (this.scripted) {
         this.axial += this.velocity * dt;
@@ -96,6 +189,7 @@ export default class EmInductionExperiment extends BaseExperiment {
   }
 
   public setAxial(axial: number): void {
+    this.stateVersion++;
     const next = THREE.MathUtils.clamp(axial, AXIAL_MIN, AXIAL_MAX);
     this.velocity = THREE.MathUtils.clamp((next - this.axial) / 0.05, -2, 2);
     this.axial = next;
@@ -106,21 +200,25 @@ export default class EmInductionExperiment extends BaseExperiment {
   }
 
   public setProbe(axial: number): void {
+    this.stateVersion++;
     this.probeAxial = THREE.MathUtils.clamp(axial, AXIAL_MIN, AXIAL_MAX);
     this.refresh(false);
   }
 
   public setTurns(turns: number): void {
+    this.stateVersion++;
     this.turns = THREE.MathUtils.clamp(Math.round(turns), 50, 800);
     this.refresh(false);
   }
 
   public setResistance(ohm: number): void {
+    this.stateVersion++;
     this.resistanceOhm = THREE.MathUtils.clamp(ohm, 1, 40);
     this.refresh(false);
   }
 
   public flipPole(): void {
+    this.stateVersion++;
     this.poleSign = this.poleSign > 0 ? -1 : 1;
     this.refresh(false);
   }
@@ -132,6 +230,7 @@ export default class EmInductionExperiment extends BaseExperiment {
   }
 
   public startPass(): void {
+    this.stateVersion++;
     this.driven = false;
     this.scripted = true;
     this.velocity = this.axial > 0 ? -0.42 : 0.42;
@@ -139,6 +238,7 @@ export default class EmInductionExperiment extends BaseExperiment {
   }
 
   public resetGolden(): void {
+    this.stateVersion++;
     this.axial = INDUCTION_GOLDEN.axial;
     this.velocity = 0;
     this.poleSign = INDUCTION_GOLDEN.poleSign;
@@ -166,6 +266,7 @@ export default class EmInductionExperiment extends BaseExperiment {
   }
 
   private setAxialFromPointer(y: number): void {
+    this.stateVersion++;
     const next = THREE.MathUtils.clamp(y - COIL_AXIS_Y, AXIAL_MIN, AXIAL_MAX);
     const now = performance.now();
     const dt = (now - this.lastDragMs) / 1000;

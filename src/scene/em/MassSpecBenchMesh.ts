@@ -14,6 +14,8 @@ import {
   softDiscTexture,
 } from './labKit.ts';
 
+import type { ComputeBridge } from '../../core/platform/ComputeBridge.ts';
+
 export interface IonVisual {
   visible: boolean;
   x: number;
@@ -35,6 +37,10 @@ export interface MassSpecVisual {
   ions: IonVisual[];
 }
 
+export interface MassSpecBenchMeshOptions {
+  computeBridge?: ComputeBridge;
+}
+
 export class MassSpecBenchMesh {
   public readonly group = new THREE.Group();
   public readonly sourceGroup = new THREE.Group();
@@ -43,6 +49,7 @@ export class MassSpecBenchMesh {
   public readonly accelKnob = new THREE.Group();
   public readonly selectorKnob = new THREE.Group();
   public readonly probeGroup = new THREE.Group();
+  public computeBridge?: ComputeBridge;
 
   private readonly ionMeshes: THREE.Mesh[] = [];
   private readonly halos: THREE.Sprite[] = [];
@@ -64,7 +71,8 @@ export class MassSpecBenchMesh {
   private readonly copperMat: THREE.MeshStandardMaterial;
   private readonly readout: ReadoutPanel;
 
-  constructor() {
+  constructor(options: MassSpecBenchMeshOptions = {}) {
+    this.computeBridge = options.computeBridge;
     this.group.name = 'MassSpecBench';
     this.redMat = labGlow(0xef4444, 0.45);
     this.blueMat = labGlow(0x2563eb, 0.45);
@@ -158,11 +166,13 @@ export class MassSpecBenchMesh {
       (this.trailLines[i].material as THREE.LineBasicMaterial).color.setHex(ion.color);
     }
 
-    this.readout.write([
-      { text: `${Math.round(state.accelVoltage)} V`, color: '#fbbf24', size: 56 },
-      { text: `B ${state.analyzerBz.toFixed(2)} T`, color: '#38bdf8', size: 40 },
-      { text: state.jawOpening > 0.92 ? '狭缝全开' : `狭缝 ${(state.jawOpening * 100).toFixed(0)}%`, color: '#e2e8f0', size: 30 },
-    ]);
+    if (this.readout.mesh.visible) {
+      this.readout.write([
+        { text: `${Math.round(state.accelVoltage)} V`, color: '#fbbf24', size: 56 },
+        { text: `B ${state.analyzerBz.toFixed(2)} T`, color: '#38bdf8', size: 40 },
+        { text: state.jawOpening > 0.92 ? '狭缝全开' : `狭缝 ${(state.jawOpening * 100).toFixed(0)}%`, color: '#e2e8f0', size: 30 },
+      ]);
+    }
   }
 
   public dispose(): void {
@@ -420,6 +430,7 @@ export class MassSpecBenchMesh {
 
       const trailGeo = new THREE.BufferGeometry();
       const attr = new THREE.BufferAttribute(new Float32Array(20 * 3), 3);
+      attr.setUsage(THREE.DynamicDrawUsage);
       trailGeo.setAttribute('position', attr);
       trailGeo.setDrawRange(0, 20);
 

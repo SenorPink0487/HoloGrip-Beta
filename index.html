@@ -2698,16 +2698,17 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    /* Level 2: 4 Optics Experiments Apple Vision Pro 2x2 Spatial Grid */
+    /* Level 2: Optics & EM Experiments Spatial Deck */
     .optics-exp-deck {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      grid-template-rows: repeat(2, 1fr);
+      grid-auto-rows: minmax(210px, 1fr);
       gap: 20px;
       width: 100%;
       max-width: 980px;
       margin: 0 auto;
-      height: 480px;
+      max-height: 520px;
+      overflow-y: auto;
       padding: 4px;
       box-sizing: border-box;
     }

@@ -131,6 +131,7 @@ export class Engine {
   private lastThermoTelemetrySync = 0;
   private lastMathTelemetrySync = 0;
   private lastEmTelemetrySync = 0;
+  private lastMechTelemetrySync = 0;
   private lastCss3dCamPos = new THREE.Vector3(Infinity, Infinity, Infinity);
   private lastCss3dCamQuat = new THREE.Quaternion(Infinity, Infinity, Infinity, Infinity);
   private lastCss3dWinPos = new THREE.Vector3(Infinity, Infinity, Infinity);
@@ -1054,6 +1055,21 @@ export class Engine {
           this.currentContext.setParameter('fieldH', cmd.H);
           exp.setH?.(cmd.H);
         } else if (cmd.type === 'sweep') exp.setAuto?.(!exp.getTelemetry?.().auto);
+        else if (cmd.type === 'reset') exp.resetGolden?.();
+      },
+      onFieldCommand: (cmd) => {
+        if (this.currentExperimentId !== 'em-field') return;
+        const exp = this.holoStage?.activeExperiment as any;
+        if (!exp) return;
+        if (cmd.type === 'addCharge') exp.addCharge?.(cmd.q);
+        else if (cmd.type === 'removeCharge') exp.removeCharge?.(cmd.id);
+        else if (cmd.type === 'clearCharges') exp.clearCharges?.();
+        else if (cmd.type === 'selectCharge') exp.selectCharge?.(cmd.id);
+        else if (cmd.type === 'setChargeMagnitude') exp.setSelectedChargeMagnitude?.(cmd.q);
+        else if (cmd.type === 'setPreset') exp.loadPreset?.(cmd.presetKey);
+        else if (cmd.type === 'toggleLines') exp.setToggles?.(cmd.show, exp.showFlow);
+        else if (cmd.type === 'toggleFlow') exp.setToggles?.(exp.showLines, cmd.show);
+        else if (cmd.type === 'setDensity') exp.setDensity?.(cmd.density);
         else if (cmd.type === 'reset') exp.resetGolden?.();
       },
       // Stereometry Math Callbacks
@@ -1982,6 +1998,17 @@ export class Engine {
             this.visionModal.massSpecCard.updateTelemetry(exp.getTelemetry());
           } else if (this.currentExperimentId === 'em-hysteresis' && typeof exp?.getTelemetry === 'function') {
             this.visionModal.hysteresisCard.updateTelemetry(exp.getTelemetry());
+          } else if (this.currentExperimentId === 'em-field' && typeof exp?.getTelemetry === 'function') {
+            this.visionModal.fieldCard.updateTelemetry(exp.getTelemetry());
+          }
+        }
+      } else if (isModalOpen && this.visionModal.currentTab === 'mechanics') {
+        const nowMs = performance.now();
+        if (nowMs - this.lastMechTelemetrySync >= 50) {
+          this.lastMechTelemetrySync = nowMs;
+          const exp = this.holoStage.activeExperiment as any;
+          if (typeof exp?.getTelemetry === 'function') {
+            this.visionModal.updateMechanicsTelemetry(exp.getTelemetry());
           }
         }
       }

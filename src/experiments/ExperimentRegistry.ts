@@ -39,6 +39,12 @@ export const CATEGORIES: CategoryInfo[] = [
     description: '霍尔效应、载流子动力学、电磁感应与电磁相互作用精密实验台',
   },
   {
+    id: 'mechanics',
+    name: '经典力学',
+    icon: 'physics',
+    description: '牛顿第二定律、动量守恒碰撞、平抛与机械能、单摆简谐振动与向心力探究实验台',
+  },
+  {
     id: 'math',
     name: '空间数学',
     icon: 'math',

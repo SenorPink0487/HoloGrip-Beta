@@ -21,6 +21,8 @@ import type { MassSpecTelemetry } from '../../../ui/vision/MassSpecStatusCard.ts
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 
+import type { ComputeBridge } from '../../../core/platform/ComputeBridge.ts';
+
 const ION_SLOTS = 4;
 
 export default class EmMassSpecExperiment extends BaseExperiment {
@@ -30,6 +32,10 @@ export default class EmMassSpecExperiment extends BaseExperiment {
 
   private bench!: MassSpecBenchMesh;
   private interaction!: MassSpecInteractionManager;
+  private computeBridge?: ComputeBridge;
+  private isWorkerBusy = false;
+  private isDisposed = false;
+  private stateVersion = 0;
 
   private sampleId = 'hydrogen';
   private accelVoltage = 2000;
@@ -46,9 +52,10 @@ export default class EmMassSpecExperiment extends BaseExperiment {
   }));
   private cached!: MassSpecTelemetry;
 
-  public init(_context: ExperimentContext): void {
+  public init(context: ExperimentContext): void {
     this.rootGroup.position.set(0, 0.10, 1.55);
-    this.bench = new MassSpecBenchMesh();
+    this.computeBridge = context?.computeBridge;
+    this.bench = new MassSpecBenchMesh({ computeBridge: this.computeBridge });
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
     this.interaction = new MassSpecInteractionManager({
@@ -63,6 +70,12 @@ export default class EmMassSpecExperiment extends BaseExperiment {
     });
     this.plateVoltage = this.tunedPlate();
     this.recompute();
+  }
+
+  public override dispose(context: ExperimentContext): void {
+    this.isDisposed = true;
+    this.stateVersion++;
+    super.dispose(context);
   }
 
   public override getHoverTarget(raycaster: THREE.Raycaster) {
@@ -81,11 +94,66 @@ export default class EmMassSpecExperiment extends BaseExperiment {
     this.interaction?.onPointerUp(event, context);
   }
 
-  public update(delta: number, _elapsed: number, _context: ExperimentContext): void {
+  public update(delta: number, _elapsed: number, context: ExperimentContext): void {
+    if (this.isDisposed) return;
+    const bridge = this.computeBridge ?? context?.computeBridge;
     const dt = Math.min(delta, 0.05);
+
+    if (bridge) {
+      if (!this.isWorkerBusy) {
+        this.isWorkerBusy = true;
+        const currentVersion = this.stateVersion;
+        bridge.simulateMassSpec({
+          sampleId: this.sampleId,
+          accelVoltage: this.accelVoltage,
+          analyzerBz: this.analyzerBz,
+          selectorBz: this.selectorBz,
+          plateVoltage: this.plateVoltage,
+          gapM: this.gapM,
+          jawOpening: this.jawOpening,
+          probeX: this.probeX,
+          phases: this.phases,
+          dt,
+        }).then((res) => {
+          this.isWorkerBusy = false;
+          if (this.isDisposed || !res) return;
+
+          // Discard results if user modified the state while worker computation was in flight
+          if (currentVersion !== this.stateVersion) {
+            return;
+          }
+
+          this.phases = res.phases;
+          for (let i = 0; i < ION_SLOTS; i++) {
+            if (res.ionVisuals[i]) {
+              Object.assign(this.ionVisuals[i], res.ionVisuals[i]);
+            }
+          }
+          this.hits = res.hits;
+          if (this.cached) {
+            this.cached.caption = res.caption;
+            this.cached.fluxWb = res.fluxWb;
+            this.cached.probeTesla = res.probeTesla;
+            this.cached.probeRegion = res.probeRegion;
+            this.cached.hits = res.hits;
+          }
+          this.syncBench();
+        }).catch(() => {
+          this.isWorkerBusy = false;
+          if (!this.isDisposed) {
+            this.advancePhasesMainThread(dt);
+          }
+        });
+      }
+    } else {
+      this.advancePhasesMainThread(dt);
+    }
+  }
+
+  private advancePhasesMainThread(dt: number): void {
     for (let i = 0; i < this.hits.length; i++) {
       const period = 1.45 * Math.sqrt(Math.max(1, this.hits[i].ion.massU));
-      this.phases[i] = (this.phases[i] + dt / period) % 1;
+      this.phases[i] = ((this.phases[i] ?? 0) + dt / period) % 1;
     }
     this.layoutIons();
     this.syncBench();
@@ -93,6 +161,7 @@ export default class EmMassSpecExperiment extends BaseExperiment {
 
   public setSample(id: string): void {
     if (!CARTRIDGES.some((item) => item.id === id)) return;
+    this.stateVersion++;
     this.sampleId = id;
     this.plateVoltage = this.tunedPlate();
     this.recompute();
@@ -104,6 +173,7 @@ export default class EmMassSpecExperiment extends BaseExperiment {
   }
 
   public setAccel(voltage: number): void {
+    this.stateVersion++;
     this.accelVoltage = THREE.MathUtils.clamp(voltage, 200, 5000);
     this.recompute();
   }
@@ -113,6 +183,7 @@ export default class EmMassSpecExperiment extends BaseExperiment {
   }
 
   public setAnalyzerMagnitude(tesla: number): void {
+    this.stateVersion++;
     const sign = this.analyzerBz <= 0 ? -1 : 1;
     this.analyzerBz = sign * THREE.MathUtils.clamp(Math.abs(tesla), 0.05, 0.5);
     this.recompute();
@@ -123,16 +194,19 @@ export default class EmMassSpecExperiment extends BaseExperiment {
   }
 
   public flipAnalyzer(): void {
+    this.stateVersion++;
     this.analyzerBz = -this.analyzerBz;
     this.recompute();
   }
 
   public setJaw(opening: number): void {
+    this.stateVersion++;
     this.jawOpening = THREE.MathUtils.clamp(opening, 0.02, 1);
     this.recompute();
   }
 
   public setPlate(voltage: number): void {
+    this.stateVersion++;
     this.plateVoltage = THREE.MathUtils.clamp(voltage, 0, 900);
     this.recompute();
   }
@@ -142,12 +216,14 @@ export default class EmMassSpecExperiment extends BaseExperiment {
   }
 
   public setProbeX(x: number): void {
+    this.stateVersion++;
     this.probeX = THREE.MathUtils.clamp(x, -0.46, 0.46);
     this.publish();
     this.syncBench();
   }
 
   public resetGolden(): void {
+    this.stateVersion++;
     this.sampleId = 'hydrogen';
     this.accelVoltage = 2000;
     this.analyzerBz = -0.15;
