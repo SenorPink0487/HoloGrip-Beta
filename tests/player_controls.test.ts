@@ -205,6 +205,170 @@ console.log('=== PlayerController Vertical Elevation Tests ===\n');
   console.log('✓ Test 6 passed: Typing in input field does not move camera\n');
 }
 
+// Test 7: TouchController virtual joystick and bottom-right vision launcher CSS invariants
+{
+  console.log('Test 7: TouchController virtual joystick and bottom-right vision launcher CSS invariants');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+
+  const touchCode = fs.readFileSync(path.resolve('src/controls/TouchController.ts'), 'utf8');
+
+  // Verify bottom-right launcher positioning
+  assert(touchCode.includes('#touch-vision-launcher'), 'Must define #touch-vision-launcher');
+  assert(touchCode.includes('right: calc('), 'Launcher must be positioned on the right (bottom-right)');
+  assert(touchCode.includes('bottom: calc('), 'Launcher must be positioned on the bottom');
+  assert(touchCode.includes('全息视窗'), 'Launcher must contain label text 全息视窗');
+
+  // Verify bottom-left joystick positioning and aesthetic components
+  assert(touchCode.includes('#virtual-joystick-base'), 'Must define #virtual-joystick-base');
+  assert(touchCode.includes('left: calc('), 'Joystick must be positioned on the left (bottom-left)');
+  assert(touchCode.includes('vj-compass-pip'), 'Joystick base must contain cardinal compass direction pips');
+  assert(touchCode.includes('vj-guide-ring'), 'Joystick base must contain concentric guide track ring');
+  assert(touchCode.includes('vj-axis-cross'), 'Joystick base must contain subtle crosshair axis lines');
+  assert(touchCode.includes('vj-knob-ridge'), 'Joystick knob must contain tactile concentric ridge');
+  assert(touchCode.includes('vj-knob-core'), 'Joystick knob must contain luminous core pip');
+
+  // Verify iPad / tablet responsive scaling (@media 768px+)
+  assert(touchCode.includes('@media (pointer: coarse) and (min-width: 768px)'), 'Must include iPad/tablet media query');
+  assert(touchCode.includes('width: 138px'), 'iPad joystick base must scale up to 138px');
+  assert(touchCode.includes('width: 54px'), 'iPad joystick knob must scale up to 54px');
+
+  console.log('✓ Test 7 passed: TouchController layout, bottom-right launcher, and glassmorphic joystick verified\n');
+}
+
+// Test 8: TouchController lifecycle, toggle callback, and modal state synchronization
+{
+  console.log('Test 8: TouchController lifecycle, toggle callback, and modal state synchronization');
+  const { TouchController } = await import('../src/controls/TouchController.ts');
+
+  assert.strictEqual(typeof TouchController.prototype.setVisionModalOpen, 'function', 'Must implement setVisionModalOpen');
+  assert.strictEqual(typeof TouchController.prototype.setVisible, 'function', 'Must implement setVisible');
+
+  let toggleTriggered = false;
+  const mockLauncherBtn: any = {
+    classList: {
+      classes: new Set<string>(),
+      add: (c: string) => mockLauncherBtn.classList.classes.add(c),
+      remove: (c: string) => mockLauncherBtn.classList.classes.delete(c),
+      toggle: (c: string, force?: boolean) => {
+        if (force !== undefined) {
+          if (force) mockLauncherBtn.classList.classes.add(c);
+          else mockLauncherBtn.classList.classes.delete(c);
+          return force;
+        }
+        if (mockLauncherBtn.classList.classes.has(c)) {
+          mockLauncherBtn.classList.classes.delete(c);
+          return false;
+        } else {
+          mockLauncherBtn.classList.classes.add(c);
+          return true;
+        }
+      },
+      contains: (c: string) => mockLauncherBtn.classList.classes.has(c),
+    },
+    setAttribute: (attr: string, val: string) => {
+      mockLauncherBtn[attr] = val;
+    },
+  };
+
+  const dummyTouch: any = Object.create(TouchController.prototype);
+  dummyTouch.visionLauncherBtn = mockLauncherBtn;
+  dummyTouch.onToggleVisionModal = () => {
+    toggleTriggered = true;
+  };
+
+  // Test setVisionModalOpen(true)
+  dummyTouch.setVisionModalOpen(true);
+  assert.strictEqual(mockLauncherBtn.classList.contains('is-open'), true, 'Launcher must have is-open class when open');
+  assert.strictEqual(mockLauncherBtn['aria-expanded'], 'true', 'aria-expanded must be true');
+
+  // Test setVisionModalOpen(false)
+  dummyTouch.setVisionModalOpen(false);
+  assert.strictEqual(mockLauncherBtn.classList.contains('is-open'), false, 'Launcher must not have is-open class when closed');
+  assert.strictEqual(mockLauncherBtn['aria-expanded'], 'false', 'aria-expanded must be false');
+
+  // Test onToggleVisionModal trigger
+  dummyTouch.onToggleVisionModal();
+  assert.strictEqual(toggleTriggered, true, 'onToggleVisionModal callback must fire');
+
+  console.log('✓ Test 8 passed: TouchController modal synchronization and callback verified\n');
+}
+
+// Test 9: Hand tracking active hides bottom-left joystick and bottom-right launcher with elegant animation
+{
+  console.log('Test 9: Hand tracking active hides bottom-left joystick and bottom-right launcher with elegant animation');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { TouchController } = await import('../src/controls/TouchController.ts');
+
+  assert.strictEqual(typeof TouchController.prototype.setHandTrackingActive, 'function', 'Must implement setHandTrackingActive');
+
+  const touchCode = fs.readFileSync(path.resolve('src/controls/TouchController.ts'), 'utf8');
+
+  // Verify CSS hide animation rules
+  assert(touchCode.includes('.hand-tracking-active #virtual-joystick-base'), 'Must define hide rule for joystick');
+  assert(touchCode.includes('.hand-tracking-active #touch-vision-launcher'), 'Must define hide rule for launcher');
+  assert(touchCode.includes('opacity: 0 !important'), 'Hide rule must force opacity 0');
+  assert(touchCode.includes('pointer-events: none !important'), 'Hide rule must disable pointer events');
+  assert(touchCode.includes('filter: blur(10px) !important'), 'Hide rule must apply elegant glass blur');
+  assert(touchCode.includes('cubic-bezier(0.16, 1, 0.3, 1)'), 'Must use Apple fluid cubic-bezier curve for elegant animation');
+
+  // Verify functional reset behavior
+  const mockLayer: any = {
+    classes: new Set<string>(),
+    classList: {
+      add: (c: string) => mockLayer.classes.add(c),
+      remove: (c: string) => mockLayer.classes.delete(c),
+      toggle: (c: string, force?: boolean) => {
+        if (force !== undefined) {
+          if (force) mockLayer.classes.add(c);
+          else mockLayer.classes.delete(c);
+          return force;
+        }
+        if (mockLayer.classes.has(c)) {
+          mockLayer.classes.delete(c);
+          return false;
+        } else {
+          mockLayer.classes.add(c);
+          return true;
+        }
+      },
+      contains: (c: string) => mockLayer.classes.has(c),
+    },
+  };
+
+  const prevGetElementById = (globalThis as any).document.getElementById;
+  (globalThis as any).document.getElementById = (id: string) => {
+    if (id === 'touch-controls-layer') return mockLayer;
+    return null;
+  };
+
+  const dummyTouch: any = Object.create(TouchController.prototype);
+  dummyTouch.player = {
+    keys: { forward: true, backward: false, left: true, right: false, sprint: true },
+  };
+  dummyTouch.isDraggingJoystick = true;
+  dummyTouch.joystickKnob = { style: { transform: 'translate(20px, 30px)' }, classList: { remove: () => {} } };
+  dummyTouch.joystickBase = { classList: { remove: () => {} } };
+
+  // Turn hand tracking on -> active: true
+  dummyTouch.setHandTrackingActive(true);
+  assert.strictEqual(mockLayer.classList.contains('hand-tracking-active'), true, 'Layer must receive hand-tracking-active class');
+  assert.strictEqual(dummyTouch.isDraggingJoystick, false, 'Active joystick drag must be cancelled');
+  assert.strictEqual(dummyTouch.joystickTouchId, null, 'Joystick touch ID must be cleared');
+  assert.strictEqual(dummyTouch.player.keys.forward, false, 'Player forward key must be reset');
+  assert.strictEqual(dummyTouch.player.keys.sprint, false, 'Player sprint key must be reset');
+  assert.strictEqual(dummyTouch.joystickKnob.style.transform, 'translate(0px, 0px)', 'Knob must return to center');
+
+  // Turn hand tracking off -> active: false
+  dummyTouch.setHandTrackingActive(false);
+  assert.strictEqual(mockLayer.classList.contains('hand-tracking-active'), false, 'Layer must remove hand-tracking-active class');
+
+  (globalThis as any).document.getElementById = prevGetElementById;
+
+  console.log('✓ Test 9 passed: Hand gesture active state machine and elegant hide animation verified\n');
+}
+
 console.log('========================================================');
-console.log('All PlayerController Vertical Elevation Tests Passed (6/6)!');
+console.log('All PlayerController & Touch Interaction Tests Passed (9/9)!');
 console.log('========================================================\n');

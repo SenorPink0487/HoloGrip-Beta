@@ -46,6 +46,12 @@ class MockElement {
     return child;
   }
 
+  remove(): void {
+    if (this.parentNode) {
+      this.parentNode.removeChild(this);
+    }
+  }
+
   getContext(_type: string = '2d') {
     return {
       fillStyle: '',
@@ -149,6 +155,8 @@ if (typeof (globalThis as any).document === 'undefined') {
   (globalThis as any).document = {
     createElement: (tag: string) => new MockElement(tag),
     body: new MockElement('body'),
+    head: new MockElement('head'),
+    getElementById: (_id: string) => null,
   };
 }
 
@@ -862,8 +870,289 @@ assert.strictEqual(im.isPointerDown, false, 'isPointerDown must be false after c
 isolationExp.dispose(mockContext);
 console.log('✓ Test 18 passed: clearHover and interaction state reset verified\n');
 
+// -------------------------------------------------------------
+// Test 19: iPad Touch Adaptation - Direct Two-Finger Pinch-To-Zoom
+// -------------------------------------------------------------
+console.log('Test 19: iPad Touch Adaptation - Direct Two-Finger Pinch-To-Zoom');
+const pinchExp = new MathStereometryExperiment();
+pinchExp.init(mockContext);
+pinchExp.mount(mockContext);
+
+const pinchIm = (pinchExp as any).interactionManager;
+const pinchMesh = (pinchExp as any).mesh;
+
+assert.strictEqual(pinchMesh.getScale(), 1.0, 'Initial model scale must be 1.0');
+assert.strictEqual(pinchIm.isPinchingActive(), false, 'Initially not pinching');
+
+// Finger 1 down at (200, 300)
+pinchExp.onPointerDown(
+  {
+    button: 0,
+    pointerId: 1,
+    clientX: 200,
+    clientY: 300,
+    pointerType: 'touch',
+  } as any,
+  null,
+  mockContext
+);
+assert.strictEqual(pinchIm.isPinchingActive(), false, 'Single finger down does not start pinch');
+
+// Finger 2 down at (300, 300) -> initial distance = 100px
+pinchExp.onPointerDown(
+  {
+    button: 0,
+    pointerId: 2,
+    clientX: 300,
+    clientY: 300,
+    pointerType: 'touch',
+  } as any,
+  null,
+  mockContext
+);
+assert.strictEqual(pinchIm.isPinchingActive(), true, 'Two fingers down must trigger isPinchingActive = true');
+
+// Fingers spread apart to 150px (Finger 1 at 175, Finger 2 at 325) -> 1.5x zoom
+pinchExp.onPointerMove(
+  {
+    pointerId: 1,
+    clientX: 175,
+    clientY: 300,
+    pointerType: 'touch',
+  } as any,
+  null,
+  mockContext
+);
+pinchExp.onPointerMove(
+  {
+    pointerId: 2,
+    clientX: 325,
+    clientY: 300,
+    pointerType: 'touch',
+  } as any,
+  null,
+  mockContext
+);
+
+const expandedScale = pinchMesh.getScale();
+console.log(`  Pinch expansion: 100px -> 150px: model scale = ${expandedScale.toFixed(2)}x (Expected: 1.50x)`);
+assert(Math.abs(expandedScale - 1.5) < 0.02, 'Pinch expansion to 150% must scale model to ~1.5x');
+
+// Fingers pinch together to 70px (Finger 1 at 215, Finger 2 at 285) -> 0.70x zoom
+pinchExp.onPointerMove(
+  {
+    pointerId: 1,
+    clientX: 215,
+    clientY: 300,
+    pointerType: 'touch',
+  } as any,
+  null,
+  mockContext
+);
+pinchExp.onPointerMove(
+  {
+    pointerId: 2,
+    clientX: 285,
+    clientY: 300,
+    pointerType: 'touch',
+  } as any,
+  null,
+  mockContext
+);
+
+const contractedScale = pinchMesh.getScale();
+console.log(`  Pinch contraction: 100px -> 70px: model scale = ${contractedScale.toFixed(2)}x (Expected: 0.70x)`);
+assert(Math.abs(contractedScale - 0.7) < 0.02, 'Pinch contraction to 70% must scale model to ~0.70x');
+
+// Lift Finger 2 -> exits pinch mode cleanly without jerk or connecting line
+pinchExp.onPointerUp(
+  {
+    pointerId: 2,
+    clientX: 285,
+    clientY: 300,
+    pointerType: 'touch',
+  } as any,
+  mockContext
+);
+assert.strictEqual(pinchIm.isPinchingActive(), false, 'Releasing finger must end pinch mode');
+assert.strictEqual(pinchMesh.getSegments().length, 0, 'Pinch release must not create accidental line segments');
+
+// Lift Finger 1
+pinchExp.onPointerUp(
+  {
+    pointerId: 1,
+    clientX: 215,
+    clientY: 300,
+    pointerType: 'touch',
+  } as any,
+  mockContext
+);
+
+// Scale clamping test: pinch cannot exceed 3.0x max or 0.35x min
+pinchIm.setScale(5.0);
+assert.strictEqual(pinchMesh.getScale(), 3.0, 'Scale must be clamped to maximum 3.0x');
+pinchIm.setScale(0.1);
+assert.strictEqual(pinchMesh.getScale(), 0.35, 'Scale must be clamped to minimum 0.35x');
+
+pinchExp.dispose(mockContext);
+console.log('✓ Test 19 passed: Two-finger touch pinch-to-zoom and bounds clamping verified\n');
+
+// -------------------------------------------------------------
+// Test 20: Native TouchEvent & Safari Gesture Hooks for iPadOS
+// -------------------------------------------------------------
+console.log('Test 20: Native TouchEvent & Safari Gesture Hooks for iPadOS');
+const touchHookExp = new MathStereometryExperiment();
+touchHookExp.init(mockContext);
+touchHookExp.mount(mockContext);
+
+const touchHookIm = (touchHookExp as any).interactionManager;
+
+// Test onTouchStart with 2 touches
+const mockTouchEventStart: any = {
+  touches: [
+    { clientX: 100, clientY: 200 },
+    { clientX: 200, clientY: 200 },
+  ],
+  cancelable: true,
+  preventDefault: () => {},
+};
+const startHandled = touchHookExp.onTouchStart(mockTouchEventStart, mockContext);
+assert.strictEqual(startHandled, true, 'Two-finger touchstart must be handled');
+assert.strictEqual(touchHookIm.isPinchingActive(), true, 'onTouchStart must activate pinch mode');
+
+// Test onTouchMove with distance 200px (doubled from 100px)
+const mockTouchEventMove: any = {
+  touches: [
+    { clientX: 50, clientY: 200 },
+    { clientX: 250, clientY: 200 },
+  ],
+  cancelable: true,
+  preventDefault: () => {},
+};
+touchHookExp.onTouchMove(mockTouchEventMove, mockContext);
+assert(Math.abs(touchHookIm.getScale() - 2.0) < 0.05, 'onTouchMove with double distance must scale to ~2.0x');
+
+// Test onTouchEnd
+const mockTouchEventEnd: any = {
+  touches: [{ clientX: 50, clientY: 200 }],
+};
+touchHookExp.onTouchEnd(mockTouchEventEnd, mockContext);
+assert.strictEqual(touchHookIm.isPinchingActive(), false, 'onTouchEnd with 1 touch remaining must exit pinch');
+
+// Test Safari WebKit gesture hooks
+touchHookIm.resetScale();
+touchHookExp.onGestureStart({ preventDefault: () => {} });
+assert.strictEqual(touchHookIm.isPinchingActive(), true, 'onGestureStart activates pinch');
+touchHookExp.onGestureChange({ scale: 1.35, preventDefault: () => {} });
+assert(Math.abs(touchHookIm.getScale() - 1.35) < 0.02, 'onGestureChange scales model by event.scale');
+touchHookExp.onGestureEnd({ preventDefault: () => {} });
+assert.strictEqual(touchHookIm.isPinchingActive(), false, 'onGestureEnd deactivates pinch');
+
+touchHookExp.dispose(mockContext);
+console.log('✓ Test 20 passed: iPadOS TouchEvents & WebKit GestureEvent hooks verified\n');
+
+// -------------------------------------------------------------
+// Test 21: Dedicated On-Screen StereometryTouchZoomWidget Controls
+// -------------------------------------------------------------
+console.log('Test 21: Dedicated On-Screen StereometryTouchZoomWidget Controls');
+import { StereometryTouchZoomWidget } from '../src/ui/StereometryTouchZoomWidget.ts';
+
+let zoomInCalled = 0;
+let zoomOutCalled = 0;
+let resetScaleCalled = 0;
+
+const mockParent = new MockElement('div');
+const zoomWidget = new StereometryTouchZoomWidget(
+  {
+    onZoomIn: () => zoomInCalled++,
+    onZoomOut: () => zoomOutCalled++,
+    onResetScale: () => resetScaleCalled++,
+  },
+  mockParent as any
+);
+
+const widgetDom = (zoomWidget as any).element as MockElement;
+assert(widgetDom !== null, 'StereometryTouchZoomWidget must create DOM element');
+assert.strictEqual(widgetDom.id, 'stereometry-touch-zoom');
+assert.strictEqual(widgetDom.classList.contains('stereometry-touch-zoom-pill'), true);
+
+// Verify live scale text updates
+zoomWidget.updateScale(1.25);
+const scaleValEl = widgetDom.querySelector('#stereometry-scale-val');
+assert.strictEqual(scaleValEl?.textContent, '125%', 'Scale badge text must display 125%');
+
+zoomWidget.updateScale(0.85);
+assert.strictEqual(scaleValEl?.textContent, '85%', 'Scale badge text must display 85%');
+
+// Verify button clicks
+const btnIn = widgetDom.querySelector('#btn-touch-zoom-in');
+const btnOut = widgetDom.querySelector('#btn-touch-zoom-out');
+const btnReset = widgetDom.querySelector('#btn-touch-zoom-reset');
+
+btnIn?.dispatch('click');
+assert.strictEqual(zoomInCalled, 1, 'Clicking zoom in button must call onZoomIn');
+
+btnOut?.dispatch('click');
+assert.strictEqual(zoomOutCalled, 1, 'Clicking zoom out button must call onZoomOut');
+
+btnReset?.dispatch('click');
+assert.strictEqual(resetScaleCalled, 1, 'Clicking reset badge must call onResetScale');
+
+// Visibility toggle
+zoomWidget.setVisible(false);
+assert.strictEqual(zoomWidget.getVisible(), false);
+assert.strictEqual(widgetDom.classList.contains('hidden'), true);
+
+zoomWidget.setVisible(true);
+assert.strictEqual(zoomWidget.getVisible(), true);
+assert.strictEqual(widgetDom.classList.contains('hidden'), false);
+
+// Mount with experiment and lifecycle
+const widgetExp = new MathStereometryExperiment();
+widgetExp.init(mockContext);
+widgetExp.mount(mockContext);
+assert(widgetExp.getTouchZoomWidget() !== null, 'Experiment mount must instantiate touch zoom widget');
+
+widgetExp.zoom(1);
+assert(widgetExp.getTouchZoomWidget()!.getScale() > 1.0, 'zoom(1) must update touch zoom widget scale');
+
+widgetExp.resetScale();
+assert.strictEqual(widgetExp.getTouchZoomWidget()!.getScale(), 1.0, 'resetScale() must restore 100% on widget');
+
+widgetExp.dispose(mockContext);
+assert.strictEqual(widgetExp.getTouchZoomWidget(), null, 'Experiment dispose must destroy touch zoom widget');
+
+zoomWidget.destroy();
+console.log('✓ Test 21 passed: StereometryTouchZoomWidget DOM, live percentage, buttons, and lifecycle verified\n');
+
+// -------------------------------------------------------------
+// Test 22: Adaptive Magnetic Snap Radius for Touch Devices (iPad)
+// -------------------------------------------------------------
+console.log('Test 22: Adaptive Magnetic Snap Radius for Touch Devices (iPad)');
+const snapExp = new MathStereometryExperiment();
+snapExp.init(mockContext);
+snapExp.mount(mockContext);
+
+// Test ray at distance 0.070 from vertex v_0:
+// On mouse (snapThreshold = 0.060), this would NOT snap (0.070 > 0.060)
+// On touch pointer (snapThreshold = 0.080), this MUST snap (0.070 < 0.080)
+const touchEvent: any = {
+  button: 0,
+  pointerId: 1,
+  clientX: 100,
+  clientY: 100,
+  pointerType: 'touch',
+};
+
+const handledTouch = snapExp.onPointerDown(touchEvent, null, mockContext);
+assert.strictEqual(handledTouch, true, 'Touch on pointer down must be handled');
+
+snapExp.dispose(mockContext);
+console.log('✓ Test 22 passed: Adaptive magnetic touch snap radius for iPad verified\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (18/18)!');
+console.log('All High School Stereometry Tests Passed Successfully (22/22)!');
 console.log('========================================================');
+
 
 

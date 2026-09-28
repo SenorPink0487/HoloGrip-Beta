@@ -650,7 +650,17 @@ export class Engine {
     const targetX = this.spatialWindowTargetPos.x;
     const targetY = this.spatialWindowTargetPos.y;
     const targetZ = this.spatialWindowTargetPos.z;
-    const targetRotY = this.spatialWindowTargetRotY;
+
+    // Dynamically face the user around the Y axis if situated at table center
+    let targetRotY = this.spatialWindowTargetRotY;
+    if (Math.hypot(targetX, targetZ) < 1e-3) {
+      const dx = this.camera.position.x - targetX;
+      const dz = this.camera.position.z - targetZ;
+      if (Math.hypot(dx, dz) > 1e-4) {
+        targetRotY = Math.atan2(dx, dz);
+        this.spatialWindowTargetRotY = targetRotY;
+      }
+    }
 
     // Keep window strictly upright (pitch = 0, roll = 0) facing the user around the Y axis
     if (snap) {
@@ -679,7 +689,37 @@ export class Engine {
     }
   }
 
-  private positionWindowInFrontOfCamera(snap = true): void {
+  /**
+   * Positions the floating spatial window at its default location: suspended in the center
+   * of the holographic table (x = 0, y = 2.20, z = 0) facing the camera.
+   */
+  public positionWindowAtTableCenter(snap = true): void {
+    const cam = this.camera;
+    const targetX = 0;
+    const targetY = 2.20;
+    const targetZ = 0;
+
+    let angleY = 0;
+    if (cam) {
+      const dx = cam.position.x - targetX;
+      const dz = cam.position.z - targetZ;
+      if (Math.hypot(dx, dz) > 1e-4) {
+        angleY = Math.atan2(dx, dz);
+      }
+    }
+
+    this.spatialWindowTargetPos.set(targetX, targetY, targetZ);
+    this.spatialWindowTargetRotY = angleY;
+
+    this.updateSpatialWindowTransform(0.1, snap);
+    this.lastCss3dCamPos.set(Infinity, Infinity, Infinity);
+  }
+
+  public positionWindowDefault(snap = true): void {
+    this.positionWindowAtTableCenter(snap);
+  }
+
+  public positionWindowInFrontOfCamera(snap = true): void {
     const cam = this.camera;
     if (!cam) return;
 
@@ -713,6 +753,7 @@ export class Engine {
     this.visionModal = new VisionModal(this.chemistryEngine, {
       onClose: () => {
         this.spatialWindowObject.visible = false;
+        this.inputManager?.touch?.setVisionModalOpen(false);
         this.lab?.setObservationWindowVisible(true);
         this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
         if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
@@ -723,8 +764,9 @@ export class Engine {
         exp?.clearHover?.();
       },
       onOpen: () => {
-        this.positionWindowInFrontOfCamera(true);
+        this.positionWindowDefault(true);
         this.spatialWindowObject.visible = true;
+        this.inputManager?.touch?.setVisionModalOpen(true);
         this.lab?.setObservationWindowVisible(false);
         this.inputManager.player.exitLock();
         this.inputManager.player.allowPointerLock = false;
@@ -734,7 +776,7 @@ export class Engine {
         exp?.clearHover?.();
       },
       onRecenter: () => {
-        this.positionWindowInFrontOfCamera(true);
+        this.positionWindowDefault(true);
       },
       onScaleChange: (multiplier: number) => {
         const baseScale = 0.0028;
@@ -762,7 +804,7 @@ export class Engine {
         await this.switchExperiment(id);
         const baseScale = 0.0028;
         this.spatialWindowObject.scale.set(baseScale, baseScale, baseScale);
-        this.positionWindowInFrontOfCamera(true);
+        this.positionWindowDefault(true);
       },
       onStirBeaker: () => {
         this.reactionEffects.triggerPour(0x0a84ff);
@@ -1235,9 +1277,20 @@ export class Engine {
     this.spatialWindowObject = new CSS3DObject(this.visionModal.element);
     this.spatialWindowObject.rotation.order = 'YXZ';
     this.spatialWindowObject.scale.set(0.0028, 0.0028, 0.0028);
-    this.positionWindowInFrontOfCamera(true);
+    this.positionWindowDefault(true);
     this.spatialWindowObject.visible = false;
     this.css3dScene.add(this.spatialWindowObject);
+
+    if (this.inputManager?.touch) {
+      this.inputManager.touch.onToggleVisionModal = () => {
+        if (this.visionModal.visible) {
+          this.visionModal.close();
+        } else {
+          this.visionModal.open();
+        }
+      };
+      this.inputManager.touch.setVisionModalOpen(this.visionModal.visible);
+    }
 
     this.inputManager.player.onLockChange = (isLocked: boolean) => {
       const isDrawerOpen = this.hud?.drawer?.open ?? false;
@@ -1494,7 +1547,7 @@ export class Engine {
           console.log('[Engine] Left Hand Quick Pinch: closing floating window');
           this.visionModal.close();
         } else {
-          console.log('[Engine] Left Hand Quick Pinch: opening floating window in front of camera');
+          console.log('[Engine] Left Hand Quick Pinch: opening floating window at table center');
           this.visionModal.open();
         }
       }
@@ -1508,7 +1561,15 @@ export class Engine {
     });
 
     this.handGestureService.onStatusChange((telemetry) => {
-      if (telemetry.status === 'running') {
+      const isRunning = telemetry.status === 'running';
+      if (typeof document !== 'undefined' && document.body) {
+        document.body.classList.toggle('hand-tracking-active', isRunning);
+      }
+      if (this.inputManager?.touch) {
+        this.inputManager.touch.setHandTrackingActive(isRunning);
+      }
+
+      if (isRunning) {
         if (this.inputManager?.player) {
           this.inputManager.player.allowPointerLock = false;
           this.inputManager.player.allowMouseRotation = false;
@@ -1734,16 +1795,118 @@ export class Engine {
 
     window.addEventListener('pointerup', (e: PointerEvent) => {
       if (this.isExperimentInteracting) {
-        this.isExperimentInteracting = false;
         this.holoStage.activeExperiment?.onPointerUp?.(e, this.currentContext);
-        if (!this.labEntryActive) {
-          this.inputManager.player.enabled = true;
-          this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
-        }
-        if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
-          this.crosshair.setVisible(true);
+        const exp = this.holoStage.activeExperiment as any;
+        const stillPinching = typeof exp?.interactionManager?.isPinchingActive === 'function' && exp.interactionManager.isPinchingActive();
+        if (!stillPinching) {
+          this.isExperimentInteracting = false;
+          if (!this.labEntryActive) {
+            this.inputManager.player.enabled = true;
+            this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
+          }
+          if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
+            this.crosshair.setVisible(true);
+          }
         }
       }
+
+    window.addEventListener('pointercancel', (e: PointerEvent) => {
+      if (this.isExperimentInteracting) {
+        const exp = this.holoStage.activeExperiment as any;
+        exp?.onPointerCancel?.(e);
+        exp?.interactionManager?.onPointerCancel?.(e);
+        this.isExperimentInteracting = false;
+        if (!this.labEntryActive) {
+          this.inputManager.player.enabled = true;
+        }
+      }
+    });
+
+    // Native Touch Event Support on Canvas for iPad & Mobile Touch Screens
+    canvas.addEventListener(
+      'touchstart',
+      (e: TouchEvent) => {
+        if (this.labEntryActive) return;
+        if (this.visionModal && this.visionModal.visible) return;
+
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.onTouchStart === 'function') {
+            const handled = exp.onTouchStart(e, this.currentContext);
+            if (handled) {
+              this.isExperimentInteracting = true;
+              if (this.inputManager?.player) {
+                this.inputManager.player.enabled = false;
+              }
+              if (e.cancelable && e.touches.length >= 2) {
+                e.preventDefault();
+              }
+            }
+          }
+        }
+      },
+      { passive: false }
+    );
+
+    window.addEventListener(
+      'touchmove',
+      (e: TouchEvent) => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (exp && typeof exp.onTouchMove === 'function') {
+            const handled = exp.onTouchMove(e, this.currentContext);
+            if (handled && e.cancelable && e.touches.length >= 2) {
+              e.preventDefault();
+            }
+          }
+        }
+      },
+      { passive: false }
+    );
+
+    window.addEventListener('touchend', (e: TouchEvent) => {
+      if (this.currentExperimentId === 'math-stereometry') {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (exp && typeof exp.onTouchEnd === 'function') {
+          exp.onTouchEnd(e, this.currentContext);
+          if (e.touches.length === 0) {
+            this.isExperimentInteracting = false;
+          }
+        }
+      }
+    });
+
+    window.addEventListener('touchcancel', (e: TouchEvent) => {
+      if (this.currentExperimentId === 'math-stereometry') {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (exp && typeof exp.onTouchCancel === 'function') {
+          exp.onTouchCancel(e);
+          this.isExperimentInteracting = false;
+        }
+      }
+    });
+
+    // Safari WebKit Gesture Event Support (iPadOS gesturestart, gesturechange, gestureend)
+    canvas.addEventListener('gesturestart', (e: any) => {
+      if (this.currentExperimentId === 'math-stereometry') {
+        const exp = this.holoStage?.activeExperiment as any;
+        exp?.onGestureStart?.(e);
+      }
+    });
+
+    canvas.addEventListener('gesturechange', (e: any) => {
+      if (this.currentExperimentId === 'math-stereometry') {
+        const exp = this.holoStage?.activeExperiment as any;
+        exp?.onGestureChange?.(e);
+      }
+    });
+
+    canvas.addEventListener('gestureend', (e: any) => {
+      if (this.currentExperimentId === 'math-stereometry') {
+        const exp = this.holoStage?.activeExperiment as any;
+        exp?.onGestureEnd?.(e);
+      }
+    });
 
       if (!this.beakerDragState) return;
 
@@ -2000,6 +2163,10 @@ export class Engine {
   public setViewMode(mode: 'whiteboard' | 'laboratory'): void {
     const wasWhiteboard = this.isWhiteboardMode;
     this.isWhiteboardMode = mode === 'whiteboard';
+
+    if (this.inputManager?.touch) {
+      this.inputManager.touch.setVisible(!this.isWhiteboardMode);
+    }
 
     if (wasWhiteboard && !this.isWhiteboardMode) {
       if (this.renderer?.shadowMap?.enabled) {

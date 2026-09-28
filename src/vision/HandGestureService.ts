@@ -269,6 +269,7 @@ export class HandGestureService {
   private lastFpsTimestamp = performance.now();
   private currentFps = 0;
   private lastLatencyMs = 0;
+  private delegate: 'GPU' | 'CPU' | 'unknown' = 'unknown';
 
   // Event listeners
   private frameListeners: Set<(frame: HandGestureFrame) => void> = new Set();
@@ -334,6 +335,7 @@ export class HandGestureService {
       isLeftLongPinch: this.leftTracker.isLongPinch,
       isLocalModel: true,
       isWorkerMode: Boolean(this.worker && this.isWorkerReady),
+      delegate: this.delegate,
       errorMessage: this.errorMessage || undefined,
     };
   }
@@ -449,6 +451,9 @@ export class HandGestureService {
           if (type === 'INIT_SUCCESS') {
             clearTimeout(timeout);
             this.isWorkerReady = true;
+            if (e.data.delegate) {
+              this.delegate = e.data.delegate;
+            }
             this.setupWorkerMessageHandlers();
             resolve();
           } else if (type === 'INIT_ERROR') {
@@ -484,6 +489,9 @@ export class HandGestureService {
       if (type === 'DETECT_RESULT') {
         this.isWorkerBusy = false;
         this.lastLatencyMs = e.data.latencyMs ?? 0;
+        if (e.data.delegate) {
+          this.delegate = e.data.delegate;
+        }
 
         // Update FPS counter
         this.frameCount++;
@@ -877,9 +885,26 @@ export class HandGestureService {
       leftHandData = this.leftTracker.process(leftDet.landmarks, timestamp, leftDet.score, this.config);
       rightHandData = this.rightTracker.process(rightDet.landmarks, timestamp, rightDet.score, this.config);
     } else {
-      // Exactly 1 detection: classify using neural handedness + spatial region
+      // Exactly 1 detection: classify using spatial region + neural handedness
       const det = detections[0];
-      const isLeft = det.label === 'left' || (det.screenX < 0.45 && !Number.isFinite(this.rightTracker.lastSeenAt));
+      let isLeft: boolean;
+
+      if (det.screenX >= 0.55) {
+        // Distinctly positioned on the right half of the screen
+        isLeft = false;
+      } else if (det.screenX <= 0.45) {
+        // Distinctly positioned on the left half of the screen
+        isLeft = true;
+      } else {
+        // Center region: preserve recent hand identity or fallback to neural label
+        if (Number.isFinite(this.rightTracker.lastSeenAt) && timestamp - this.rightTracker.lastSeenAt < 800) {
+          isLeft = false;
+        } else if (Number.isFinite(this.leftTracker.lastSeenAt) && timestamp - this.leftTracker.lastSeenAt < 800) {
+          isLeft = true;
+        } else {
+          isLeft = det.label === 'left';
+        }
+      }
 
       if (isLeft) {
         leftHandData = this.leftTracker.process(det.landmarks, timestamp, det.score, this.config);

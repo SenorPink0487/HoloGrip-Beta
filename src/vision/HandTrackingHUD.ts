@@ -145,6 +145,7 @@ export class HandTrackingHUD {
       <div class="vp-modal-footer">
         <div class="vp-footer-stat"><span class="vp-stat-label">帧率:</span> <span class="vp-fps-val">0 FPS</span></div>
         <div class="vp-footer-stat"><span class="vp-stat-label">延迟:</span> <span class="vp-latency-val">0 ms</span></div>
+        <div class="vp-footer-stat"><span class="vp-stat-label">加速:</span> <span class="vp-delegate-val">GPU</span></div>
         <div class="vp-footer-stat"><span class="vp-stat-label">左捏合:</span> <span class="vp-left-duration-val">-</span></div>
         <div class="vp-footer-stat"><span class="vp-stat-label">右捏合:</span> <span class="vp-right-duration-val">-</span></div>
       </div>
@@ -1068,6 +1069,7 @@ export class HandTrackingHUD {
     const dot = this.pillEl.querySelector('.vp-pill-status-dot') as HTMLElement;
     const fpsVal = this.previewModalEl.querySelector('.vp-fps-val') as HTMLElement;
     const latencyVal = this.previewModalEl.querySelector('.vp-latency-val') as HTMLElement;
+    const delegateVal = this.previewModalEl.querySelector('.vp-delegate-val') as HTMLElement | null;
     const ratioVal = this.previewModalEl.querySelector('.vp-ratio-val') as HTMLElement;
     const leftTxt = this.previewModalEl.querySelector('.vp-left-txt') as HTMLElement;
     const rightTxt = this.previewModalEl.querySelector('.vp-right-txt') as HTMLElement;
@@ -1093,6 +1095,14 @@ export class HandTrackingHUD {
       if (this.cachedLatency !== latStr) {
         this.cachedLatency = latStr;
         latencyVal.textContent = latStr;
+      }
+
+      if (delegateVal && telemetry.delegate) {
+        const delText = telemetry.delegate === 'GPU' ? 'GPU' : telemetry.delegate === 'CPU' ? 'CPU (降级)' : '-';
+        if (delegateVal.textContent !== delText) {
+          delegateVal.textContent = delText;
+          delegateVal.style.color = telemetry.delegate === 'GPU' ? '#30d158' : telemetry.delegate === 'CPU' ? '#ff9f0a' : 'inherit';
+        }
       }
     });
 

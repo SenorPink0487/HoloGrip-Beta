@@ -20,6 +20,7 @@ import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 import { buildRecognizedModel, type RecognizedFigure } from '../../../scene/math/figureModel.ts';
 import { recognizeStereometryImage } from '../../../scene/math/recognizeFigure.ts';
+import { StereometryTouchZoomWidget } from '../../../ui/StereometryTouchZoomWidget.ts';
 
 export interface StereometryTelemetryData {
   modelId: HighSchoolModelType;
@@ -63,6 +64,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
 
   private mesh: StereometryMesh;
   private interactionManager: StereometryInteractionManager;
+  private touchZoomWidget: StereometryTouchZoomWidget | null = null;
   private onKeyDownBound: ((e: KeyboardEvent) => void) | null = null;
 
   // State cache
@@ -105,6 +107,9 @@ export default class MathStereometryExperiment extends BaseExperiment {
       onOriginChanged: (kp) => {
         this.originPointId = kp.id;
       },
+      onScaleChange: (scale) => {
+        this.touchZoomWidget?.updateScale(scale);
+      },
     });
 
     // Default canonical textbook oblique view (base horizontal)
@@ -115,6 +120,20 @@ export default class MathStereometryExperiment extends BaseExperiment {
     if (context.renderer) {
       context.renderer.localClippingEnabled = true;
     }
+    if (typeof document !== 'undefined') {
+      this.touchZoomWidget?.destroy();
+      this.touchZoomWidget = new StereometryTouchZoomWidget({
+        onZoomIn: () => this.zoom(1),
+        onZoomOut: () => this.zoom(-1),
+        onResetScale: () => this.resetScale(),
+      });
+      this.touchZoomWidget.updateScale(this.mesh ? this.mesh.getScale() : 1.0);
+    }
+  }
+
+  public override unmount(_context: ExperimentContext): void {
+    this.touchZoomWidget?.destroy();
+    this.touchZoomWidget = null;
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
@@ -470,22 +489,64 @@ export default class MathStereometryExperiment extends BaseExperiment {
 
   public zoom(direction: number): void {
     if (direction > 0) {
-      this.interactionManager?.onKeyDown({ code: 'Equal', key: '+', preventDefault: () => {} } as any);
+      const s = this.interactionManager?.zoomIn() ?? (this.mesh ? this.mesh.zoom(1.10) : 1.0);
+      this.touchZoomWidget?.updateScale(s);
     } else {
-      this.interactionManager?.onKeyDown({ code: 'Minus', key: '-', preventDefault: () => {} } as any);
+      const s = this.interactionManager?.zoomOut() ?? (this.mesh ? this.mesh.zoom(0.90) : 1.0);
+      this.touchZoomWidget?.updateScale(s);
     }
   }
 
   public resetScale(): void {
-    this.interactionManager?.onKeyDown({ code: 'Digit0', key: '0', preventDefault: () => {} } as any);
+    const s = this.interactionManager?.resetScale() ?? (this.mesh ? (this.mesh.setScale(1.0), 1.0) : 1.0);
+    this.touchZoomWidget?.updateScale(s);
+  }
+
+  public getTouchZoomWidget(): StereometryTouchZoomWidget | null {
+    return this.touchZoomWidget;
+  }
+
+  public onTouchStart(event: TouchEvent, context: ExperimentContext): boolean {
+    return this.interactionManager?.onTouchStart(event, context) ?? false;
+  }
+
+  public onTouchMove(event: TouchEvent, context: ExperimentContext): boolean {
+    return this.interactionManager?.onTouchMove(event, context) ?? false;
+  }
+
+  public onTouchEnd(event: TouchEvent, context: ExperimentContext): void {
+    this.interactionManager?.onTouchEnd(event, context);
+  }
+
+  public onTouchCancel(event: TouchEvent): void {
+    this.interactionManager?.onTouchCancel(event);
+  }
+
+  public onGestureStart(event: any): void {
+    this.interactionManager?.onGestureStart(event);
+  }
+
+  public onGestureChange(event: any): void {
+    this.interactionManager?.onGestureChange(event);
+  }
+
+  public onGestureEnd(event: any): void {
+    this.interactionManager?.onGestureEnd(event);
   }
 
   public onWheel(event: WheelEvent): void {
     this.interactionManager?.onWheel(event);
+    if (this.mesh && this.touchZoomWidget) {
+      this.touchZoomWidget.updateScale(this.mesh.getScale());
+    }
   }
 
   public onKeyDown(event: KeyboardEvent): boolean {
-    return this.interactionManager?.onKeyDown(event) ?? false;
+    const handled = this.interactionManager?.onKeyDown(event) ?? false;
+    if (this.mesh && this.touchZoomWidget) {
+      this.touchZoomWidget.updateScale(this.mesh.getScale());
+    }
+    return handled;
   }
 
   public override getHoverTarget(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null {
@@ -536,6 +597,8 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   public dispose(_context: ExperimentContext): void {
+    this.touchZoomWidget?.destroy();
+    this.touchZoomWidget = null;
     this.mesh?.dispose();
     this.rootGroup.clear();
   }

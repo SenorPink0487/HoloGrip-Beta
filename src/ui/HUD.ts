@@ -25,8 +25,8 @@ export class HUD {
 
     this.drawer = new ExperimentDrawer(document.body, this.onSwitchExperiment);
     this.perfOverlay = new PerfOverlay(this.computeBridge, this.platform, document.body);
-    // Display FPS and latency overlay in the top-left corner by default
-    this.perfOverlay.toggle(true);
+    // Hide FPS and latency overlay in the top-left corner per user request
+    this.perfOverlay.toggle(false);
 
     // Bind F key to fullscreen
     window.addEventListener('keydown', (e) => {

@@ -10,7 +10,7 @@ export class PerfOverlay {
   private backendEl: HTMLElement | null = null;
   private statusDotEl: HTMLElement | null = null;
   private popoverEl: HTMLElement | null = null;
-  private isVisible = true;
+  private isVisible = false;
   private isDetailsOpen = false;
 
   private frameCount = 0;
@@ -64,6 +64,7 @@ export class PerfOverlay {
     `;
 
     this.container.appendChild(this.element);
+    this.element.classList.toggle('hidden', !this.isVisible);
 
     this.fpsEl = this.element.querySelector('#perf-fps-val');
     this.latencyEl = this.element.querySelector('#perf-latency-val');

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MediaPipe Hand Tracking Benchmark</title>
+  <style>
+    body {
+      background: #111;
+      color: #eee;
+      font-family: monospace;
+      padding: 20px;
+    }
+    pre {
+      background: #222;
+      padding: 15px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>MediaPipe Hand Tracking Benchmark</h1>
+  <div id="status">Running benchmark...</div>
+  <pre id="output"></pre>
+
+  <script type="module">
+    async function runBenchmark() {
+      const outputEl = document.getElementById('output');
+      const statusEl = document.getElementById('status');
+      const log = (msg) => {
+        console.log(msg);
+        outputEl.textContent += msg + '\n';
+      };
+
+      log('=== Starting Real-World Performance Benchmark ===');
+      log('User Agent: ' + navigator.userAgent);
+      log('Hardware Concurrency: ' + navigator.hardwareConcurrency);
+
+      // Create test canvas with a simulated hand silhouette
+      const testCanvas = document.createElement('canvas');
+      testCanvas.width = 640;
+      testCanvas.height = 480;
+      const ctx = testCanvas.getContext('2d');
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 0, 640, 480);
+      // Draw palm
+      ctx.fillStyle = '#fbcfe8';
+      ctx.beginPath();
+      ctx.arc(320, 260, 60, 0, Math.PI * 2);
+      ctx.fill();
+      // Draw fingers
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.ellipse(320 + i * 25, 170, 12, 45, (i * 8 * Math.PI) / 180, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Helper function to benchmark a worker
+      async function testDelegate(delegateName, frameCount) {
+        log(`\n--- Benchmarking ${delegateName} Delegate (${frameCount} frames) ---`);
+        const worker = new Worker(new URL('/src/workers/handTracking.worker.ts', import.meta.url), {
+          type: 'module',
+        });
+
+        // 1. Measure Init Time
+        const initStart = performance.now();
+        const initResult = await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Init timeout 20s')), 20000);
+          worker.onmessage = (e) => {
+            if (e.data.type === 'INIT_SUCCESS') {
+              clearTimeout(timeout);
+              resolve(e.data);
+            } else if (e.data.type === 'INIT_ERROR') {
+              clearTimeout(timeout);
+              reject(new Error(e.data.error));
+            }
+          };
+          worker.onerror = (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          };
+
+          worker.postMessage({
+            type: 'INIT',
+            wasmBasePath: '/mediapipe/wasm',
+            modelAssetPath: '/models/hand_landmarker.task',
+            numHands: 2,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+            delegate: delegateName,
+          });
+        });
+
+        const initTimeMs = performance.now() - initStart;
+        log(`Initialization Result: delegate=${initResult.delegate}, initTime=${initTimeMs.toFixed(1)}ms`);
+
+        // 2. Warm up (2 frames)
+        for (let i = 0; i < 2; i++) {
+          const bmp = await createImageBitmap(testCanvas);
+          await new Promise((resolve) => {
+            worker.onmessage = () => resolve();
+            worker.postMessage({ type: 'DETECT', imageBitmap: bmp, timestamp: performance.now() }, [bmp]);
+          });
+        }
+
+        // 3. Measure test frames
+        const latencies = [];
+        const roundTripTimes = [];
+        const totalStart = performance.now();
+
+        for (let frameIdx = 0; frameIdx < frameCount; frameIdx++) {
+          const bmp = await createImageBitmap(testCanvas);
+          const tSend = performance.now();
+
+          const result = await new Promise((resolve, reject) => {
+            const tId = setTimeout(() => reject(new Error('Detect timeout')), 10000);
+            worker.onmessage = (e) => {
+              if (e.data.type === 'DETECT_RESULT') {
+                clearTimeout(tId);
+                resolve(e.data);
+              } else if (e.data.type === 'DETECT_ERROR') {
+                clearTimeout(tId);
+                reject(new Error(e.data.error));
+              }
+            };
+            worker.postMessage({ type: 'DETECT', imageBitmap: bmp, timestamp: performance.now() }, [bmp]);
+          });
+
+          const roundTrip = performance.now() - tSend;
+          latencies.push(result.latencyMs);
+          roundTripTimes.push(roundTrip);
+          log(`  Frame ${frameIdx + 1}/${frameCount}: latency = ${result.latencyMs.toFixed(1)} ms, roundTrip = ${roundTrip.toFixed(1)} ms`);
+        }
+
+        const totalElapsed = performance.now() - totalStart;
+        worker.postMessage({ type: 'CLOSE' });
+        worker.terminate();
+
+        latencies.sort((a, b) => a - b);
+        const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+        const p50 = latencies[Math.floor(latencies.length * 0.5)];
+        const p90 = latencies[Math.floor(latencies.length * 0.9)];
+        const min = latencies[0];
+        const max = latencies[latencies.length - 1];
+        const avgRoundTrip = roundTripTimes.reduce((a, b) => a + b, 0) / roundTripTimes.length;
+        const throughputFps = (frameCount * 1000) / totalElapsed;
+
+        const metrics = {
+          delegate: initResult.delegate,
+          initTimeMs: Number(initTimeMs.toFixed(1)),
+          avgLatencyMs: Number(avg.toFixed(2)),
+          medianP50Ms: Number(p50.toFixed(2)),
+          p90Ms: Number(p90.toFixed(2)),
+          minLatencyMs: Number(min.toFixed(2)),
+          maxLatencyMs: Number(max.toFixed(2)),
+          avgRoundTripMs: Number(avgRoundTrip.toFixed(2)),
+          throughputFps: Number(throughputFps.toFixed(1)),
+          headroomFps: Number((1000 / avg).toFixed(1)),
+        };
+
+        log(`\n[${initResult.delegate} Summary]`);
+        log(`  - 核心推理平均延迟 (Inference Avg): ${metrics.avgLatencyMs} ms`);
+        log(`  - 中位数延迟 (p50): ${metrics.medianP50Ms} ms`);
+        log(`  - 90分位延迟 (p90): ${metrics.p90Ms} ms`);
+        log(`  - 最低延迟 (Min): ${metrics.minLatencyMs} ms`);
+        log(`  - 最高延迟 (Max): ${metrics.maxLatencyMs} ms`);
+        log(`  - 端到端往返耗时 (Worker RoundTrip): ${metrics.avgRoundTripMs} ms`);
+        log(`  - 吞吐帧率 (Throughput): ${metrics.throughputFps} FPS`);
+        log(`  - 硬件计算天花板帧率 (Headroom): ${metrics.headroomFps} FPS`);
+
+        return metrics;
+      }
+
+      try {
+        const gpuMetrics = await testDelegate('GPU', 30);
+        const cpuMetrics = await testDelegate('CPU', 5);
+
+        const comparison = {
+          speedupMultiplier: Number((cpuMetrics.avgLatencyMs / gpuMetrics.avgLatencyMs).toFixed(1)),
+          latencyReductionPercent: Number((((cpuMetrics.avgLatencyMs - gpuMetrics.avgLatencyMs) / cpuMetrics.avgLatencyMs) * 100).toFixed(1)),
+          fpsImprovementMultiplier: Number((gpuMetrics.throughputFps / cpuMetrics.throughputFps).toFixed(1)),
+        };
+
+        log('\n=== Head-to-Head Performance Comparison ===');
+        log(`GPU 平均推理延迟: ${gpuMetrics.avgLatencyMs} ms vs CPU: ${cpuMetrics.avgLatencyMs} ms (${comparison.speedupMultiplier}x 加速, 延迟降低 ${comparison.latencyReductionPercent}%)`);
+        log(`GPU 实际吞吐帧率: ${gpuMetrics.throughputFps} FPS vs CPU: ${cpuMetrics.throughputFps} FPS (${comparison.fpsImprovementMultiplier}x 帧率提升)`);
+
+        statusEl.textContent = 'Benchmark Finished Successfully!';
+        window.BENCHMARK_RESULTS = { gpuMetrics, cpuMetrics, comparison };
+      } catch (err) {
+        log('\nBenchmark Error: ' + err.message + '\n' + err.stack);
+        statusEl.textContent = 'Benchmark Failed!';
+        window.BENCHMARK_ERROR = err.message;
+      }
+    }
+
+    runBenchmark();
+  </script>
+</body>
+</html>

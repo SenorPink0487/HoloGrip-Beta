@@ -309,7 +309,46 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   console.log('✓ Test 7 passed: VisionOS secondary modal popover defocus state machine & lifecycle verified\n');
 }
 
+// Test 8: Floating spatial window default location at table center
+{
+  console.log('Test 8: Floating spatial window default location at table center');
+  const THREE = await import('three');
+  const { Engine } = await import('../src/core/Engine.ts');
+
+  assert.strictEqual(typeof Engine.prototype.positionWindowAtTableCenter, 'function', 'Engine must implement positionWindowAtTableCenter');
+  assert.strictEqual(typeof Engine.prototype.positionWindowDefault, 'function', 'Engine must implement positionWindowDefault');
+
+  const mockEngine: any = Object.create(Engine.prototype);
+  mockEngine.camera = new THREE.PerspectiveCamera(54, 16 / 9, 0.05, 100);
+  mockEngine.camera.position.set(0, 1.38, 4.25); // LAB_ENTRY_REST
+  mockEngine.spatialWindowTargetPos = new THREE.Vector3(-99, -99, -99);
+  mockEngine.spatialWindowTargetRotY = 99;
+  mockEngine.lastCss3dCamPos = new THREE.Vector3();
+  let transformUpdated = false;
+  mockEngine.updateSpatialWindowTransform = (delta: number, snap = false) => {
+    transformUpdated = true;
+  };
+
+  // Calling positionWindowDefault must position target directly at table center (0, 2.20, 0)
+  mockEngine.positionWindowDefault(true);
+  assert.strictEqual(transformUpdated, true, 'updateSpatialWindowTransform must be triggered');
+  assert.strictEqual(mockEngine.spatialWindowTargetPos.x, 0, 'Target X must be at table center (0)');
+  assert.strictEqual(mockEngine.spatialWindowTargetPos.y, 2.20, 'Target Y must be suspended at 2.20m above table');
+  assert.strictEqual(mockEngine.spatialWindowTargetPos.z, 0, 'Target Z must be at table center (0)');
+  assert.strictEqual(mockEngine.spatialWindowTargetRotY, 0, 'Target RotY must face camera along Z axis (angle 0)');
+
+  // Verify from arbitrary camera position (e.g., at right side of table x = 4.0, z = 0)
+  mockEngine.camera.position.set(4.0, 1.5, 0);
+  mockEngine.positionWindowDefault(true);
+  assert.strictEqual(mockEngine.spatialWindowTargetPos.x, 0, 'Target X must remain at table center (0)');
+  assert.strictEqual(mockEngine.spatialWindowTargetPos.y, 2.20, 'Target Y must remain at 2.20m');
+  assert.strictEqual(mockEngine.spatialWindowTargetPos.z, 0, 'Target Z must remain at table center (0)');
+  assert(Math.abs(mockEngine.spatialWindowTargetRotY - Math.PI / 2) < 1e-5, 'Target RotY must face camera at right angle (PI/2)');
+
+  console.log('✓ Test 8 passed: Floating window default location strictly situated at table center (0, 2.20, 0) facing user\n');
+}
+
 console.log('========================================================');
-console.log('All VisionOS Spatial Window Tests Passed (7/7)!');
+console.log('All VisionOS Spatial Window Tests Passed (8/8)!');
 console.log('========================================================\n');
 

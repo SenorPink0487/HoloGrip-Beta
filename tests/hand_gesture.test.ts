@@ -223,6 +223,14 @@ const createMockHand = (
     `Left hand screenX (${frame.leftHand.screenX}) must be smaller than right hand screenX (${frame.rightHand.screenX})`
   );
 
+  // Single-hand regression: Hand on the right side of the screen (screenX >= 0.55) must be recognized as Right Hand
+  const singleRightHandLms = createMockHand([0.25, 0.5, 0], [0.27, 0.5, 0], 0.2, 0.26, 0.7);
+  const singleRightFrame = service.processMultiHands([singleRightHandLms], [[{ categoryName: 'Right' }]], 200);
+  assert.strictEqual(singleRightFrame.hasHand, true);
+  assert(singleRightFrame.rightHand !== null, 'Hand at screenX >= 0.55 must be recognized as Right Hand');
+  assert.strictEqual(singleRightFrame.leftHand, null);
+  assert.strictEqual(singleRightFrame.rightHand?.handedness, 'right');
+
   console.log('✓ Test 6 passed: Two-hand classification and spatial separation verified\n');
 }
 
@@ -721,6 +729,11 @@ await (async () => {
   assert(workerCode.includes('importScripts'), 'Worker must guard importScripts for module worker scope');
   assert(workerCode.includes('OffscreenCanvas'), 'Worker must provide OffscreenCanvas fallback for headless worker contexts');
   assert(workerCode.includes('safeTimestamp'), 'Worker must enforce strictly monotonically increasing timestamp for MediaPipe');
+  assert(workerCode.includes('defaultWorkerCanvas'), 'Worker must create dedicated worker canvas for WebGL context creation');
+  assert(workerCode.includes('HTMLCanvasElement'), 'Worker must polyfill HTMLCanvasElement for WebGL context creation');
+  assert(workerCode.includes('WebGLRenderingContext'), 'Worker must polyfill WebGLRenderingContext for WebGL context creation');
+  assert(workerCode.includes('document.getElementById'), 'Worker must polyfill document.getElementById for Emscripten target resolution');
+  assert(workerCode.includes('gpuOptions.canvas = defaultWorkerCanvas'), 'Worker must pass explicit canvas to HandLandmarker.createFromOptions for GPU delegate');
   console.log('✓ Test 18 passed: Worker ES module WASM loading & scope polyfill invariants verified\n');
 }
 

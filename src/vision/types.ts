@@ -92,5 +92,6 @@ export interface TrackerTelemetry {
   isLeftLongPinch: boolean;
   isLocalModel: boolean;
   isWorkerMode?: boolean;
+  delegate?: 'GPU' | 'CPU' | 'unknown';
   errorMessage?: string;
 }

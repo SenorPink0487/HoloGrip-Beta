@@ -33,7 +33,7 @@ export class StereometryInteractionManager {
   private currentSnapLabel = '';
   private selectedCutPoints: KeyPoint[] = [];
 
-  // Pointer dragging state
+  // Pointer & Multi-Touch dragging state
   private isPointerDown = false;
   private isOrbitDragging = false;
   private isConnectingDrag = false;
@@ -44,6 +44,12 @@ export class StereometryInteractionManager {
   private lastPointerX = 0;
   private lastPointerY = 0;
   private rotationVelocity = new THREE.Vector2(0, 0);
+
+  // Multi-Touch Pinch-to-Zoom State (iPad & Touch Devices)
+  private activePointers = new Map<number, { x: number; y: number }>();
+  private isPinching = false;
+  private initialPinchDist = 0;
+  private initialPinchScale = 1.0;
 
   constructor(mesh: StereometryMesh, callbacks: StereometryInteractionCallbacks = {}) {
     this.mesh = mesh;
@@ -109,6 +115,24 @@ export class StereometryInteractionManager {
   ): boolean {
     if (event.button !== 0) return false;
 
+    // Track pointer for multi-touch pinch-to-zoom (iPad & touch devices)
+    this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (this.activePointers.size >= 2) {
+      // 2 fingers detected -> switch immediately to pinch-to-zoom mode
+      const pts = Array.from(this.activePointers.values());
+      this.isPinching = true;
+      this.isOrbitDragging = false;
+      this.isConnectingDrag = false;
+      this.dragStartKp = null;
+      this.mesh.setHoveredKeyPoint(null);
+      this.mesh.clearPreviewWire();
+      this.initialPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      this.initialPinchScale = this.mesh.getScale();
+      this.callbacks.onGuidanceChange?.(`双指捏合缩放 · 当前: ${Math.round(this.initialPinchScale * 100)}%`, 'info');
+      return true;
+    }
+
     this.isPointerDown = true;
     this.pointerDownX = event.clientX;
     this.pointerDownY = event.clientY;
@@ -126,7 +150,11 @@ export class StereometryInteractionManager {
       );
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouseNDC, context.camera);
-      const snapThreshold = this.currentHoveredKp ? 0.075 : 0.060;
+      // Adaptive magnetic snap radius: fingers on iPad get larger snapping margin
+      const isTouchPointer = event.pointerType === 'touch';
+      const snapThreshold = this.currentHoveredKp
+        ? (isTouchPointer ? 0.095 : 0.075)
+        : (isTouchPointer ? 0.080 : 0.060);
       const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, snapThreshold);
       if (snapRes) {
         snapKp = snapRes.keyPoint;
@@ -160,6 +188,25 @@ export class StereometryInteractionManager {
     _hit: THREE.Intersection | null,
     context: ExperimentContext
   ): void {
+    // Keep active pointer coordinates updated
+    if (this.activePointers.has(event.pointerId)) {
+      this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+
+    // 1. Two-finger Pinch Scaling
+    if (this.isPinching && this.activePointers.size >= 2) {
+      const pts = Array.from(this.activePointers.values());
+      const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (this.initialPinchDist > 5) {
+        const factor = currentDist / this.initialPinchDist;
+        const newScale = THREE.MathUtils.clamp(this.initialPinchScale * factor, 0.35, 3.0);
+        this.mesh.setScale(newScale);
+        this.callbacks.onScaleChange?.(newScale);
+        this.callbacks.onGuidanceChange?.(`立体几何缩放: ${Math.round(newScale * 100)}%`, 'active');
+      }
+      return;
+    }
+
     if (this.isOrbitDragging) {
       const dx = event.clientX - this.lastPointerX;
       const dy = event.clientY - this.lastPointerY;
@@ -192,7 +239,10 @@ export class StereometryInteractionManager {
     if (context?.camera) {
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouseNDC, context.camera);
-      const snapThreshold = this.currentHoveredKp ? 0.075 : 0.055;
+      const isTouchPointer = event.pointerType === 'touch';
+      const snapThreshold = this.currentHoveredKp
+        ? (isTouchPointer ? 0.095 : 0.075)
+        : (isTouchPointer ? 0.075 : 0.055);
       const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, snapThreshold);
       if (snapRes) {
         hoveredKp = snapRes.keyPoint;
@@ -269,6 +319,8 @@ export class StereometryInteractionManager {
     this.isOrbitDragging = false;
     this.isConnectingDrag = false;
     this.isPointerDown = false;
+    this.isPinching = false;
+    this.activePointers.clear();
     this.rotationVelocity.set(0, 0);
     this.mesh?.setHoveredKeyPoint(null);
     this.mesh?.clearPreviewWire();
@@ -283,6 +335,29 @@ export class StereometryInteractionManager {
    * Pointer Up Hook - Resolves drag-to-connect vs clean clicks.
    */
   public onPointerUp(event: PointerEvent, context: ExperimentContext): void {
+    this.activePointers.delete(event.pointerId);
+
+    // Multi-touch pinch release handling
+    if (this.isPinching) {
+      if (this.activePointers.size < 2) {
+        this.isPinching = false;
+        this.isConnectingDrag = false;
+        this.dragStartKp = null;
+        this.isOrbitDragging = false;
+        if (this.activePointers.size === 1) {
+          const remaining = Array.from(this.activePointers.values())[0];
+          this.lastPointerX = remaining.x;
+          this.lastPointerY = remaining.y;
+          this.pointerDownX = remaining.x;
+          this.pointerDownY = remaining.y;
+        } else {
+          this.isPointerDown = false;
+        }
+        this.callbacks.onGuidanceChange?.(`缩放完成 · 当前: ${Math.round(this.mesh.getScale() * 100)}%`, 'success');
+      }
+      return;
+    }
+
     if (!this.isPointerDown) return;
     this.isPointerDown = false;
 
@@ -548,5 +623,161 @@ export class StereometryInteractionManager {
   public resetToTopView(): void {
     this.mesh.modelContainer.rotation.set(-Math.PI / 2, 0, 0);
     this.rotationVelocity.set(0, 0);
+  }
+
+  /**
+   * Pointer Cancel Hook.
+   */
+  public onPointerCancel(event: PointerEvent): void {
+    this.activePointers.delete(event.pointerId);
+    if (this.activePointers.size < 2) {
+      this.isPinching = false;
+    }
+    if (this.activePointers.size === 0) {
+      this.isPointerDown = false;
+      this.isOrbitDragging = false;
+      this.isConnectingDrag = false;
+      this.dragStartKp = null;
+    }
+  }
+
+  /**
+   * Native Touch Event Handlers for iPad & Touch Screens.
+   */
+  public onTouchStart(event: TouchEvent, _context?: ExperimentContext): boolean {
+    if (event.touches.length >= 2) {
+      const t1 = event.touches[0];
+      const t2 = event.touches[1];
+      this.isPinching = true;
+      this.isOrbitDragging = false;
+      this.isConnectingDrag = false;
+      this.dragStartKp = null;
+      this.mesh.setHoveredKeyPoint(null);
+      this.mesh.clearPreviewWire();
+      this.initialPinchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      this.initialPinchScale = this.mesh.getScale();
+      this.callbacks.onGuidanceChange?.(`双指捏合缩放 · 当前: ${Math.round(this.initialPinchScale * 100)}%`, 'info');
+      if (event.cancelable) event.preventDefault();
+      return true;
+    }
+    return false;
+  }
+
+  public onTouchMove(event: TouchEvent, _context?: ExperimentContext): boolean {
+    if (event.touches.length >= 2) {
+      const t1 = event.touches[0];
+      const t2 = event.touches[1];
+      const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      if (!this.isPinching) {
+        this.isPinching = true;
+        this.initialPinchDist = currentDist;
+        this.initialPinchScale = this.mesh.getScale();
+      }
+      if (this.initialPinchDist > 5) {
+        const factor = currentDist / this.initialPinchDist;
+        const newScale = THREE.MathUtils.clamp(this.initialPinchScale * factor, 0.35, 3.0);
+        this.mesh.setScale(newScale);
+        this.callbacks.onScaleChange?.(newScale);
+        this.callbacks.onGuidanceChange?.(`立体几何缩放: ${Math.round(newScale * 100)}%`, 'active');
+      }
+      if (event.cancelable) event.preventDefault();
+      return true;
+    }
+    return false;
+  }
+
+  public onTouchEnd(event: TouchEvent, _context?: ExperimentContext): void {
+    if (this.isPinching && event.touches.length < 2) {
+      this.isPinching = false;
+      this.isOrbitDragging = false;
+      this.isConnectingDrag = false;
+      this.dragStartKp = null;
+      if (event.touches.length === 1) {
+        this.lastPointerX = event.touches[0].clientX;
+        this.lastPointerY = event.touches[0].clientY;
+        this.pointerDownX = event.touches[0].clientX;
+        this.pointerDownY = event.touches[0].clientY;
+      }
+      this.callbacks.onGuidanceChange?.(`缩放完成 · 当前: ${Math.round(this.mesh.getScale() * 100)}%`, 'success');
+    }
+  }
+
+  public onTouchCancel(_event: TouchEvent): void {
+    this.isPinching = false;
+    this.isOrbitDragging = false;
+    this.isConnectingDrag = false;
+    this.dragStartKp = null;
+  }
+
+  /**
+   * Safari WebKit Gesture Handlers (iPadOS).
+   */
+  public onGestureStart(event: any): void {
+    this.isPinching = true;
+    this.initialPinchScale = this.mesh.getScale();
+    if (typeof event.preventDefault === 'function' && event.cancelable) {
+      event.preventDefault();
+    }
+  }
+
+  public onGestureChange(event: any): void {
+    if (this.isPinching && typeof event.scale === 'number') {
+      const newScale = THREE.MathUtils.clamp(this.initialPinchScale * event.scale, 0.35, 3.0);
+      this.mesh.setScale(newScale);
+      this.callbacks.onScaleChange?.(newScale);
+      this.callbacks.onGuidanceChange?.(`立体几何缩放: ${Math.round(newScale * 100)}%`, 'active');
+      if (typeof event.preventDefault === 'function' && event.cancelable) {
+        event.preventDefault();
+      }
+    }
+  }
+
+  public onGestureEnd(event: any): void {
+    if (this.isPinching) {
+      this.isPinching = false;
+      this.callbacks.onGuidanceChange?.(`缩放完成 · 当前: ${Math.round(this.mesh.getScale() * 100)}%`, 'success');
+      if (typeof event.preventDefault === 'function' && event.cancelable) {
+        event.preventDefault();
+      }
+    }
+  }
+
+  /**
+   * Direct Programmatic / Touch UI Zoom Methods.
+   */
+  public zoomIn(factor = 1.10): number {
+    const newScale = this.mesh.zoom(factor);
+    this.callbacks.onScaleChange?.(newScale);
+    this.callbacks.onGuidanceChange?.(`立体几何缩放: ${Math.round(newScale * 100)}%`, 'info');
+    return newScale;
+  }
+
+  public zoomOut(factor = 0.90): number {
+    const newScale = this.mesh.zoom(factor);
+    this.callbacks.onScaleChange?.(newScale);
+    this.callbacks.onGuidanceChange?.(`立体几何缩放: ${Math.round(newScale * 100)}%`, 'info');
+    return newScale;
+  }
+
+  public resetScale(): number {
+    this.mesh.setScale(1.0);
+    this.callbacks.onScaleChange?.(1.0);
+    this.callbacks.onGuidanceChange?.('已重置图像大小 (100%)', 'info');
+    return 1.0;
+  }
+
+  public setScale(scale: number): number {
+    this.mesh.setScale(scale);
+    const newScale = this.mesh.getScale();
+    this.callbacks.onScaleChange?.(newScale);
+    return newScale;
+  }
+
+  public getScale(): number {
+    return this.mesh.getScale();
+  }
+
+  public isPinchingActive(): boolean {
+    return this.isPinching;
   }
 }
