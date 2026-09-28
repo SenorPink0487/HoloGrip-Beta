@@ -1,4 +1,5 @@
 import { parseRecognizedFigure, type RecognizedFigure } from './figureModel.ts';
+import { apiBase } from '../../account/api.ts';
 
 /** Shrink a worksheet photo so the vision request stays small enough to return in a few seconds. */
 export async function compressProblemImage(dataUrl: string): Promise<string> {
@@ -30,19 +31,22 @@ export async function compressProblemImage(dataUrl: string): Promise<string> {
 
 export async function recognizeStereometryImage(dataUrl: string): Promise<RecognizedFigure> {
   const image = await compressProblemImage(dataUrl);
+  const configuredApi = import.meta.env.VITE_ACCOUNT_API_URL?.trim();
+  const endpoint = configuredApi ? `${apiBase()}/api/math/recognize` : '/api/math/recognize';
   let response: Response;
   try {
-    response = await fetch('/api/math/recognize', {
+    response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image }),
-      signal: AbortSignal.timeout(12000),
+      credentials: 'omit',
+      signal: AbortSignal.timeout(40_000),
     });
   } catch (error) {
     if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
       throw new Error('识别超时，请再试一次');
     }
-    throw new Error('连不上识图服务，请用 npm run dev 打开实验室');
+    throw new Error('连不上识图服务，请检查网络后重试');
   }
 
   const payload = await response.json().catch(() => ({})) as { error?: unknown; figure?: unknown };

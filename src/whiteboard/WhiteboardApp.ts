@@ -201,6 +201,7 @@ export class WhiteboardApp {
     this.root.classList.add('hidden-view');
     this.activateLaboratory();
     this.setReturnButtonVisible(true);
+    this.engine?.handTrackingHUD?.setVisible(true);
     this.labEntryCleanup = requestAnimationFrame(() => {
       if (token !== this.labEntryToken) return;
       this.root.classList.remove('lab-entry');
@@ -223,6 +224,8 @@ export class WhiteboardApp {
     this.transitionKind = 'return';
     this.currentMode = 'whiteboard';
     this.setReturnButtonVisible(false);
+    this.engine?.holoStage?.setViewMode('whiteboard');
+    this.engine?.handTrackingHUD?.setVisible(false);
     this.measureReturnOrigin();
     this.returnCover = returnCoverRadius(window.innerWidth, window.innerHeight, this.returnOriginX, this.returnOriginY);
     this.returnStart = returnStartRadius(covered, this.returnCover);

@@ -1,6 +1,6 @@
 services:
   api:
-    image: virtuallab-account-api:1.0.1
+    image: virtuallab-account-api:1.0.3
     container_name: virtuallab-account-api
     restart: unless-stopped
     network_mode: host

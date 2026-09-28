@@ -1513,6 +1513,9 @@ export class Engine {
 
     this.visionProCursor = new VisionProCursor(document.body);
     this.handTrackingHUD = new HandTrackingHUD(this.handGestureService, document.body);
+    if (this.isWhiteboardMode) {
+      this.handTrackingHUD.setVisible(false);
+    }
 
     // Synchronize hand gestures with Vision Pro cursor and crosshair visibility
     this.handGestureService.onFrame((frame) => {
@@ -2214,6 +2217,9 @@ export class Engine {
   public setViewMode(mode: 'whiteboard' | 'laboratory'): void {
     const wasWhiteboard = this.isWhiteboardMode;
     this.isWhiteboardMode = mode === 'whiteboard';
+
+    this.holoStage?.setViewMode(mode);
+    this.handTrackingHUD?.setVisible(!this.isWhiteboardMode);
 
     if (this.inputManager?.touch) {
       this.inputManager.touch.setVisible(!this.isWhiteboardMode);

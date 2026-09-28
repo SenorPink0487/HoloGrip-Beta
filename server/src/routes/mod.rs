@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::http::{header, HeaderName, HeaderValue, Method};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
@@ -14,6 +14,7 @@ use crate::state::AppState;
 mod auth;
 mod chemistry;
 mod classes;
+mod math_recognition;
 mod me;
 mod whiteboard;
 
@@ -23,6 +24,10 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/api/v1/whiteboard/ticket", post(whiteboard::ticket))
         .route("/api/chem/analyze", post(chemistry::analyze))
+        .route(
+            "/api/math/recognize",
+            post(math_recognition::recognize).layer(DefaultBodyLimit::max(8_000_000)),
+        )
         .route("/api/v1/whiteboard/ws", get(whiteboard::upgrade))
         .layer(axum::Extension(whiteboard::Hub::default()))
         .route("/api/v1/auth/register", post(auth::register))

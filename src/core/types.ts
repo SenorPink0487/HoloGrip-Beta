@@ -122,6 +122,10 @@ export interface IExperiment {
   onPointerMove?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void;
   onPointerUp?(event: PointerEvent, context: ExperimentContext): void;
   getHoverTarget?(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null;
+  /**
+   * Called when switching between 3D laboratory view and 2D whiteboard view.
+   */
+  onViewModeChange?(mode: 'whiteboard' | 'laboratory'): void;
 }
 
 export interface ExperimentModule {

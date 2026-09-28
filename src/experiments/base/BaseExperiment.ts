@@ -60,4 +60,5 @@ export abstract class BaseExperiment implements IExperiment {
   public onPointerMove?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void;
   public onPointerUp?(event: PointerEvent, context: ExperimentContext): void;
   public getHoverTarget?(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null;
+  public onViewModeChange?(mode: 'whiteboard' | 'laboratory'): void;
 }

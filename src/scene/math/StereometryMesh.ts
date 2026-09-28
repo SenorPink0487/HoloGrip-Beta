@@ -148,6 +148,8 @@ export class StereometryMesh {
   private crossSectionLineMat: THREE.LineBasicMaterial;
   private circumSphereMat: THREE.MeshStandardMaterial;
   private inSphereMat: THREE.MeshStandardMaterial;
+  private auxFaceFillMat: THREE.MeshStandardMaterial;
+  private auxFaceContourMat: THREE.LineBasicMaterial;
 
   // Pearl Node Materials (High-contrast spatial pearl anchors)
   private vertexNodeMat: THREE.MeshStandardMaterial;
@@ -348,7 +350,28 @@ export class StereometryMesh {
       emissiveIntensity: 0.15,
     });
 
-    // 7. Data Nodes (High-contrast spatial pearl anchors)
+    // 7. Auxiliary Faces (High-performance shared crystal glass, zero shader recompile hitch)
+    this.auxFaceFillMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,            // Azure Crystal Blue
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.15,
+      roughness: 0.18,
+      metalness: 0.10,
+      transparent: true,
+      opacity: 0.35,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+
+    this.auxFaceContourMat = new THREE.LineBasicMaterial({
+      color: 0x38bdf8,            // Radiant Sky Blue contour glow
+      linewidth: 2,
+      transparent: true,
+      opacity: 0.90,
+      depthWrite: false,
+    });
+
+    // 8. Data Nodes (High-contrast spatial pearl anchors)
     this.vertexNodeMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,            // Cyan-Platinum Pearl Anchor (Vertices)
       roughness: 0.08,
@@ -1333,7 +1356,7 @@ export class StereometryMesh {
       const verts = face.vertices3D;
       if (!verts || verts.length < 3) continue;
 
-      // 1. Semi-transparent crystal glass polygon surface (Double-sided)
+      // 1. Semi-transparent crystal glass polygon surface (Pre-compiled shared material, zero transmission pass or shader recompile hitch)
       const fillPositions: number[] = [];
       const centroid = face.centroid;
       for (let i = 0; i < verts.length; i++) {
@@ -1348,103 +1371,25 @@ export class StereometryMesh {
       fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fillPositions, 3));
       fillGeo.computeVertexNormals();
 
-      const faceMat = new THREE.MeshPhysicalMaterial({
-        color: face.color ?? 0x0284c7,
-        emissive: face.color ?? 0x0284c7,
-        emissiveIntensity: 0.22,
-        roughness: 0.15,
-        metalness: 0.1,
-        transmission: 0.55,
-        ior: 1.45,
-        transparent: true,
-        opacity: 0.38,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      });
-
-      const faceMesh = new THREE.Mesh(fillGeo, faceMat);
+      const faceMesh = new THREE.Mesh(fillGeo, this.auxFaceFillMat);
       faceMesh.name = `aux_face_${face.id}`;
       faceMesh.renderOrder = 4;
       this.auxFacesGroup.add(faceMesh);
 
-      // 2. Glowing boundary contour line loop
+      // 2. Glowing boundary contour line loop (Shared material, zero allocation hitch)
       const contourPositions: number[] = [];
       for (const v of verts) {
         contourPositions.push(v.x, v.y, v.z);
       }
       const contourGeo = new THREE.BufferGeometry();
       contourGeo.setAttribute('position', new THREE.Float32BufferAttribute(contourPositions, 3));
-      const contourMat = new THREE.LineBasicMaterial({
-        color: 0x38bdf8,
-        linewidth: 2,
-        transparent: true,
-        opacity: 0.92,
-        depthWrite: false,
-      });
-      const contourLoop = new THREE.LineLoop(contourGeo, contourMat);
+      const contourLoop = new THREE.LineLoop(contourGeo, this.auxFaceContourMat);
       contourLoop.name = `aux_face_contour_${face.id}`;
       contourLoop.renderOrder = 6;
       this.auxFacesGroup.add(contourLoop);
 
-      // 3. Floating centroid label badge sprite
-      const badgeSprite = this.createFaceBadgeSprite(
-        face.faceLabel,
-        `${face.polygonType} · S=${face.area.toFixed(3)}m²`
-      );
-      const badgePos = face.centroid.clone().addScaledVector(face.normal, 0.015);
-      badgeSprite.position.copy(badgePos);
-      badgeSprite.name = `aux_face_badge_${face.id}`;
-      this.auxFacesGroup.add(badgeSprite);
+      // 3. Clean surface invariant: NO bubble badges or text on the face (pure, unobstructed crystal planar face)
     }
-  }
-
-  private createFaceBadgeSprite(title: string, subtitle?: string): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    canvas.width = 384;
-    canvas.height = 128;
-    const ctx = typeof (canvas as any).getContext === 'function' ? (canvas as any).getContext('2d') : null;
-    if (ctx) {
-      // Rounded pill background
-      ctx.fillStyle = 'rgba(2, 6, 23, 0.82)';
-      ctx.beginPath();
-      if (typeof ctx.roundRect === 'function') {
-        ctx.roundRect(16, 16, 352, 96, 48);
-      } else if (typeof ctx.rect === 'function') {
-        ctx.rect(16, 16, 352, 96);
-      } else if (typeof ctx.fillRect === 'function') {
-        ctx.fillRect(16, 16, 352, 96);
-      }
-      if (typeof ctx.fill === 'function') {
-        ctx.fill();
-      }
-
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
-      ctx.stroke();
-
-      ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillText(title, 192, subtitle ? 48 : 64);
-
-      if (subtitle) {
-        ctx.font = '500 24px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
-        ctx.fillStyle = '#e2e8f0';
-        ctx.fillText(subtitle, 192, 84);
-      }
-    }
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    const spriteMat = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      depthTest: false,
-    });
-    const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(0.12, 0.04, 1);
-    sprite.renderOrder = 9;
-    return sprite;
   }
 
   // -------------------------------------------------------------
@@ -2320,6 +2265,8 @@ export class StereometryMesh {
     this.crossSectionLineMat.dispose();
     this.circumSphereMat.dispose();
     this.inSphereMat.dispose();
+    this.auxFaceFillMat.dispose();
+    this.auxFaceContourMat.dispose();
     this.vertexNodeMat.dispose();
     this.midpointNodeMat.dispose();
     this.thirdNodeMat.dispose();

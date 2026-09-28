@@ -493,8 +493,50 @@ const createMockHand = (
   hud.toggleFullscreen();
   assert.strictEqual(hud.isFullscreen, false, 'toggleFullscreen() second flip must return to false');
 
+  // Visibility toggle
+  assert.strictEqual(hud.getVisible(), true, 'HUD should start visible by default');
+  hud.setVisible(false);
+  assert.strictEqual(hud.getVisible(), false, 'setVisible(false) must update getVisible()');
+  assert.strictEqual(hud.getDOMElement().classList.contains('hidden'), true, 'setVisible(false) must add hidden class');
+
+  hud.setVisible(true);
+  assert.strictEqual(hud.getVisible(), true, 'setVisible(true) must restore visibility');
+  assert.strictEqual(hud.getDOMElement().classList.contains('hidden'), false);
+
+  // Environmental auto-hiding test: when Whiteboard root is in foreground (not hidden-view)
+  const mockWb = {
+    classList: {
+      _classes: new Set<string>(),
+      add(c: string) { this._classes.add(c); },
+      remove(c: string) { this._classes.delete(c); },
+      contains(c: string) { return this._classes.has(c); },
+    },
+  };
+  const origGetId = (document as any).getElementById;
+  (document as any).getElementById = (id: string) => (id === 'whiteboard-app-root' ? mockWb : origGetId?.(id) ?? null);
+
+  hud.syncVisibilityWithEnvironment();
+  assert.strictEqual(hud.getDOMElement().classList.contains('hidden-by-env'), true, 'Must add hidden-by-env when whiteboard root is in foreground');
+
+  // When in active laboratory (whiteboard has hidden-view and body has lab-active)
+  mockWb.classList.add('hidden-view');
+  if (!(document.body as any).classList) {
+    (document.body as any).classList = {
+      _classes: new Set<string>(),
+      add(c: string) { this._classes.add(c); },
+      remove(c: string) { this._classes.delete(c); },
+      contains(c: string) { return this._classes.has(c); },
+    };
+  }
+  (document.body as any).classList.add('lab-active');
+  hud.syncVisibilityWithEnvironment();
+  assert.strictEqual(hud.getDOMElement().classList.contains('hidden-by-env'), false, 'Must remove hidden-by-env when laboratory is active');
+
+  (document as any).getElementById = origGetId;
+  (document.body as any).classList.remove('lab-active');
+
   hud.destroy();
-  console.log('✓ Test 11 passed: HandTrackingHUD fullscreen toggle and state machine verified\n');
+  console.log('✓ Test 11 passed: HandTrackingHUD fullscreen toggle, visibility, and whiteboard auto-hide verified\n');
 }
 
 // Test 12: Dual-Hand Pinch Duration Computation Accuracy (Left & Right Hands)

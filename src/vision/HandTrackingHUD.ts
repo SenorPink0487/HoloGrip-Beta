@@ -57,6 +57,7 @@ export class HandTrackingHUD {
   private cachedFps = '';
   private cachedLatency = '';
   private prevHandLandmarks: Map<string, { lms: NormalizedLandmark[]; timestamp: number }> = new Map();
+  private bodyObserver: MutationObserver | null = null;
 
   constructor(service: HandGestureService, parent: HTMLElement = document.body) {
     this.service = service;
@@ -191,6 +192,7 @@ export class HandTrackingHUD {
 
     this.bindEvents();
     this.listenToService();
+    this.initEnvironmentObserver();
   }
 
   private injectStyles(): void {
@@ -203,6 +205,20 @@ export class HandTrackingHUD {
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
         user-select: none;
         pointer-events: auto;
+        transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
+      }
+
+      /* Auto-hide Hand Tracking HUD when in Whiteboard mode or returning to whiteboard */
+      #vision-pro-tracking-hud.hidden,
+      #vision-pro-tracking-hud.hidden-by-env,
+      body:not(.lab-active) #vision-pro-tracking-hud,
+      body.lab-returning #vision-pro-tracking-hud,
+      #whiteboard-app-root:not(.hidden-view) ~ #vision-pro-tracking-hud,
+      #whiteboard-app-root:not(.hidden-view) ~ * #vision-pro-tracking-hud {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        visibility: hidden !important;
+        transform: translateY(-16px) scale(0.92) !important;
       }
 
       .vp-hud-pill {
@@ -1559,7 +1575,64 @@ export class HandTrackingHUD {
     }
   }
 
+  public setVisible(visible: boolean): void {
+    if (!this.container) return;
+    this.container.classList.toggle('hidden', !visible);
+    if (!visible && this.isFullscreen) {
+      this.toggleFullscreen(false);
+    }
+  }
+
+  public getVisible(): boolean {
+    return this.container ? !this.container.classList.contains('hidden') : false;
+  }
+
+  public getDOMElement(): HTMLElement {
+    return this.container;
+  }
+
+  private initEnvironmentObserver(): void {
+    if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.body) {
+      this.bodyObserver = new MutationObserver(() => {
+        this.syncVisibilityWithEnvironment();
+      });
+      try {
+        if (typeof (document.body as any).nodeType === 'number') {
+          this.bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
+      } catch {}
+      this.syncVisibilityWithEnvironment();
+    }
+  }
+
+  public syncVisibilityWithEnvironment(): void {
+    if (typeof document === 'undefined' || !document.body || !this.container) return;
+    const isLabActive = typeof document.body.classList?.contains === 'function'
+      ? document.body.classList.contains('lab-active')
+      : true;
+    const isLabReturning = typeof document.body.classList?.contains === 'function'
+      ? document.body.classList.contains('lab-returning')
+      : false;
+    const wbRoot = typeof document.getElementById === 'function'
+      ? document.getElementById('whiteboard-app-root')
+      : null;
+    const isWbVisible = wbRoot && typeof wbRoot.classList?.contains === 'function'
+      ? !wbRoot.classList.contains('hidden-view')
+      : false;
+
+    // When whiteboard app is present in DOM, automatically hide HUD if whiteboard is visible or lab is inactive/returning
+    if (wbRoot && (isWbVisible || !isLabActive || isLabReturning)) {
+      this.container.classList.add('hidden-by-env');
+    } else {
+      this.container.classList.remove('hidden-by-env');
+    }
+  }
+
   public destroy(): void {
+    if (this.bodyObserver) {
+      this.bodyObserver.disconnect();
+      this.bodyObserver = null;
+    }
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('resize', this.onResize);
     if (this.container && this.container.parentNode) {

@@ -52,6 +52,30 @@
   transform: scale(0.98);
 }
 
+/* Whiteboard Mode Invariant: Hide 3D Stereometry Touch Zoom pill whenever whiteboard is in foreground */
+#whiteboard-app-root:not(.hidden-view) ~ #stereometry-touch-zoom,
+#whiteboard-app-root:not(.hidden-view) ~ * #stereometry-touch-zoom,
+body:not(.lab-active) #stereometry-touch-zoom,
+body.lab-returning #stereometry-touch-zoom,
+body:not(.lab-active) .stereometry-touch-zoom-pill,
+body.lab-returning .stereometry-touch-zoom-pill {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  transform: translateY(16px) scale(0.90) !important;
+}
+
+/* Whiteboard Mode Invariant: Hide Hand Tracking HUD (top-right gesture pill) whenever whiteboard is in foreground */
+#whiteboard-app-root:not(.hidden-view) ~ #vision-pro-tracking-hud,
+#whiteboard-app-root:not(.hidden-view) ~ * #vision-pro-tracking-hud,
+body:not(.lab-active) #vision-pro-tracking-hud,
+body.lab-returning #vision-pro-tracking-hud {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  transform: translateY(-16px) scale(0.92) !important;
+}
+
 /* Entry: the board becomes fine ground glass, then transmits as the camera pushes in.
    Root opacity stays 1 so backdrop-filter can see the WebGL canvas behind this layer. */
 #whiteboard-app-root.lab-entry {

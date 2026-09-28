@@ -137,6 +137,18 @@ export default class MathStereometryExperiment extends BaseExperiment {
         onResetScale: () => this.resetScale(),
       });
       this.touchZoomWidget.updateScale(this.mesh ? this.mesh.getScale() : 1.0);
+
+      // If whiteboard is currently in foreground, initially hide widget until laboratory view is entered
+      const wbRoot = typeof document.getElementById === 'function' ? document.getElementById('whiteboard-app-root') : null;
+      if (wbRoot && typeof wbRoot.classList?.contains === 'function' && !wbRoot.classList.contains('hidden-view')) {
+        this.touchZoomWidget.setVisible(false);
+      }
+    }
+  }
+
+  public override onViewModeChange(mode: 'whiteboard' | 'laboratory'): void {
+    if (this.touchZoomWidget) {
+      this.touchZoomWidget.setVisible(mode === 'laboratory');
     }
   }
 

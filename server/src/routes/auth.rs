@@ -351,8 +351,8 @@ async fn record_failure(pool: &MySqlPool, email: &str) -> Result<AppError, AppEr
         None
     };
     sqlx::query(
-        "INSERT INTO login_attempts (email, failed_count, locked_until) VALUES (?, ?, ?) AS new
-         ON DUPLICATE KEY UPDATE failed_count = new.failed_count, locked_until = new.locked_until",
+        "INSERT INTO login_attempts (email, failed_count, locked_until) VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE failed_count = VALUES(failed_count), locked_until = VALUES(locked_until)",
     )
     .bind(email)
     .bind(count)

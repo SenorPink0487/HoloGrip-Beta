@@ -11,12 +11,14 @@ export class StereometryTouchZoomWidget {
   private callbacks: StereometryTouchZoomWidgetCallbacks;
   private currentScale = 1.0;
   private isVisible = true;
+  private bodyObserver: MutationObserver | null = null;
 
   constructor(callbacks: StereometryTouchZoomWidgetCallbacks = {}, parent: HTMLElement = document.body) {
     this.callbacks = callbacks;
     this.container = parent;
     this.createUI();
     this.bindEvents();
+    this.initEnvironmentObserver();
   }
 
   private createUI(): void {
@@ -75,6 +77,18 @@ export class StereometryTouchZoomWidget {
           opacity: 0;
           pointer-events: none !important;
           transform: translateY(12px) scale(0.92);
+        }
+
+        /* Auto-hide when returning to whiteboard or when whiteboard app is active */
+        body:not(.lab-active) .stereometry-touch-zoom-pill,
+        body.lab-returning .stereometry-touch-zoom-pill,
+        #whiteboard-app-root:not(.hidden-view) ~ .stereometry-touch-zoom-pill,
+        #whiteboard-app-root:not(.hidden-view) ~ * .stereometry-touch-zoom-pill,
+        .stereometry-touch-zoom-pill.hidden-by-env {
+          opacity: 0 !important;
+          pointer-events: none !important;
+          visibility: hidden !important;
+          transform: translateY(16px) scale(0.90) !important;
         }
 
         .zoom-touch-btn {
@@ -294,7 +308,52 @@ export class StereometryTouchZoomWidget {
     return this.isVisible;
   }
 
+  public getDOMElement(): HTMLElement {
+    return this.element;
+  }
+
+  private initEnvironmentObserver(): void {
+    if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.body) {
+      this.bodyObserver = new MutationObserver(() => {
+        this.syncVisibilityWithEnvironment();
+      });
+      try {
+        if (typeof (document.body as any).nodeType === 'number') {
+          this.bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
+      } catch {}
+      this.syncVisibilityWithEnvironment();
+    }
+  }
+
+  public syncVisibilityWithEnvironment(): void {
+    if (typeof document === 'undefined' || !document.body || !this.element) return;
+    const isLabActive = typeof document.body.classList?.contains === 'function'
+      ? document.body.classList.contains('lab-active')
+      : true;
+    const isLabReturning = typeof document.body.classList?.contains === 'function'
+      ? document.body.classList.contains('lab-returning')
+      : false;
+    const wbRoot = typeof document.getElementById === 'function'
+      ? document.getElementById('whiteboard-app-root')
+      : null;
+    const isWbVisible = wbRoot && typeof wbRoot.classList?.contains === 'function'
+      ? !wbRoot.classList.contains('hidden-view')
+      : false;
+
+    // When whiteboard app is present in DOM, automatically hide widget if whiteboard is visible or lab is inactive/returning
+    if (wbRoot && (isWbVisible || !isLabActive || isLabReturning)) {
+      this.element.classList.add('hidden-by-env');
+    } else {
+      this.element.classList.remove('hidden-by-env');
+    }
+  }
+
   public destroy(): void {
+    if (this.bodyObserver) {
+      this.bodyObserver.disconnect();
+      this.bodyObserver = null;
+    }
     if (this.element) {
       if (typeof this.element.remove === 'function') {
         this.element.remove();

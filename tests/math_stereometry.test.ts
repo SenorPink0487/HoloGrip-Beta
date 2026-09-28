@@ -18,6 +18,7 @@ import MathStereometryExperiment from '../src/experiments/catalog/math-stereomet
 import {
   StereometryStatusCard,
 } from '../src/ui/vision/StereometryStatusCard.ts';
+import { HologramStage } from '../src/core/HologramStage.ts';
 
 // Lightweight DOM Mock for Node.js test environment
 class MockElement {
@@ -1123,11 +1124,47 @@ assert(widgetExp.getTouchZoomWidget()!.getScale() > 1.0, 'zoom(1) must update to
 widgetExp.resetScale();
 assert.strictEqual(widgetExp.getTouchZoomWidget()!.getScale(), 1.0, 'resetScale() must restore 100% on widget');
 
-widgetExp.dispose(mockContext);
-assert.strictEqual(widgetExp.getTouchZoomWidget(), null, 'Experiment dispose must destroy touch zoom widget');
+// Verify Whiteboard view mode switching automatically hides the touch zoom controls
+widgetExp.onViewModeChange('whiteboard');
+assert.strictEqual(widgetExp.getTouchZoomWidget()!.getVisible(), false, 'Touch zoom widget must be hidden when switching to whiteboard');
+assert.strictEqual(widgetExp.getTouchZoomWidget()!.getDOMElement().classList.contains('hidden'), true);
+
+// Verify returning to laboratory mode restores the touch zoom controls
+widgetExp.onViewModeChange('laboratory');
+assert.strictEqual(widgetExp.getTouchZoomWidget()!.getVisible(), true, 'Touch zoom widget must reappear when returning to laboratory');
+assert.strictEqual(widgetExp.getTouchZoomWidget()!.getDOMElement().classList.contains('hidden'), false);
+
+// HologramStage delegation test: setViewMode on stage must forward to active experiment
+const testStage = new HologramStage();
+await testStage.switchExperiment(widgetExp, mockContext);
+testStage.setViewMode('whiteboard');
+assert.strictEqual(widgetExp.getTouchZoomWidget()!.getVisible(), false, 'HologramStage setViewMode(whiteboard) must hide touch zoom widget');
+testStage.setViewMode('laboratory');
+assert.strictEqual(widgetExp.getTouchZoomWidget()!.getVisible(), true, 'HologramStage setViewMode(laboratory) must restore touch zoom widget');
+testStage.clearExperiment(mockContext);
+
+// Environmental auto-hiding test: when Whiteboard root is in foreground (not hidden-view), syncVisibilityWithEnvironment must hide widget
+const envWidget = new StereometryTouchZoomWidget();
+const mockWb = new MockElement('div');
+mockWb.setAttribute('id', 'whiteboard-app-root');
+const origGetId = (globalThis as any).document.getElementById;
+(globalThis as any).document.getElementById = (id: string) => (id === 'whiteboard-app-root' ? mockWb : origGetId?.(id) ?? null);
+
+envWidget.syncVisibilityWithEnvironment();
+assert.strictEqual(envWidget.getDOMElement().classList.contains('hidden-by-env'), true, 'Must automatically add hidden-by-env when whiteboard root is in foreground');
+
+// When in active laboratory (whiteboard has hidden-view and body has lab-active)
+mockWb.classList.add('hidden-view');
+(globalThis as any).document.body.classList.add('lab-active');
+envWidget.syncVisibilityWithEnvironment();
+assert.strictEqual(envWidget.getDOMElement().classList.contains('hidden-by-env'), false, 'Must remove hidden-by-env when laboratory is active');
+
+(globalThis as any).document.getElementById = origGetId;
+(globalThis as any).document.body.classList.remove('lab-active');
+envWidget.destroy();
 
 zoomWidget.destroy();
-console.log('✓ Test 21 passed: StereometryTouchZoomWidget DOM, live percentage, buttons, and lifecycle verified\n');
+console.log('✓ Test 21 passed: StereometryTouchZoomWidget DOM, live percentage, buttons, whiteboard auto-hide, and lifecycle verified\n');
 
 // -------------------------------------------------------------
 // Test 22: Adaptive Magnetic Snap Radius for Touch Devices (iPad)
@@ -1217,15 +1254,17 @@ assert(Math.abs(faceABC.area - expectedArea) < 1e-3, `Face area (${faceABC.area}
 // Normal should be parallel to Y-axis (coplanar with XZ plane)
 assert(Math.abs(Math.abs(faceABC.normal.y) - 1.0) < 1e-4, 'Face normal must align with Y axis');
 
-// Verify THREE.js scene graph meshes in auxFacesGroup
+// Verify THREE.js scene graph meshes in auxFacesGroup: clean surface and glowing contour ONLY (no bubbles or text)
 const auxGroupChildren = faceMesh.getAuxFacesGroup().children;
-assert(auxGroupChildren.length >= 3, 'auxFacesGroup must contain surface mesh, contour line loop, and badge sprite');
-const surfaceMesh = auxGroupChildren.find((c) => c.name.startsWith('aux_face_') && !c.name.includes('contour') && !c.name.includes('badge'));
+assert.strictEqual(auxGroupChildren.length, 2, 'auxFacesGroup must contain strictly 2 elements: surface mesh and contour loop (zero bubbles or text badges)');
+const surfaceMesh = auxGroupChildren.find((c) => c.name.startsWith('aux_face_') && !c.name.includes('contour'));
 const contourMesh = auxGroupChildren.find((c) => c.name.startsWith('aux_face_contour_'));
-const faceBadgeSprite = auxGroupChildren.find((c) => c.name.startsWith('aux_face_badge_'));
 assert(surfaceMesh instanceof THREE.Mesh, 'Surface mesh must be present');
 assert(contourMesh instanceof THREE.LineLoop, 'Contour loop must be present');
-assert(faceBadgeSprite instanceof THREE.Sprite, 'Centroid badge sprite must be present');
+
+// Invariant: NO bubble badges or text on the face!
+const hasAnyBadgeOrText = auxGroupChildren.some((c) => c.name.includes('badge') || c instanceof THREE.Sprite);
+assert.strictEqual(hasAnyBadgeOrText, false, 'Drawn faces must strictly NOT contain any bubbles or text badges');
 
 faceMesh.dispose();
 console.log('✓ Test 24 passed: Automatic planar triangle face generation when auxiliary lines connect verified\n');

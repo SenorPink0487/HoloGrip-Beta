@@ -76,6 +76,12 @@ export class HologramStage {
     return this.isTransitioning;
   }
 
+  public setViewMode(mode: 'whiteboard' | 'laboratory'): void {
+    if (this.currentExperiment && typeof (this.currentExperiment as any).onViewModeChange === 'function') {
+      (this.currentExperiment as any).onViewModeChange(mode);
+    }
+  }
+
   /**
    * Seamlessly switch to a new experiment with animated holographic transition and async GPU shader pre-compilation.
    * Reinforced with token-based async sequence guard to safely handle rapid consecutive switching.
