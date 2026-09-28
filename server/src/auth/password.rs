@@ -31,9 +31,8 @@ pub fn password_matches(password: &str, encoded: &str, fast: bool) -> bool {
 /// does not return faster than a wrong password.
 pub fn obscure_missing_user(password: &str, fast: bool) {
     let slot = if fast { &DUMMY_FAST } else { &DUMMY_SLOW };
-    let encoded = slot.get_or_init(|| {
-        hash_unchecked("not-a-real-password", fast).expect("dummy password hash")
-    });
+    let encoded = slot
+        .get_or_init(|| hash_unchecked("not-a-real-password", fast).expect("dummy password hash"));
     let _ = password_matches(password, encoded, fast);
 }
 

@@ -502,6 +502,16 @@ export default class MathStereometryExperiment extends BaseExperiment {
     this.touchZoomWidget?.updateScale(s);
   }
 
+  public setScale(scale: number): number {
+    const s = this.interactionManager?.setScale(scale) ?? (this.mesh ? (this.mesh.setScale(scale), this.mesh.getScale()) : 1.0);
+    this.touchZoomWidget?.updateScale(s);
+    return s;
+  }
+
+  public getScale(): number {
+    return this.interactionManager?.getScale() ?? (this.mesh ? this.mesh.getScale() : 1.0);
+  }
+
   public getTouchZoomWidget(): StereometryTouchZoomWidget | null {
     return this.touchZoomWidget;
   }

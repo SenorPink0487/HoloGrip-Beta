@@ -7,7 +7,9 @@ use sqlx::MySqlPool;
 use uuid::Uuid;
 
 use crate::auth::invite::{generate_invite_code, normalize_invite_code};
-use crate::auth::password::{hash_password, obscure_missing_user, password_matches, validate_password};
+use crate::auth::password::{
+    hash_password, obscure_missing_user, password_matches, validate_password,
+};
 use crate::auth::token::{issue_tokens, refresh_expiry, sha256_hex};
 use crate::dto::AuthResponse;
 use crate::error::{duplicate_kind, AppError, DuplicateKind};
@@ -79,9 +81,9 @@ pub async fn register(
     };
     let invite_code = match role {
         "student" => match body.invite_code.as_deref() {
-            Some(raw) => normalize_invite_code(raw).map_err(|_| {
-                AppError::validation("邀请码格式不正确")
-            })?,
+            Some(raw) => {
+                normalize_invite_code(raw).map_err(|_| AppError::validation("邀请码格式不正确"))?
+            }
             None => None,
         },
         _ => None,
@@ -93,21 +95,48 @@ pub async fn register(
     let mut tx = state.pool.begin().await?;
     if let Some(code) = invite_code.as_deref() {
         let class_id = find_class_id(&mut tx, code).await?;
-        insert_user(&mut tx, &user_id, &email, &password_hash, role, &display_name).await?;
+        insert_user(
+            &mut tx,
+            &user_id,
+            &email,
+            &password_hash,
+            role,
+            &display_name,
+        )
+        .await?;
         sqlx::query("INSERT INTO class_members (class_id, user_id) VALUES (?, ?)")
             .bind(class_id)
             .bind(&user_id)
             .execute(&mut *tx)
             .await?;
     } else if let Some(name) = class_name.as_deref() {
-        insert_user(&mut tx, &user_id, &email, &password_hash, role, &display_name).await?;
+        insert_user(
+            &mut tx,
+            &user_id,
+            &email,
+            &password_hash,
+            role,
+            &display_name,
+        )
+        .await?;
         insert_class(&mut tx, &user_id, name).await?;
     } else {
-        insert_user(&mut tx, &user_id, &email, &password_hash, role, &display_name).await?;
+        insert_user(
+            &mut tx,
+            &user_id,
+            &email,
+            &password_hash,
+            role,
+            &display_name,
+        )
+        .await?;
     }
     tx.commit().await?;
 
-    Ok((StatusCode::CREATED, Json(auth_response(&state, &user_id, role).await?)))
+    Ok((
+        StatusCode::CREATED,
+        Json(auth_response(&state, &user_id, role).await?),
+    ))
 }
 
 pub async fn login(
@@ -155,13 +184,12 @@ pub async fn refresh(
     }
 
     let mut tx = state.pool.begin().await?;
-    let updated = sqlx::query(
-        "UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
-    )
-    .bind(now)
-    .bind(&row.id)
-    .execute(&mut *tx)
-    .await?;
+    let updated =
+        sqlx::query("UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
+            .bind(now)
+            .bind(&row.id)
+            .execute(&mut *tx)
+            .await?;
     if updated.rows_affected() != 1 {
         return Err(AppError::unauthorized());
     }
@@ -205,7 +233,11 @@ pub async fn logout(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn auth_response(state: &AppState, user_id: &str, role: &str) -> Result<AuthResponse, AppError> {
+async fn auth_response(
+    state: &AppState,
+    user_id: &str,
+    role: &str,
+) -> Result<AuthResponse, AppError> {
     let (access_token, refresh_token) =
         issue_tokens(&state.pool, &state.config, user_id, role).await?;
     let user = load_me(&state.pool, user_id).await?;
@@ -263,7 +295,10 @@ async fn insert_class(
     Err(AppError::internal())
 }
 
-async fn find_class_id(tx: &mut sqlx::MySqlTransaction<'_>, code: &str) -> Result<String, AppError> {
+async fn find_class_id(
+    tx: &mut sqlx::MySqlTransaction<'_>,
+    code: &str,
+) -> Result<String, AppError> {
     let class_id = sqlx::query_scalar::<_, String>("SELECT id FROM classes WHERE invite_code = ?")
         .bind(code)
         .fetch_optional(&mut **tx)

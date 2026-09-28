@@ -37,6 +37,11 @@ export interface HandGestureFrame {
   leftHandQuickPinch: boolean;
   leftHandCameraDelta: { dx: number; dy: number } | null;
 
+  // Dual-hand gestures (zoom/scale 3D geometry)
+  isDualPinching?: boolean;
+  dualPinchDistance?: number;
+  dualPinchScaleFactor?: number;
+
   // Primary / Right Hand compatibility fields (drives VisionProCursor)
   landmarks: NormalizedLandmark[] | null;
   thumbTip: NormalizedLandmark | null;
@@ -71,6 +76,13 @@ export interface HandGestureServiceConfig {
   filterBeta?: number;
 }
 
+export interface DualHandPinchEvent {
+  state: 'start' | 'move' | 'end';
+  distance: number;
+  initialDistance: number;
+  scaleFactor: number;
+}
+
 export type TrackerStatus =
   | 'uninitialized'
   | 'loading'
@@ -84,6 +96,7 @@ export interface TrackerTelemetry {
   fps: number;
   latencyMs: number;
   isPinching: boolean;
+  isDualPinching?: boolean;
   pinchRatio: number;
   pinchStrength: number;
   handDetected: boolean;

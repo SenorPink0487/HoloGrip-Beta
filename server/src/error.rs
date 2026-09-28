@@ -28,11 +28,19 @@ impl AppError {
     }
 
     pub fn unauthorized() -> Self {
-        Self::new(StatusCode::UNAUTHORIZED, "unauthorized", "登录已失效，请重新登录")
+        Self::new(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "登录已失效，请重新登录",
+        )
     }
 
     pub fn invalid_credentials() -> Self {
-        Self::new(StatusCode::UNAUTHORIZED, "invalid_credentials", "邮箱或密码错误")
+        Self::new(
+            StatusCode::UNAUTHORIZED,
+            "invalid_credentials",
+            "邮箱或密码错误",
+        )
     }
 
     pub fn locked() -> Self {
@@ -52,7 +60,11 @@ impl AppError {
     }
 
     pub fn internal() -> Self {
-        Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal", "服务暂时不可用")
+        Self::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal",
+            "服务暂时不可用",
+        )
     }
 }
 
@@ -101,7 +113,9 @@ impl From<sqlx::Error> for AppError {
         match duplicate_kind(&err) {
             Some(DuplicateKind::Email) => AppError::conflict("email_taken", "该邮箱已注册"),
             Some(DuplicateKind::Membership) => AppError::conflict("already_in_class", "已加入班级"),
-            Some(DuplicateKind::TeacherClass) => AppError::conflict("class_exists", "已经创建过班级"),
+            Some(DuplicateKind::TeacherClass) => {
+                AppError::conflict("class_exists", "已经创建过班级")
+            }
             Some(DuplicateKind::Invite) | Some(DuplicateKind::Other) => {
                 tracing::error!(error = %err, "unhandled database constraint");
                 AppError::internal()

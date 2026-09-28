@@ -851,7 +851,134 @@ await (async () => {
   console.log('✓ Test 22 passed: Hand tracking 30+ FPS cadence & non-occlusion verified\n');
 }
 
+// Test 23: Dual-Hand Simultaneous Pinch & Continuous Zoom Scaling
+{
+  console.log('Test 23: Dual-Hand Simultaneous Pinch & Continuous Zoom Scaling');
+  const service = new HandGestureService({});
+
+  let cameraRotatedDuringDualPinch = false;
+  service.onCameraRotate(() => {
+    cameraRotatedDuringDualPinch = true;
+  });
+
+  const dualPinchEvents: Array<{ state: string; scaleFactor: number; distance: number }> = [];
+  service.onDualPinchZoom((event) => {
+    dualPinchEvents.push(event);
+  });
+
+  // Open hands: Left hand at norm x=0.7 (screenX = 1344), Right hand at norm x=0.3 (screenX = 576)
+  const openLeft = createMockHand([0.7, 0.5, 0], [0.8, 0.5, 0], 0.2, 0.75, 0.7);
+  const openRight = createMockHand([0.2, 0.5, 0], [0.3, 0.5, 0], 0.2, 0.25, 0.7);
+
+  // Pinched hands
+  const pinchedLeft = createMockHand([0.75, 0.5, 0], [0.752, 0.5, 0], 0.2, 0.75, 0.7);
+  const pinchedRight = createMockHand([0.25, 0.5, 0], [0.252, 0.5, 0], 0.2, 0.25, 0.7);
+
+  // 1. Initial frame with open hands
+  const f0 = service.processMultiHands(
+    [openLeft, openRight],
+    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    1000
+  );
+  assert.strictEqual(f0.isDualPinching, false);
+  assert.strictEqual(dualPinchEvents.length, 0);
+
+  // 2. Both hands pinch at t = 1100ms
+  const f1 = service.processMultiHands(
+    [pinchedLeft, pinchedRight],
+    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    1100
+  );
+  assert.strictEqual(f1.isDualPinching, true, 'isDualPinching must be true when both hands pinch');
+  assert.strictEqual(dualPinchEvents.length, 1);
+  assert.strictEqual(dualPinchEvents[0].state, 'start');
+  assert.strictEqual(dualPinchEvents[0].scaleFactor, 1.0);
+  const initialDist = dualPinchEvents[0].distance;
+  assert(initialDist > 0, 'initial distance must be positive');
+
+  // 3. Hands expand farther apart (left moves rightward/outward, right moves outward)
+  const expandedLeft = createMockHand([0.85, 0.5, 0], [0.852, 0.5, 0], 0.2, 0.85, 0.7);
+  const expandedRight = createMockHand([0.15, 0.5, 0], [0.152, 0.5, 0], 0.2, 0.15, 0.7);
+  const f2 = service.processMultiHands(
+    [expandedLeft, expandedRight],
+    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    1200
+  );
+  assert.strictEqual(f2.isDualPinching, true);
+  assert(dualPinchEvents.length >= 2);
+  const lastEvent = dualPinchEvents[dualPinchEvents.length - 1];
+  assert.strictEqual(lastEvent.state, 'move');
+  assert(lastEvent.scaleFactor > 1.2, `Scale factor should expand (>1.2), got ${lastEvent.scaleFactor}`);
+  assert.strictEqual(cameraRotatedDuringDualPinch, false, 'Camera perspective rotation must be suppressed during dual pinch');
+
+  // 4. Hands release pinch
+  const f3 = service.processMultiHands(
+    [openLeft, openRight],
+    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    1300
+  );
+  assert.strictEqual(f3.isDualPinching, false);
+  const endEvent = dualPinchEvents[dualPinchEvents.length - 1];
+  assert.strictEqual(endEvent.state, 'end');
+
+  console.log('✓ Test 23 passed: Dual-hand simultaneous pinch & continuous zoom scaling verified\n');
+}
+
+// Test 24: Dual-Hand Pinch Release Isolation (No Accidental Floating Window Toggle)
+{
+  console.log('Test 24: Dual-Hand Pinch Release Isolation (No Accidental Floating Window Toggle)');
+  const service = new HandGestureService({
+    quickPinchMaxDurationMs: 200,
+  });
+
+  let menuToggled = false;
+  service.onQuickPinchMenu(() => {
+    menuToggled = true;
+  });
+
+  const openLeft = createMockHand([0.7, 0.5, 0], [0.8, 0.5, 0], 0.2, 0.75, 0.7);
+  const openRight = createMockHand([0.2, 0.5, 0], [0.3, 0.5, 0], 0.2, 0.25, 0.7);
+  const pinchedLeft = createMockHand([0.75, 0.5, 0], [0.752, 0.5, 0], 0.2, 0.75, 0.7);
+  const pinchedRight = createMockHand([0.25, 0.5, 0], [0.252, 0.5, 0], 0.2, 0.25, 0.7);
+
+  // Both hands pinch for 120ms (within quick pinch threshold)
+  service.processMultiHands([pinchedLeft, pinchedRight], [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]], 2000);
+  service.processMultiHands([pinchedLeft, pinchedRight], [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]], 2120);
+
+  // Both release
+  service.processMultiHands([openLeft, openRight], [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]], 2150);
+  assert.strictEqual(menuToggled, false, 'Dual-hand pinch release must NOT trigger left hand quick pinch window toggle');
+
+  // Single left hand pinch alone for 120ms
+  service.processMultiHands([pinchedLeft], [[{ categoryName: 'Right' }]], 3000);
+  service.processMultiHands([openLeft], [[{ categoryName: 'Right' }]], 3120);
+  assert.strictEqual(menuToggled, true, 'Isolated single left hand quick pinch must still trigger menu toggle');
+
+  console.log('✓ Test 24 passed: Dual-hand pinch release isolation verified\n');
+}
+
+// Test 25: VisionProCursor Unified White Symmetrical Reticle & Dual-Pinch Invariants
+{
+  console.log('Test 25: VisionProCursor Unified White Symmetrical Reticle & Dual-Pinch Invariants');
+  const cursorCode = fs.readFileSync(path.join(rootDir, 'src/vision/VisionProCursor.ts'), 'utf-8');
+
+  // 1. Both cursors use white reticle structure
+  assert(cursorCode.includes('vp-reticle-ring vp-left-ring'), 'Left reticle must share vp-reticle-ring structure');
+  assert(cursorCode.includes('vp-reticle-core vp-left-core'), 'Left core must share vp-reticle-core structure');
+
+  // 2. Both cursors share white glassmorphic styling
+  assert(cursorCode.includes('#vision-pro-hand-cursor,\n      #vision-pro-left-reticle'), 'Both cursor containers must share base styling');
+  assert(!cursorCode.includes('background: rgba(255, 159, 10,'), 'Left reticle must eliminate orange background');
+  assert(!cursorCode.includes('border: 1.5px solid rgba(255, 159, 10,'), 'Left reticle must eliminate orange border');
+
+  // 3. Dual-pinching visual feedback class
+  assert(cursorCode.includes('dual-pinching'), 'VisionProCursor must include dual-pinching feedback class');
+  assert(cursorCode.includes('this.isDualPinching'), 'VisionProCursor must check isDualPinching');
+
+  console.log('✓ Test 25 passed: VisionProCursor unified white reticle and dual-pinch invariants verified\n');
+}
+
 console.log('========================================================');
-console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (22/22)!');
+console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (25/25)!');
 console.log('========================================================\n');
 

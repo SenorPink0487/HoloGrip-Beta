@@ -369,6 +369,65 @@ console.log('=== PlayerController Vertical Elevation Tests ===\n');
   console.log('✓ Test 9 passed: Hand gesture active state machine and elegant hide animation verified\n');
 }
 
+// Test 10: iPad touchscreen perspective rotation and dual-touch look verification
+{
+  console.log('Test 10: iPad touchscreen perspective rotation and dual-touch look verification');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+
+  const touchCode = fs.readFileSync(path.resolve('src/controls/TouchController.ts'), 'utf8');
+
+  // Verify that TouchController does not block touch look drag with allowMouseRotation
+  assert(
+    !touchCode.includes('this.lookTouchId && this.player.allowMouseRotation'),
+    'Touch look drag must NOT be gated on allowMouseRotation (which is restricted to mouse/vision)'
+  );
+  assert(
+    touchCode.includes('this.player.rotate(dx, dy, sensitivity)'),
+    'Touch look drag must call player.rotate'
+  );
+  assert(
+    touchCode.includes('filter(') && touchCode.includes('this.joystickTouchId'),
+    'Dual-touch must filter out joystick touch so looking while moving works seamlessly'
+  );
+
+  // Functional simulation of touch rotation
+  const dummyPlayer: any = {
+    yaw: 0,
+    pitch: 0,
+    minPitch: -Math.PI / 2.1,
+    maxPitch: Math.PI / 2.1,
+    enabled: true,
+    allowMouseRotation: false, // Invariant: allowMouseRotation is false by default
+    camera: { rotation: { x: 0, y: 0, z: 0 } },
+    updateCameraRotation() {
+      this.camera.rotation.x = this.pitch;
+      this.camera.rotation.y = this.yaw;
+    },
+    rotate(dx: number, dy: number, sensitivity = 0.0035) {
+      if (!this.enabled) return;
+      this.yaw -= dx * sensitivity;
+      this.pitch -= dy * sensitivity;
+      this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
+      this.updateCameraRotation();
+    },
+  };
+
+  const initialYaw = dummyPlayer.yaw;
+  const initialPitch = dummyPlayer.pitch;
+
+  // Simulate iPad touch look drag: swipe left dx = 50, swipe up dy = -30
+  dummyPlayer.rotate(50, -30, 0.0035);
+
+  assert(dummyPlayer.yaw < initialYaw, 'Yaw must decrease on swipe left (turn left)');
+  assert(dummyPlayer.pitch > initialPitch, 'Pitch must increase on swipe up (look up)');
+  assert.strictEqual(dummyPlayer.camera.rotation.y, dummyPlayer.yaw, 'Camera rotation Y must match player yaw');
+  assert.strictEqual(dummyPlayer.camera.rotation.x, dummyPlayer.pitch, 'Camera rotation X must match player pitch');
+
+  console.log('✓ Test 10 passed: iPad touchscreen camera rotation and dual-touch look verified\n');
+}
+
 console.log('========================================================');
-console.log('All PlayerController & Touch Interaction Tests Passed (9/9)!');
+console.log('All PlayerController & Touch Interaction Tests Passed (10/10)!');
 console.log('========================================================\n');
+

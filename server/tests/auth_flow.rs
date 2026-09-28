@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use server::{connect, migrate, router, AppState, Config};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
+use server::{connect, migrate, router, AppState, Config};
 use sqlx::MySqlPool;
 use tower::ServiceExt;
 
@@ -37,10 +37,7 @@ async fn truncate(pool: &MySqlPool) {
         "DELETE FROM login_attempts",
         "DELETE FROM users",
     ] {
-        sqlx::query(statement)
-            .execute(&mut *conn)
-            .await
-            .unwrap();
+        sqlx::query(statement).execute(&mut *conn).await.unwrap();
     }
 }
 
@@ -124,7 +121,10 @@ async fn teacher_register_exposes_invite_code_on_me() {
         assert_eq!(body["user"]["role"], "teacher");
         assert_eq!(body["user"]["displayName"], "王老师");
         assert_eq!(body["user"]["class"]["name"], "高二 (3) 班");
-        assert!(body["user"]["class"]["students"].as_array().unwrap().is_empty());
+        assert!(body["user"]["class"]["students"]
+            .as_array()
+            .unwrap()
+            .is_empty());
 
         let token = body["accessToken"].as_str().unwrap();
         let (status, me) = call(&app, "GET", "/api/v1/me", Some(token), None).await;

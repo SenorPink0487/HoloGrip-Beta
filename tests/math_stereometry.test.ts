@@ -1150,8 +1150,41 @@ assert.strictEqual(handledTouch, true, 'Touch on pointer down must be handled');
 snapExp.dispose(mockContext);
 console.log('✓ Test 22 passed: Adaptive magnetic touch snap radius for iPad verified\n');
 
+// -------------------------------------------------------------
+// Test 23: Hand Gesture Dual-Pinch 3D Stereometry Scaling & Clamping
+// -------------------------------------------------------------
+console.log('Test 23: Hand Gesture Dual-Pinch 3D Stereometry Scaling & Clamping');
+const dualExp = new MathStereometryExperiment();
+dualExp.init(mockContext);
+dualExp.mount(mockContext);
+
+// 1. Initial scale must be 1.0 (100%)
+assert.strictEqual(dualExp.getScale(), 1.0, 'Initial scale must be 1.0');
+
+// 2. Set scale via dual pinch gesture API (e.g. 1.75x)
+dualExp.setScale(1.75);
+assert.strictEqual(dualExp.getScale(), 1.75, 'setScale(1.75) must scale 3D model to 1.75');
+assert.strictEqual(dualExp.getTouchZoomWidget()!.getScale(), 1.75, 'Touch zoom widget must synchronize to 1.75');
+
+// 3. Telemetry reflects modelScale accurately
+const telem = dualExp.getStereometryTelemetry();
+assert.strictEqual(telem.modelScale, 1.75, 'Stereometry telemetry modelScale must match setScale');
+
+// 4. Boundary clamping limits [0.35, 3.0]
+dualExp.setScale(0.10); // Below min
+assert.strictEqual(dualExp.getScale(), 0.35, 'Scale below 0.35 must clamp to 0.35');
+
+dualExp.setScale(4.50); // Above max
+assert.strictEqual(dualExp.getScale(), 3.0, 'Scale above 3.0 must clamp to 3.0');
+
+dualExp.resetScale();
+assert.strictEqual(dualExp.getScale(), 1.0, 'resetScale must restore scale to 1.0');
+
+dualExp.dispose(mockContext);
+console.log('✓ Test 23 passed: Hand gesture dual-pinch 3D stereometry scaling & clamping verified\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (22/22)!');
+console.log('All High School Stereometry Tests Passed Successfully (23/23)!');
 console.log('========================================================');
 
 

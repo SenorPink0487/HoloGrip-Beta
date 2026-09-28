@@ -53,12 +53,11 @@ pub async fn join_class(
         .map_err(|_| AppError::validation("邀请码格式不正确"))?
         .ok_or_else(|| AppError::validation("请填写邀请码"))?;
 
-    let existing = sqlx::query_scalar::<_, String>(
-        "SELECT class_id FROM class_members WHERE user_id = ?",
-    )
-    .bind(&user.id)
-    .fetch_optional(&state.pool)
-    .await?;
+    let existing =
+        sqlx::query_scalar::<_, String>("SELECT class_id FROM class_members WHERE user_id = ?")
+            .bind(&user.id)
+            .fetch_optional(&state.pool)
+            .await?;
     if existing.is_some() {
         return Err(AppError::conflict("already_in_class", "已加入班级"));
     }

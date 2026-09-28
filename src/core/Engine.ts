@@ -1560,6 +1560,40 @@ export class Engine {
       }
     });
 
+    // Dual Hand Pinch: Zoom 3D Stereometry Model
+    let initialDualPinchStereometryScale = 1.0;
+    this.handGestureService.onDualPinchZoom((event) => {
+      if (this.currentExperimentId === 'math-stereometry') {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (exp) {
+          if (event.state === 'start') {
+            initialDualPinchStereometryScale = exp.getScale?.() ?? exp.mesh?.getScale?.() ?? 1.0;
+            exp.interactionManager?.callbacks?.onGuidanceChange?.(
+              `双手指势缩放 · 当前: ${Math.round(initialDualPinchStereometryScale * 100)}%`,
+              'info'
+            );
+          } else if (event.state === 'move') {
+            const targetScale = THREE.MathUtils.clamp(
+              initialDualPinchStereometryScale * event.scaleFactor,
+              0.35,
+              3.0
+            );
+            exp.setScale?.(targetScale);
+            exp.interactionManager?.callbacks?.onGuidanceChange?.(
+              `立体几何缩放: ${Math.round(targetScale * 100)}%`,
+              'active'
+            );
+          } else if (event.state === 'end') {
+            const finalScale = exp.getScale?.() ?? 1.0;
+            exp.interactionManager?.callbacks?.onGuidanceChange?.(
+              `缩放完成 · 当前: ${Math.round(finalScale * 100)}%`,
+              'success'
+            );
+          }
+        }
+      }
+    });
+
     this.handGestureService.onStatusChange((telemetry) => {
       const isRunning = telemetry.status === 'running';
       if (typeof document !== 'undefined' && document.body) {

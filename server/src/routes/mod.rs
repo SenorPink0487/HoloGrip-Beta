@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::state::AppState;
 
 mod auth;
+mod chemistry;
 mod classes;
 mod me;
 mod whiteboard;
@@ -21,6 +22,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/api/v1/whiteboard/ticket", post(whiteboard::ticket))
+        .route("/api/chem/analyze", post(chemistry::analyze))
         .route("/api/v1/whiteboard/ws", get(whiteboard::upgrade))
         .layer(axum::Extension(whiteboard::Hub::default()))
         .route("/api/v1/auth/register", post(auth::register))

@@ -1,5 +1,6 @@
 import { PointFilter2D } from './OneEuroFilter.ts';
 import type {
+  DualHandPinchEvent,
   HandGestureFrame,
   HandGestureServiceConfig,
   NormalizedLandmark,
@@ -271,11 +272,17 @@ export class HandGestureService {
   private lastLatencyMs = 0;
   private delegate: 'GPU' | 'CPU' | 'unknown' = 'unknown';
 
+  // Dual-hand pinch zoom state
+  private isDualPinchActive = false;
+  private dualPinchStartDistance = 0;
+  private wasDualPinchingInCurrentSession = false;
+
   // Event listeners
   private frameListeners: Set<(frame: HandGestureFrame) => void> = new Set();
   private statusListeners: Set<(telemetry: TrackerTelemetry) => void> = new Set();
   private quickPinchMenuListeners: Set<() => void> = new Set();
   private cameraRotateListeners: Set<(dx: number, dy: number) => void> = new Set();
+  private dualPinchListeners: Set<(event: DualHandPinchEvent) => void> = new Set();
 
   constructor(config: HandGestureServiceConfig = {}) {
     this.config = {
@@ -327,6 +334,7 @@ export class HandGestureService {
       fps: this.currentFps,
       latencyMs: this.lastLatencyMs,
       isPinching: this.rightTracker.isPinching,
+      isDualPinching: this.isDualPinchActive,
       pinchRatio: this.lastRightPinchRatio,
       pinchStrength: this.lastRightPinchStrength,
       handDetected: this.lastHasHand,
@@ -358,6 +366,21 @@ export class HandGestureService {
   public onCameraRotate(listener: (dx: number, dy: number) => void): () => void {
     this.cameraRotateListeners.add(listener);
     return () => this.cameraRotateListeners.delete(listener);
+  }
+
+  public onDualPinchZoom(listener: (event: DualHandPinchEvent) => void): () => void {
+    this.dualPinchListeners.add(listener);
+    return () => this.dualPinchListeners.delete(listener);
+  }
+
+  private notifyDualPinchZoom(event: DualHandPinchEvent): void {
+    for (const listener of this.dualPinchListeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        console.error('[HandGestureService] Dual pinch zoom listener error:', err);
+      }
+    }
   }
 
   private notifyStatus(): void {
@@ -915,6 +938,47 @@ export class HandGestureService {
       }
     }
 
+    // Dual Hand Pinch Detection (Zoom 3D stereometry model)
+    const isDualPinching = Boolean(leftHandData?.isPinching && rightHandData?.isPinching);
+    let dualPinchDistance = 0;
+    let dualPinchScaleFactor = 1.0;
+
+    if (isDualPinching && leftHandData && rightHandData) {
+      this.wasDualPinchingInCurrentSession = true;
+      dualPinchDistance = Math.hypot(
+        rightHandData.screenX - leftHandData.screenX,
+        rightHandData.screenY - leftHandData.screenY
+      );
+
+      if (!this.isDualPinchActive) {
+        this.isDualPinchActive = true;
+        this.dualPinchStartDistance = dualPinchDistance > 1 ? dualPinchDistance : 100;
+        dualPinchScaleFactor = 1.0;
+        this.notifyDualPinchZoom({
+          state: 'start',
+          distance: dualPinchDistance,
+          initialDistance: this.dualPinchStartDistance,
+          scaleFactor: 1.0,
+        });
+      } else {
+        dualPinchScaleFactor = this.dualPinchStartDistance > 5 ? dualPinchDistance / this.dualPinchStartDistance : 1.0;
+        this.notifyDualPinchZoom({
+          state: 'move',
+          distance: dualPinchDistance,
+          initialDistance: this.dualPinchStartDistance,
+          scaleFactor: dualPinchScaleFactor,
+        });
+      }
+    } else if (this.isDualPinchActive) {
+      this.isDualPinchActive = false;
+      this.notifyDualPinchZoom({
+        state: 'end',
+        distance: 0,
+        initialDistance: this.dualPinchStartDistance,
+        scaleFactor: 1.0,
+      });
+    }
+
     // Process Left Hand gestures (Quick Pinch -> Menu, Long Pinch Drag -> Camera perspective)
     let leftHandQuickPinch = false;
     let leftHandCameraDelta: { dx: number; dy: number } | null = null;
@@ -929,7 +993,7 @@ export class HandGestureService {
       }
 
       if (leftHandData.justPinchEnded) {
-        if (leftHandData.pinchDuration <= this.config.quickPinchMaxDurationMs) {
+        if (!this.wasDualPinchingInCurrentSession && leftHandData.pinchDuration <= this.config.quickPinchMaxDurationMs) {
           leftHandQuickPinch = true;
           this.notifyQuickPinchMenu();
         }
@@ -939,10 +1003,16 @@ export class HandGestureService {
     }
 
     if (
+      !isDualPinching &&
+      !this.isDualPinchActive &&
       leftHandCameraDelta &&
       (Math.abs(leftHandCameraDelta.dx) > 0.05 || Math.abs(leftHandCameraDelta.dy) > 0.05)
     ) {
       this.notifyCameraRotate(leftHandCameraDelta.dx, leftHandCameraDelta.dy);
+    }
+
+    if (!leftHandData?.isPinching && !rightHandData?.isPinching) {
+      this.wasDualPinchingInCurrentSession = false;
     }
 
     // Cache telemetry
@@ -960,6 +1030,9 @@ export class HandGestureService {
       rightHand: rightHandData,
       leftHandQuickPinch,
       leftHandCameraDelta,
+      isDualPinching,
+      dualPinchDistance,
+      dualPinchScaleFactor,
       // Backward-compatible primary cursor fields
       landmarks: primary?.landmarks ?? null,
       thumbTip: primary?.thumbTip ?? null,

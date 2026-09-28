@@ -11,6 +11,7 @@ export class VisionProCursor {
   // Left Hand Reticle (Menu Toggle & Camera Navigation)
   private leftContainer: HTMLElement;
   private leftRing: HTMLElement;
+  private leftCore: HTMLElement;
   private leftPulseRing: HTMLElement;
   private leftBadge: HTMLElement;
 
@@ -18,6 +19,7 @@ export class VisionProCursor {
   private isLeftVisible = false;
   private isHovered = false;
   private isRightPinching = false;
+  private isDualPinching = false;
   private currentRightX = 0;
   private currentRightY = 0;
   private currentLeftX = 0;
@@ -68,22 +70,20 @@ export class VisionProCursor {
     this.rightCore = this.rightContainer.querySelector('.vp-reticle-core') as HTMLElement;
     this.rightPulseRing = this.rightContainer.querySelector('.vp-pulse-ring') as HTMLElement;
 
-    // 2. Left Hand Reticle DOM
+    // 2. Left Hand Reticle DOM (White Vision Pro Reticle matching Right Hand)
     this.leftContainer = document.createElement('div');
     this.leftContainer.id = 'vision-pro-left-reticle';
     this.leftContainer.innerHTML = `
-      <div class="vp-left-pulse-ring"></div>
-      <div class="vp-left-ring">
-        <svg class="vp-left-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polygon points="12 8 8 16 12 14 16 16 12 8" fill="currentColor"></polygon>
-        </svg>
-        <span class="vp-left-badge">左手</span>
+      <div class="vp-pulse-ring vp-left-pulse-ring"></div>
+      <div class="vp-reticle-ring vp-left-ring">
+        <div class="vp-reticle-core vp-left-core"></div>
       </div>
+      <span class="vp-left-badge" style="display: none;">左手</span>
     `;
     this.leftRing = this.leftContainer.querySelector('.vp-left-ring') as HTMLElement;
+    this.leftCore = this.leftContainer.querySelector('.vp-left-core') as HTMLElement;
     this.leftPulseRing = this.leftContainer.querySelector('.vp-left-pulse-ring') as HTMLElement;
-    this.leftBadge = this.leftContainer.querySelector('.vp-left-badge') as HTMLElement;
+    this.leftBadge = (this.leftContainer.querySelector('.vp-left-badge') || document.createElement('span')) as HTMLElement;
 
     parent.appendChild(this.rightContainer);
     parent.appendChild(this.leftContainer);
@@ -103,9 +103,10 @@ export class VisionProCursor {
     style.id = 'vision-pro-cursor-style';
     style.textContent = `
       /* ========================================================== */
-      /* Right Hand Cursor (Primary Point & Click)                  */
+      /* Symmetrical Vision Pro White Reticle Cursors (Left & Right)*/
       /* ========================================================== */
-      #vision-pro-hand-cursor {
+      #vision-pro-hand-cursor,
+      #vision-pro-left-reticle {
         position: fixed;
         top: 0;
         left: 0;
@@ -116,19 +117,23 @@ export class VisionProCursor {
         transform: translate3d(-100px, -100px, 0);
         transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
         will-change: transform, opacity;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
       }
 
-      #vision-pro-hand-cursor.hidden {
+      #vision-pro-hand-cursor.hidden,
+      #vision-pro-left-reticle.hidden {
         opacity: 0;
         visibility: hidden;
       }
 
-      #vision-pro-hand-cursor.visible {
+      #vision-pro-hand-cursor.visible,
+      #vision-pro-left-reticle.visible {
         opacity: 1;
         visibility: visible;
       }
 
-      .vp-reticle-ring {
+      .vp-reticle-ring,
+      .vp-left-ring {
         position: absolute;
         top: -16px;
         left: -16px;
@@ -152,7 +157,8 @@ export class VisionProCursor {
                     transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
       }
 
-      .vp-reticle-core {
+      .vp-reticle-core,
+      .vp-left-core {
         width: 6px;
         height: 6px;
         border-radius: 50%;
@@ -165,7 +171,8 @@ export class VisionProCursor {
                     box-shadow 0.18s ease;
       }
 
-      #vision-pro-hand-cursor.hovered .vp-reticle-ring {
+      #vision-pro-hand-cursor.hovered .vp-reticle-ring,
+      #vision-pro-left-reticle.hovered .vp-reticle-ring {
         top: -21px;
         left: -21px;
         width: 42px;
@@ -175,98 +182,81 @@ export class VisionProCursor {
         box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45), 0 0 16px rgba(255, 255, 255, 0.45);
       }
 
-      #vision-pro-hand-cursor.hovered .vp-reticle-core {
+      #vision-pro-hand-cursor.hovered .vp-reticle-core,
+      #vision-pro-left-reticle.hovered .vp-reticle-core {
         width: 8px;
         height: 8px;
       }
 
-      #vision-pro-hand-cursor.pinching .vp-reticle-ring {
+      #vision-pro-hand-cursor.pinching .vp-reticle-ring,
+      #vision-pro-left-reticle.pinching .vp-reticle-ring,
+      #vision-pro-left-reticle.quick-pinching .vp-reticle-ring,
+      #vision-pro-left-reticle.navigating .vp-reticle-ring {
         top: -12px;
         left: -12px;
         width: 24px;
         height: 24px;
-        background: rgba(10, 132, 255, 0.32);
-        border-color: #0a84ff;
+        background: rgba(255, 255, 255, 0.32);
+        border-color: #ffffff;
         transform: scale(0.88);
-        box-shadow: 0 0 18px rgba(10, 132, 255, 0.75), 0 2px 10px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 0 18px rgba(255, 255, 255, 0.85), 0 2px 10px rgba(0, 0, 0, 0.5);
       }
 
-      #vision-pro-hand-cursor.pinching .vp-reticle-core {
+      #vision-pro-hand-cursor.pinching .vp-reticle-core,
+      #vision-pro-left-reticle.pinching .vp-reticle-core,
+      #vision-pro-left-reticle.quick-pinching .vp-reticle-core,
+      #vision-pro-left-reticle.navigating .vp-reticle-core {
         width: 12px;
         height: 12px;
         background: #ffffff;
-        box-shadow: 0 0 12px #0a84ff;
+        box-shadow: 0 0 12px #ffffff;
       }
 
-      .vp-pulse-ring {
+      /* Dual-Hand Pinch Mode (Simultaneous pinch zoom on 3D geometry) */
+      #vision-pro-hand-cursor.dual-pinching .vp-reticle-ring,
+      #vision-pro-left-reticle.dual-pinching .vp-reticle-ring,
+      #vision-pro-left-reticle.dual-pinching .vp-left-ring {
+        top: -14px;
+        left: -14px;
+        width: 28px;
+        height: 28px;
+        background: rgba(255, 255, 255, 0.42);
+        border: 2px solid #ffffff;
+        transform: scale(0.92);
+        box-shadow: 0 0 24px rgba(255, 255, 255, 0.95), 0 0 12px rgba(56, 189, 248, 0.6);
+      }
+
+      #vision-pro-hand-cursor.dual-pinching .vp-reticle-core,
+      #vision-pro-left-reticle.dual-pinching .vp-reticle-core,
+      #vision-pro-left-reticle.dual-pinching .vp-left-core {
+        width: 13px;
+        height: 13px;
+        background: #ffffff;
+        box-shadow: 0 0 16px rgba(255, 255, 255, 1);
+      }
+
+      .vp-pulse-ring,
+      .vp-left-pulse-ring {
         position: absolute;
         top: -16px;
         left: -16px;
         width: 32px;
         height: 32px;
         border-radius: 50%;
-        border: 2px solid rgba(10, 132, 255, 0.8);
+        border: 2px solid rgba(255, 255, 255, 0.85);
         opacity: 0;
         pointer-events: none;
         transform: scale(0.6);
       }
 
-      .vp-pulse-ring.pulsing {
+      .vp-pulse-ring.pulsing,
+      .vp-left-pulse-ring.pulsing {
         animation: vpPinchPulse 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       }
 
       @keyframes vpPinchPulse {
         0% { opacity: 0.9; transform: scale(0.7); }
         100% { opacity: 0; transform: scale(2.4); }
-      }
-
-      /* ========================================================== */
-      /* Left Hand Reticle (Floating Window & Perspective Dragging) */
-      /* ========================================================== */
-      #vision-pro-left-reticle {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 0;
-        height: 0;
-        pointer-events: none !important;
-        z-index: 999998;
-        transform: translate3d(-100px, -100px, 0);
-        transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-        will-change: transform, opacity;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-      }
-
-      #vision-pro-left-reticle.hidden {
-        opacity: 0;
-        visibility: hidden;
-      }
-
-      #vision-pro-left-reticle.visible {
-        opacity: 1;
-        visibility: visible;
-      }
-
-      .vp-left-ring {
-        position: absolute;
-        top: -15px;
-        left: -15px;
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        background: rgba(255, 159, 10, 0.16);
-        border: 1.5px solid rgba(255, 159, 10, 0.75);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 10px rgba(255, 159, 10, 0.3);
-        backdrop-filter: blur(8px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      }
-
-      .vp-left-icon {
-        color: #ff9f0a;
-        transition: transform 0.2s ease;
       }
 
       .vp-left-badge {
@@ -278,75 +268,14 @@ export class VisionProCursor {
         letter-spacing: -0.1px;
         color: #f5f5f7;
         background: rgba(28, 28, 30, 0.85);
-        border: 1px solid rgba(255, 159, 10, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.4);
         border-radius: 980px;
         padding: 2px 7px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
         opacity: 0;
         transform: translateY(3px) scale(0.9);
         transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-      }
-
-      /* Quick Pinch state (Floating Window) */
-      #vision-pro-left-reticle.quick-pinching .vp-left-ring {
-        width: 22px;
-        height: 22px;
-        top: -11px;
-        left: -11px;
-        background: rgba(255, 159, 10, 0.45);
-        border-color: #ff9f0a;
-        transform: scale(0.85);
-        box-shadow: 0 0 16px #ff9f0a;
-      }
-
-      #vision-pro-left-reticle.quick-pinching .vp-left-badge {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
-
-      /* Long Pinch state (Continuous Pinch - Perspective Dragging) */
-      #vision-pro-left-reticle.navigating .vp-left-ring {
-        width: 44px;
-        height: 44px;
-        top: -22px;
-        left: -22px;
-        background: rgba(191, 90, 242, 0.25);
-        border: 2px solid #bf5af2;
-        box-shadow: 0 0 22px rgba(191, 90, 242, 0.8), 0 4px 16px rgba(0, 0, 0, 0.4);
-      }
-
-      #vision-pro-left-reticle.navigating .vp-left-icon {
-        color: #bf5af2;
-        transform: scale(1.2) rotate(45deg);
-      }
-
-      #vision-pro-left-reticle.navigating .vp-left-badge {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-        border-color: rgba(191, 90, 242, 0.6);
-        color: #ffffff;
-      }
-
-      .vp-left-pulse-ring {
-        position: absolute;
-        top: -15px;
-        left: -15px;
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        border: 2px solid rgba(255, 159, 10, 0.85);
-        opacity: 0;
         pointer-events: none;
-        transform: scale(0.6);
-      }
-
-      .vp-left-pulse-ring.pulsing {
-        animation: vpLeftPulse 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      }
-
-      @keyframes vpLeftPulse {
-        0% { opacity: 0.9; transform: scale(0.7); }
-        100% { opacity: 0; transform: scale(2.5); }
       }
     `;
     document.head.appendChild(style);
@@ -431,6 +360,19 @@ export class VisionProCursor {
    * Main update function called on each hand tracking frame.
    */
   public update(frame: HandGestureFrame): void {
+    this.isDualPinching = Boolean(frame.isDualPinching);
+
+    if (this.isDualPinching) {
+      this.rightContainer.classList.add('dual-pinching');
+      this.leftContainer.classList.add('dual-pinching');
+      if (this.isRightPinching || this.dragTarget) {
+        this.releasePinch(this.currentRightX, this.currentRightY);
+      }
+    } else {
+      this.rightContainer.classList.remove('dual-pinching');
+      this.leftContainer.classList.remove('dual-pinching');
+    }
+
     // 1. Process Right Hand (or primary hand for mouse emulation)
     const rightHand = frame.rightHand || (frame.hasHand && !frame.leftHand ? frame : null);
     if (rightHand && rightHand.screenX > 0 && rightHand.screenY > 0) {
@@ -521,12 +463,23 @@ export class VisionProCursor {
       this.leftContainer.style.transform = `translate3d(${leftHand.screenX}px, ${leftHand.screenY}px, 0)`;
     }
 
-    const desiredClass = leftHand.isLongPinch
+    if (!leftHand.isPinching && leftHand.pinchStrength > 0.1) {
+      const coreScale = 1.0 + leftHand.pinchStrength * 0.6;
+      this.leftCore.style.transform = `scale(${coreScale})`;
+    } else if (!leftHand.isPinching) {
+      this.leftCore.style.transform = 'scale(1)';
+    }
+
+    const desiredClass = this.isDualPinching
+      ? 'visible dual-pinching'
+      : leftHand.isLongPinch
       ? 'visible navigating'
       : leftHand.isPinching
       ? 'visible quick-pinching'
       : 'visible';
-    const desiredBadge = leftHand.isLongPinch
+    const desiredBadge = this.isDualPinching
+      ? '双手缩放中'
+      : leftHand.isLongPinch
       ? '拖拽视角中'
       : leftHand.isPinching
       ? '悬浮窗口'
@@ -594,6 +547,13 @@ export class VisionProCursor {
   ): void {
     const x = hand.screenX;
     const y = hand.screenY;
+
+    if (this.isDualPinching) {
+      if (this.isRightPinching || this.dragTarget) {
+        this.releasePinch(x, y, currentElement);
+      }
+      return;
+    }
 
     if (this.lastHoverTarget !== currentElement) {
       if (this.lastHoverTarget) {

@@ -57,7 +57,10 @@ pub async fn load_me(pool: &MySqlPool, user_id: &str) -> Result<MeResponse, AppE
     })
 }
 
-async fn load_teacher_class(pool: &MySqlPool, teacher_id: &str) -> Result<Option<ClassView>, AppError> {
+async fn load_teacher_class(
+    pool: &MySqlPool,
+    teacher_id: &str,
+) -> Result<Option<ClassView>, AppError> {
     let class = sqlx::query_as::<_, TeacherClassRow>(
         "SELECT id, name, invite_code FROM classes WHERE teacher_id = ?",
     )
@@ -98,7 +101,10 @@ async fn load_teacher_class(pool: &MySqlPool, teacher_id: &str) -> Result<Option
     }))
 }
 
-async fn load_student_class(pool: &MySqlPool, user_id: &str) -> Result<Option<ClassView>, AppError> {
+async fn load_student_class(
+    pool: &MySqlPool,
+    user_id: &str,
+) -> Result<Option<ClassView>, AppError> {
     let class = sqlx::query_as::<_, StudentClassRow>(
         "SELECT c.id, c.name
          FROM class_members m

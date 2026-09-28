@@ -39,7 +39,10 @@ mod tests {
             normalize_invite_code(" a3k-9p ").unwrap().as_deref(),
             Some("A3K9P")
         );
-        assert_eq!(normalize_invite_code("o0i1l").unwrap().as_deref(), Some("O0I1L"));
+        assert_eq!(
+            normalize_invite_code("o0i1l").unwrap().as_deref(),
+            Some("O0I1L")
+        );
         assert_eq!(normalize_invite_code("").unwrap(), None);
         assert_eq!(normalize_invite_code("   ").unwrap(), None);
     }

@@ -1,4 +1,5 @@
 import { normalizeMixtureQuery, parseAnalyzedMixture, type AnalyzedMixture } from './mixtureAnalysis.ts';
+import { apiBase } from '../account/api.ts';
 
 export async function requestMixtureAnalysis(query: string): Promise<AnalyzedMixture> {
   const trimmed = normalizeMixtureQuery(query);
@@ -6,11 +7,15 @@ export async function requestMixtureAnalysis(query: string): Promise<AnalyzedMix
 
   let response: Response;
   try {
-    response = await fetch('/api/chem/analyze', {
+    const base = apiBase();
+    const endpoint = base === 'http://127.0.0.1:8080'
+      ? '/api/chem/analyze'
+      : `${base}/api/chem/analyze`;
+    response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: trimmed }),
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15_000),
     });
   } catch (error) {
     if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {

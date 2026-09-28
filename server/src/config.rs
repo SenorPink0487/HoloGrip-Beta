@@ -9,6 +9,7 @@ pub struct Config {
     pub refresh_ttl_secs: i64,
     pub cors_origins: Vec<String>,
     pub fast_hash: bool,
+    pub deepseek_api_key: Option<String>,
 }
 
 impl std::fmt::Debug for Config {
@@ -18,6 +19,10 @@ impl std::fmt::Debug for Config {
             .field("access_ttl_secs", &self.access_ttl_secs)
             .field("refresh_ttl_secs", &self.refresh_ttl_secs)
             .field("fast_hash", &self.fast_hash)
+            .field(
+                "deepseek_api_key_configured",
+                &self.deepseek_api_key.is_some(),
+            )
             .finish_non_exhaustive()
     }
 }
@@ -39,6 +44,10 @@ impl Config {
             .filter(|origin| !origin.is_empty())
             .map(str::to_string)
             .collect();
+        let deepseek_api_key = env::var("DEEPSEEK_API_KEY")
+            .ok()
+            .map(|key| key.trim().to_string())
+            .filter(|key| !key.is_empty());
 
         Ok(Self {
             database_url,
@@ -48,6 +57,7 @@ impl Config {
             refresh_ttl_secs,
             cors_origins,
             fast_hash: false,
+            deepseek_api_key,
         })
     }
 
@@ -60,6 +70,7 @@ impl Config {
             refresh_ttl_secs: 1_209_600,
             cors_origins: Vec::new(),
             fast_hash: true,
+            deepseek_api_key: None,
         }
     }
 }

@@ -80,7 +80,10 @@ fn decode_access(token: &str, secret: &str) -> Result<AccessClaims, AppError> {
 pub fn new_refresh_token() -> (String, String) {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
-    let token = bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let token = bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
     (token.clone(), sha256_hex(&token))
 }
 

@@ -27,6 +27,8 @@ export class TouchController {
     this.bindEvents();
   }
 
+  private isHandTrackingActive = false;
+
   public setVisionModalOpen(isOpen: boolean): void {
     if (this.visionLauncherBtn) {
       this.visionLauncherBtn.classList.toggle('is-open', isOpen);
@@ -42,6 +44,7 @@ export class TouchController {
   }
 
   public setHandTrackingActive(active: boolean): void {
+    this.isHandTrackingActive = active;
     const layer = document.getElementById('touch-controls-layer');
     if (layer) {
       layer.classList.toggle('hand-tracking-active', active);
@@ -65,6 +68,7 @@ export class TouchController {
           this.joystickKnob.style.transform = 'translate(0px, 0px)';
         }
       }
+      this.lookTouchId = null;
       this.visionLauncherBtn?.classList?.remove?.('is-pressed');
     }
   }
@@ -461,32 +465,36 @@ export class TouchController {
       this.updateJoystick(touch.clientX, touch.clientY);
     });
 
-    window.addEventListener('touchmove', (e: TouchEvent) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
+    window.addEventListener(
+      'touchmove',
+      (e: TouchEvent) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const touch = e.changedTouches[i];
 
-        // 1. Move Joystick
-        if (this.isDraggingJoystick && touch.identifier === this.joystickTouchId) {
-          this.updateJoystick(touch.clientX, touch.clientY);
+          // 1. Move Joystick
+          if (this.isDraggingJoystick && touch.identifier === this.joystickTouchId) {
+            if (e.cancelable) e.preventDefault();
+            this.updateJoystick(touch.clientX, touch.clientY);
+          }
+
+          // 2. Camera Look drag on iPad & touch screen
+          if (
+            touch.identifier === this.lookTouchId &&
+            this.player.enabled &&
+            !this.isHandTrackingActive
+          ) {
+            if (e.cancelable) e.preventDefault();
+            const dx = touch.clientX - this.lastLookPos.x;
+            const dy = touch.clientY - this.lastLookPos.y;
+            this.lastLookPos = { x: touch.clientX, y: touch.clientY };
+
+            const sensitivity = 0.0035;
+            this.player.rotate(dx, dy, sensitivity);
+          }
         }
-
-        // 2. Camera Look drag (disabled when only left hand can rotate)
-        if (touch.identifier === this.lookTouchId && this.player.allowMouseRotation) {
-          const dx = touch.clientX - this.lastLookPos.x;
-          const dy = touch.clientY - this.lastLookPos.y;
-          this.lastLookPos = { x: touch.clientX, y: touch.clientY };
-
-          const sensitivity = 0.0035;
-          this.player.yaw -= dx * sensitivity;
-          this.player.pitch -= dy * sensitivity;
-          this.player.pitch = Math.max(
-            this.player.minPitch,
-            Math.min(this.player.maxPitch, this.player.pitch)
-          );
-          this.player.updateCameraRotation();
-        }
-      }
-    });
+      },
+      { passive: false }
+    );
 
     const resetJoystick = (e: TouchEvent) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
@@ -511,44 +519,60 @@ export class TouchController {
           this.lookTouchId = null;
         }
       }
+
+      if (e.touches && e.touches.length === 0) {
+        this.lookTouchId = null;
+      }
     };
 
     window.addEventListener('touchend', resetJoystick);
     window.addEventListener('touchcancel', resetJoystick);
 
-    // Screen touch look listener on right side
-    window.addEventListener('touchstart', (e: TouchEvent) => {
-      const target = e.target instanceof Element ? e.target : null;
-      if (!target) return;
+    // Screen touch look listener on right side / viewport
+    window.addEventListener(
+      'touchstart',
+      (e: TouchEvent) => {
+        if (this.isHandTrackingActive || !this.player.enabled) return;
 
-      // Let controls, launcher button, and text fields receive taps without also starting a camera drag.
-      if (target.closest('.hud-interactive, button, a, input, textarea, select, [contenteditable="true"]')) {
-        return;
-      }
+        const target = e.target instanceof Element ? e.target : null;
+        if (!target) return;
 
-      // Multi-touch gestures (e.g. 2-finger pinch on iPad) should not trigger camera look
-      if (e.touches && e.touches.length > 1) {
-        this.lookTouchId = null;
-        return;
-      }
-
-      // In math stereometry, full screen touch manipulation belongs to 3D geometry
-      if (typeof window !== 'undefined' && (window as any).__ENGINE__?.currentExperimentId === 'math-stereometry') {
-        return;
-      }
-
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
-        // Reserve the right side of the scene for camera look on touch devices.
-        if (
-          touch.clientX > window.innerWidth * 0.4 &&
-          this.lookTouchId === null
-        ) {
-          this.lookTouchId = touch.identifier;
-          this.lastLookPos = { x: touch.clientX, y: touch.clientY };
+        // Let controls, launcher button, and text fields receive taps without also starting a camera drag.
+        if (target.closest('.hud-interactive, button, a, input, textarea, select, [contenteditable="true"]')) {
+          return;
         }
-      }
-    });
+
+        // In math stereometry, full screen touch manipulation belongs to 3D geometry
+        if (typeof window !== 'undefined' && (window as any).__ENGINE__?.currentExperimentId === 'math-stereometry') {
+          return;
+        }
+
+        // Multi-touch gestures in look area (e.g. 2-finger pinch on iPad) should not trigger camera look.
+        // Filter out the joystick touch so moving with left hand while looking with right hand works seamlessly!
+        const nonJoystickTouches = Array.from(e.touches || []).filter(
+          (t) => t.identifier !== this.joystickTouchId
+        );
+        if (nonJoystickTouches.length > 1) {
+          this.lookTouchId = null;
+          return;
+        }
+
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const touch = e.changedTouches[i];
+          if (touch.identifier === this.joystickTouchId) continue;
+
+          // Reserve bottom-left area for joystick movement; allow camera look outside the joystick area
+          const isJoystickArea =
+            touch.clientX < 220 && touch.clientY > window.innerHeight - 240;
+
+          if (!isJoystickArea && this.lookTouchId === null) {
+            this.lookTouchId = touch.identifier;
+            this.lastLookPos = { x: touch.clientX, y: touch.clientY };
+          }
+        }
+      },
+      { passive: false }
+    );
 
     // Vision Spatial Window Launcher Button (Bottom-Right)
     if (this.visionLauncherBtn) {

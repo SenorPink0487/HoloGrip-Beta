@@ -1113,7 +1113,11 @@ export class HandTrackingHUD {
       if (frame.leftHand) {
         const dur = Math.round(frame.leftHand.pinchDuration);
         if (frame.leftHand.isPinching) {
-          const txt = frame.leftHand.isLongPinch ? `拖拽视角中 (${dur} ms)` : `快速捏合中 (${dur} ms)`;
+          const txt = frame.isDualPinching
+            ? `双手缩放中 (${dur} ms)`
+            : frame.leftHand.isLongPinch
+            ? `拖拽视角中 (${dur} ms)`
+            : `快速捏合中 (${dur} ms)`;
           if (this.cachedLeftTxt !== txt) {
             this.cachedLeftTxt = txt;
             leftTxt.textContent = txt;
@@ -1186,7 +1190,11 @@ export class HandTrackingHUD {
 
         const dur = Math.round(frame.rightHand.pinchDuration);
         if (frame.rightHand.isPinching) {
-          const txt = dur >= 350 ? `长按拖拽中 (${dur} ms)` : `点按选择中 (${dur} ms)`;
+          const txt = frame.isDualPinching
+            ? `双手缩放中 (${dur} ms)`
+            : dur >= 350
+            ? `长按拖拽中 (${dur} ms)`
+            : `点按选择中 (${dur} ms)`;
           if (this.cachedRightTxt !== txt) {
             this.cachedRightTxt = txt;
             rightTxt.textContent = txt;
@@ -1300,9 +1308,9 @@ export class HandTrackingHUD {
     if (frame.leftHand && frame.leftHand.landmarks) {
       handsToRender.push({
         data: frame.leftHand,
-        boneColor: 'rgba(255, 159, 10, 0.45)',
-        jointColor: '#ff9f0a',
-        pinchLineColor: frame.leftHand.isPinching ? '#ff9f0a' : 'rgba(255, 159, 10, 0.7)',
+        boneColor: 'rgba(255, 255, 255, 0.45)',
+        jointColor: '#ffffff',
+        pinchLineColor: frame.leftHand.isPinching ? '#ffffff' : 'rgba(255, 255, 255, 0.7)',
         label: '左手',
         handKey: 'left',
       });
@@ -1311,9 +1319,9 @@ export class HandTrackingHUD {
     if (frame.rightHand && frame.rightHand.landmarks) {
       handsToRender.push({
         data: frame.rightHand,
-        boneColor: 'rgba(10, 132, 255, 0.45)',
-        jointColor: '#0a84ff',
-        pinchLineColor: frame.rightHand.isPinching ? '#30d158' : 'rgba(10, 132, 255, 0.7)',
+        boneColor: 'rgba(255, 255, 255, 0.45)',
+        jointColor: '#ffffff',
+        pinchLineColor: frame.rightHand.isPinching ? '#ffffff' : 'rgba(255, 255, 255, 0.7)',
         label: '右手',
         handKey: 'right',
       });
