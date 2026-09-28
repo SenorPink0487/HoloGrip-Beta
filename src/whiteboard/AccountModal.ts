@@ -34,11 +34,30 @@ export class AccountModal {
       if (this.isOpen) this.render();
     });
     this.render();
+    this.setInputsDisabled(true);
+  }
+
+  private setInputsDisabled(disabled: boolean): void {
+    const inputs = this.element.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement>(
+      'input, button, textarea'
+    );
+    inputs.forEach((el) => {
+      if (el.id === 'account-modal-close-btn') {
+        el.tabIndex = disabled ? -1 : 0;
+        return;
+      }
+      el.disabled = disabled;
+      el.tabIndex = disabled ? -1 : 0;
+    });
   }
 
   public open(): void {
     this.isOpen = true;
     this.element.classList.add('open');
+    this.element.removeAttribute?.('aria-hidden');
+    this.element.removeAttribute?.('inert');
+    (this.element as any).inert = false;
+    this.setInputsDisabled(false);
     this.render();
     this.updateStats();
     if (getUser() || hasRefreshToken()) {
@@ -55,6 +74,10 @@ export class AccountModal {
     }
     this.isOpen = false;
     this.element.classList.remove('open');
+    this.element.setAttribute('aria-hidden', 'true');
+    this.element.setAttribute('inert', '');
+    (this.element as any).inert = true;
+    this.setInputsDisabled(true);
   }
 
   public get visible(): boolean {
@@ -90,6 +113,9 @@ export class AccountModal {
     this.element = document.createElement('div');
     this.element.className = 'apple-modal-backdrop';
     this.element.id = 'account-modal-backdrop';
+    this.element.setAttribute('aria-hidden', 'true');
+    this.element.setAttribute('inert', '');
+    (this.element as any).inert = true;
 
     this.card = document.createElement('div');
     this.card.className = 'apple-modal-card';
@@ -153,6 +179,9 @@ export class AccountModal {
         this.titleEl.textContent = mode === 'login' ? '登录' : '注册';
       });
       this.body.appendChild(panel.element);
+      if (!this.isOpen) {
+        this.setInputsDisabled(true);
+      }
       return;
     }
 
@@ -163,6 +192,9 @@ export class AccountModal {
     this.badgeEl.classList.toggle('hidden', badge.length === 0);
     this.renderAccount(user);
     this.updateStats();
+    if (!this.isOpen) {
+      this.setInputsDisabled(true);
+    }
   }
 
   private renderAccount(user: AccountUser): void {

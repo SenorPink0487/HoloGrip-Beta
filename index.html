@@ -689,6 +689,8 @@
       align-items: center;
       pointer-events: auto;
       user-select: none;
+      -webkit-user-select: none;
+      cursor: default;
       transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1);
       transform: scale(1);
       opacity: 1;
@@ -719,6 +721,9 @@
       overflow: hidden;
       contain: layout style;
       will-change: transform;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: default;
     }
 
 
@@ -1955,6 +1960,7 @@
       outline: none;
       user-select: text;
       -webkit-user-select: text;
+      cursor: text;
     }
 
     .periodic-mixture-row {

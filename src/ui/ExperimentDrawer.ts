@@ -68,6 +68,10 @@ export class ExperimentDrawer {
 
     this.container.appendChild(this.element);
 
+    this.element.setAttribute('aria-hidden', 'true');
+    this.element.setAttribute('inert', '');
+    (this.element as any).inert = true;
+
     this.listEl = this.element.querySelector('#drawer-list')!;
     this.searchInput = this.element.querySelector('#drawer-search-input')!;
     this.searchInput.disabled = true;
@@ -117,6 +121,9 @@ export class ExperimentDrawer {
     this.element.classList.toggle('open', this.isOpen);
 
     if (this.isOpen) {
+      this.element.removeAttribute('aria-hidden');
+      this.element.removeAttribute('inert');
+      (this.element as any).inert = false;
       this.searchInput.disabled = false;
       this.searchInput.tabIndex = 0;
       try {
@@ -130,6 +137,9 @@ export class ExperimentDrawer {
       this.searchInput.blur?.();
       this.searchInput.disabled = true;
       this.searchInput.tabIndex = -1;
+      this.element.setAttribute('aria-hidden', 'true');
+      this.element.setAttribute('inert', '');
+      (this.element as any).inert = true;
       blurActiveInput(true);
     }
 

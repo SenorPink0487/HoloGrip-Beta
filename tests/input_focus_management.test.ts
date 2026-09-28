@@ -13,17 +13,13 @@ class MockElement {
   public isConnected = true;
   public value = '';
   public style: Record<string, string> = {};
-  public classList = {
-    _classes: new Set<string>(),
-    add: (...cls: string[]) => cls.forEach((c) => el.classList._classes.add(c)),
-    remove: (...cls: string[]) => cls.forEach((c) => el.classList._classes.delete(c)),
-    toggle: (c: string, force?: boolean) => {
-      if (force === true) el.classList._classes.add(c);
-      else if (force === false) el.classList._classes.delete(c);
-      else if (el.classList._classes.has(c)) el.classList._classes.delete(c);
-      else el.classList._classes.add(c);
-    },
-    contains: (c: string) => el.classList._classes.has(c),
+  public style: Record<string, string> = {};
+  public classList: {
+    _classes: Set<string>;
+    add: (...cls: string[]) => void;
+    remove: (...cls: string[]) => void;
+    toggle: (c: string, force?: boolean) => void;
+    contains: (c: string) => boolean;
   };
   public parentNode: MockElement | null = null;
   public children: MockElement[] = [];
@@ -34,6 +30,19 @@ class MockElement {
   constructor(tagName = 'DIV', type = 'text') {
     this.tagName = tagName.toUpperCase();
     this.type = type;
+    const classes = new Set<string>();
+    this.classList = {
+      _classes: classes,
+      add: (...cls: string[]) => cls.forEach((c) => classes.add(c)),
+      remove: (...cls: string[]) => cls.forEach((c) => classes.delete(c)),
+      toggle: (c: string, force?: boolean) => {
+        if (force === true) classes.add(c);
+        else if (force === false) classes.delete(c);
+        else if (classes.has(c)) classes.delete(c);
+        else classes.add(c);
+      },
+      contains: (c: string) => classes.has(c),
+    };
   }
 
   public focus(): void {
@@ -54,9 +63,29 @@ class MockElement {
     return child;
   }
 
+  public inert = false;
+  public attributes: Record<string, string> = {};
+  public getAttribute(name: string): string | null {
+    return this.attributes[name] ?? null;
+  }
+  public setAttribute(name: string, val: string): void {
+    this.attributes[name] = val;
+    if (name === 'inert') this.inert = true;
+  }
+  public removeAttribute(name: string): void {
+    delete this.attributes[name];
+    if (name === 'inert') this.inert = false;
+  }
+
   public closest(selector: string): MockElement | null {
     let curr: MockElement | null = this;
     while (curr) {
+      if (selector === '[inert]' && (curr.inert || curr.getAttribute('inert') !== null)) {
+        return curr;
+      }
+      if (selector === '[aria-hidden="true"]' && curr.getAttribute('aria-hidden') === 'true') {
+        return curr;
+      }
       if (selector.startsWith('#') && curr.tagName.toLowerCase() === selector.slice(1).toLowerCase()) {
         return curr;
       }
@@ -242,6 +271,103 @@ console.log('=== Starting Input Focus & Typing Elimination Verification ===\n');
   console.log('✓ Test 5 passed\n');
 }
 
+// Test 6: inert and aria-hidden elements are identified as inactive and auto-blurred
+{
+  console.log('Test 6: inert and aria-hidden containers mark inputs inactive');
+  const inertContainer = new MockElement('DIV');
+  inertContainer.setAttribute('inert', '');
+  const childInput = new MockElement('INPUT', 'email');
+  inertContainer.appendChild(childInput);
+
+  assert.strictEqual(isElementVisibleAndActive(childInput), false, 'Child of inert element must be inactive');
+
+  childInput.focus();
+  assert.strictEqual(isTextInputActive(), false, 'isTextInputActive must return false and blur inert input');
+  assert.strictEqual(globalThis.document.activeElement, mockBody, 'Inert input must be blurred');
+
+  // aria-hidden container
+  const ariaContainer = new MockElement('DIV');
+  ariaContainer.setAttribute('aria-hidden', 'true');
+  const ariaChild = new MockElement('INPUT', 'text');
+  ariaContainer.appendChild(ariaChild);
+
+  assert.strictEqual(isElementVisibleAndActive(ariaChild), false, 'Child of aria-hidden must be inactive');
+  ariaChild.focus();
+  assert.strictEqual(isTextInputActive(), false, 'isTextInputActive must return false and blur aria-hidden input');
+  assert.strictEqual(globalThis.document.activeElement, mockBody, 'aria-hidden input must be blurred');
+  console.log('✓ Test 6 passed\n');
+}
+
+// Test 7: Sliders, checkboxes, and buttons never qualify as text inputs
+{
+  console.log('Test 7: Range sliders, checkboxes, and buttons never enter text input mode');
+  const slider = new MockElement('INPUT', 'range');
+  const checkbox = new MockElement('INPUT', 'checkbox');
+  const button = new MockElement('BUTTON');
+
+  slider.focus();
+  assert.strictEqual(isTextInputActive(), false, 'Slider must not activate text input mode');
+
+  checkbox.focus();
+  assert.strictEqual(isTextInputActive(), false, 'Checkbox must not activate text input mode');
+
+  button.focus();
+  assert.strictEqual(isTextInputActive(), false, 'Button must not activate text input mode');
+  console.log('✓ Test 7 passed\n');
+}
+
+// Test 8: Chemistry section input inside visible vision spatial window is active and accepts input
+{
+  console.log('Test 8: Chemistry section input inside visible vision-spatial-window is active and captures typing');
+  const visionWindow = new MockElement('DIV');
+  visionWindow.className = 'vision-spatial-window';
+  visionWindow.tagName = 'DIV';
+  (visionWindow as any).id = 'vision-spatial-window';
+
+  const chemistryInput = new MockElement('INPUT', 'text');
+  chemistryInput.className = 'mixture-ai-input';
+  chemistryInput.value = '可乐';
+  visionWindow.appendChild(chemistryInput);
+
+  // Visible window: input must be active
+  assert.strictEqual(isElementVisibleAndActive(chemistryInput), true, 'Chemistry input in open vision window must be active');
+  chemistryInput.focus();
+  assert.strictEqual(isTextInputActive(), true, 'isTextInputActive must be true for focused chemistry input');
+  assert.strictEqual(globalThis.document.activeElement, chemistryInput, 'Chemistry input must retain focus');
+
+  // Verify PlayerController respects focused chemistry input and does not move
+  const cam = new THREE.PerspectiveCamera();
+  const dummyDom = new MockElement('CANVAS');
+  const player = new PlayerController(cam, dummyDom as any);
+
+  let preventDefaultCalled = false;
+  player.onKey(
+    {
+      code: 'KeyW',
+      cancelable: true,
+      target: chemistryInput,
+      preventDefault: () => {
+        preventDefaultCalled = true;
+      },
+    } as any,
+    true
+  );
+
+  assert.strictEqual(player.keys.forward, false, 'Player must NOT move when user is typing in chemistry input');
+  assert.strictEqual(preventDefaultCalled, false, 'Typing in chemistry input must not be cancelled by player controls');
+  assert.strictEqual(globalThis.document.activeElement, chemistryInput, 'Chemistry input must stay focused while typing');
+
+  // When window is closed (hidden class added), input must become inactive and blur
+  visionWindow.classList.add('hidden');
+  assert.strictEqual(isElementVisibleAndActive(chemistryInput), false, 'Chemistry input must become inactive when window is hidden');
+  assert.strictEqual(isTextInputActive(), false, 'isTextInputActive must return false and auto-blur when window is hidden');
+  assert.strictEqual(globalThis.document.activeElement, mockBody, 'Focus must be cleared from chemistry input when window is hidden');
+
+  console.log('✓ Test 8 passed\n');
+}
+
 console.log('========================================================');
-console.log('All Input Focus & Typing Elimination Tests Passed (5/5)!');
+console.log('All Input Focus & Typing Elimination Tests Passed (8/8)!');
 console.log('========================================================\n');
+
+

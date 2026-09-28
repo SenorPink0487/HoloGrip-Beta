@@ -143,6 +143,9 @@ export class VisionModal {
     this.element = document.createElement('div');
     this.element.id = 'vision-spatial-window';
     this.element.className = 'vision-spatial-window hidden';
+    this.element.setAttribute('aria-hidden', 'true');
+    this.element.setAttribute('inert', '');
+    (this.element as any).inert = true;
 
     this.element.innerHTML = `
       <div class="vision-window-frame">
@@ -720,6 +723,9 @@ export class VisionModal {
     }
     this.isOpen = true;
     this.element.classList.remove('hidden');
+    this.element.removeAttribute('aria-hidden');
+    this.element.removeAttribute('inert');
+    (this.element as any).inert = false;
     this.callbacks.onOpen();
   }
 
@@ -734,6 +740,9 @@ export class VisionModal {
     }
     this.isOpen = false;
     this.element.classList.add('hidden');
+    this.element.setAttribute('aria-hidden', 'true');
+    this.element.setAttribute('inert', '');
+    (this.element as any).inert = true;
     this.thermoStatusCard?.setVisible(false);
     this.carnotStatusCard?.setVisible(false);
     this.conductionStatusCard?.setVisible(false);

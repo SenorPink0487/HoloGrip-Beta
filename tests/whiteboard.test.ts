@@ -40,6 +40,12 @@ class MockElement {
     (this as any)[name] = value;
   }
 
+  removeAttribute(name: string): void {
+    if (name === 'id') this.id = '';
+    if (name === 'class') this.className = '';
+    delete (this as any)[name];
+  }
+
   addEventListener(event: string, handler: (e?: any) => void): void {
     if (!this.eventListeners[event]) {
       this.eventListeners[event] = [];

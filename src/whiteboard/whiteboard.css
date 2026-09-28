@@ -742,12 +742,14 @@ body.lab-returning #touch-controls-layer * {
   justify-content: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.22s ease-out;
+  visibility: hidden;
+  transition: opacity 0.22s ease-out, visibility 0.22s ease-out;
 }
 
 .apple-modal-backdrop.open {
   opacity: 1;
   pointer-events: auto;
+  visibility: visible;
 }
 
 .apple-modal-card {

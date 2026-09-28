@@ -440,9 +440,11 @@ console.log('Test 8: VisionOS FieldStatusCard UI & Event Binding');
   const card = new FieldStatusCard((cmd) => commands.push(cmd));
   card.setVisible(true);
 
-  // Dispatch preset click
-  card.element.querySelector('#field-preset-dipole').dispatchEvent({ type: 'click' });
-  assert.strictEqual(commands[commands.length - 1].type, 'setPreset');
+  // Verify removed blocks are completely deleted
+  assert.strictEqual(card.element.innerHTML.includes('field-seg-bar'), false, 'Presets segmented bar must be removed');
+  assert.strictEqual(card.element.innerHTML.includes('field-preset-dipole'), false, 'Preset buttons must be removed');
+  assert.strictEqual(card.element.innerHTML.includes('field-toggle-lines'), false, 'Line toggle must be removed');
+  assert.strictEqual(card.element.innerHTML.includes('field-density-slider'), false, 'Density slider must be removed');
 
   // Dispatch add positive charge click
   card.element.querySelector('#field-btn-add-pos').dispatchEvent({ type: 'click' });
@@ -453,6 +455,10 @@ console.log('Test 8: VisionOS FieldStatusCard UI & Event Binding');
   card.element.querySelector('#field-btn-add-neg').dispatchEvent({ type: 'click' });
   assert.strictEqual(commands[commands.length - 1].type, 'addCharge');
   assert.strictEqual((commands[commands.length - 1] as any).q, -2.0);
+
+  // Dispatch delete selected click
+  card.element.querySelector('#field-btn-del').dispatchEvent({ type: 'click' });
+  assert.strictEqual(commands[commands.length - 1].type, 'removeCharge');
 
   // Dispatch clear click
   card.element.querySelector('#field-btn-clear').dispatchEvent({ type: 'click' });

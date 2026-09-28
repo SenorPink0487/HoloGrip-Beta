@@ -294,7 +294,14 @@ export class HandGestureService {
         this.videoElement.setAttribute('autoplay', '');
         this.videoElement.setAttribute('playsinline', '');
         this.videoElement.muted = true;
-        this.videoElement.style.display = 'none';
+        this.videoElement.style.position = 'fixed';
+        this.videoElement.style.top = '0';
+        this.videoElement.style.left = '0';
+        this.videoElement.style.width = '1px';
+        this.videoElement.style.height = '1px';
+        this.videoElement.style.opacity = '0.001';
+        this.videoElement.style.pointerEvents = 'none';
+        this.videoElement.style.zIndex = '-99999';
         document.body.appendChild(this.videoElement);
       }
 
@@ -410,7 +417,7 @@ export class HandGestureService {
       try {
         this.worker.postMessage({ type: 'CLOSE' });
         this.worker.terminate();
-      } catch {}
+      } catch (_err) {}
       this.worker = null;
     }
     this.isWorkerReady = false;
@@ -466,17 +473,8 @@ export class HandGestureService {
     this.isWorkerBusy = true;
     const tStart = performance.now();
     try {
-      const vw = video.videoWidth || 640;
-      const vh = video.videoHeight || 480;
-      const targetW = 320;
-      const targetH = Math.max(160, Math.round(targetW * (vh / vw))) || 240;
-
       const bitmapPromise = (typeof createImageBitmap === 'function')
-        ? createImageBitmap(video, {
-            resizeWidth: targetW,
-            resizeHeight: targetH,
-            resizeQuality: 'low',
-          }).catch(() => createImageBitmap(video))
+        ? createImageBitmap(video)
         : Promise.reject(new Error('createImageBitmap not supported'));
 
       bitmapPromise.then((bitmap) => {
@@ -502,7 +500,7 @@ export class HandGestureService {
       }).catch(() => {
         this.isWorkerBusy = false;
       });
-    } catch {
+    } catch (err) {
       this.isWorkerBusy = false;
     }
   }

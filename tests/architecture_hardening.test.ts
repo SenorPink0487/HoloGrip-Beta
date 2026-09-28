@@ -7,6 +7,7 @@ const createMockElement = (tag = 'div'): any => {
   const el: any = {
     tagName: tag.toUpperCase(),
     setAttribute: () => {},
+    removeAttribute: () => {},
     getAttribute: (attr: string) => (attr === 'data-cat' ? 'all' : null),
     style: {},
     appendChild: (child: any) => child,

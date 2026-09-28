@@ -1,4 +1,5 @@
 import type { HandGestureFrame, SingleHandData } from './types.ts';
+import { blurActiveInput, isElementVisibleAndActive, isTextInputElement } from '../core/focus.ts';
 
 export class VisionProCursor {
   // Right Hand Cursor (Mouse Emulation)
@@ -17,9 +18,10 @@ export class VisionProCursor {
   private isLeftVisible = false;
   private isHovered = false;
   private isRightPinching = false;
-
   private currentRightX = 0;
   private currentRightY = 0;
+  private currentLeftX = 0;
+  private currentLeftY = 0;
 
   // Mouse emulation state (driven exclusively by Right Hand)
   private lastHoverTarget: Element | null = null;
@@ -400,7 +402,6 @@ export class VisionProCursor {
 
     this.currentRightX = hand.screenX;
     this.currentRightY = hand.screenY;
-
     this.rightContainer.style.transform = `translate3d(${hand.screenX}px, ${hand.screenY}px, 0)`;
 
     // Throttled hit-testing: avoids repeated synchronous document.elementFromPoint layout reflows
@@ -440,6 +441,8 @@ export class VisionProCursor {
       this.setLeftVisible(true);
     }
 
+    this.currentLeftX = leftHand.screenX;
+    this.currentLeftY = leftHand.screenY;
     this.leftContainer.style.transform = `translate3d(${leftHand.screenX}px, ${leftHand.screenY}px, 0)`;
 
     const desiredClass = leftHand.isLongPinch
@@ -545,10 +548,12 @@ export class VisionProCursor {
       this.dispatchMouseEvent('mousedown', this.dragTarget, x, y, 0, 1);
 
       if (
-        this.dragTarget instanceof HTMLInputElement ||
-        this.dragTarget instanceof HTMLTextAreaElement
+        isTextInputElement(this.dragTarget) &&
+        isElementVisibleAndActive(this.dragTarget as HTMLElement)
       ) {
-        this.dragTarget.focus();
+        (this.dragTarget as HTMLElement).focus?.();
+      } else {
+        blurActiveInput(true);
       }
     }
 
