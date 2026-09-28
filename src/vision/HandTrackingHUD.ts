@@ -1,4 +1,4 @@
-import type { HandGestureFrame, SingleHandData, TrackerTelemetry } from './types.ts';
+import type { HandGestureFrame, NormalizedLandmark, SingleHandData, TrackerTelemetry } from './types.ts';
 import type { HandGestureService } from './HandGestureService.ts';
 
 export interface PinchLogEntry {
@@ -54,6 +54,9 @@ export class HandTrackingHUD {
   private cachedRightDur = '';
   private cachedRightDurClass = '';
   private cachedRatioTxt = '';
+  private cachedFps = '';
+  private cachedLatency = '';
+  private prevHandLandmarks: Map<string, { lms: NormalizedLandmark[]; timestamp: number }> = new Map();
 
   constructor(service: HandGestureService, parent: HTMLElement = document.body) {
     this.service = service;
@@ -62,7 +65,7 @@ export class HandTrackingHUD {
     this.container = document.createElement('div');
     this.container.id = 'vision-pro-tracking-hud';
 
-    // 1. Bottom-right Floating Pill
+    // 1. Top-right Floating Pill
     this.pillEl = document.createElement('div');
     this.pillEl.className = 'vp-hud-pill';
     this.pillEl.innerHTML = `
@@ -193,8 +196,8 @@ export class HandTrackingHUD {
     const css = `
       #vision-pro-tracking-hud {
         position: fixed;
-        bottom: 22px;
-        right: 24px;
+        top: calc(16px + env(safe-area-inset-top, 0px));
+        right: calc(20px + env(safe-area-inset-right, 0px));
         z-index: 8500;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
         user-select: none;
@@ -290,7 +293,7 @@ export class HandTrackingHUD {
       /* Camera Preview Modal (PiP) */
       .vp-hud-preview-modal {
         position: absolute;
-        bottom: 46px;
+        top: calc(100% + 10px);
         right: 0;
         width: 324px;
         background: rgba(24, 24, 28, 0.9);
@@ -302,12 +305,12 @@ export class HandTrackingHUD {
         box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.3);
         transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1),
                     transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
-        transform-origin: bottom right;
+        transform-origin: top right;
       }
 
       .vp-hud-preview-modal.hidden {
         opacity: 0;
-        transform: scale(0.92) translateY(12px);
+        transform: scale(0.92) translateY(-10px);
         pointer-events: none;
       }
 
@@ -736,7 +739,7 @@ export class HandTrackingHUD {
         z-index: 999999 !important;
         margin: 0 !important;
         background: rgba(10, 10, 12, 0.96) !important;
-        backdrop-filter: blur(48px) saturate(210%) !important;
+        backdrop-filter: none !important;
         display: flex !important;
         flex-direction: column !important;
         transform: none !important;
@@ -1051,9 +1054,12 @@ export class HandTrackingHUD {
       targetW = maxH * aspect;
     }
 
+    // The camera supplies only vw × vh pixels. A huge HiDPI backing canvas
+    // repeatedly upscales the same pixels and stalls the tracking pipeline.
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.previewCanvas.width = Math.round(targetW * dpr);
-    this.previewCanvas.height = Math.round(targetH * dpr);
+    const backingScale = Math.min(dpr, (vw * 1.5) / targetW);
+    this.previewCanvas.width = Math.round(targetW * backingScale);
+    this.previewCanvas.height = Math.round(targetH * backingScale);
     this.previewCanvas.style.width = `${Math.round(targetW)}px`;
     this.previewCanvas.style.height = `${Math.round(targetH)}px`;
   }
@@ -1077,8 +1083,17 @@ export class HandTrackingHUD {
         dot.className = 'vp-pill-status-dot';
       }
 
-      fpsVal.textContent = `${telemetry.fps} FPS`;
-      latencyVal.textContent = `${telemetry.latencyMs.toFixed(1)} ms`;
+      const fpsStr = `${telemetry.fps} FPS`;
+      if (this.cachedFps !== fpsStr) {
+        this.cachedFps = fpsStr;
+        fpsVal.textContent = fpsStr;
+      }
+
+      const latStr = `${telemetry.latencyMs.toFixed(1)} ms`;
+      if (this.cachedLatency !== latStr) {
+        this.cachedLatency = latStr;
+        latencyVal.textContent = latStr;
+      }
     });
 
     this.service.onFrame((frame: HandGestureFrame) => {
@@ -1236,6 +1251,8 @@ export class HandTrackingHUD {
 
   /**
    * Renders mirrored camera feed with two-hand skeleton and pinch indicators.
+   * Employs forward velocity extrapolation to synchronize landmarks with the live video feed,
+   * and batches Canvas2D draw calls to maximize framerate.
    */
   private renderPreviewCanvas(frame: HandGestureFrame): void {
     const video = this.service.getVideoElement();
@@ -1267,6 +1284,7 @@ export class HandTrackingHUD {
       jointColor: string;
       pinchLineColor: string;
       label: string;
+      handKey: string;
     }[] = [];
 
     if (frame.leftHand && frame.leftHand.landmarks) {
@@ -1276,6 +1294,7 @@ export class HandTrackingHUD {
         jointColor: '#ff9f0a',
         pinchLineColor: frame.leftHand.isPinching ? '#ff9f0a' : 'rgba(255, 159, 10, 0.7)',
         label: '左手',
+        handKey: 'left',
       });
     }
 
@@ -1286,10 +1305,14 @@ export class HandTrackingHUD {
         jointColor: '#0a84ff',
         pinchLineColor: frame.rightHand.isPinching ? '#30d158' : 'rgba(10, 132, 255, 0.7)',
         label: '右手',
+        handKey: 'right',
       });
     }
 
-    if (handsToRender.length === 0) return;
+    if (handsToRender.length === 0) {
+      this.prevHandLandmarks.clear();
+      return;
+    }
 
     ctx.save();
     const CONNECTIONS = [
@@ -1303,28 +1326,44 @@ export class HandTrackingHUD {
 
     const isFs = this.isFullscreen;
     const scale = isFs ? Math.max(1.3, Math.min(3.0, w / 540)) : 1.0;
+    const latencyCompensationMs = Math.min(Math.max(this.service.getTelemetry().latencyMs, 10), 50);
 
     for (const hand of handsToRender) {
-      const lms = hand.data.landmarks;
+      const rawLms = hand.data.landmarks;
+      const prev = this.prevHandLandmarks.get(hand.handKey);
+      let lms = rawLms;
 
-      // Draw skeleton bones
+      // Visual latency forward-extrapolation: compensates for pipeline delay relative to live video
+      if (prev && frame.timestamp > prev.timestamp) {
+        const dt = Math.max(frame.timestamp - prev.timestamp, 1);
+        const factor = Math.min(latencyCompensationMs / dt, 1.2);
+        lms = rawLms.map((p, idx) => {
+          const prevP = prev.lms[idx] || p;
+          const vx = (p.x - prevP.x) * factor;
+          const vy = (p.y - prevP.y) * factor;
+          return {
+            x: Math.max(0, Math.min(1, p.x + vx)),
+            y: Math.max(0, Math.min(1, p.y + vy)),
+            z: p.z,
+          };
+        });
+      }
+      this.prevHandLandmarks.set(hand.handKey, { lms: rawLms, timestamp: frame.timestamp });
+
+      // 1. Draw skeleton bones in a single batched path
       ctx.lineWidth = Math.round(2 * scale);
       ctx.strokeStyle = hand.boneColor;
-      for (const [i, j] of CONNECTIONS) {
+      ctx.beginPath();
+      for (let c = 0; c < CONNECTIONS.length; c++) {
+        const [i, j] = CONNECTIONS[c];
         const p1 = lms[i];
         const p2 = lms[j];
-        const x1 = (1.0 - p1.x) * w;
-        const y1 = p1.y * h;
-        const x2 = (1.0 - p2.x) * w;
-        const y2 = p2.y * h;
-
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
+        ctx.moveTo((1.0 - p1.x) * w, p1.y * h);
+        ctx.lineTo((1.0 - p2.x) * w, p2.y * h);
       }
+      ctx.stroke();
 
-      // Draw pinch line between thumb (4) and index (8)
+      // 2. Draw pinch line between thumb (4) and index (8)
       const thumb = lms[4];
       const index = lms[8];
       const tx = (1.0 - thumb.x) * w;
@@ -1339,26 +1378,38 @@ export class HandTrackingHUD {
       ctx.lineTo(ix, iy);
       ctx.stroke();
 
-      // Draw joints
+      // 3. Batched joints drawing: standard joints (white)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.beginPath();
+      const rJoint = 2.5 * scale;
       for (let i = 0; i < lms.length; i++) {
-        const p = lms[i];
-        const px = (1.0 - p.x) * w;
-        const py = p.y * h;
-
-        ctx.beginPath();
-        if (i === 4 || i === 8) {
-          ctx.arc(px, py, 4.5 * scale, 0, 2 * Math.PI);
-          ctx.fillStyle = hand.data.isPinching ? '#30d158' : hand.jointColor;
-        } else {
-          ctx.arc(px, py, 2.5 * scale, 0, 2 * Math.PI);
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        if (i !== 4 && i !== 8) {
+          const px = (1.0 - lms[i].x) * w;
+          const py = lms[i].y * h;
+          ctx.moveTo(px + rJoint, py);
+          ctx.arc(px, py, rJoint, 0, 2 * Math.PI);
         }
-        ctx.fill();
       }
+      ctx.fill();
 
-      // Midpoint indicator with label
-      const mx = (1.0 - hand.data.midpointNorm.x) * w;
-      const my = hand.data.midpointNorm.y * h;
+      // 4. Batched fingertip joints (thumb & index)
+      ctx.fillStyle = hand.data.isPinching ? '#30d158' : hand.jointColor;
+      ctx.beginPath();
+      const rTip = 4.5 * scale;
+      const tpx = (1.0 - thumb.x) * w;
+      const tpy = thumb.y * h;
+      ctx.moveTo(tpx + rTip, tpy);
+      ctx.arc(tpx, tpy, rTip, 0, 2 * Math.PI);
+
+      const ipx = (1.0 - index.x) * w;
+      const ipy = index.y * h;
+      ctx.moveTo(ipx + rTip, ipy);
+      ctx.arc(ipx, ipy, rTip, 0, 2 * Math.PI);
+      ctx.fill();
+
+      // 5. Midpoint indicator with label
+      const mx = (1.0 - (thumb.x + index.x) * 0.5) * w;
+      const my = (thumb.y + index.y) * 0.5 * h;
 
       ctx.beginPath();
       ctx.arc(mx, my, (hand.data.isPinching ? 6 : 9) * scale, 0, 2 * Math.PI);
@@ -1368,7 +1419,7 @@ export class HandTrackingHUD {
       ctx.strokeStyle = hand.jointColor;
       ctx.stroke();
 
-      // Hand label above wrist
+      // 6. Hand label above wrist
       const wristX = (1.0 - lms[0].x) * w;
       const wristY = lms[0].y * h;
       ctx.fillStyle = hand.jointColor;

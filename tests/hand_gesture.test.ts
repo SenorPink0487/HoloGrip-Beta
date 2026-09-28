@@ -667,6 +667,41 @@ await (async () => {
   console.log('✓ Test 16 passed: Frame coalescing and zero-backlog LIFO drop invariants verified\n');
 }
 
+// A camera frame presented while inference is busy must remain available
+// when the worker finishes, even if no third camera frame has arrived.
+{
+  const service = new HandGestureService();
+  const video = { readyState: 2, currentTime: 1 };
+  const sent: unknown[] = [];
+  const previousCreateImageBitmap = (globalThis as any).createImageBitmap;
+  (globalThis as any).createImageBitmap = async () => ({ close() {} });
+
+  try {
+    Object.assign(service, {
+      videoElement: video,
+      worker: { postMessage: (message: unknown) => sent.push(message) },
+      isWorkerReady: true,
+      status: 'running',
+    });
+
+    (service as any).processFrame(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.strictEqual(sent.length, 1);
+
+    video.currentTime = 2;
+    (service as any).processFrame(true);
+    assert.strictEqual((service as any).lastVideoCurrentTime, 1);
+
+    (service as any).isWorkerBusy = false;
+    (service as any).processFrame(false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.strictEqual(sent.length, 2, 'Latest camera frame should be sent immediately after inference');
+    assert.strictEqual((service as any).lastVideoCurrentTime, 2);
+  } finally {
+    (globalThis as any).createImageBitmap = previousCreateImageBitmap;
+  }
+}
+
 // Test 17: VisionProCursor Hit-Testing Throttling & Layout Thrashing Elimination
 {
   console.log('Test 17: VisionProCursor Hit-Testing Throttling & Layout Thrashing Elimination');
@@ -737,6 +772,4 @@ await (async () => {
 console.log('========================================================');
 console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (21/21)!');
 console.log('========================================================\n');
-
-
 

@@ -1,0 +1,11 @@
+{
+  "build": {
+    "beforeBuildCommand": "npm run build:ios"
+  },
+  "bundle": {
+    "iOS": {
+      "infoPlist": "Info.ios.plist",
+      "minimumSystemVersion": "15.0"
+    }
+  }
+}

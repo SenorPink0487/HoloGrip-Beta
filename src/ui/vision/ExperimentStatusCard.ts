@@ -138,7 +138,7 @@ export class ExperimentStatusCard {
       </div>
 
       <div class="mixture-ai-row">
-        <input class="mixture-ai-input" id="mixture-query" type="text" maxlength="40" enterkeyhint="search" autocomplete="off" placeholder="输入一种东西，例如可乐" aria-label="要分析的物质" />
+        <input class="mixture-ai-input" id="mixture-query" type="text" maxlength="40" enterkeyhint="search" autocomplete="off" placeholder="" aria-label="要分析的物质" />
         <button class="apple-pill-btn" id="btn-mixture-voice" type="button" title="语音输入">
           <svg class="apple-sf-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="3" width="6" height="11" rx="3"></rect>

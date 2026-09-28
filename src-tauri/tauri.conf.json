@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "virtuallab",
-  "version": "0.1.0",
+  "productName": "HoloGrip",
+  "version": "1.0.0",
   "identifier": "com.virtuallab.app",
   "build": {
     "frontendDist": "../dist",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "3D Virtual Laboratory",
+        "title": "HoloGrip — 3D Virtual Laboratory",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

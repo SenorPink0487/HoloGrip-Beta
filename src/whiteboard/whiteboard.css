@@ -1989,8 +1989,8 @@ textarea:focus::placeholder {
 
 .whiteboard-sync-status {
   position: absolute;
-  top: 18px;
-  right: 22px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(230px + env(safe-area-inset-right, 0px));
   z-index: 15;
   max-width: min(420px, 65vw);
   padding: 8px 12px;

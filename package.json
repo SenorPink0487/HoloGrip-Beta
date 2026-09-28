@@ -8,6 +8,8 @@
     "dev": "vite",
     "prebuild": "npm run test:perf",
     "build": "npm run test:perf && tsc && vite build",
+    "build:app": "tsc && vite build",
+    "build:ios": "tsc && vite build --mode ios-production",
     "preview": "vite preview",
     "perf": "npm run test:perf",
     "type-check": "tsc --noEmit",

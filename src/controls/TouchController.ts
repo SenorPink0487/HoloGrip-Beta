@@ -30,6 +30,9 @@ export class TouchController {
 
     if (!isTouchDevice) return;
 
+    const isTabletTouch = window.matchMedia('(pointer: coarse) and (min-width: 768px)').matches;
+    this.maxRadius = isTabletTouch ? 54 : 45;
+
     document.body.classList.add('has-touch-controls');
 
     // Create Virtual Joystick DOM elements
@@ -80,6 +83,16 @@ export class TouchController {
         pointer-events: none;
         transform: translate(0px, 0px);
         transition: transform 0.05s ease-out;
+      }
+      @media (pointer: coarse) and (min-width: 768px) {
+        #virtual-joystick-base {
+          width: 132px;
+          height: 132px;
+        }
+        #virtual-joystick-knob {
+          width: 52px;
+          height: 52px;
+        }
       }
     `;
 
@@ -146,6 +159,7 @@ export class TouchController {
           this.player.keys.backward = false;
           this.player.keys.left = false;
           this.player.keys.right = false;
+          this.player.keys.sprint = false;
 
           if (this.joystickKnob) {
             this.joystickKnob.style.transform = 'translate(0px, 0px)';
@@ -163,14 +177,20 @@ export class TouchController {
 
     // Screen touch look listener on right side
     window.addEventListener('touchstart', (e: TouchEvent) => {
-      blurActiveInput(true);
+      const target = e.target instanceof Element ? e.target : null;
+      if (!target) return;
+
+      // Let controls and text fields receive taps without also starting a camera drag.
+      if (target.closest('.hud-interactive, button, a, input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
-        // If touch is on right 60% of screen and not on a UI button/drawer
+        // Reserve the right side of the scene for camera look on touch devices.
         if (
           touch.clientX > window.innerWidth * 0.4 &&
-          this.lookTouchId === null &&
-          !(e.target as HTMLElement).closest('.hud-interactive')
+          this.lookTouchId === null
         ) {
           this.lookTouchId = touch.identifier;
           this.lastLookPos = { x: touch.clientX, y: touch.clientY };

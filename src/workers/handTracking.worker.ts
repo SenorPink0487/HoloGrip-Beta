@@ -8,6 +8,11 @@ let lastTimestamp = -1;
 
 const ctx: DedicatedWorkerGlobalScope = self as any;
 
+// Polyfill window in worker to enable MediaPipe GPU/WebGL routines without crashing
+if (typeof (self as any).window === 'undefined') {
+  (self as any).window = self;
+}
+
 // Polyfill importScripts in ES module worker to prevent MediaPipe $h from attempting document.createElement
 if (typeof (self as any).importScripts !== 'function') {
   (self as any).importScripts = () => {
@@ -20,7 +25,7 @@ if (typeof (self as any).document === 'undefined') {
   (self as any).document = {
     createElement: (tag: string) => {
       if (tag === 'canvas' && typeof OffscreenCanvas !== 'undefined') {
-        const offscreen = new OffscreenCanvas(128, 128) as any;
+        const offscreen = new OffscreenCanvas(256, 256) as any;
         offscreen.style = {};
         offscreen.getBoundingClientRect = () => ({
           left: 0,

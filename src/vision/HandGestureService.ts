@@ -8,6 +8,71 @@ import type {
   TrackerTelemetry,
 } from './types.ts';
 
+const TRACKING_FRAME_WIDTH = 320;
+const TRACKING_FRAME_HEIGHT = 240;
+
+/**
+ * Scale-invariant hysteresis pinch state machine based on HoloPhysics handPoseMath.
+ */
+export class PinchStateMachine {
+  private enterThreshold: number;
+  private exitThreshold: number;
+  private pinching = false;
+
+  constructor(enterThreshold = 0.21, exitThreshold = 0.27) {
+    this.enterThreshold = enterThreshold;
+    this.exitThreshold = Math.max(exitThreshold, enterThreshold);
+    this.reset();
+  }
+
+  public reset(): void {
+    this.pinching = false;
+  }
+
+  public isPinchActive(): boolean {
+    return this.pinching;
+  }
+
+  public update(ratio: number): { isPinching: boolean; justStarted: boolean; justEnded: boolean } {
+    if (!Number.isFinite(ratio)) {
+      const was = this.pinching;
+      this.pinching = false;
+      return { isPinching: false, justStarted: false, justEnded: was };
+    }
+
+    const was = this.pinching;
+    if (!this.pinching) {
+      if (ratio <= this.enterThreshold) {
+        this.pinching = true;
+      }
+    } else {
+      if (ratio >= this.exitThreshold) {
+        this.pinching = false;
+      }
+    }
+
+    return {
+      isPinching: this.pinching,
+      justStarted: this.pinching && !was,
+      justEnded: !this.pinching && was,
+    };
+  }
+}
+
+interface HandTrack {
+  label: 'left' | 'right';
+  lastWrist: { x: number; y: number } | null;
+  lastSeenAt: number;
+}
+
+interface HandDetection {
+  landmarks: NormalizedLandmark[];
+  wrist: { x: number; y: number };
+  label: 'left' | 'right';
+  score: number;
+  screenX: number;
+}
+
 export class HandGestureService {
   private config: Required<HandGestureServiceConfig>;
   private videoElement: HTMLVideoElement | null = null;
@@ -20,6 +85,8 @@ export class HandGestureService {
   private isWorkerReady = false;
   private isWorkerBusy = false;
   private lastVideoCurrentTime = -1;
+  private captureCanvas: OffscreenCanvas | null = null;
+  private captureContext: OffscreenCanvasRenderingContext2D | null = null;
 
   private status: TrackerStatus = 'uninitialized';
   private errorMessage = '';
@@ -27,6 +94,14 @@ export class HandGestureService {
   // Dual-hand smoothing filters
   private rightPointFilter = new PointFilter2D(1.0, 0.007, 1.0);
   private leftPointFilter = new PointFilter2D(1.0, 0.007, 1.0);
+
+  // Temporal track continuity (HoloPhysics assignHandTracks)
+  private leftTrack: HandTrack = { label: 'left', lastWrist: null, lastSeenAt: -Infinity };
+  private rightTrack: HandTrack = { label: 'right', lastWrist: null, lastSeenAt: -Infinity };
+
+  // Pinch state machines
+  private leftPinchStateMachine = new PinchStateMachine(0.21, 0.27);
+  private rightPinchStateMachine = new PinchStateMachine(0.21, 0.27);
 
   // Left hand gesture state machine
   private lastLeftIsPinching = false;
@@ -40,6 +115,13 @@ export class HandGestureService {
   // Right hand gesture state machine
   private lastRightIsPinching = false;
   private rightPinchStartTime: number | null = null;
+
+  // Telemetry caching
+  private lastHasHand = false;
+  private lastLeftHandDetected = false;
+  private lastRightHandDetected = false;
+  private lastRightPinchRatio = 0;
+  private lastRightPinchStrength = 0;
 
   // Performance telemetry
   private frameCount = 0;
@@ -69,11 +151,13 @@ export class HandGestureService {
       cameraSensitivity: config.cameraSensitivity ?? 0.0032,
       useWorker: config.useWorker ?? true,
       filterMinCutoff: config.filterMinCutoff ?? 1.2,
-      filterBeta: config.filterBeta ?? 0.035,
+      filterBeta: config.filterBeta ?? 0.25,
     };
 
     this.rightPointFilter = new PointFilter2D(this.config.filterMinCutoff, this.config.filterBeta, 1.0);
     this.leftPointFilter = new PointFilter2D(this.config.filterMinCutoff, this.config.filterBeta, 1.0);
+    this.leftPinchStateMachine = new PinchStateMachine(this.config.pinchThresholdEnter, this.config.pinchThresholdExit);
+    this.rightPinchStateMachine = new PinchStateMachine(this.config.pinchThresholdEnter, this.config.pinchThresholdExit);
   }
 
   public getStatus(): TrackerStatus {
@@ -90,11 +174,11 @@ export class HandGestureService {
       fps: this.currentFps,
       latencyMs: this.lastLatencyMs,
       isPinching: this.lastRightIsPinching,
-      pinchRatio: 0,
-      pinchStrength: 0,
-      handDetected: false,
-      leftHandDetected: false,
-      rightHandDetected: false,
+      pinchRatio: this.lastRightPinchRatio,
+      pinchStrength: this.lastRightPinchStrength,
+      handDetected: this.lastHasHand,
+      leftHandDetected: this.lastLeftHandDetected,
+      rightHandDetected: this.lastRightHandDetected,
       isLeftLongPinch: this.isLeftLongPinch,
       isLocalModel: true,
       isWorkerMode: Boolean(this.worker && this.isWorkerReady),
@@ -264,6 +348,14 @@ export class HandGestureService {
 
         const frame = this.processMultiHands(landmarksArray, handednessArray, e.data.timestamp);
         this.broadcastFrame(frame);
+        this.notifyStatus();
+
+        // Zero-idle frame pipeline: if video has advanced, immediately process next frame without waiting for next rVFC tick
+        if (this.status === 'running' && this.videoElement && this.videoElement.readyState >= 2) {
+          if (this.videoElement.currentTime !== this.lastVideoCurrentTime) {
+            this.processFrame(false);
+          }
+        }
       } else if (type === 'DETECT_ERROR') {
         this.isWorkerBusy = false;
         console.warn('[HandGestureService] Worker detection error:', e.data.error);
@@ -324,10 +416,12 @@ export class HandGestureService {
       this.notifyStatus();
       this.rightPointFilter.reset();
       this.leftPointFilter.reset();
-      this.lastRightIsPinching = false;
-      this.lastLeftIsPinching = false;
-      this.leftPinchStartTime = null;
-      this.isLeftLongPinch = false;
+      this.resetLeftHandState();
+      this.resetRightHandState();
+      this.leftTrack.lastWrist = null;
+      this.leftTrack.lastSeenAt = -Infinity;
+      this.rightTrack.lastWrist = null;
+      this.rightTrack.lastSeenAt = -Infinity;
       this.startLoop();
     } catch (err) {
       this.status = 'error';
@@ -392,12 +486,21 @@ export class HandGestureService {
 
     this.isWorkerBusy = false;
     this.lastVideoCurrentTime = -1;
+    this.captureCanvas = null;
+    this.captureContext = null;
     this.rightPointFilter.reset();
     this.leftPointFilter.reset();
-    this.lastRightIsPinching = false;
-    this.lastLeftIsPinching = false;
-    this.leftPinchStartTime = null;
-    this.isLeftLongPinch = false;
+    this.resetLeftHandState();
+    this.resetRightHandState();
+    this.leftTrack.lastWrist = null;
+    this.leftTrack.lastSeenAt = -Infinity;
+    this.rightTrack.lastWrist = null;
+    this.rightTrack.lastSeenAt = -Infinity;
+    this.lastHasHand = false;
+    this.lastLeftHandDetected = false;
+    this.lastRightHandDetected = false;
+    this.lastRightPinchRatio = 0;
+    this.lastRightPinchStrength = 0;
     this.status = this.isWorkerReady ? 'ready' : 'uninitialized';
     this.notifyStatus();
   }
@@ -450,16 +553,6 @@ export class HandGestureService {
       return;
     }
 
-    // Skip if the camera hasn't presented a new frame yet (when running in rAF mode)
-    if (!isRvfCallback) {
-      if (video.currentTime === this.lastVideoCurrentTime) {
-        return;
-      }
-      this.lastVideoCurrentTime = video.currentTime;
-    } else {
-      this.lastVideoCurrentTime = video.currentTime;
-    }
-
     // Dedicated Web Worker mode: strictly offload inference to worker, main-thread fallback removed
     if (!this.worker || !this.isWorkerReady) {
       return;
@@ -470,12 +563,42 @@ export class HandGestureService {
       return;
     }
 
+    // Record only frames accepted for processing. A camera callback may arrive
+    // while the worker is busy; that latest frame must remain available when
+    // the worker completes instead of being marked as already processed.
+    if (!isRvfCallback && video.currentTime === this.lastVideoCurrentTime) {
+      return;
+    }
+    this.lastVideoCurrentTime = video.currentTime;
+
     this.isWorkerBusy = true;
     const tStart = performance.now();
     try {
-      const bitmapPromise = (typeof createImageBitmap === 'function')
-        ? createImageBitmap(video)
-        : Promise.reject(new Error('createImageBitmap not supported'));
+      let bitmapPromise: Promise<ImageBitmap> | null = null;
+      if (typeof OffscreenCanvas !== 'undefined') {
+        try {
+          if (!this.captureCanvas) {
+            this.captureCanvas = new OffscreenCanvas(TRACKING_FRAME_WIDTH, TRACKING_FRAME_HEIGHT);
+            this.captureContext = this.captureCanvas.getContext('2d', { alpha: false });
+          }
+          if (this.captureContext && typeof this.captureCanvas.transferToImageBitmap === 'function') {
+            this.captureContext.drawImage(video, 0, 0, TRACKING_FRAME_WIDTH, TRACKING_FRAME_HEIGHT);
+            bitmapPromise = Promise.resolve(this.captureCanvas.transferToImageBitmap());
+          }
+        } catch (_err) {
+          this.captureCanvas = null;
+          this.captureContext = null;
+        }
+      }
+      if (!bitmapPromise) {
+        bitmapPromise = typeof createImageBitmap === 'function'
+          ? createImageBitmap(video, {
+            resizeWidth: TRACKING_FRAME_WIDTH,
+            resizeHeight: TRACKING_FRAME_HEIGHT,
+            resizeQuality: 'low',
+          }).catch(() => createImageBitmap(video))
+          : Promise.reject(new Error('createImageBitmap not supported'));
+      }
 
       bitmapPromise.then((bitmap) => {
         if (this.status !== 'running' || !this.worker) {
@@ -505,6 +628,38 @@ export class HandGestureService {
     }
   }
 
+  private resetLeftHandState(): void {
+    this.lastLeftIsPinching = false;
+    this.leftPinchStateMachine.reset();
+    this.leftPinchStartTime = null;
+    this.isLeftLongPinch = false;
+  }
+
+  private resetRightHandState(): void {
+    this.lastRightIsPinching = false;
+    this.rightPinchStateMachine.reset();
+    this.rightPinchStartTime = null;
+  }
+
+  private trackDetectionCost(
+    track: HandTrack,
+    det: HandDetection,
+    nowMs: number
+  ): number {
+    const score = Math.max(0, Math.min(1, det.score));
+    const labelMismatch = det.label !== track.label;
+    const recentlySeen = Number.isFinite(track.lastSeenAt) && nowMs - track.lastSeenAt <= 350;
+    const continuity = recentlySeen && track.lastWrist
+      ? Math.hypot(det.wrist.x - track.lastWrist.x, det.wrist.y - track.lastWrist.y)
+      : 0.35;
+    return continuity + (labelMismatch ? 0.4 * score : -0.08 * score);
+  }
+
+  private getHandScreenX(hand: NormalizedLandmark[]): number {
+    const midX = (hand[4].x + hand[8].x) * 0.5;
+    return this.config.mirrorX ? 1.0 - midX : midX;
+  }
+
   /**
    * Processes up to 2 hands, separates Left vs Right Hand, and calculates gesture state machines.
    */
@@ -515,11 +670,13 @@ export class HandGestureService {
   ): HandGestureFrame {
     if (!detectedLandmarks || detectedLandmarks.length === 0) {
       const rightJustEnded = this.lastRightIsPinching;
-      this.lastRightIsPinching = false;
-      this.lastLeftIsPinching = false;
-      this.leftPinchStartTime = null;
-      this.rightPinchStartTime = null;
-      this.isLeftLongPinch = false;
+      this.resetLeftHandState();
+      this.resetRightHandState();
+      this.lastHasHand = false;
+      this.lastLeftHandDetected = false;
+      this.lastRightHandDetected = false;
+      this.lastRightPinchRatio = 0;
+      this.lastRightPinchStrength = 0;
 
       return {
         hasHand: false,
@@ -544,51 +701,87 @@ export class HandGestureService {
       };
     }
 
+    const detections: HandDetection[] = detectedLandmarks.slice(0, 2).map((lms, idx) => {
+      const rawCategory = detectedHandedness?.[idx]?.[0]?.categoryName;
+      const score = Number(detectedHandedness?.[idx]?.[0]?.score) || 0.9;
+      const midX = (lms[4].x + lms[8].x) * 0.5;
+      const screenX = this.config.mirrorX ? 1.0 - midX : midX;
+
+      let label: 'left' | 'right';
+      if (rawCategory) {
+        label = this.config.mirrorX
+          ? (rawCategory === 'Right' ? 'left' : 'right')
+          : (rawCategory === 'Left' ? 'left' : 'right');
+      } else {
+        label = screenX < 0.5 ? 'left' : 'right';
+      }
+
+      return {
+        landmarks: lms,
+        wrist: { x: lms[0].x, y: lms[0].y },
+        label,
+        score,
+        screenX,
+      };
+    });
+
     let leftHandData: SingleHandData | null = null;
     let rightHandData: SingleHandData | null = null;
 
-    if (detectedLandmarks.length >= 2) {
-      // Two hands visible
-      const handA = detectedLandmarks[0];
-      const handB = detectedLandmarks[1];
+    if (detections.length >= 2) {
+      const det0 = detections[0];
+      const det1 = detections[1];
 
-      // Screen X (mirrored) for each hand midpoint
-      const midAx = (handA[4].x + handA[8].x) * 0.5;
-      const midBx = (handB[4].x + handB[8].x) * 0.5;
-      const screenAx = this.config.mirrorX ? 1.0 - midAx : midAx;
-      const screenBx = this.config.mirrorX ? 1.0 - midBx : midBx;
+      // Cost matrix between persistent tracks and incoming detections (HoloPhysics assignHandTracks)
+      const directCost = this.trackDetectionCost(this.leftTrack, det0, timestamp)
+        + this.trackDetectionCost(this.rightTrack, det1, timestamp);
+      const crossedCost = this.trackDetectionCost(this.leftTrack, det1, timestamp)
+        + this.trackDetectionCost(this.rightTrack, det0, timestamp);
 
-      // In user's view, Left Hand is to user's left (smaller mirrored screenX)
-      if (screenAx < screenBx) {
-        leftHandData = this.computeSingleHandAnalytics(handA, 'left', timestamp);
-        rightHandData = this.computeSingleHandAnalytics(handB, 'right', timestamp);
+      let leftDet: HandDetection;
+      let rightDet: HandDetection;
+
+      if (Math.abs(directCost - crossedCost) < 0.05 || det0.label === det1.label) {
+        // Tie-breaker or label collision: strictly order by screen space (left hand has smaller screenX)
+        if (det0.screenX <= det1.screenX) {
+          leftDet = det0;
+          rightDet = det1;
+        } else {
+          leftDet = det1;
+          rightDet = det0;
+        }
+      } else if (directCost <= crossedCost) {
+        leftDet = det0;
+        rightDet = det1;
       } else {
-        leftHandData = this.computeSingleHandAnalytics(handB, 'left', timestamp);
-        rightHandData = this.computeSingleHandAnalytics(handA, 'right', timestamp);
+        leftDet = det1;
+        rightDet = det0;
       }
+
+      // Update persistent tracks
+      this.leftTrack.lastWrist = leftDet.wrist;
+      this.leftTrack.lastSeenAt = timestamp;
+      this.rightTrack.lastWrist = rightDet.wrist;
+      this.rightTrack.lastSeenAt = timestamp;
+
+      leftHandData = this.computeSingleHandAnalytics(leftDet.landmarks, 'left', timestamp, leftDet.score);
+      rightHandData = this.computeSingleHandAnalytics(rightDet.landmarks, 'right', timestamp, rightDet.score);
     } else {
-      // Exactly 1 hand visible
-      const hand = detectedLandmarks[0];
-      const rawCategory = detectedHandedness?.[0]?.[0]?.categoryName;
-      const midX = (hand[4].x + hand[8].x) * 0.5;
-      const screenX = this.config.mirrorX ? 1.0 - midX : midX;
+      // Exactly 1 detection
+      const det = detections[0];
+      const costLeft = this.trackDetectionCost(this.leftTrack, det, timestamp);
+      const costRight = this.trackDetectionCost(this.rightTrack, det, timestamp);
 
-      // In front-camera mirror mode, MediaPipe 'Right' category corresponds to user's physical Left hand
-      const isLeft = rawCategory ? rawCategory === 'Right' : screenX < 0.5;
-
-      if (isLeft) {
-        leftHandData = this.computeSingleHandAnalytics(hand, 'left', timestamp);
-        if (this.lastRightIsPinching) {
-          this.lastRightIsPinching = false;
-          this.rightPinchStartTime = null;
-        }
+      if (costLeft < costRight) {
+        this.leftTrack.lastWrist = det.wrist;
+        this.leftTrack.lastSeenAt = timestamp;
+        leftHandData = this.computeSingleHandAnalytics(det.landmarks, 'left', timestamp, det.score);
+        this.resetRightHandState();
       } else {
-        rightHandData = this.computeSingleHandAnalytics(hand, 'right', timestamp);
-        if (this.lastLeftIsPinching) {
-          this.lastLeftIsPinching = false;
-          this.leftPinchStartTime = null;
-          this.isLeftLongPinch = false;
-        }
+        this.rightTrack.lastWrist = det.wrist;
+        this.rightTrack.lastSeenAt = timestamp;
+        rightHandData = this.computeSingleHandAnalytics(det.landmarks, 'right', timestamp, det.score);
+        this.resetLeftHandState();
       }
     }
 
@@ -627,6 +820,13 @@ export class HandGestureService {
     // Right Hand drives the primary mouse cursor
     const right = rightHandData;
 
+    // Cache telemetry values
+    this.lastHasHand = Boolean(leftHandData || rightHandData);
+    this.lastLeftHandDetected = Boolean(leftHandData);
+    this.lastRightHandDetected = Boolean(rightHandData);
+    this.lastRightPinchRatio = right?.pinchRatio ?? 0;
+    this.lastRightPinchStrength = right?.pinchStrength ?? 0;
+
     return {
       hasHand: Boolean(leftHandData || rightHandData),
       timestamp,
@@ -635,16 +835,16 @@ export class HandGestureService {
       leftHandQuickPinch,
       leftHandCameraDelta,
       // Backward-compatible fields
-      landmarks: right?.landmarks ?? null,
-      thumbTip: right?.thumbTip ?? null,
-      indexTip: right?.indexTip ?? null,
-      midpointNorm: right?.midpointNorm ?? null,
-      screenX: right?.screenX ?? 0,
-      screenY: right?.screenY ?? 0,
-      rawDistance: right?.rawDistance ?? 0,
-      handScale: right?.handScale ?? 0,
-      pinchRatio: right?.pinchRatio ?? 0,
-      pinchStrength: right?.pinchStrength ?? 0,
+      landmarks: right?.landmarks ?? leftHandData?.landmarks ?? null,
+      thumbTip: right?.thumbTip ?? leftHandData?.thumbTip ?? null,
+      indexTip: right?.indexTip ?? leftHandData?.indexTip ?? null,
+      midpointNorm: right?.midpointNorm ?? leftHandData?.midpointNorm ?? null,
+      screenX: right?.screenX ?? leftHandData?.screenX ?? 0,
+      screenY: right?.screenY ?? leftHandData?.screenY ?? 0,
+      rawDistance: right?.rawDistance ?? leftHandData?.rawDistance ?? 0,
+      handScale: right?.handScale ?? leftHandData?.handScale ?? 0,
+      pinchRatio: right?.pinchRatio ?? leftHandData?.pinchRatio ?? 0,
+      pinchStrength: right?.pinchStrength ?? leftHandData?.pinchStrength ?? 0,
       isPinching: right?.isPinching ?? false,
       justPinchStarted: right?.justPinchStarted ?? false,
       justPinchEnded: right?.justPinchEnded ?? false,
@@ -690,35 +890,21 @@ export class HandGestureService {
     const filter = handedness === 'left' ? this.leftPointFilter : this.rightPointFilter;
     const smoothed = filter.filter(rawScreenX, rawScreenY, timestamp);
 
-    // Compute 3D Euclidean distance between thumb tip and index tip
-    const dx = thumbTip.x - indexTip.x;
-    const dy = thumbTip.y - indexTip.y;
-    const dz = (thumbTip.z - indexTip.z) * 0.7;
-    const rawDistance = Math.hypot(dx, dy, dz);
+    // 2D image-plane distance excluding noisy monocular Z (following HoloPhysics handPoseMath)
+    const rawDistance = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
 
-    // Scale normalization using palm dimension (wrist to middle MCP)
-    const palmDx = middleMcp.x - wrist.x;
-    const palmDy = middleMcp.y - wrist.y;
-    const palmDz = (middleMcp.z - wrist.z) * 0.7;
-    const handScale = Math.hypot(palmDx, palmDy, palmDz) || 0.22;
+    // Scale normalization using stable maximum of palm width and wrist-to-middle MCP
+    const palmWidth = (landmarks[5] && landmarks[17])
+      ? Math.hypot(landmarks[5].x - landmarks[17].x, landmarks[5].y - landmarks[17].y)
+      : 0;
+    const wristToMiddle = Math.hypot(middleMcp.x - wrist.x, middleMcp.y - wrist.y);
+    const handScale = Math.max(palmWidth, wristToMiddle) || 0.22;
 
     const pinchRatio = rawDistance / handScale;
 
-    // Hysteresis
-    const prevPinching = handedness === 'left' ? this.lastLeftIsPinching : this.lastRightIsPinching;
-    let isPinching = prevPinching;
-    if (!isPinching) {
-      if (pinchRatio <= this.config.pinchThresholdEnter) {
-        isPinching = true;
-      }
-    } else {
-      if (pinchRatio >= this.config.pinchThresholdExit) {
-        isPinching = false;
-      }
-    }
-
-    const justPinchStarted = isPinching && !prevPinching;
-    const justPinchEnded = !isPinching && prevPinching;
+    // State machine update (HoloPhysics PinchStateMachine)
+    const stateMachine = handedness === 'left' ? this.leftPinchStateMachine : this.rightPinchStateMachine;
+    const { isPinching, justStarted: justPinchStarted, justEnded: justPinchEnded } = stateMachine.update(pinchRatio);
 
     if (handedness === 'left') {
       this.lastLeftIsPinching = isPinching;
@@ -754,7 +940,6 @@ export class HandGestureService {
       if (isPinching && this.leftPinchStartTime !== null) {
         pinchDuration = Math.max(0, timestamp - this.leftPinchStartTime);
         const distMoved = Math.hypot(smoothed.x - this.leftPinchStartX, smoothed.y - this.leftPinchStartY);
-        // Continuous pinch (拖拽视角): 仅在超过快速捏合时间阈值 (> 200ms) 且有手部移动或长按时激活
         if (pinchDuration > this.config.quickPinchMaxDurationMs) {
           if (distMoved >= 20 || pinchDuration >= this.config.quickPinchMaxDurationMs + 80) {
             this.isLeftLongPinch = true;
@@ -763,7 +948,6 @@ export class HandGestureService {
         isLongPinch = this.isLeftLongPinch;
       } else if (justPinchEnded && this.leftPinchStartTime !== null) {
         pinchDuration = Math.max(0, timestamp - this.leftPinchStartTime);
-        // 200毫秒以内松开全部被判定为快速捏合 (非持续长按)
         if (pinchDuration <= this.config.quickPinchMaxDurationMs) {
           this.isLeftLongPinch = false;
         }

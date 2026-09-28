@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>HoloGrip 使用相机进行隔空手势追踪，并拍摄题目照片用于实验辅助。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>HoloGrip 使用麦克风进行实验问题的语音输入。</string>
+</dict>
+</plist>
