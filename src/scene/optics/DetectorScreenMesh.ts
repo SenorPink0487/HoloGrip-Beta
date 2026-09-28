@@ -347,26 +347,31 @@ export class DetectorScreenMesh {
       ctx.fillStyle = vGrad;
       ctx.fillRect(leftX, cy - 120, bandWidth, 240);
     } else if (params.mode === 'double_slit') {
-      // Analytical Young's double-slit interference pattern
+      // Analytical Young's double-slit interference pattern (bilateral symmetry optimized)
       const d = (params.slitDistanceMm || 0.25) * 1e-3;
       const a = (params.slitWidthMm || 0.04) * 1e-3;
       const L = params.screenDistanceM || 1.0;
       const lambda = wavelength * 1e-9;
       const mmPerPx = 0.16 / w;
+      const halfW = w * 0.5;
 
-      for (let x = 0; x < w; x += 2) {
-        const xDist = (x - cx) * mmPerPx;
+      for (let offset = 0; offset < halfW; offset += 2) {
+        const xDist = offset * mmPerPx;
         const sinTheta = xDist / Math.sqrt(xDist * xDist + L * L);
 
         const beta = (Math.PI * a * sinTheta) / lambda;
         const sinc = Math.abs(beta) < 1e-7 ? 1.0 : Math.sin(beta) / beta;
         const alpha = (Math.PI * d * sinTheta) / lambda;
-        const I = Math.cos(alpha) * Math.cos(alpha) * sinc * sinc * intensity;
+        const cosAlpha = Math.cos(alpha);
+        const I = cosAlpha * cosAlpha * sinc * sinc * intensity;
 
         if (I > 0.008) {
           const colAlpha = Math.min(1.0, I * 0.95);
           ctx.fillStyle = this.getAlphaColor(rVal, gVal, bVal, colAlpha);
-          ctx.fillRect(x, cy - 140, 2.2, 280);
+          ctx.fillRect(cx + offset, cy - 140, 2.2, 280);
+          if (offset > 0) {
+            ctx.fillRect(cx - offset, cy - 140, 2.2, 280);
+          }
         }
       }
 
@@ -377,16 +382,16 @@ export class DetectorScreenMesh {
       vGrad.addColorStop(0.80, 'rgba(246, 248, 251, 0.0)');
       vGrad.addColorStop(1, 'rgba(246, 248, 251, 1.0)');
       ctx.fillStyle = vGrad;
-      ctx.fillRect(0, cy - 140, w, 280);
     } else if (params.mode === 'single_slit') {
-      // Fraunhofer single-slit pattern
+      // Fraunhofer single-slit pattern (bilateral symmetry optimized)
       const a = (params.slitWidthMm || 0.05) * 1e-3;
       const L = params.screenDistanceM || 1.0;
       const lambda = wavelength * 1e-9;
       const mmPerPx = 0.16 / w;
+      const halfW = w * 0.5;
 
-      for (let x = 0; x < w; x += 2) {
-        const xDist = (x - cx) * mmPerPx;
+      for (let offset = 0; offset < halfW; offset += 2) {
+        const xDist = offset * mmPerPx;
         const sinTheta = xDist / Math.sqrt(xDist * xDist + L * L);
 
         const beta = (Math.PI * a * sinTheta) / lambda;
@@ -396,7 +401,10 @@ export class DetectorScreenMesh {
         if (I > 0.008) {
           const colAlpha = Math.min(1.0, I * 0.95);
           ctx.fillStyle = this.getAlphaColor(rVal, gVal, bVal, colAlpha);
-          ctx.fillRect(x, cy - 140, 2.2, 280);
+          ctx.fillRect(cx + offset, cy - 140, 2.2, 280);
+          if (offset > 0) {
+            ctx.fillRect(cx - offset, cy - 140, 2.2, 280);
+          }
         }
       }
 

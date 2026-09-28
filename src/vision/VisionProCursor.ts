@@ -23,6 +23,18 @@ export class VisionProCursor {
   private currentLeftX = 0;
   private currentLeftY = 0;
 
+  // High-refresh rate smooth gliding interpolation targets & rendered positions
+  private targetRightX = -100;
+  private targetRightY = -100;
+  private targetLeftX = -100;
+  private targetLeftY = -100;
+  private renderRightX = -100;
+  private renderRightY = -100;
+  private renderLeftX = -100;
+  private renderLeftY = -100;
+  private animFrameId: number | null = null;
+  private isDestroyed = false;
+
   // Mouse emulation state (driven exclusively by Right Hand)
   private lastHoverTarget: Element | null = null;
   private dragTarget: Element | null = null;
@@ -78,6 +90,10 @@ export class VisionProCursor {
 
     this.setRightVisible(false);
     this.setLeftVisible(false);
+
+    if (typeof requestAnimationFrame === 'function') {
+      this.startRenderLoop();
+    }
   }
 
   private injectStyles(): void {
@@ -352,6 +368,10 @@ export class VisionProCursor {
       this.lastHitY = -9999;
       this.lastDispatchedX = -9999;
       this.lastDispatchedY = -9999;
+      this.targetRightX = -100;
+      this.targetRightY = -100;
+      this.renderRightX = -100;
+      this.renderRightY = -100;
     }
   }
 
@@ -364,6 +384,42 @@ export class VisionProCursor {
     } else {
       this.leftContainer.classList.add('hidden');
       this.leftContainer.classList.remove('visible');
+      this.targetLeftX = -100;
+      this.targetLeftY = -100;
+      this.renderLeftX = -100;
+      this.renderLeftY = -100;
+    }
+  }
+
+  private startRenderLoop(): void {
+    const loop = () => {
+      if (this.isDestroyed) return;
+      this.renderTick();
+      if (typeof requestAnimationFrame === 'function') {
+        this.animFrameId = requestAnimationFrame(loop);
+      }
+    };
+    this.animFrameId = requestAnimationFrame(loop);
+  }
+
+  private renderTick(): void {
+    if (this.isRightVisible) {
+      // High-refresh rate smooth gliding interpolation (60Hz / 120Hz)
+      const factor = 0.42;
+      this.renderRightX += (this.targetRightX - this.renderRightX) * factor;
+      this.renderRightY += (this.targetRightY - this.renderRightY) * factor;
+      this.currentRightX = this.renderRightX;
+      this.currentRightY = this.renderRightY;
+      this.rightContainer.style.transform = `translate3d(${this.renderRightX.toFixed(2)}px, ${this.renderRightY.toFixed(2)}px, 0)`;
+    }
+
+    if (this.isLeftVisible) {
+      const factor = 0.42;
+      this.renderLeftX += (this.targetLeftX - this.renderLeftX) * factor;
+      this.renderLeftY += (this.targetLeftY - this.renderLeftY) * factor;
+      this.currentLeftX = this.renderLeftX;
+      this.currentLeftY = this.renderLeftY;
+      this.leftContainer.style.transform = `translate3d(${this.renderLeftX.toFixed(2)}px, ${this.renderLeftY.toFixed(2)}px, 0)`;
     }
   }
 
@@ -398,11 +454,21 @@ export class VisionProCursor {
   private updateRightHand(hand: SingleHandData | HandGestureFrame): void {
     if (!this.isRightVisible) {
       this.setRightVisible(true);
+      this.renderRightX = hand.screenX;
+      this.renderRightY = hand.screenY;
+      this.currentRightX = hand.screenX;
+      this.currentRightY = hand.screenY;
+      this.rightContainer.style.transform = `translate3d(${hand.screenX}px, ${hand.screenY}px, 0)`;
     }
 
-    this.currentRightX = hand.screenX;
-    this.currentRightY = hand.screenY;
-    this.rightContainer.style.transform = `translate3d(${hand.screenX}px, ${hand.screenY}px, 0)`;
+    this.targetRightX = hand.screenX;
+    this.targetRightY = hand.screenY;
+
+    if (typeof requestAnimationFrame !== 'function') {
+      this.currentRightX = hand.screenX;
+      this.currentRightY = hand.screenY;
+      this.rightContainer.style.transform = `translate3d(${hand.screenX}px, ${hand.screenY}px, 0)`;
+    }
 
     // Throttled hit-testing: avoids repeated synchronous document.elementFromPoint layout reflows
     let element: Element | null = this.dragTarget;
@@ -439,11 +505,21 @@ export class VisionProCursor {
   private updateLeftHand(leftHand: SingleHandData, quickPinchTriggered: boolean): void {
     if (!this.isLeftVisible) {
       this.setLeftVisible(true);
+      this.renderLeftX = leftHand.screenX;
+      this.renderLeftY = leftHand.screenY;
+      this.currentLeftX = leftHand.screenX;
+      this.currentLeftY = leftHand.screenY;
+      this.leftContainer.style.transform = `translate3d(${leftHand.screenX}px, ${leftHand.screenY}px, 0)`;
     }
 
-    this.currentLeftX = leftHand.screenX;
-    this.currentLeftY = leftHand.screenY;
-    this.leftContainer.style.transform = `translate3d(${leftHand.screenX}px, ${leftHand.screenY}px, 0)`;
+    this.targetLeftX = leftHand.screenX;
+    this.targetLeftY = leftHand.screenY;
+
+    if (typeof requestAnimationFrame !== 'function') {
+      this.currentLeftX = leftHand.screenX;
+      this.currentLeftY = leftHand.screenY;
+      this.leftContainer.style.transform = `translate3d(${leftHand.screenX}px, ${leftHand.screenY}px, 0)`;
+    }
 
     const desiredClass = leftHand.isLongPinch
       ? 'visible navigating'
@@ -678,6 +754,11 @@ export class VisionProCursor {
   }
 
   public destroy(): void {
+    this.isDestroyed = true;
+    if (this.animFrameId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
     this.releasePinch();
     this.clearHover();
     if (this.rightContainer && this.rightContainer.parentNode) {

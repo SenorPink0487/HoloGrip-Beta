@@ -769,7 +769,76 @@ await (async () => {
   console.log('✓ Test 21 passed: Vite MediaPipe plugin wasm serving & public import bypass verified\n');
 }
 
+// Test 22: Hand Tracking 30+ FPS Cadence & Video Element Non-Occlusion Invariants
+{
+  console.log('Test 22: Hand Tracking 30+ FPS Cadence & Video Element Non-Occlusion Invariants');
+  const serviceCode = fs.readFileSync(path.join(rootDir, 'src/vision/HandGestureService.ts'), 'utf-8');
+  
+  // 1. Verify videoElement geometry is non-zero and not hidden with 1px / 0.001 opacity / negative zIndex
+  assert(!serviceCode.includes("width = '1px'"), 'videoElement must not be 1px wide to avoid browser compositor throttling to 2 FPS');
+  assert(!serviceCode.includes("height = '1px'"), 'videoElement must not be 1px tall to avoid browser compositor throttling to 2 FPS');
+  assert(!serviceCode.includes("opacity = '0.001'"), 'videoElement opacity must not be 0.001 to prevent occlusion culling');
+  assert(!serviceCode.includes("zIndex = '-999'"), 'videoElement must not be placed behind page background (zIndex -999) to avoid compositor occlusion culling');
+  assert(serviceCode.includes("width = '320px'"), 'videoElement width must be 320px for active compositor hardware decoding');
+  assert(serviceCode.includes("height = '240px'"), 'videoElement height must be 240px for active compositor hardware decoding');
+  assert(serviceCode.includes("zIndex = '1'"), 'videoElement must be on active layer (zIndex 1) to prevent compositor occlusion');
+
+  // 2. Verify rAF watchdog loop coordinates with rVFC via lastRvfCallTime
+  assert(serviceCode.includes('requestAnimationFrame(loop)'), 'startLoop must include rAF heartbeat loop');
+  assert(serviceCode.includes('lastRvfCallTime'), 'startLoop must track lastRvfCallTime to prevent duplicate frame dispatch');
+  assert(serviceCode.includes('hasPendingFrame'), 'HandGestureService must track hasPendingFrame for zero-idle frame dispatch');
+
+  // 3. Simulate continuous 30+ FPS dispatch in HandGestureService via watchdog fallback
+  const service = new HandGestureService();
+  const video = { readyState: 2, currentTime: 0.1 };
+  const sentFrames: unknown[] = [];
+  const previousCreateImageBitmap = (globalThis as any).createImageBitmap;
+  (globalThis as any).createImageBitmap = async () => ({ close() {} });
+
+  try {
+    Object.assign(service, {
+      videoElement: video,
+      worker: { postMessage: (msg: unknown) => sentFrames.push(msg) },
+      isWorkerReady: true,
+      status: 'running',
+    });
+
+    // Simulate 30 frames arriving at 33.3ms intervals (1 second of real webcam stream)
+    for (let frameIdx = 0; frameIdx < 30; frameIdx++) {
+      (service as any).isWorkerBusy = false;
+      // In a real stream, currentTime may stay unchanged for multiple frames
+      // The service must NOT drop frames down to 2 FPS!
+      (service as any).lastFrameSendTime = performance.now() - 30; // 30ms passed
+      (service as any).processFrame(false);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    assert.strictEqual(
+      sentFrames.length,
+      30,
+      `Service must dispatch all 30 frames at ~30 FPS without dropping to 2 FPS, got ${sentFrames.length} frames`
+    );
+
+    // 4. Simulate hardware rVFC dispatch path at 30 FPS
+    sentFrames.length = 0;
+    for (let frameIdx = 0; frameIdx < 30; frameIdx++) {
+      (service as any).isWorkerBusy = false;
+      (service as any).processFrame(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    assert.strictEqual(
+      sentFrames.length,
+      30,
+      `Hardware rVFC must dispatch all 30 frames without dropping, got ${sentFrames.length} frames`
+    );
+  } finally {
+    (globalThis as any).createImageBitmap = previousCreateImageBitmap;
+  }
+
+  console.log('✓ Test 22 passed: Hand tracking 30+ FPS cadence & non-occlusion verified\n');
+}
+
 console.log('========================================================');
-console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (21/21)!');
+console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (22/22)!');
 console.log('========================================================\n');
 

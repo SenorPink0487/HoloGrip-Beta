@@ -633,6 +633,10 @@ console.log('Test 10: Math Stereometry Lighting, Geometry Invariants & Telemetry
   console.log('  Cube Model Face Windings: 6/6 outward CCW verified');
 
   // 4. Benchmark Stereometry telemetry generation (< 0.01ms)
+  // Warmup JIT
+  for (let i = 0; i < 10; i++) {
+    exp.getStereometryTelemetry();
+  }
   const telemetryStart = performance.now();
   for (let i = 0; i < 500; i++) {
     exp.getStereometryTelemetry();
@@ -714,6 +718,17 @@ console.log('Test 11: Optics Detector Screen 120 FPS GPU Pipeline Invariants & C
   }
 
   const fringeRuns = 200;
+  // Warmup JIT
+  for (let i = 0; i < 20; i++) {
+    screen.renderFringesPattern({
+      mode: 'double_slit',
+      wavelengthNm: 550,
+      intensity: 1.0,
+      slitDistanceMm: 0.25,
+      slitWidthMm: 0.04,
+      screenDistanceM: 1.0,
+    });
+  }
   const startFringe = performance.now();
   for (let i = 0; i < fringeRuns; i++) {
     screen.renderFringesPattern({
