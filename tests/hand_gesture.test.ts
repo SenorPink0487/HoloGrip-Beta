@@ -347,6 +347,7 @@ const createMockHand = (
     'src/vision/VisionProCursor.ts',
     'src/vision/HandTrackingHUD.ts',
     'src/vision/index.ts',
+    'src/workers/handTracking.worker.ts',
   ];
 
   const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
@@ -598,7 +599,144 @@ const createMockHand = (
   console.log('✓ Test 13 passed: HandTrackingHUD pinch duration history logging verified\n');
 }
 
+// Test 14: HandGestureService Web Worker Requirement & Fallback Prohibition
+await (async () => {
+  console.log('Test 14: HandGestureService Web Worker Requirement & Fallback Prohibition');
+  const serviceDefault = new HandGestureService();
+  assert.strictEqual((serviceDefault as any).config.useWorker, true, 'useWorker must default to true for Compute/Render Decoupling');
+  assert.strictEqual(serviceDefault.isWorkerMode(), false, 'Before init/connection, isWorkerMode must be false');
+
+  const telemetry = serviceDefault.getTelemetry();
+  assert.strictEqual(telemetry.isWorkerMode, false);
+  assert.strictEqual(typeof telemetry.fps, 'number');
+  assert.strictEqual(typeof telemetry.latencyMs, 'number');
+
+  // Verify that setting useWorker=false immediately rejects and refuses main-thread inference
+  const serviceWithoutWorker = new HandGestureService({ useWorker: false });
+  assert.strictEqual((serviceWithoutWorker as any).config.useWorker, false);
+  await assert.rejects(
+    async () => {
+      await serviceWithoutWorker.init();
+    },
+    {
+      message: /Main-thread fallback has been removed/,
+    },
+    'Disabling worker must strictly reject without executing main-thread fallback'
+  );
+  assert.strictEqual(serviceWithoutWorker.getStatus(), 'error');
+
+  // Verify that if Worker global is missing, init strictly rejects without main-thread fallback
+  const originalWorker = (globalThis as any).Worker;
+  try {
+    delete (globalThis as any).Worker;
+    const noWorkerService = new HandGestureService();
+    await assert.rejects(
+      async () => {
+        await noWorkerService.init();
+      },
+      {
+        message: /Web Worker is not supported/,
+      },
+      'Init in environment without Worker must reject without attempting main-thread fallback'
+    );
+    assert.strictEqual(noWorkerService.getStatus(), 'error');
+  } finally {
+    (globalThis as any).Worker = originalWorker;
+  }
+  console.log('✓ Test 14 passed: Web Worker requirement & fallback prohibition verified\n');
+})();
+
+// Test 15: Camera Resolution Constraint Downscaling (Bandwidth Protection)
+{
+  console.log('Test 15: Camera Resolution Constraint Downscaling (Bandwidth Protection)');
+  const serviceCode = fs.readFileSync(path.join(rootDir, 'src/vision/HandGestureService.ts'), 'utf-8');
+  assert(serviceCode.includes('width: { ideal: 640 }'), 'Camera width constraint must be downscaled to 640 to prevent bus congestion');
+  assert(serviceCode.includes('height: { ideal: 480 }'), 'Camera height constraint must be downscaled to 480');
+  assert(serviceCode.includes('frameRate: { ideal: 30, max: 60 }'), 'Frame rate constraint must specify ideal 30, max 60');
+  console.log('✓ Test 15 passed: Camera resolution downscaling to 640x480 & bandwidth invariants verified\n');
+}
+
+// Test 16: Frame Coalescing & LIFO Drop Invariants (Rule 3)
+{
+  console.log('Test 16: Frame Coalescing & LIFO Drop Invariants (Rule 3)');
+  const serviceCode = fs.readFileSync(path.join(rootDir, 'src/vision/HandGestureService.ts'), 'utf-8');
+  assert(serviceCode.includes('isWorkerBusy'), 'HandGestureService must track isWorkerBusy for frame coalescing');
+  assert(serviceCode.includes('if (this.isWorkerBusy) {'), 'HandGestureService must drop in-flight frames when worker is busy');
+  assert(!serviceCode.includes('isSyncProcessing'), 'HandGestureService must not contain re-entrant synchronous processing or fallback state');
+  assert(serviceCode.includes('lastVideoCurrentTime'), 'HandGestureService must check video currentTime to avoid duplicate processing');
+  console.log('✓ Test 16 passed: Frame coalescing and zero-backlog LIFO drop invariants verified\n');
+}
+
+// Test 17: VisionProCursor Hit-Testing Throttling & Layout Thrashing Elimination
+{
+  console.log('Test 17: VisionProCursor Hit-Testing Throttling & Layout Thrashing Elimination');
+  const cursorCode = fs.readFileSync(path.join(rootDir, 'src/vision/VisionProCursor.ts'), 'utf-8');
+  assert(cursorCode.includes('lastHitElement'), 'VisionProCursor must cache lastHitElement');
+  assert(cursorCode.includes('Math.hypot(hand.screenX - this.lastHitX, hand.screenY - this.lastHitY) >= 3'), 'VisionProCursor must throttle hit tests when displacement < 3px');
+  assert(cursorCode.includes('now - this.lastHitTime >= 32'), 'VisionProCursor must throttle hit tests when interval < 32ms');
+  assert(cursorCode.includes('Math.hypot(x - this.lastDispatchedX, y - this.lastDispatchedY) >= 0.5'), 'VisionProCursor must throttle sub-0.5px hover pointer events');
+  console.log('✓ Test 17 passed: VisionProCursor throttled hit-testing & layout reflow elimination verified\n');
+}
+
+// Test 18: HandTrackingWorker ES Module WASM Loading & Worker Scope Polyfills
+{
+  console.log('Test 18: HandTrackingWorker ES Module WASM Loading & Worker Scope Polyfills');
+  const workerCode = fs.readFileSync(path.join(rootDir, 'src/workers/handTracking.worker.ts'), 'utf-8');
+  assert(workerCode.includes('FilesetResolver.forVisionTasks(wasmBasePath, true)'), 'Worker must pass true (useModule) to FilesetResolver.forVisionTasks for ES module compatibility');
+  assert(workerCode.includes('importScripts'), 'Worker must guard importScripts for module worker scope');
+  assert(workerCode.includes('OffscreenCanvas'), 'Worker must provide OffscreenCanvas fallback for headless worker contexts');
+  assert(workerCode.includes('safeTimestamp'), 'Worker must enforce strictly monotonically increasing timestamp for MediaPipe');
+  console.log('✓ Test 18 passed: Worker ES module WASM loading & scope polyfill invariants verified\n');
+}
+
+// Test 19: Elimination of Main-Thread Fallback & Hardware Video Frame Invariants
+{
+  console.log('Test 19: Elimination of Main-Thread Fallback & Hardware Video Frame Invariants');
+  const serviceCode = fs.readFileSync(path.join(rootDir, 'src/vision/HandGestureService.ts'), 'utf-8');
+  assert(!serviceCode.includes('lastMainThreadInference'), 'HandGestureService must not contain main-thread inference tracking');
+  assert(!serviceCode.includes('initMainThread'), 'HandGestureService must not have main-thread fallback initialization');
+  assert(!serviceCode.includes('detectForVideo'), 'HandGestureService must never execute detectForVideo on main thread');
+  assert(!serviceCode.includes('@mediapipe/tasks-vision'), 'HandGestureService must not import @mediapipe on main thread');
+  assert(serviceCode.includes('processFrame(true)'), 'requestVideoFrameCallback must trigger processFrame with isRvfCallback=true');
+  console.log('✓ Test 19 passed: Main-thread fallback elimination & hardware frame callback invariants verified\n');
+}
+
+// Test 20: VisionProCursor 3D WebGL Canvas Exclusion & Perspective Lock Invariants
+{
+  console.log('Test 20: VisionProCursor 3D WebGL Canvas Exclusion & Perspective Lock Invariants');
+  const cursorCode = fs.readFileSync(path.join(rootDir, 'src/vision/VisionProCursor.ts'), 'utf-8');
+  assert(cursorCode.includes("element.id === 'webgl-canvas'"), 'VisionProCursor must explicitly exclude 3D canvas from DOM interactive hover');
+  assert(cursorCode.includes('whiteboard-canvas-layer'), 'VisionProCursor must maintain interactivity for whiteboard canvas layer');
+
+  const engineCode = fs.readFileSync(path.join(rootDir, 'src/core/Engine.ts'), 'utf-8');
+  assert(engineCode.includes('this.inputManager.player.allowMouseRotation = false'), 'Engine must disable player mouse rotation during active hand tracking');
+  console.log('✓ Test 20 passed: 3D canvas exclusion and perspective lock invariants verified\n');
+}
+
+// Test 21: Vite MediaPipe Plugin WASM Serving & Public Import Bypass
+{
+  console.log('Test 21: Vite MediaPipe Plugin WASM Serving & Public Import Bypass');
+  const { mediapipePlugin } = await import('../vite.mediapipePlugin.ts');
+  const plugin = mediapipePlugin();
+  assert(plugin.name === 'mediapipe-assets', 'Plugin name must be mediapipe-assets');
+
+  // Test resolveId and load hooks
+  const jsId = '/mediapipe/wasm/vision_wasm_module_internal.js?import';
+  const resolved = (plugin as any).resolveId(jsId);
+  assert(resolved === '/mediapipe/wasm/vision_wasm_module_internal.js', 'resolveId must resolve mediapipe wasm JS module');
+
+  const loaded = (plugin as any).load(jsId);
+  assert(typeof loaded === 'string' && loaded.includes('ModuleFactory'), 'load hook must return JS code with ModuleFactory');
+
+  // Verify vite.config.ts incorporates mediapipePlugin
+  const viteConfigCode = fs.readFileSync(path.join(rootDir, 'vite.config.ts'), 'utf-8');
+  assert(viteConfigCode.includes('mediapipePlugin()'), 'vite.config.ts must register mediapipePlugin');
+  console.log('✓ Test 21 passed: Vite MediaPipe plugin wasm serving & public import bypass verified\n');
+}
+
 console.log('========================================================');
-console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (13/13)!');
+console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (21/21)!');
 console.log('========================================================\n');
+
+
 

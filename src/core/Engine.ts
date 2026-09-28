@@ -50,6 +50,9 @@ import {
 import { blurActiveInput, isTextInputActive, isTextInputElement, isElementVisibleAndActive } from './focus.ts';
 import { HandGestureService, VisionProCursor, HandTrackingHUD } from '../vision/index.ts';
 
+const _BEAKER_DRAG_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.10);
+const _BEAKER_HIT_POINT = new THREE.Vector3();
+
 export class Engine {
   public container: HTMLElement;
   public renderer: THREE.WebGLRenderer;
@@ -1508,6 +1511,7 @@ export class Engine {
       if (telemetry.status === 'running') {
         if (this.inputManager?.player) {
           this.inputManager.player.allowPointerLock = false;
+          this.inputManager.player.allowMouseRotation = false;
         }
       } else {
         if (this.inputManager?.player && !this.visionModal?.visible) {
@@ -1681,11 +1685,7 @@ export class Engine {
         (this.isExperimentInteracting || this.currentExperimentId === 'math-stereometry') &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
-        const mouseNDC = new THREE.Vector2(
-          (e.clientX / window.innerWidth) * 2 - 1,
-          -(e.clientY / window.innerHeight) * 2 + 1
-        );
-        this.raycaster.setFromCamera(mouseNDC, this.camera);
+        this.raycaster.setFromCamera(this.lastPointerPos, this.camera);
         const hits = this.raycaster.intersectObjects(this.holoStage.activeExperiment.rootGroup.children, true);
         const hit = hits.length > 0 ? hits[0] : null;
         this.holoStage.activeExperiment.onPointerMove(e, hit, this.currentContext);
@@ -1706,21 +1706,15 @@ export class Engine {
       }
 
       if (this.beakerDragState.isDragging) {
-        const mouseNDC = new THREE.Vector2(
-          (e.clientX / window.innerWidth) * 2 - 1,
-          -(e.clientY / window.innerHeight) * 2 + 1
-        );
-        this.raycaster.setFromCamera(mouseNDC, this.camera);
+        this.raycaster.setFromCamera(this.lastPointerPos, this.camera);
 
-        const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.10);
-        const hitPoint = new THREE.Vector3();
-        const intersected = this.raycaster.ray.intersectPlane(dragPlane, hitPoint);
+        const intersected = this.raycaster.ray.intersectPlane(_BEAKER_DRAG_PLANE, _BEAKER_HIT_POINT);
         if (intersected) {
-          hitPoint.x = Math.max(-0.85, Math.min(0.85, hitPoint.x));
-          hitPoint.z = Math.max(-0.55, Math.min(1.55, hitPoint.z));
+          const hitX = Math.max(-0.85, Math.min(0.85, _BEAKER_HIT_POINT.x));
+          const hitZ = Math.max(-0.55, Math.min(1.55, _BEAKER_HIT_POINT.z));
 
           const targetBase = this.beakerDragState.targetMesh.restingPosition;
-          const distToTarget = Math.hypot(hitPoint.x - targetBase.x, hitPoint.z - targetBase.z);
+          const distToTarget = Math.hypot(hitX - targetBase.x, hitZ - targetBase.z);
 
           if (distToTarget < 0.38) {
             // Tip about the lip; the animate loop pins that lip over the receiving mouth.
@@ -1731,7 +1725,7 @@ export class Engine {
             // Moving in air
             this.beakerDragState.isPouring = false;
             this.beakerDragState.lipAim = null;
-            this.beakerDragState.targetPosition.set(hitPoint.x, 1.08, hitPoint.z);
+            this.beakerDragState.targetPosition.set(hitX, 1.08, hitZ);
             this.beakerDragState.targetTilt = 0;
           }
         }
@@ -1810,7 +1804,12 @@ export class Engine {
   }
 
   private checkCrosshairIntersection(now: number): void {
-    if (!this.crosshair || (this.visionModal && this.visionModal.visible) || this.currentExperimentId === 'math-stereometry') {
+    if (
+      !this.crosshair ||
+      !this.crosshair.getVisible() ||
+      (this.visionModal && this.visionModal.visible) ||
+      this.currentExperimentId === 'math-stereometry'
+    ) {
       if (this.currentExperimentId === 'math-stereometry' && this.crosshair?.getVisible()) {
         this.crosshair.setVisible(false);
       }

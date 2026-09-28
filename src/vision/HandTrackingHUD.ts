@@ -42,6 +42,19 @@ export class HandTrackingHUD {
   private leftDurationVal!: HTMLElement;
   private rightDurationVal!: HTMLElement;
 
+  // DOM state cache to eliminate forced layout reflows
+  private cachedLeftTxt = '';
+  private cachedLeftClass = '';
+  private cachedLeftBadge = '';
+  private cachedLeftDur = '';
+  private cachedLeftDurClass = '';
+  private cachedRightTxt = '';
+  private cachedRightClass = '';
+  private cachedRightBadge = '';
+  private cachedRightDur = '';
+  private cachedRightDurClass = '';
+  private cachedRatioTxt = '';
+
   constructor(service: HandGestureService, parent: HTMLElement = document.body) {
     this.service = service;
     this.injectStyles();
@@ -62,7 +75,7 @@ export class HandTrackingHUD {
           <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path>
         </svg>
       </div>
-      <span class="vp-pill-title">VisionPro 双手手势</span>
+      <span class="vp-pill-title">手势交互</span>
       <button class="vp-pill-btn vp-pill-cam-btn" title="显示摄像头画面">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
@@ -1075,21 +1088,44 @@ export class HandTrackingHUD {
       if (frame.leftHand) {
         const dur = Math.round(frame.leftHand.pinchDuration);
         if (frame.leftHand.isPinching) {
-          if (frame.leftHand.isLongPinch) {
-            leftTxt.textContent = `拖拽视角中 (${dur} ms)`;
-          } else {
-            leftTxt.textContent = `快速捏合中 (${dur} ms)`;
+          const txt = frame.leftHand.isLongPinch ? `拖拽视角中 (${dur} ms)` : `快速捏合中 (${dur} ms)`;
+          if (this.cachedLeftTxt !== txt) {
+            this.cachedLeftTxt = txt;
+            leftTxt.textContent = txt;
           }
-          leftTxt.className = 'vp-left-txt active';
-          this.leftLiveBadge.textContent = `${dur} ms`;
+          if (this.cachedLeftClass !== 'vp-left-txt active') {
+            this.cachedLeftClass = 'vp-left-txt active';
+            leftTxt.className = 'vp-left-txt active';
+          }
+          const badgeTxt = `${dur} ms`;
+          if (this.cachedLeftBadge !== badgeTxt) {
+            this.cachedLeftBadge = badgeTxt;
+            this.leftLiveBadge.textContent = badgeTxt;
+          }
           this.leftLiveBadge.classList.remove('hidden');
-          this.leftDurationVal.textContent = `${dur} ms`;
-          this.leftDurationVal.className = 'vp-left-duration-val active';
+
+          if (this.cachedLeftDur !== badgeTxt) {
+            this.cachedLeftDur = badgeTxt;
+            this.leftDurationVal.textContent = badgeTxt;
+          }
+          if (this.cachedLeftDurClass !== 'vp-left-duration-val active') {
+            this.cachedLeftDurClass = 'vp-left-duration-val active';
+            this.leftDurationVal.className = 'vp-left-duration-val active';
+          }
         } else {
-          leftTxt.textContent = '就绪 (张开)';
-          leftTxt.className = 'vp-left-txt';
+          if (this.cachedLeftTxt !== '就绪 (张开)') {
+            this.cachedLeftTxt = '就绪 (张开)';
+            leftTxt.textContent = '就绪 (张开)';
+          }
+          if (this.cachedLeftClass !== 'vp-left-txt') {
+            this.cachedLeftClass = 'vp-left-txt';
+            leftTxt.className = 'vp-left-txt';
+          }
           this.leftLiveBadge.classList.add('hidden');
-          this.leftDurationVal.className = 'vp-left-duration-val';
+          if (this.cachedLeftDurClass !== 'vp-left-duration-val') {
+            this.cachedLeftDurClass = 'vp-left-duration-val';
+            this.leftDurationVal.className = 'vp-left-duration-val';
+          }
         }
 
         // Left Pinch Ended -> Log it!
@@ -1099,34 +1135,70 @@ export class HandTrackingHUD {
           const action = isQuick ? '快速捏合 (悬浮窗口)' : '持续捏合 (拖拽视角)';
           const tagClass = isQuick ? 'tag-window' : 'tag-rotate';
           this.addPinchRecord('left', '左手', finishedDur, action, tagClass);
-          this.leftDurationVal.textContent = `${finishedDur} ms (${isQuick ? '窗口' : '视角'})`;
+          const durStr = `${finishedDur} ms (${isQuick ? '窗口' : '视角'})`;
+          this.cachedLeftDur = durStr;
+          this.leftDurationVal.textContent = durStr;
         }
       } else {
-        leftTxt.textContent = '未检测';
-        leftTxt.className = 'vp-left-txt';
+        if (this.cachedLeftTxt !== '未检测') {
+          this.cachedLeftTxt = '未检测';
+          leftTxt.textContent = '未检测';
+        }
+        if (this.cachedLeftClass !== 'vp-left-txt') {
+          this.cachedLeftClass = 'vp-left-txt';
+          leftTxt.className = 'vp-left-txt';
+        }
         this.leftLiveBadge.classList.add('hidden');
       }
 
       // Update Right Hand status
       if (frame.rightHand) {
-        ratioVal.textContent = `${Math.round(frame.rightHand.pinchStrength * 100)}%`;
+        const ratioTxt = `${Math.round(frame.rightHand.pinchStrength * 100)}%`;
+        if (this.cachedRatioTxt !== ratioTxt) {
+          this.cachedRatioTxt = ratioTxt;
+          ratioVal.textContent = ratioTxt;
+        }
+
         const dur = Math.round(frame.rightHand.pinchDuration);
         if (frame.rightHand.isPinching) {
-          if (dur >= 350) {
-            rightTxt.textContent = `长按拖拽中 (${dur} ms)`;
-          } else {
-            rightTxt.textContent = `点按选择中 (${dur} ms)`;
+          const txt = dur >= 350 ? `长按拖拽中 (${dur} ms)` : `点按选择中 (${dur} ms)`;
+          if (this.cachedRightTxt !== txt) {
+            this.cachedRightTxt = txt;
+            rightTxt.textContent = txt;
           }
-          rightTxt.className = 'vp-right-txt active';
-          this.rightLiveBadge.textContent = `${dur} ms`;
+          if (this.cachedRightClass !== 'vp-right-txt active') {
+            this.cachedRightClass = 'vp-right-txt active';
+            rightTxt.className = 'vp-right-txt active';
+          }
+          const badgeTxt = `${dur} ms`;
+          if (this.cachedRightBadge !== badgeTxt) {
+            this.cachedRightBadge = badgeTxt;
+            this.rightLiveBadge.textContent = badgeTxt;
+          }
           this.rightLiveBadge.classList.remove('hidden');
-          this.rightDurationVal.textContent = `${dur} ms`;
-          this.rightDurationVal.className = 'vp-right-duration-val active';
+
+          if (this.cachedRightDur !== badgeTxt) {
+            this.cachedRightDur = badgeTxt;
+            this.rightDurationVal.textContent = badgeTxt;
+          }
+          if (this.cachedRightDurClass !== 'vp-right-duration-val active') {
+            this.cachedRightDurClass = 'vp-right-duration-val active';
+            this.rightDurationVal.className = 'vp-right-duration-val active';
+          }
         } else {
-          rightTxt.textContent = '光标瞄准';
-          rightTxt.className = 'vp-right-txt';
+          if (this.cachedRightTxt !== '光标瞄准') {
+            this.cachedRightTxt = '光标瞄准';
+            rightTxt.textContent = '光标瞄准';
+          }
+          if (this.cachedRightClass !== 'vp-right-txt') {
+            this.cachedRightClass = 'vp-right-txt';
+            rightTxt.className = 'vp-right-txt';
+          }
           this.rightLiveBadge.classList.add('hidden');
-          this.rightDurationVal.className = 'vp-right-duration-val';
+          if (this.cachedRightDurClass !== 'vp-right-duration-val') {
+            this.cachedRightDurClass = 'vp-right-duration-val';
+            this.rightDurationVal.className = 'vp-right-duration-val';
+          }
         }
 
         // Right Pinch Ended -> Log it!
@@ -1136,12 +1208,23 @@ export class HandTrackingHUD {
           const action = isDrag ? '长按拖拽 (移动对象)' : '点按选择 (鼠标单击)';
           const tagClass = isDrag ? 'tag-drag' : 'tag-click';
           this.addPinchRecord('right', '右手', finishedDur, action, tagClass);
-          this.rightDurationVal.textContent = `${finishedDur} ms (${isDrag ? '拖拽' : '点按'})`;
+          const durStr = `${finishedDur} ms (${isDrag ? '拖拽' : '点按'})`;
+          this.cachedRightDur = durStr;
+          this.rightDurationVal.textContent = durStr;
         }
       } else {
-        ratioVal.textContent = '0%';
-        rightTxt.textContent = '未检测';
-        rightTxt.className = 'vp-right-txt';
+        if (this.cachedRatioTxt !== '0%') {
+          this.cachedRatioTxt = '0%';
+          ratioVal.textContent = '0%';
+        }
+        if (this.cachedRightTxt !== '未检测') {
+          this.cachedRightTxt = '未检测';
+          rightTxt.textContent = '未检测';
+        }
+        if (this.cachedRightClass !== 'vp-right-txt') {
+          this.cachedRightClass = 'vp-right-txt';
+          rightTxt.className = 'vp-right-txt';
+        }
         this.rightLiveBadge.classList.add('hidden');
       }
 

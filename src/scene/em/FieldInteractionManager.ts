@@ -174,7 +174,9 @@ export class FieldInteractionManager {
     if (now - this.lastClickTime < 320 && context.camera && this.callbacks.onAddChargeAt) {
       const local = localPointOnBenchFace(event, context.camera, this.callbacks.bench.group);
       if (local) {
-        this.callbacks.onAddChargeAt(local.x, local.y, 2.0);
+        const clampedX = Math.max(-0.80, Math.min(0.80, local.x));
+        const clampedY = Math.max(-0.36, Math.min(0.55, local.y));
+        this.callbacks.onAddChargeAt(clampedX, clampedY, 2.0);
       }
     } else {
       this.callbacks.onDeselect();
@@ -201,9 +203,9 @@ export class FieldInteractionManager {
     );
     if (!local) return;
 
-    // Smooth movement constrained within expanded active stage bounds (covering full holographic table)
+    // Smooth movement constrained in the air above the HoloTable (min Y -0.36 stays >13cm above table surface at Y ≈ -0.526)
     const clampedX = Math.max(-0.80, Math.min(0.80, local.x));
-    const clampedY = Math.max(-0.60, Math.min(0.60, local.y));
+    const clampedY = Math.max(-0.36, Math.min(0.55, local.y));
 
     if (this.dragTarget.type === 'charge') {
       this.callbacks.onMoveCharge(this.dragTarget.id, clampedX, clampedY);

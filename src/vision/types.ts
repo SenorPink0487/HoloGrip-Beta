@@ -66,6 +66,9 @@ export interface HandGestureServiceConfig {
   numHands?: number;
   quickPinchMaxDurationMs?: number;
   cameraSensitivity?: number;
+  useWorker?: boolean;
+  filterMinCutoff?: number;
+  filterBeta?: number;
 }
 
 export type TrackerStatus =
@@ -88,5 +91,6 @@ export interface TrackerTelemetry {
   rightHandDetected: boolean;
   isLeftLongPinch: boolean;
   isLocalModel: boolean;
+  isWorkerMode?: boolean;
   errorMessage?: string;
 }

@@ -1,4 +1,3 @@
-import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import { PointFilter2D } from './OneEuroFilter.ts';
 import type {
   HandGestureFrame,
@@ -11,10 +10,16 @@ import type {
 
 export class HandGestureService {
   private config: Required<HandGestureServiceConfig>;
-  private handLandmarker: HandLandmarker | null = null;
   private videoElement: HTMLVideoElement | null = null;
   private mediaStream: MediaStream | null = null;
   private animFrameId: number | null = null;
+  private videoFrameCallbackId: number | null = null;
+
+  // Dedicated Web Worker architecture (main-thread fallback removed for peak 60/120 FPS performance)
+  private worker: Worker | null = null;
+  private isWorkerReady = false;
+  private isWorkerBusy = false;
+  private lastVideoCurrentTime = -1;
 
   private status: TrackerStatus = 'uninitialized';
   private errorMessage = '';
@@ -62,11 +67,21 @@ export class HandGestureService {
       numHands: config.numHands ?? 2,
       quickPinchMaxDurationMs: config.quickPinchMaxDurationMs ?? 200,
       cameraSensitivity: config.cameraSensitivity ?? 0.0032,
+      useWorker: config.useWorker ?? true,
+      filterMinCutoff: config.filterMinCutoff ?? 1.2,
+      filterBeta: config.filterBeta ?? 0.035,
     };
+
+    this.rightPointFilter = new PointFilter2D(this.config.filterMinCutoff, this.config.filterBeta, 1.0);
+    this.leftPointFilter = new PointFilter2D(this.config.filterMinCutoff, this.config.filterBeta, 1.0);
   }
 
   public getStatus(): TrackerStatus {
     return this.status;
+  }
+
+  public isWorkerMode(): boolean {
+    return Boolean(this.worker && this.isWorkerReady);
   }
 
   public getTelemetry(): TrackerTelemetry {
@@ -82,6 +97,7 @@ export class HandGestureService {
       rightHandDetected: false,
       isLeftLongPinch: this.isLeftLongPinch,
       isLocalModel: true,
+      isWorkerMode: Boolean(this.worker && this.isWorkerReady),
       errorMessage: this.errorMessage || undefined,
     };
   }
@@ -138,59 +154,129 @@ export class HandGestureService {
   }
 
   /**
-   * Initializes MediaPipe HandLandmarker with offline local WASM and task model.
+   * Initializes MediaPipe HandLandmarker exclusively inside dedicated Web Worker.
+   * Main-thread fallback has been completely removed to prevent frame drops in 3D physics rendering.
    */
   public async init(): Promise<void> {
     if (this.status === 'ready' || this.status === 'running') return;
     this.status = 'loading';
     this.notifyStatus();
 
+    if (!this.config.useWorker) {
+      const err = new Error('Main-thread fallback has been removed. Dedicated Web Worker is strictly required.');
+      this.status = 'error';
+      this.errorMessage = err.message;
+      console.error('[HandGestureService] Worker mode required:', err);
+      this.notifyStatus();
+      throw err;
+    }
+
+    if (typeof Worker === 'undefined') {
+      const err = new Error('Web Worker is not supported in this environment');
+      this.status = 'error';
+      this.errorMessage = err.message;
+      console.error('[HandGestureService] Dedicated hand tracking worker unsupported:', err);
+      this.notifyStatus();
+      throw err;
+    }
+
     try {
-      console.log('[HandGestureService] Loading local MediaPipe Vision WASM from:', this.config.wasmBasePath);
-      const vision = await FilesetResolver.forVisionTasks(this.config.wasmBasePath);
-
-      console.log('[HandGestureService] Loading local HandLandmarker model from:', this.config.modelAssetPath);
-
-      // Try GPU delegate first, gracefully fallback to CPU if GPU initialization fails
-      try {
-        this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: this.config.modelAssetPath,
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO',
-          numHands: this.config.numHands,
-          minHandDetectionConfidence: this.config.minDetectionConfidence,
-          minHandPresenceConfidence: this.config.minDetectionConfidence,
-          minTrackingConfidence: this.config.minTrackingConfidence,
-        });
-        console.log(`[HandGestureService] HandLandmarker initialized with GPU delegate (numHands: ${this.config.numHands})`);
-      } catch (gpuErr) {
-        console.warn('[HandGestureService] GPU delegate failed, falling back to CPU delegate:', gpuErr);
-        this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: this.config.modelAssetPath,
-            delegate: 'CPU',
-          },
-          runningMode: 'VIDEO',
-          numHands: this.config.numHands,
-          minHandDetectionConfidence: this.config.minDetectionConfidence,
-          minHandPresenceConfidence: this.config.minDetectionConfidence,
-          minTrackingConfidence: this.config.minTrackingConfidence,
-        });
-        console.log(`[HandGestureService] HandLandmarker initialized with CPU delegate (numHands: ${this.config.numHands})`);
-      }
-
+      console.log('[HandGestureService] Initializing dedicated hand tracking worker...');
+      await this.initWorker();
+      console.log('[HandGestureService] Hand tracking worker ready.');
       this.status = 'ready';
       this.errorMessage = '';
       this.notifyStatus();
     } catch (err) {
+      this.disposeWorker();
       this.status = 'error';
       this.errorMessage = err instanceof Error ? err.message : String(err);
-      console.error('[HandGestureService] Failed to initialize MediaPipe HandLandmarker:', err);
+      console.error('[HandGestureService] Hand tracking worker initialization failed:', err);
       this.notifyStatus();
       throw err;
     }
+  }
+
+  private initWorker(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      try {
+        this.worker = new Worker(new URL('../workers/handTracking.worker.ts', import.meta.url), {
+          type: 'module',
+        });
+
+        const timeout = setTimeout(() => {
+          reject(new Error('Hand tracking worker initialization timed out'));
+        }, 15000);
+
+        this.worker.onmessage = (e: MessageEvent) => {
+          const { type } = e.data;
+          if (type === 'INIT_SUCCESS') {
+            clearTimeout(timeout);
+            this.isWorkerReady = true;
+            this.setupWorkerMessageHandlers();
+            resolve();
+          } else if (type === 'INIT_ERROR') {
+            clearTimeout(timeout);
+            reject(new Error(e.data.error || 'Worker init error'));
+          }
+        };
+
+        this.worker.onerror = (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        };
+
+        this.worker.postMessage({
+          type: 'INIT',
+          wasmBasePath: this.config.wasmBasePath,
+          modelAssetPath: this.config.modelAssetPath,
+          numHands: this.config.numHands,
+          minDetectionConfidence: this.config.minDetectionConfidence,
+          minTrackingConfidence: this.config.minTrackingConfidence,
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  private setupWorkerMessageHandlers(): void {
+    if (!this.worker) return;
+
+    this.worker.onmessage = (e: MessageEvent) => {
+      const { type } = e.data;
+      if (type === 'DETECT_RESULT') {
+        this.isWorkerBusy = false;
+        this.lastLatencyMs = e.data.latencyMs ?? 0;
+
+        // Update FPS counter
+        this.frameCount++;
+        const now = performance.now();
+        const elapsedFps = now - this.lastFpsTimestamp;
+        if (elapsedFps >= 1000) {
+          this.currentFps = Math.round((this.frameCount * 1000) / elapsedFps);
+          this.frameCount = 0;
+          this.lastFpsTimestamp = now;
+        }
+
+        const landmarksArray = (e.data.landmarks || []) as NormalizedLandmark[][];
+        const handednessArray = (e.data.handedness || []) as any[][];
+
+        const frame = this.processMultiHands(landmarksArray, handednessArray, e.data.timestamp);
+        this.broadcastFrame(frame);
+      } else if (type === 'DETECT_ERROR') {
+        this.isWorkerBusy = false;
+        console.warn('[HandGestureService] Worker detection error:', e.data.error);
+      }
+    };
+
+    this.worker.onerror = (err) => {
+      this.isWorkerBusy = false;
+      this.status = 'error';
+      this.errorMessage = err instanceof Error ? err.message : 'Worker runtime error';
+      console.error('[HandGestureService] Worker runtime error:', err);
+      this.notifyStatus();
+    };
   }
 
   /**
@@ -198,7 +284,7 @@ export class HandGestureService {
    */
   public async start(): Promise<void> {
     if (this.status === 'running') return;
-    if (!this.handLandmarker) {
+    if (!this.isWorkerReady) {
       await this.init();
     }
 
@@ -217,9 +303,9 @@ export class HandGestureService {
         this.mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 60, max: 60 },
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 30, max: 60 },
           },
           audio: false,
         });
@@ -260,6 +346,10 @@ export class HandGestureService {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
     }
+    if (this.videoFrameCallbackId !== null && this.videoElement && typeof (this.videoElement as any).cancelVideoFrameCallback === 'function') {
+      (this.videoElement as any).cancelVideoFrameCallback(this.videoFrameCallbackId);
+      this.videoFrameCallbackId = null;
+    }
     this.notifyStatus();
   }
 
@@ -275,6 +365,10 @@ export class HandGestureService {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
     }
+    if (this.videoFrameCallbackId !== null && this.videoElement && typeof (this.videoElement as any).cancelVideoFrameCallback === 'function') {
+      (this.videoElement as any).cancelVideoFrameCallback(this.videoFrameCallbackId);
+      this.videoFrameCallbackId = null;
+    }
 
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((track) => track.stop());
@@ -289,22 +383,21 @@ export class HandGestureService {
       this.videoElement = null;
     }
 
+    this.isWorkerBusy = false;
+    this.lastVideoCurrentTime = -1;
     this.rightPointFilter.reset();
     this.leftPointFilter.reset();
     this.lastRightIsPinching = false;
     this.lastLeftIsPinching = false;
     this.leftPinchStartTime = null;
     this.isLeftLongPinch = false;
-    this.status = this.handLandmarker ? 'ready' : 'uninitialized';
+    this.status = this.isWorkerReady ? 'ready' : 'uninitialized';
     this.notifyStatus();
   }
 
   public destroy(): void {
     this.stop();
-    if (this.handLandmarker) {
-      this.handLandmarker.close();
-      this.handLandmarker = null;
-    }
+    this.disposeWorker();
     this.frameListeners.clear();
     this.statusListeners.clear();
     this.quickPinchMenuListeners.clear();
@@ -312,43 +405,105 @@ export class HandGestureService {
     this.status = 'uninitialized';
   }
 
-  private startLoop(): void {
-    const loop = () => {
-      if (this.status !== 'running') return;
-      this.processFrame();
-      this.animFrameId = requestAnimationFrame(loop);
-    };
-    this.animFrameId = requestAnimationFrame(loop);
+  private disposeWorker(): void {
+    if (this.worker) {
+      try {
+        this.worker.postMessage({ type: 'CLOSE' });
+        this.worker.terminate();
+      } catch {}
+      this.worker = null;
+    }
+    this.isWorkerReady = false;
+    this.isWorkerBusy = false;
   }
 
-  private processFrame(): void {
-    if (!this.handLandmarker || !this.videoElement || this.videoElement.readyState < 2) {
+  private startLoop(): void {
+    if (this.videoElement && typeof (this.videoElement as any).requestVideoFrameCallback === 'function') {
+      const onVideoFrame = () => {
+        if (this.status !== 'running') return;
+        this.processFrame(true);
+        if (this.videoElement && typeof (this.videoElement as any).requestVideoFrameCallback === 'function') {
+          this.videoFrameCallbackId = (this.videoElement as any).requestVideoFrameCallback(onVideoFrame);
+        }
+      };
+      this.videoFrameCallbackId = (this.videoElement as any).requestVideoFrameCallback(onVideoFrame);
+    } else {
+      const loop = () => {
+        if (this.status !== 'running') return;
+        this.processFrame(false);
+        this.animFrameId = requestAnimationFrame(loop);
+      };
+      this.animFrameId = requestAnimationFrame(loop);
+    }
+  }
+
+  private processFrame(isRvfCallback = false): void {
+    const video = this.videoElement;
+    if (!video || video.readyState < 2) {
       return;
     }
 
-    const tStart = performance.now();
-
-    try {
-      const results = this.handLandmarker.detectForVideo(this.videoElement, tStart);
-      const latency = performance.now() - tStart;
-      this.lastLatencyMs = latency;
-
-      // Update FPS counter
-      this.frameCount++;
-      const elapsedFps = tStart - this.lastFpsTimestamp;
-      if (elapsedFps >= 1000) {
-        this.currentFps = Math.round((this.frameCount * 1000) / elapsedFps);
-        this.frameCount = 0;
-        this.lastFpsTimestamp = tStart;
+    // Skip if the camera hasn't presented a new frame yet (when running in rAF mode)
+    if (!isRvfCallback) {
+      if (video.currentTime === this.lastVideoCurrentTime) {
+        return;
       }
+      this.lastVideoCurrentTime = video.currentTime;
+    } else {
+      this.lastVideoCurrentTime = video.currentTime;
+    }
 
-      const landmarksArray = (results.landmarks || []) as NormalizedLandmark[][];
-      const handednessArray = (results.handedness || []) as any[][];
+    // Dedicated Web Worker mode: strictly offload inference to worker, main-thread fallback removed
+    if (!this.worker || !this.isWorkerReady) {
+      return;
+    }
 
-      const frame = this.processMultiHands(landmarksArray, handednessArray, tStart);
-      this.broadcastFrame(frame);
-    } catch (err) {
-      console.warn('[HandGestureService] Error processing video frame:', err);
+    if (this.isWorkerBusy) {
+      // Rule 3: Frame Coalescing / LIFO. Worker is busy with in-flight frame, skip to eliminate backlog
+      return;
+    }
+
+    this.isWorkerBusy = true;
+    const tStart = performance.now();
+    try {
+      const vw = video.videoWidth || 640;
+      const vh = video.videoHeight || 480;
+      const targetW = 320;
+      const targetH = Math.max(160, Math.round(targetW * (vh / vw))) || 240;
+
+      const bitmapPromise = (typeof createImageBitmap === 'function')
+        ? createImageBitmap(video, {
+            resizeWidth: targetW,
+            resizeHeight: targetH,
+            resizeQuality: 'low',
+          }).catch(() => createImageBitmap(video))
+        : Promise.reject(new Error('createImageBitmap not supported'));
+
+      bitmapPromise.then((bitmap) => {
+        if (this.status !== 'running' || !this.worker) {
+          if (typeof bitmap.close === 'function') bitmap.close();
+          this.isWorkerBusy = false;
+          return;
+        }
+        try {
+          this.worker.postMessage(
+            {
+              type: 'DETECT',
+              imageBitmap: bitmap,
+              timestamp: tStart,
+            },
+            [bitmap]
+          );
+        } catch (postErr) {
+          if (typeof bitmap.close === 'function') bitmap.close();
+          this.isWorkerBusy = false;
+          console.warn('[HandGestureService] Worker postMessage error:', postErr);
+        }
+      }).catch(() => {
+        this.isWorkerBusy = false;
+      });
+    } catch {
+      this.isWorkerBusy = false;
     }
   }
 

@@ -765,6 +765,80 @@ console.log('Test 12: Test Charge (Probe q₀) Mechanics, Vector Arrow, Drag Int
   console.log('✓ Test 12 passed: Test charge mechanics, vector arrow, drag interaction, and HUD binding verified');
 }
 
+// ================= Test 13: Multi-Charge Superposition Complete Field Line Rendering =================
+console.log('Test 13: Multi-Charge Superposition Complete Field Line Rendering & No Truncation');
+{
+  const exp = new EmFieldExperiment();
+  exp.init(ctx);
+
+  // Setup multi-charge configuration matching the screenshot:
+  // 1 positive charge and 2 negative charges
+  exp.clearCharges();
+  exp.addCharge(2.0, -0.20, -0.15); // +2 µC coral red charge near bottom
+  exp.addCharge(-2.0, -0.15, 0.05); // -2 µC blue charge center-left
+  exp.addCharge(-2.0, 0.25, -0.15); // -2 µC blue charge bottom-right
+  exp.setDensity(24);
+
+  const telem = exp.getTelemetry();
+  assert.strictEqual(telem.chargeCount, 3, 'Must have 3 charges');
+  assert.ok(telem.fieldLineCount >= 40, `Must generate abundant field lines, got ${telem.fieldLineCount}`);
+
+  // Calculate total segments across all generated field lines
+  const lines = (exp as any).fieldLines;
+  let totalLineSegments = 0;
+  let hasLinesBelowOldMinY = false;
+
+  for (const line of lines) {
+    if (line.points.length >= 2) {
+      totalLineSegments += line.points.length - 1;
+    }
+    for (const pt of line.points) {
+      if (pt.y < -0.19) {
+        hasLinesBelowOldMinY = true;
+      }
+    }
+  }
+
+  // Verify that lines gracefully extend below -0.19 into the expanded lower stage volume
+  assert.ok(hasLinesBelowOldMinY, 'Field lines from lower charges must extend below old -0.19 cutoff without clipping');
+
+  // Verify bench LineSegments2 geometry instance count matches totalLineSegments exactly
+  const bench = (exp as any).bench as FieldBenchMesh;
+  const lineGeo = (bench as any).lineGeo;
+  assert.strictEqual(
+    lineGeo.instanceCount,
+    totalLineSegments,
+    `All ${totalLineSegments} field line segments must be fully rendered into lineGeo (no truncation)`,
+  );
+
+  // Verify arrow cones count
+  const conesMesh = (bench as any).arrowConesMesh;
+  assert.ok(conesMesh.count > 0, 'Arrow cones must be rendered');
+  assert.ok(conesMesh.count <= totalLineSegments, 'Arrow cones count must be disciplined');
+
+  // Stress test with 4 charges (quadrupole) and density 28
+  exp.loadPreset('quadrupole');
+  exp.setDensity(28);
+  const quadTelem = exp.getTelemetry();
+  assert.strictEqual(quadTelem.chargeCount, 4);
+  const quadLines = (exp as any).fieldLines;
+  let quadSegments = 0;
+  for (const line of quadLines) {
+    if (line.points.length >= 2) {
+      quadSegments += line.points.length - 1;
+    }
+  }
+
+  assert.strictEqual(
+    (bench as any).lineGeo.instanceCount,
+    quadSegments,
+    `Stress test: all ${quadSegments} segments must be completely rendered without old segment cap`,
+  );
+
+  exp.dispose(ctx);
+  console.log('✓ Test 13 passed: Multi-charge superposition field lines fully displayed with no truncation');
+}
+
 console.log('\n========================================================');
-console.log('All Electrostatic Field Exploration Tests Passed (12/12)!');
+console.log('All Electrostatic Field Exploration Tests Passed (13/13)!');
 console.log('========================================================\n');

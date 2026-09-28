@@ -43,7 +43,9 @@ export default class EmFieldExperiment extends BaseExperiment {
   private chargeCounter = 1;
 
   public init(_context: ExperimentContext): void {
-    this.rootGroup.position.set(0, 0.20, 1.00);
+    // Elevate experiment root into the air above HoloTable (HologramStage Y=0.908, HoloTable top Y=0.990)
+    // At rootGroup Y=0.56, the charges float ~48cm suspended in mid-air in front of the camera
+    this.rootGroup.position.set(0, 0.56, 1.00);
     this.bench = new FieldBenchMesh();
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
@@ -111,7 +113,7 @@ export default class EmFieldExperiment extends BaseExperiment {
   public addCharge(q: number, x?: number, y?: number, z?: number): void {
     const id = `q${this.chargeCounter++}`;
     const newX = x ?? (Math.random() * 0.4 - 0.2);
-    const newY = y ?? (Math.random() * 0.3 - 0.15);
+    const newY = y ?? (Math.random() * 0.24 - 0.04);
     const newZ = z ?? DEFAULT_CHARGE_ELEVATION;
     this.charges.push({ id, x: newX, y: newY, z: newZ, q });
     this.selectedChargeId = id;
@@ -203,9 +205,12 @@ export default class EmFieldExperiment extends BaseExperiment {
 
   private recompute(): void {
     // 1. Calculate physical field lines using RK4 across expanded stage
+    // HoloTable top is at local Y ≈ -0.526, so minY: -0.50 allows field lines to expand and arch naturally without penetrating table
     this.fieldLines = traceFieldLines(this.charges, {
       linesPerUnitCharge: this.lineDensity,
       bounds: 0.85,
+      minY: -0.50,
+      maxSteps: 400,
     });
 
     // 2. Evaluate test charge probe metrics

@@ -12,8 +12,8 @@ import {
   type TestChargeState,
 } from '../../physics/em/electrostatic.ts';
 
-const MAX_SEGMENTS = 16000;
-const MAX_CONES = 500;
+const INITIAL_MAX_SEGMENTS = 65536;
+const DEFAULT_MAX_CONES = 1200;
 
 // Exact colors matching charges
 export const CHARGE_POS_COLOR = { r: 1.0, g: 0.133, b: 0.267 }; // #ff2244 (luminous coral red)
@@ -57,14 +57,14 @@ export class FieldBenchMesh {
   // Directional arrow cones
   private readonly arrowConeGeo: THREE.ConeGeometry;
   private readonly arrowConeMat: THREE.MeshBasicMaterial;
-  private readonly arrowConesMesh: THREE.InstancedMesh;
+  private arrowConesMesh: THREE.InstancedMesh;
 
   // Thick, high-visibility field lines (LineSegments2 screen-space ribbon)
   private readonly lineGeo = new LineSegmentsGeometry();
   private readonly lineMat: LineMaterial;
   private readonly linesMesh: LineSegments2;
-  private readonly linePosArray = new Float32Array(MAX_SEGMENTS * 6);
-  private readonly lineColArray = new Float32Array(MAX_SEGMENTS * 6);
+  private linePosArray = new Float32Array(INITIAL_MAX_SEGMENTS * 6);
+  private lineColArray = new Float32Array(INITIAL_MAX_SEGMENTS * 6);
 
   constructor() {
     this.group.name = 'FieldBench';
@@ -95,7 +95,7 @@ export class FieldBenchMesh {
     this.arrowConeMat = new THREE.MeshBasicMaterial({
       toneMapped: false,
     });
-    this.arrowConesMesh = new THREE.InstancedMesh(this.arrowConeGeo, this.arrowConeMat, MAX_CONES);
+    this.arrowConesMesh = new THREE.InstancedMesh(this.arrowConeGeo, this.arrowConeMat, DEFAULT_MAX_CONES);
     this.arrowConesMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.arrowConesMesh.count = 0;
 
@@ -353,14 +353,48 @@ export class FieldBenchMesh {
     }
   }
 
+  private ensureLineCapacity(totalSegments: number): void {
+    const requiredFloats = totalSegments * 6;
+    if (this.linePosArray.length < requiredFloats) {
+      const newCapacity = Math.max(requiredFloats, this.linePosArray.length * 2, INITIAL_MAX_SEGMENTS * 6);
+      this.linePosArray = new Float32Array(newCapacity);
+      this.lineColArray = new Float32Array(newCapacity);
+    }
+  }
+
+  private ensureConeCapacity(neededCones: number): void {
+    const currentMax = this.arrowConesMesh.instanceMatrix.count;
+    if (currentMax >= neededCones) return;
+    const newCap = Math.max(neededCones, currentMax * 2, DEFAULT_MAX_CONES);
+    this.linesGroup.remove(this.arrowConesMesh);
+    this.arrowConesMesh.dispose();
+    this.arrowConesMesh = new THREE.InstancedMesh(this.arrowConeGeo, this.arrowConeMat, newCap);
+    this.arrowConesMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.arrowConesMesh.count = 0;
+    this.linesGroup.add(this.arrowConesMesh);
+  }
+
   private syncFieldLines(lines: readonly FieldLine[]): void {
     if (typeof window !== 'undefined' && this.lineMat) {
       this.lineMat.resolution.set(window.innerWidth, window.innerHeight);
     }
 
+    // 1. Calculate total segments needed across all valid lines
+    let totalSegments = 0;
+    for (let l = 0; l < lines.length; l++) {
+      const len = lines[l].points.length;
+      if (len >= 2) {
+        totalSegments += len - 1;
+      }
+    }
+
+    // 2. Ensure dynamic buffer capacity so NO field lines are ever truncated
+    this.ensureLineCapacity(totalSegments);
+
     let segCount = 0;
     const pos = this.linePosArray;
     const col = this.lineColArray;
+    const renderedLineIndices: number[] = [];
 
     for (let l = 0; l < lines.length; l++) {
       const line = lines[l];
@@ -373,8 +407,6 @@ export class FieldBenchMesh {
       const isNegOnly = Boolean(!line.sourceChargeId && line.targetChargeId);
 
       for (let i = 0; i < len - 1; i++) {
-        if (segCount >= MAX_SEGMENTS) break;
-
         const p0 = pts[i];
         const p1 = pts[i + 1];
         const idx = segCount * 6;
@@ -396,7 +428,7 @@ export class FieldBenchMesh {
 
         segCount++;
       }
-      if (segCount >= MAX_SEGMENTS) break;
+      renderedLineIndices.push(l);
     }
 
     if (segCount > 0) {
@@ -409,13 +441,19 @@ export class FieldBenchMesh {
     }
 
     // Update Directional Arrow Cones (Museum-grade disciplined placement)
+    // ONLY place arrow cones on lines that were actually rendered!
+    const maxNeededCones = renderedLineIndices.length * 2;
+    this.ensureConeCapacity(maxNeededCones);
+
     let coneCount = 0;
+    const maxCones = this.arrowConesMesh.instanceMatrix.count;
     const dummy = new THREE.Object3D();
     const unitZ = new THREE.Vector3(0, 0, 1);
     const tangent = new THREE.Vector3();
     const coneColor = new THREE.Color();
 
-    for (let l = 0; l < lines.length; l++) {
+    for (let i = 0; i < renderedLineIndices.length; i++) {
+      const l = renderedLineIndices[i];
       const line = lines[l];
       const pts = line.points;
       const len = pts.length;
@@ -439,7 +477,7 @@ export class FieldBenchMesh {
       }
 
       for (const idx of sampleIndices) {
-        if (coneCount >= MAX_CONES) break;
+        if (coneCount >= maxCones) break;
         if (idx <= 0 || idx >= len - 1) continue;
 
         const pPrev = pts[idx - 1];
@@ -464,7 +502,7 @@ export class FieldBenchMesh {
 
         coneCount++;
       }
-      if (coneCount >= MAX_CONES) break;
+      if (coneCount >= maxCones) break;
     }
 
     this.arrowConesMesh.count = coneCount;

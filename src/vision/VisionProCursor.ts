@@ -28,6 +28,16 @@ export class VisionProCursor {
   private dragStartY = 0;
   private dragStartTime = 0;
 
+  // Cached hit test & event throttling (prevents DOM layout thrashing & reflow spikes)
+  private lastHitElement: Element | null = null;
+  private lastHitX = -9999;
+  private lastHitY = -9999;
+  private lastHitTime = 0;
+  private lastDispatchedX = -9999;
+  private lastDispatchedY = -9999;
+  private lastLeftClass = '';
+  private lastLeftBadgeText = '';
+
   constructor(parent: HTMLElement = document.body) {
     this.injectStyles();
 
@@ -335,6 +345,11 @@ export class VisionProCursor {
       this.rightContainer.classList.remove('visible');
       this.clearHover();
       this.releasePinch();
+      this.lastHitElement = null;
+      this.lastHitX = -9999;
+      this.lastHitY = -9999;
+      this.lastDispatchedX = -9999;
+      this.lastDispatchedY = -9999;
     }
   }
 
@@ -388,7 +403,25 @@ export class VisionProCursor {
 
     this.rightContainer.style.transform = `translate3d(${hand.screenX}px, ${hand.screenY}px, 0)`;
 
-    const element = document.elementFromPoint(hand.screenX, hand.screenY) || document.body;
+    // Throttled hit-testing: avoids repeated synchronous document.elementFromPoint layout reflows
+    let element: Element | null = this.dragTarget;
+    if (!element) {
+      const now = performance.now();
+      if (
+        !this.lastHitElement ||
+        Math.hypot(hand.screenX - this.lastHitX, hand.screenY - this.lastHitY) >= 3 ||
+        now - this.lastHitTime >= 32
+      ) {
+        element = document.elementFromPoint(hand.screenX, hand.screenY) || document.body;
+        this.lastHitElement = element;
+        this.lastHitX = hand.screenX;
+        this.lastHitY = hand.screenY;
+        this.lastHitTime = now;
+      } else {
+        element = this.lastHitElement;
+      }
+    }
+
     const isInteractive = this.checkInteractive(element);
     this.setHovered(isInteractive);
 
@@ -409,15 +442,24 @@ export class VisionProCursor {
 
     this.leftContainer.style.transform = `translate3d(${leftHand.screenX}px, ${leftHand.screenY}px, 0)`;
 
-    if (leftHand.isLongPinch) {
-      this.leftContainer.className = 'visible navigating';
-      this.leftBadge.textContent = '拖拽视角中';
-    } else if (leftHand.isPinching) {
-      this.leftContainer.className = 'visible quick-pinching';
-      this.leftBadge.textContent = '悬浮窗口';
-    } else {
-      this.leftContainer.className = 'visible';
-      this.leftBadge.textContent = '左手控制';
+    const desiredClass = leftHand.isLongPinch
+      ? 'visible navigating'
+      : leftHand.isPinching
+      ? 'visible quick-pinching'
+      : 'visible';
+    const desiredBadge = leftHand.isLongPinch
+      ? '拖拽视角中'
+      : leftHand.isPinching
+      ? '悬浮窗口'
+      : '左手控制';
+
+    if (this.lastLeftClass !== desiredClass) {
+      this.lastLeftClass = desiredClass;
+      this.leftContainer.className = desiredClass;
+    }
+    if (this.lastLeftBadgeText !== desiredBadge) {
+      this.lastLeftBadgeText = desiredBadge;
+      this.leftBadge.textContent = desiredBadge;
     }
 
     if (quickPinchTriggered || (leftHand.justPinchStarted && !leftHand.isLongPinch)) {
@@ -432,12 +474,18 @@ export class VisionProCursor {
   }
 
   private checkInteractive(element: Element): boolean {
-    if (!element || element === document.body || element.id === 'webgl-container') {
+    if (
+      !element ||
+      element === document.body ||
+      element.id === 'webgl-container' ||
+      element.id === 'webgl-canvas' ||
+      (element.tagName === 'CANVAS' && (element.parentElement?.id === 'webgl-container' || element.id === 'webgl-canvas'))
+    ) {
       return false;
     }
     return Boolean(
       element.closest(
-        'button, a, input, select, textarea, [role="button"], .clickable, .tab-item, .dock-btn, .color-swatch, .reagent-card, .vision-panel, .drawer-handle, canvas'
+        'button, a, input, select, textarea, [role="button"], .clickable, .tab-item, .dock-btn, .color-swatch, .reagent-card, .vision-panel, .drawer-handle, .whiteboard-canvas-layer'
       )
     );
   }
@@ -509,9 +557,16 @@ export class VisionProCursor {
       const target = this.dragTarget || currentElement;
       this.dispatchPointerEvent('pointermove', target, x, y, 0, 1);
       this.dispatchMouseEvent('mousemove', target, x, y, 0, 1);
+      this.lastDispatchedX = x;
+      this.lastDispatchedY = y;
     } else if (!hand.isPinching) {
-      this.dispatchPointerEvent('pointermove', currentElement, x, y, 0, 0);
-      this.dispatchMouseEvent('mousemove', currentElement, x, y, 0, 0);
+      // Throttle micro-jitter (< 0.5px) when hovering
+      if (Math.hypot(x - this.lastDispatchedX, y - this.lastDispatchedY) >= 0.5) {
+        this.dispatchPointerEvent('pointermove', currentElement, x, y, 0, 0);
+        this.dispatchMouseEvent('mousemove', currentElement, x, y, 0, 0);
+        this.lastDispatchedX = x;
+        this.lastDispatchedY = y;
+      }
     }
 
     // Pinch Up (Mouse Up & Click)

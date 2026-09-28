@@ -182,11 +182,13 @@ export function electricDipoleMoment(charges: readonly PointCharge[]): {
 export interface TraceFieldLinesOptions {
   linesPerUnitCharge?: number; // base number of lines per 1 µC (default 12)
   stepSize?: number; // RK4 step size in meters (default 0.012)
-  maxSteps?: number; // max integration steps per line (default 240)
+  maxSteps?: number; // max integration steps per line (default 380)
   bounds?: number; // coordinate boundary limit (default 0.85)
+  minY?: number; // minimum Y boundary (e.g. table surface cutoff)
+  maxY?: number; // maximum Y boundary
   minZ?: number; // minimum Z boundary above platform
   maxZ?: number; // maximum Z boundary above platform
-  captureRadius?: number; // capture radius near target charge (default 0.04)
+  captureRadius?: number; // capture radius near target charge (default 0.046)
   softening?: number;
 }
 
@@ -300,11 +302,13 @@ export function traceFieldLines(
 
   const linesPerUnit = options.linesPerUnitCharge ?? 12;
   const h = options.stepSize ?? 0.012;
-  const maxSteps = options.maxSteps ?? 240;
+  const maxSteps = options.maxSteps ?? 380;
   const bounds = options.bounds ?? 0.85;
+  const minY = options.minY ?? -bounds;
+  const maxY = options.maxY ?? bounds;
   const minZ = options.minZ ?? -0.65;
   const maxZ = options.maxZ ?? 0.65;
-  const captureRadius = options.captureRadius ?? 0.04;
+  const captureRadius = options.captureRadius ?? 0.046;
   const captureRadiusSq = captureRadius * captureRadius;
   const softening = options.softening ?? 0.006;
 
@@ -382,7 +386,8 @@ export function traceFieldLines(
         // Boundary check
         if (
           Math.abs(currX) > bounds ||
-          Math.abs(currY) > bounds ||
+          currY < minY ||
+          currY > maxY ||
           currZ < minZ ||
           currZ > maxZ
         ) {
@@ -495,7 +500,8 @@ export function traceFieldLines(
 
         if (
           Math.abs(currX) > bounds ||
-          Math.abs(currY) > bounds ||
+          currY < minY ||
+          currY > maxY ||
           currZ < minZ ||
           currZ > maxZ
         ) {
