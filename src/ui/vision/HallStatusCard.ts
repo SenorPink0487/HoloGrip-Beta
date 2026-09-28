@@ -94,6 +94,7 @@ export class HallStatusCard {
   private tokenValD: HTMLElement | null = null;
 
   // Drawer values
+  private drawerEl: HTMLElement | null = null;
   private drawerValB: HTMLElement | null = null;
   private drawerValI: HTMLElement | null = null;
   private drawerValD: HTMLElement | null = null;
@@ -150,6 +151,7 @@ export class HallStatusCard {
   private lastD = -9999;
   private lastMatKey = '';
   private lastCarrier: CarrierType | '' = '';
+  private activeSliders = new Set<string>();
 
   constructor(callbacks: HallStatusCardCallbacks = {}) {
     this.callbacks = callbacks;
@@ -185,20 +187,6 @@ export class HallStatusCard {
 
         <!-- 2. Pure Mathematical Sculpture (Zero text clutter, formula as controller) -->
         <div class="hall-pure-stage" id="hall-pure-stage">
-          <!-- Floating Apple Precision Scrubber HUD -->
-          <div class="hall-drag-hud" id="hall-drag-hud" style="display: none;">
-            <div class="hall-hud-bubble">
-              <div class="hall-hud-val" id="hud-val-text">+0.50 T</div>
-              <div class="hall-hud-gauge">
-                <div class="hall-hud-fill" id="hud-bar-fill" style="width: 66.7%;"></div>
-              </div>
-              <div class="hall-hud-beak"></div>
-            </div>
-            <span id="hud-range-min" style="display:none;"></span>
-            <span id="hud-range-max" style="display:none;"></span>
-            <span id="hud-param-name" style="display:none;"></span>
-          </div>
-
           <!-- Formula: V_H = (R_H · I_S · B) / d -->
           <div class="hall-formula-row">
             <!-- Output Token: V_H -->
@@ -250,6 +238,20 @@ export class HallStatusCard {
 
         <!-- 3. Unified Apple Control Deck (Carrier Type Switch + Parameter Scrubber) -->
         <div class="hall-focus-drawer" id="hall-focus-drawer">
+          <!-- Floating Apple Precision Scrubber HUD -->
+          <div class="hall-drag-hud" id="hall-drag-hud" style="display: none; opacity: 0;">
+            <div class="hall-hud-bubble">
+              <div class="hall-hud-val" id="hud-val-text">+0.50 T</div>
+              <div class="hall-hud-gauge">
+                <div class="hall-hud-fill" id="hud-bar-fill" style="width: 66.7%;"></div>
+              </div>
+              <div class="hall-hud-beak"></div>
+            </div>
+            <span id="hud-range-min" style="display:none;"></span>
+            <span id="hud-range-max" style="display:none;"></span>
+            <span id="hud-param-name" style="display:none;"></span>
+          </div>
+
           <!-- Left: Carrier Type Switch (n型 vs p型) -->
           <div class="hall-carrier-deck">
             <div class="hall-apple-seg-control">
@@ -270,7 +272,7 @@ export class HallStatusCard {
                   <path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"/>
                 </svg>
               </button>
-              <div class="hall-slider-track-wrap">
+              <div class="hall-slider-track-wrap clickable" role="slider" aria-label="垂直磁场调节">
                 <input type="range" class="hall-apple-slider" id="slider-hall-b" min="-2.00" max="2.00" step="0.02" value="0.50" />
               </div>
               <span class="hall-focus-val" id="drawer-val-b">+0.50 T</span>
@@ -284,7 +286,7 @@ export class HallStatusCard {
                   <path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"/>
                 </svg>
               </button>
-              <div class="hall-slider-track-wrap">
+              <div class="hall-slider-track-wrap clickable" role="slider" aria-label="励磁电流调节">
                 <input type="range" class="hall-apple-slider" id="slider-hall-i" min="-30.0" max="30.0" step="0.5" value="10.0" />
               </div>
               <span class="hall-focus-val" id="drawer-val-i">+10.0 mA</span>
@@ -293,7 +295,7 @@ export class HallStatusCard {
             <!-- Pane D (Thickness) -->
             <div class="hall-focus-pane" id="pane-d" style="display: none;">
               <span class="hall-param-tag">厚度 d</span>
-              <div class="hall-slider-track-wrap">
+              <div class="hall-slider-track-wrap clickable" role="slider" aria-label="晶片厚度调节">
                 <input type="range" class="hall-apple-slider" id="slider-hall-d" min="0.05" max="1.50" step="0.05" value="0.50" />
               </div>
               <span class="hall-focus-val" id="drawer-val-d">0.50 mm</span>
@@ -411,6 +413,7 @@ export class HallStatusCard {
     this.tokenValB = el.querySelector('#token-val-b');
     this.tokenValD = el.querySelector('#token-val-d');
 
+    this.drawerEl = el.querySelector('#hall-focus-drawer');
     this.drawerValB = el.querySelector('#drawer-val-b');
     this.drawerValI = el.querySelector('#drawer-val-i');
     this.drawerValD = el.querySelector('#drawer-val-d');
@@ -494,19 +497,16 @@ export class HallStatusCard {
     this.tokenD?.addEventListener('click', () => this.switchActiveParam('d'));
     this.tokenRh?.addEventListener('click', () => this.switchActiveParam('rh'));
 
-    // 2. Sliders input
-    this.sliderB?.addEventListener('input', (e) => {
-      const b = parseFloat((e.target as HTMLInputElement).value);
+    // 2. iPad Touch-Optimized Sliders with Pointer Capture & Active Drag Tracking
+    this.bindTouchSlider(this.sliderB, (b) => {
       this.callbacks.onMagFieldChange?.(b);
     });
 
-    this.sliderI?.addEventListener('input', (e) => {
-      const i = parseFloat((e.target as HTMLInputElement).value);
+    this.bindTouchSlider(this.sliderI, (i) => {
       this.callbacks.onCurrentChange?.(i);
     });
 
-    this.sliderD?.addEventListener('input', (e) => {
-      const d = parseFloat((e.target as HTMLInputElement).value);
+    this.bindTouchSlider(this.sliderD, (d) => {
       this.callbacks.onThicknessChange?.(d);
     });
 
@@ -575,6 +575,290 @@ export class HallStatusCard {
     this.btnTopReset?.addEventListener('click', handleReset);
   }
 
+  private isSliderActive(slider: HTMLInputElement | null): boolean {
+    if (!slider) return false;
+    if (this.activeSliders.has(slider.id)) return true;
+    if (typeof document !== 'undefined' && document.activeElement === slider) return true;
+    return false;
+  }
+
+  private bindTouchSlider(slider: HTMLInputElement | null, onChange: (val: number) => void): void {
+    if (!slider) return;
+
+    const wrap = (typeof slider.closest === 'function' ? slider.closest('.hall-slider-track-wrap') : null) || slider.parentElement;
+    let isDragging = false;
+
+    // Helper to format values for HUD and immediate visual feedback
+    const formatValue = (val: number): string => {
+      if (slider.id === 'slider-hall-b') {
+        return `${val >= 0 ? '+' : ''}${val.toFixed(2)} T`;
+      } else if (slider.id === 'slider-hall-i') {
+        return `${val >= 0 ? '+' : ''}${val.toFixed(1)} mA`;
+      } else if (slider.id === 'slider-hall-d') {
+        return `${val.toFixed(2)} mm`;
+      }
+      return val.toString();
+    };
+
+    const updateDirectReadouts = (val: number) => {
+      const formatted = formatValue(val);
+      if (slider.id === 'slider-hall-b') {
+        if (this.drawerValB) this.drawerValB.textContent = formatted;
+        if (this.tokenValB) this.tokenValB.textContent = `${val >= 0 ? '+' : ''}${val.toFixed(1)} T`;
+        if (this.valBEl) this.valBEl.textContent = formatted;
+      } else if (slider.id === 'slider-hall-i') {
+        if (this.drawerValI) this.drawerValI.textContent = formatted;
+        if (this.tokenValI) this.tokenValI.textContent = `${val >= 0 ? '+' : ''}${val.toFixed(1)} mA`;
+        if (this.valIEl) this.valIEl.textContent = formatted;
+      } else if (slider.id === 'slider-hall-d') {
+        if (this.drawerValD) this.drawerValD.textContent = formatted;
+        if (this.tokenValD) this.tokenValD.textContent = `${val.toFixed(1)} mm`;
+        if (this.txtValD) this.txtValD.textContent = formatted;
+      }
+    };
+
+    const updateHUD = (val: number, ratio: number, clientX: number) => {
+      if (!this.dragHud) return;
+      if (this.hudValText) this.hudValText.textContent = formatValue(val);
+      if (this.hudBarFill) this.hudBarFill.style.width = `${Math.max(0, Math.min(100, ratio * 100)).toFixed(1)}%`;
+
+      if (typeof slider.getBoundingClientRect === 'function') {
+        const sliderRect = slider.getBoundingClientRect();
+        const drawerRect = this.drawerEl && typeof this.drawerEl.getBoundingClientRect === 'function'
+          ? this.drawerEl.getBoundingClientRect()
+          : null;
+
+        if (sliderRect && sliderRect.width > 0 && drawerRect && drawerRect.width > 0) {
+          const clampedX = Math.max(sliderRect.left, Math.min(sliderRect.right, clientX));
+          const thumbX = clampedX - drawerRect.left;
+          const thumbY = (sliderRect.top - drawerRect.top) - 10;
+          this.dragHud.style.left = `${thumbX}px`;
+          this.dragHud.style.top = `${thumbY}px`;
+        }
+      }
+      this.dragHud.style.display = 'block';
+      this.dragHud.style.opacity = '1';
+    };
+
+    const updateFromClientX = (clientX: number) => {
+      if (typeof slider.getBoundingClientRect !== 'function') return;
+      const rect = slider.getBoundingClientRect();
+      if (!rect || rect.width <= 0) return;
+
+      const stepStr = String(slider.step || (typeof slider.getAttribute === 'function' ? slider.getAttribute('step') : '') || '0.01');
+      const min = parseFloat(String(slider.min || (typeof slider.getAttribute === 'function' ? slider.getAttribute('min') : '') || '0')) || 0;
+      const max = parseFloat(String(slider.max || (typeof slider.getAttribute === 'function' ? slider.getAttribute('max') : '') || '1')) || 1;
+      const step = parseFloat(stepStr) || 0.01;
+
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      let val = min + ratio * (max - min);
+      if (step > 0) {
+        val = Math.round((val - min) / step) * step + min;
+      }
+      val = Math.max(min, Math.min(max, val));
+      const decimals = (stepStr.split('.')[1] || '').length;
+      val = parseFloat(val.toFixed(decimals));
+
+      if (slider.value !== String(val)) {
+        slider.value = String(val);
+        onChange(val);
+      }
+      updateDirectReadouts(val);
+      updateHUD(val, ratio, clientX);
+    };
+
+    const onGlobalPointerMove = (e: any) => {
+      if (!isDragging) return;
+      if (typeof e.clientX === 'number') {
+        updateFromClientX(e.clientX);
+      }
+    };
+
+    const onGlobalPointerUp = (e: any) => {
+      stopDrag(e?.pointerId);
+    };
+
+    const onGlobalMouseMove = (e: any) => {
+      if (!isDragging) return;
+      if (e.buttons === 0) {
+        stopDrag();
+        return;
+      }
+      if (typeof e.clientX === 'number') {
+        updateFromClientX(e.clientX);
+      }
+    };
+
+    const onGlobalMouseUp = () => {
+      stopDrag();
+    };
+
+    const onGlobalTouchMove = (e: any) => {
+      if (!isDragging) return;
+      if (e.touches && e.touches.length > 0 && typeof e.touches[0].clientX === 'number') {
+        updateFromClientX(e.touches[0].clientX);
+      }
+    };
+
+    const onGlobalTouchUp = () => {
+      stopDrag();
+    };
+
+    const startDrag = (clientX: number, pointerId?: number) => {
+      isDragging = true;
+      this.activeSliders.add(slider.id);
+      if (slider.classList && typeof slider.classList.add === 'function') {
+        slider.classList.add('is-pinching');
+      }
+      if (wrap && wrap.classList && typeof wrap.classList.add === 'function') {
+        wrap.classList.add('is-pinching');
+      }
+
+      if (pointerId != null && typeof slider.setPointerCapture === 'function') {
+        try {
+          slider.setPointerCapture(pointerId);
+        } catch {
+          // ignore
+        }
+      }
+
+      if (typeof clientX === 'number') {
+        updateFromClientX(clientX);
+      }
+
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('pointermove', onGlobalPointerMove, { passive: false });
+        window.addEventListener('pointerup', onGlobalPointerUp, { passive: false });
+        window.addEventListener('pointercancel', onGlobalPointerUp, { passive: false });
+        window.addEventListener('mousemove', onGlobalMouseMove, { passive: false });
+        window.addEventListener('mouseup', onGlobalMouseUp, { passive: false });
+        window.addEventListener('touchmove', onGlobalTouchMove, { passive: false });
+        window.addEventListener('touchend', onGlobalTouchUp, { passive: false });
+        window.addEventListener('touchcancel', onGlobalTouchUp, { passive: false });
+      }
+    };
+
+    const stopDrag = (pointerId?: number) => {
+      if (!isDragging && !this.activeSliders.has(slider.id)) return;
+      isDragging = false;
+      this.activeSliders.delete(slider.id);
+      if (slider.classList && typeof slider.classList.remove === 'function') {
+        slider.classList.remove('is-pinching');
+      }
+      if (wrap && wrap.classList && typeof wrap.classList.remove === 'function') {
+        wrap.classList.remove('is-pinching');
+      }
+
+      if (pointerId != null && typeof slider.releasePointerCapture === 'function') {
+        try {
+          slider.releasePointerCapture(pointerId);
+        } catch {
+          // ignore
+        }
+      }
+
+      if (this.dragHud) {
+        this.dragHud.style.opacity = '0';
+        this.dragHud.style.display = 'none';
+      }
+
+      if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('pointermove', onGlobalPointerMove);
+        window.removeEventListener('pointerup', onGlobalPointerUp);
+        window.removeEventListener('pointercancel', onGlobalPointerUp);
+        window.removeEventListener('mousemove', onGlobalMouseMove);
+        window.removeEventListener('mouseup', onGlobalMouseUp);
+        window.removeEventListener('touchmove', onGlobalTouchMove);
+        window.removeEventListener('touchend', onGlobalTouchUp);
+        window.removeEventListener('touchcancel', onGlobalTouchUp);
+      }
+    };
+
+    // 1. Standard HTML input event (works with keyboard, automated test suite, desktop drag)
+    slider.addEventListener('input', (e) => {
+      const val = parseFloat((e.target as HTMLInputElement).value);
+      onChange(val);
+      updateDirectReadouts(val);
+    });
+
+    // 2. High-precision Pointer Events (iOS 13+, iPadOS, VisionProCursor hand pinch, Chrome, Edge)
+    slider.addEventListener('pointerdown', (e: any) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      startDrag(e.clientX, e.pointerId);
+    });
+
+    slider.addEventListener('pointermove', (e: any) => {
+      if (!this.activeSliders.has(slider.id)) return;
+      if (typeof e.clientX === 'number') {
+        updateFromClientX(e.clientX);
+      }
+    });
+
+    slider.addEventListener('pointerup', (e: any) => stopDrag(e?.pointerId));
+    slider.addEventListener('pointercancel', (e: any) => stopDrag(e?.pointerId));
+
+    // 3. Mouse Events fallback (when pointer events are not polyfilled or for desktop mouse drag)
+    slider.addEventListener('mousedown', (e: any) => {
+      if (e.button !== 0) return;
+      if (!isDragging) startDrag(e.clientX);
+    });
+
+    slider.addEventListener('mousemove', (e: any) => {
+      if (isDragging && typeof e.clientX === 'number') {
+        updateFromClientX(e.clientX);
+      }
+    });
+
+    slider.addEventListener('mouseup', () => stopDrag());
+
+    // 4. Robust touch listeners specifically addressing iOS Safari touch subtleties
+    slider.addEventListener('touchstart', (e: any) => {
+      const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : 0;
+      startDrag(clientX);
+    }, { passive: true });
+
+    slider.addEventListener('touchmove', (e: any) => {
+      if (this.activeSliders.has(slider.id) && e.touches && e.touches.length > 0 && typeof e.touches[0].clientX === 'number') {
+        updateFromClientX(e.touches[0].clientX);
+      }
+    }, { passive: true });
+
+    slider.addEventListener('touchend', () => stopDrag(), { passive: true });
+    slider.addEventListener('touchcancel', () => stopDrag(), { passive: true });
+
+    // 5. Track wrapper tap/seek/pinch hit zone support (44px hit target)
+    if (wrap && wrap !== slider && typeof wrap.addEventListener === 'function') {
+      wrap.addEventListener('pointerdown', (e: any) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        startDrag(e.clientX, e.pointerId);
+      });
+      wrap.addEventListener('pointermove', (e: any) => {
+        if (this.activeSliders.has(slider.id) && typeof e.clientX === 'number') {
+          updateFromClientX(e.clientX);
+        }
+      });
+      wrap.addEventListener('pointerup', (e: any) => stopDrag(e?.pointerId));
+      wrap.addEventListener('pointercancel', (e: any) => stopDrag(e?.pointerId));
+
+      wrap.addEventListener('mousedown', (e: any) => {
+        if (e.button !== 0) return;
+        if (!isDragging) startDrag(e.clientX);
+      });
+
+      wrap.addEventListener('touchstart', (e: any) => {
+        const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : 0;
+        startDrag(clientX);
+      }, { passive: true });
+      wrap.addEventListener('touchmove', (e: any) => {
+        if (this.activeSliders.has(slider.id) && e.touches && e.touches.length > 0 && typeof e.touches[0].clientX === 'number') {
+          updateFromClientX(e.touches[0].clientX);
+        }
+      }, { passive: true });
+      wrap.addEventListener('touchend', () => stopDrag(), { passive: true });
+      wrap.addEventListener('touchcancel', () => stopDrag(), { passive: true });
+    }
+  }
+
   public setVisible(visible: boolean): void {
     this.isVisible = visible;
     this.element.style.display = visible ? 'flex' : 'none';
@@ -628,7 +912,7 @@ export class HallStatusCard {
 
       if (
         this.sliderB &&
-        (typeof document === 'undefined' || document.activeElement !== this.sliderB) &&
+        !this.isSliderActive(this.sliderB) &&
         Math.abs(Number(this.sliderB.value) - b) > 0.005
       ) {
         this.sliderB.value = b.toString();
@@ -652,7 +936,7 @@ export class HallStatusCard {
 
       if (
         this.sliderI &&
-        (typeof document === 'undefined' || document.activeElement !== this.sliderI) &&
+        !this.isSliderActive(this.sliderI) &&
         Math.abs(Number(this.sliderI.value) - i) > 0.1
       ) {
         this.sliderI.value = i.toString();
@@ -675,7 +959,7 @@ export class HallStatusCard {
 
       if (
         this.sliderD &&
-        (typeof document === 'undefined' || document.activeElement !== this.sliderD) &&
+        !this.isSliderActive(this.sliderD) &&
         Math.abs(Number(this.sliderD.value) - d) > 0.01
       ) {
         this.sliderD.value = d.toString();

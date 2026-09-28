@@ -3572,6 +3572,7 @@
       gap: 14px;
       flex-shrink: 0;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.20);
+      position: relative;
     }
 
     .hall-carrier-deck {
@@ -3657,53 +3658,99 @@
       display: flex;
       align-items: center;
       min-width: 0;
+      min-height: 44px;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      position: relative;
     }
 
     .hall-apple-slider {
       -webkit-appearance: none;
       appearance: none;
       width: 100%;
-      height: 4px;
-      border-radius: 2px;
-      background: rgba(255, 255, 255, 0.15);
+      height: 40px;
+      background: transparent;
       outline: none;
       cursor: pointer;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      margin: 0;
+      padding: 0;
+    }
+
+    .hall-apple-slider::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.20);
       transition: background 0.2s;
     }
 
-    .hall-apple-slider:hover {
-      background: rgba(255, 255, 255, 0.22);
+    .hall-apple-slider:hover::-webkit-slider-runnable-track,
+    .hall-apple-slider:active::-webkit-slider-runnable-track {
+      background: rgba(255, 255, 255, 0.30);
     }
 
     .hall-apple-slider::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 16px;
-      height: 16px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       background: #ffffff;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.15);
       cursor: pointer;
+      margin-top: -8px;
       transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s;
     }
 
-    .hall-apple-slider::-webkit-slider-thumb:hover {
-      transform: scale(1.15);
-      box-shadow: 0 2px 10px rgba(10, 132, 255, 0.5), 0 0 0 2px #0a84ff;
+    .hall-apple-slider:hover::-webkit-slider-thumb,
+    .hall-apple-slider:active::-webkit-slider-thumb {
+      transform: scale(1.18);
+      box-shadow: 0 3px 12px rgba(10, 132, 255, 0.6), 0 0 0 2.5px #0a84ff;
     }
 
-    .hall-apple-slider::-webkit-slider-thumb:active {
-      transform: scale(1.25);
+    /* Hand Tracking Continuous Pinch & Touch Drag Active State */
+    .hall-apple-slider.is-pinching::-webkit-slider-thumb,
+    .hall-slider-track-wrap.is-pinching .hall-apple-slider::-webkit-slider-thumb {
+      transform: scale(1.35) !important;
+      box-shadow: 0 4px 16px rgba(10, 132, 255, 0.85), 0 0 0 3px #64d2ff !important;
+      background: #ffffff !important;
+    }
+
+    .hall-apple-slider.is-pinching::-webkit-slider-runnable-track,
+    .hall-slider-track-wrap.is-pinching .hall-apple-slider::-webkit-slider-runnable-track {
+      background: rgba(10, 132, 255, 0.45) !important;
+    }
+
+    .hall-apple-slider::-moz-range-track {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.20);
     }
 
     .hall-apple-slider::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       background: #ffffff;
       border: none;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
       cursor: pointer;
+    }
+
+    .hall-apple-slider.is-pinching::-moz-range-thumb,
+    .hall-slider-track-wrap.is-pinching .hall-apple-slider::-moz-range-thumb {
+      transform: scale(1.35) !important;
+      box-shadow: 0 4px 16px rgba(10, 132, 255, 0.85), 0 0 0 3px #64d2ff !important;
+      background: #ffffff !important;
+    }
+
+    .hall-apple-slider.is-pinching::-moz-range-track,
+    .hall-slider-track-wrap.is-pinching .hall-apple-slider::-moz-range-track {
+      background: rgba(10, 132, 255, 0.45) !important;
     }
 
     .hall-focus-val {

@@ -9,6 +9,7 @@ import { PhysicsDisciplineModal } from '../src/ui/vision/PhysicsDisciplineModal.
 
 // Lightweight DOM Mock for Node.js test environment
 class MockElement {
+  public id: string = '';
   public tagName: string;
   public className: string = '';
   public innerHTML: string = '';
@@ -63,6 +64,12 @@ class MockElement {
     this.eventListeners[event].push(callback);
   }
 
+  removeEventListener(event: string, callback: (e?: any) => void): void {
+    if (this.eventListeners[event]) {
+      this.eventListeners[event] = this.eventListeners[event].filter(cb => cb !== callback);
+    }
+  }
+
   dispatchEvent(event: { type: string }): boolean {
     const list = this.eventListeners[event.type];
     if (list) {
@@ -79,6 +86,9 @@ class MockElement {
       return this.elementCache.get(selector)!;
     }
     const el = new MockElement(selector.startsWith('#canvas') ? 'canvas' : 'div');
+    if (selector.startsWith('#')) {
+      el.id = selector.slice(1);
+    }
     el.className = selector.replace(/^[.#]/, '');
     this.elementCache.set(selector, el);
     return el;
@@ -148,6 +158,26 @@ class MockElement {
 (global as any).document = {
   createElement: (tagName: string) => new MockElement(tagName),
   activeElement: null,
+};
+const mockWindowListeners: Record<string, ((e?: any) => void)[]> = {};
+(global as any).window = {
+  addEventListener: (event: string, callback: (e?: any) => void) => {
+    if (!mockWindowListeners[event]) mockWindowListeners[event] = [];
+    mockWindowListeners[event].push(callback);
+  },
+  removeEventListener: (event: string, callback: (e?: any) => void) => {
+    if (mockWindowListeners[event]) {
+      mockWindowListeners[event] = mockWindowListeners[event].filter(cb => cb !== callback);
+    }
+  },
+  dispatchEvent: (event: { type: string }) => {
+    const list = mockWindowListeners[event.type];
+    if (list) {
+      for (const cb of list) cb(event);
+      return true;
+    }
+    return false;
+  },
 };
 (global as any).requestAnimationFrame = (fn: () => void) => {
   fn();
@@ -694,6 +724,190 @@ console.log('Test 12: Dynamic Multi-Charge & B-Only Magnetic Arrow Kinetics');
   console.log('✓ Test 12 passed: Dynamic multi-charge scaling (max 11), flat-middle curved-ends kinematics, and B-only magnetic arrow kinetics (max 11) verified');
 }
 
+// ================= Test 13: iPad Touch Screen Slider Scrubber & Pointer Lock Invariants =================
+console.log('Test 13: iPad Touch Screen Slider Scrubber & Pointer Lock Invariants');
+{
+  let notifiedB = 0;
+  const card = new HallStatusCard({
+    onMagFieldChange: (b) => { notifiedB = b; },
+  });
+  card.setVisible(true);
+
+  const sliderB = (card as any).sliderB as any;
+  assert.ok(sliderB, 'Slider B element exists');
+
+  // Initial sync
+  card.updateTelemetry({ magFieldTesla: 0.5 });
+  assert.strictEqual(sliderB.value, '0.5');
+
+  sliderB.min = '-2.00';
+  sliderB.max = '2.00';
+  sliderB.step = '0.02';
+
+  // Mock getBoundingClientRect
+  sliderB.getBoundingClientRect = () => ({
+    left: 100,
+    width: 200,
+    top: 50,
+    height: 40,
+    right: 300,
+    bottom: 90,
+  });
+
+  // 1. Simulate iPad Touch / Pointer Down at 75% across the slider (min -2.0, max 2.0 -> ratio 0.75 -> 1.0 T)
+  // clientX = 100 + 200 * 0.75 = 250
+  sliderB.dispatchEvent({
+    type: 'pointerdown',
+    pointerId: 1,
+    pointerType: 'touch',
+    clientX: 250,
+  } as any);
+
+  assert.strictEqual(sliderB.value, '1', 'Touch down at 75% sets value to +1.0T');
+  assert.strictEqual(notifiedB, 1, 'Callback notified of touch change');
+
+  // 2. While finger is down on iPad (activeSliders has slider.id), background telemetry fires at 60 FPS
+  // In the real bug, activeElement on iPad was NOT the slider, causing telemetry to wipe out user touch!
+  card.updateTelemetry({ magFieldTesla: 0.5 });
+  assert.strictEqual(sliderB.value, '1', 'Background telemetry must NOT overwrite slider while touch is active');
+
+  // 3. Pointer move on iPad to 25% (clientX = 150 -> ratio 0.25 -> -1.0 T)
+  sliderB.dispatchEvent({
+    type: 'pointermove',
+    pointerId: 1,
+    pointerType: 'touch',
+    clientX: 150,
+  } as any);
+
+  assert.strictEqual(sliderB.value, '-1', 'Touch move scrubs value smoothly to -1.0T');
+  assert.strictEqual(notifiedB, -1);
+
+  // 4. Pointer up releases the active lock
+  sliderB.dispatchEvent({
+    type: 'pointerup',
+    pointerId: 1,
+    pointerType: 'touch',
+  } as any);
+
+  // 5. Subsequent telemetry updates now sync cleanly
+  card.updateTelemetry({ magFieldTesla: 1.5 });
+  assert.strictEqual(sliderB.value, '1.5', 'After touch release, external telemetry syncs cleanly');
+
+  console.log('✓ Test 13 passed: iPad touch screen slider scrubber & pointer lock invariants verified');
+}
+
+// ================= Test 14: Vision Pro Hand Tracking Continuous Pinch Gesture Dragging & HUD Invariants =================
+console.log('Test 14: Vision Pro Hand Tracking Continuous Pinch Gesture Dragging & HUD Invariants');
+{
+  let notifiedB = 0;
+  const card = new HallStatusCard({
+    onMagFieldChange: (b) => { notifiedB = b; },
+  });
+  card.setVisible(true);
+
+  const sliderB = (card as any).sliderB as any;
+  const drawerEl = (card as any).drawerEl as any;
+  const dragHud = (card as any).dragHud as any;
+  const hudValText = (card as any).hudValText as any;
+  const hudBarFill = (card as any).hudBarFill as any;
+  const drawerValB = (card as any).drawerValB as any;
+  const tokenValB = (card as any).tokenValB as any;
+
+  assert.ok(sliderB, 'Slider B exists');
+  assert.ok(dragHud, 'Drag HUD element exists');
+  assert.ok(hudValText, 'HUD value text element exists');
+
+  sliderB.min = '-2.00';
+  sliderB.max = '2.00';
+  sliderB.step = '0.02';
+
+  sliderB.getBoundingClientRect = () => ({
+    left: 100,
+    width: 200,
+    top: 50,
+    height: 40,
+    right: 300,
+    bottom: 90,
+  });
+
+  if (drawerEl) {
+    drawerEl.getBoundingClientRect = () => ({
+      left: 50,
+      width: 500,
+      top: 30,
+      height: 100,
+      right: 550,
+      bottom: 130,
+    });
+  }
+
+  // 1. Hand tracking right hand pinch start (VisionProCursor dispatches pointerdown with buttons: 1, pointerType: 'mouse')
+  // Cursor pinches at midpoint clientX = 200 (min -2.0, max 2.0 -> 0.00 T)
+  sliderB.dispatchEvent({
+    type: 'pointerdown',
+    pointerType: 'mouse',
+    button: 0,
+    buttons: 1,
+    clientX: 200,
+  } as any);
+
+  assert.ok(sliderB.classList.contains('is-pinching'), 'Slider must gain .is-pinching class on pinch down');
+  assert.strictEqual((card as any).activeSliders.has('slider-hall-b'), true, 'Slider must be registered in activeSliders');
+  assert.strictEqual(sliderB.value, '0', 'Initial pinch down at 50% sets value to 0.00 T');
+  assert.strictEqual(notifiedB, 0, 'Callback notified of pinch down value');
+  assert.strictEqual(dragHud.style.display, 'block', 'HUD bubble must become visible during pinch');
+  assert.strictEqual(dragHud.style.opacity, '1', 'HUD bubble opacity must be 1 during pinch');
+  assert.strictEqual(hudValText.textContent, '+0.00 T', 'HUD value text must show formatted +0.00 T');
+  assert.strictEqual(drawerValB.textContent, '+0.00 T', 'Drawer value must update synchronously');
+  assert.strictEqual(tokenValB.textContent, '+0.0 T', 'Formula token value must update synchronously');
+
+  // 2. Hand tracking continuous pinch drag: user moves hand right in 3D air space (clientX = 260 -> ratio 0.80 -> +1.20 T)
+  // VisionProCursor dispatches pointermove / mousemove with buttons: 1 to window / target
+  (global as any).window.dispatchEvent({
+    type: 'pointermove',
+    clientX: 260,
+  } as any);
+
+  assert.strictEqual(sliderB.value, '1.2', 'Continuous pinch drags value smoothly to +1.20 T');
+  assert.strictEqual(notifiedB, 1.2, 'Callback receives scrubbed value');
+  assert.strictEqual(hudValText.textContent, '+1.20 T', 'HUD updates to +1.20 T');
+  assert.strictEqual(drawerValB.textContent, '+1.20 T', 'Drawer text updates to +1.20 T');
+  assert.strictEqual(hudBarFill.style.width, '80.0%', 'HUD gauge fill reflects 80%');
+
+  // 3. 60 FPS background physics telemetry update must NOT overwrite the slider while pinched
+  card.updateTelemetry({ magFieldTesla: -0.5 });
+  assert.strictEqual(sliderB.value, '1.2', 'Background telemetry must be blocked during continuous pinch');
+
+  // 4. User hand drifts left in air (clientX = 120 -> ratio 0.10 -> -1.60 T)
+  (global as any).window.dispatchEvent({
+    type: 'mousemove',
+    clientX: 120,
+    buttons: 1,
+  } as any);
+
+  assert.strictEqual(sliderB.value, '-1.6', 'Continuous pinch drags value smoothly to -1.60 T');
+  assert.strictEqual(notifiedB, -1.6, 'Callback receives -1.60 T');
+  assert.strictEqual(hudValText.textContent, '-1.60 T', 'HUD updates to -1.60 T');
+  assert.strictEqual(drawerValB.textContent, '-1.60 T', 'Drawer text updates to -1.60 T');
+  assert.strictEqual(hudBarFill.style.width, '10.0%', 'HUD gauge fill reflects 10%');
+
+  // 5. User releases pinch (VisionProCursor dispatches pointerup / mouseup to window / target)
+  (global as any).window.dispatchEvent({
+    type: 'pointerup',
+  } as any);
+
+  assert.strictEqual(sliderB.classList.contains('is-pinching'), false, 'Slider must lose .is-pinching on pinch release');
+  assert.strictEqual((card as any).activeSliders.has('slider-hall-b'), false, 'activeSliders must release slider lock');
+  assert.strictEqual(dragHud.style.display, 'none', 'HUD bubble must hide on pinch release');
+
+  // 6. After release, background telemetry updates sync cleanly again
+  card.updateTelemetry({ magFieldTesla: 0.8 });
+  assert.strictEqual(sliderB.value, '0.8', 'Telemetry syncs smoothly after pinch release');
+
+  console.log('✓ Test 14 passed: Vision Pro continuous pinch gesture dragging, HUD bubble, and active lock verified');
+}
+
 console.log('\n========================================================');
-console.log('All Electromagnetism Hall Effect Tests Passed (12/12)!');
+console.log('All Electromagnetism Hall Effect Tests Passed (14/14)!');
 console.log('========================================================');
+
