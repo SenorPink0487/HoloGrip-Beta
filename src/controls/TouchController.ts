@@ -6,6 +6,10 @@ export class TouchController {
   private joystickBase: HTMLElement | null = null;
   private joystickKnob: HTMLElement | null = null;
   private visionLauncherBtn: HTMLElement | null = null;
+  private elevationControls: HTMLElement | null = null;
+  private elevateUpBtn: HTMLElement | null = null;
+  private elevateDownBtn: HTMLElement | null = null;
+  private uiTouchIds = new Set<number>();
 
   public onToggleVisionModal?: () => void;
 
@@ -43,6 +47,36 @@ export class TouchController {
     }
   }
 
+  public startElevateUp(): void {
+    blurActiveInput(true);
+    if (this.player?.keys) {
+      this.player.keys.up = true;
+    }
+    this.elevateUpBtn?.classList?.add?.('is-pressed');
+  }
+
+  public stopElevateUp(): void {
+    if (this.player?.keys) {
+      this.player.keys.up = false;
+    }
+    this.elevateUpBtn?.classList?.remove?.('is-pressed');
+  }
+
+  public startElevateDown(): void {
+    blurActiveInput(true);
+    if (this.player?.keys) {
+      this.player.keys.down = true;
+    }
+    this.elevateDownBtn?.classList?.add?.('is-pressed');
+  }
+
+  public stopElevateDown(): void {
+    if (this.player?.keys) {
+      this.player.keys.down = false;
+    }
+    this.elevateDownBtn?.classList?.remove?.('is-pressed');
+  }
+
   public setHandTrackingActive(active: boolean): void {
     this.isHandTrackingActive = active;
     const layer = document.getElementById('touch-controls-layer');
@@ -54,6 +88,10 @@ export class TouchController {
     }
 
     if (active) {
+      this.stopElevateUp();
+      this.stopElevateDown();
+      this.uiTouchIds?.clear?.();
+
       if (this.isDraggingJoystick) {
         this.isDraggingJoystick = false;
         this.joystickTouchId = null;
@@ -105,6 +143,21 @@ export class TouchController {
           <div class="vj-knob-ridge"></div>
           <div class="vj-knob-core"></div>
         </div>
+      </div>
+
+      <!-- Bottom-Right (Above Launcher): Apple VisionOS Minimalist Elevation Controls -->
+      <div id="touch-elevation-controls" class="hud-interactive" role="group" aria-label="视角升降">
+        <button id="touch-elevate-up" class="touch-elevate-btn" type="button" aria-label="升高视角" title="升高视角">
+          <svg class="touch-elevate-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="18 15 12 9 6 15"/>
+          </svg>
+        </button>
+        <div class="touch-elevate-divider"></div>
+        <button id="touch-elevate-down" class="touch-elevate-btn" type="button" aria-label="降低视角" title="降低视角">
+          <svg class="touch-elevate-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Bottom-Right: Apple VisionOS Minimalist Spatial Window Capsule Button -->
@@ -281,7 +334,84 @@ export class TouchController {
         box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
       }
 
-      /* ==================== 2. Floating Window Button (Bottom-Right) ==================== */
+      /* ==================== 2. Elevation Up/Down Capsule (Bottom-Right, Above Launcher) ==================== */
+      #touch-elevation-controls {
+        position: absolute;
+        bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+        right: calc(32px + env(safe-area-inset-right, 0px));
+        width: 44px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 0.5px solid rgba(255, 255, 255, 0.2);
+        border-radius: 22px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22),
+                    inset 0 1px 1px rgba(255, 255, 255, 0.25);
+        backdrop-filter: blur(28px) saturate(180%);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+        pointer-events: auto;
+        user-select: none;
+        -webkit-user-select: none;
+        overflow: hidden;
+        opacity: 0.82;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0px);
+        transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+                    filter 0.35s ease,
+                    background 0.2s ease,
+                    border-color 0.2s ease,
+                    box-shadow 0.2s ease;
+        will-change: transform, opacity, filter;
+      }
+
+      .touch-elevate-btn {
+        width: 44px;
+        height: 42px;
+        border: none;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.88);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        outline: none;
+        padding: 0;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+      }
+
+      .touch-elevate-btn:active,
+      .touch-elevate-btn.is-pressed {
+        background: rgba(255, 255, 255, 0.22);
+        color: #ffffff;
+        transform: scale(0.92);
+      }
+
+      .touch-elevate-divider {
+        width: 24px;
+        height: 0.5px;
+        background: rgba(255, 255, 255, 0.18);
+        pointer-events: none;
+      }
+
+      .touch-elevate-icon {
+        flex-shrink: 0;
+        color: currentColor;
+        pointer-events: none;
+        transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .touch-elevate-btn:active .touch-elevate-icon,
+      .touch-elevate-btn.is-pressed .touch-elevate-icon {
+        transform: scale(1.12);
+      }
+
+      /* ==================== 3. Floating Window Button (Bottom-Right) ==================== */
       #touch-vision-launcher {
         position: absolute;
         bottom: calc(32px + env(safe-area-inset-bottom, 0px));
@@ -361,7 +491,7 @@ export class TouchController {
         white-space: nowrap;
       }
 
-      /* ==================== 3. iPad / Large Screen Responsive Scale ==================== */
+      /* ==================== 4. iPad / Large Screen Responsive Scale ==================== */
       @media (pointer: coarse) and (min-width: 768px) {
         #virtual-joystick-base {
           bottom: calc(40px + env(safe-area-inset-bottom, 0px));
@@ -391,6 +521,23 @@ export class TouchController {
           width: 4.5px;
           height: 4.5px;
         }
+        #touch-elevation-controls {
+          bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+          right: calc(40px + env(safe-area-inset-right, 0px));
+          width: 48px;
+          border-radius: 24px;
+        }
+        .touch-elevate-btn {
+          width: 48px;
+          height: 46px;
+        }
+        .touch-elevate-divider {
+          width: 28px;
+        }
+        .touch-elevate-icon {
+          width: 22px;
+          height: 22px;
+        }
         #touch-vision-launcher {
           bottom: calc(40px + env(safe-area-inset-bottom, 0px));
           right: calc(40px + env(safe-area-inset-right, 0px));
@@ -408,11 +555,24 @@ export class TouchController {
         }
       }
 
-      /* ==================== 4. Hand Gesture Recognition Active: Elegant Hide Animation ==================== */
+      /* ==================== 5. Hand Gesture Recognition Active: Elegant Hide Animation ==================== */
       #touch-controls-layer.hand-tracking-active #virtual-joystick-base,
       body.hand-tracking-active #virtual-joystick-base {
         opacity: 0 !important;
         transform: translate3d(-14px, 36px, 0) scale(0.88) !important;
+        filter: blur(10px) !important;
+        pointer-events: none !important;
+        visibility: hidden;
+        transition: opacity 0.36s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                    filter 0.36s ease,
+                    visibility 0s linear 0.4s;
+      }
+
+      #touch-controls-layer.hand-tracking-active #touch-elevation-controls,
+      body.hand-tracking-active #touch-elevation-controls {
+        opacity: 0 !important;
+        transform: translate3d(14px, 36px, 0) scale(0.88) !important;
         filter: blur(10px) !important;
         pointer-events: none !important;
         visibility: hidden;
@@ -442,6 +602,9 @@ export class TouchController {
     this.joystickBase = wrapper.querySelector('#virtual-joystick-base');
     this.joystickKnob = wrapper.querySelector('#virtual-joystick-knob');
     this.visionLauncherBtn = wrapper.querySelector('#touch-vision-launcher');
+    this.elevationControls = wrapper.querySelector('#touch-elevation-controls');
+    this.elevateUpBtn = wrapper.querySelector('#touch-elevate-up');
+    this.elevateDownBtn = wrapper.querySelector('#touch-elevate-down');
   }
 
   private bindEvents(): void {
@@ -499,6 +662,8 @@ export class TouchController {
     const resetJoystick = (e: TouchEvent) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
+        this.uiTouchIds.delete(touch.identifier);
+
         if (touch.identifier === this.joystickTouchId) {
           this.isDraggingJoystick = false;
           this.joystickTouchId = null;
@@ -522,11 +687,18 @@ export class TouchController {
 
       if (e.touches && e.touches.length === 0) {
         this.lookTouchId = null;
+        this.uiTouchIds.clear();
+        this.stopElevateUp();
+        this.stopElevateDown();
       }
     };
 
     window.addEventListener('touchend', resetJoystick);
     window.addEventListener('touchcancel', resetJoystick);
+    window.addEventListener('blur', () => {
+      this.stopElevateUp();
+      this.stopElevateDown();
+    });
 
     // Screen touch look listener on right side / viewport
     window.addEventListener(
@@ -537,7 +709,7 @@ export class TouchController {
         const target = e.target instanceof Element ? e.target : null;
         if (!target) return;
 
-        // Let controls, launcher button, and text fields receive taps without also starting a camera drag.
+        // Let controls, launcher button, elevation buttons, and text fields receive taps without also starting a camera drag.
         if (target.closest('.hud-interactive, button, a, input, textarea, select, [contenteditable="true"]')) {
           return;
         }
@@ -548,9 +720,9 @@ export class TouchController {
         }
 
         // Multi-touch gestures in look area (e.g. 2-finger pinch on iPad) should not trigger camera look.
-        // Filter out the joystick touch so moving with left hand while looking with right hand works seamlessly!
+        // Filter out the joystick touch and UI touches so moving or elevating with one hand while looking works seamlessly!
         const nonJoystickTouches = Array.from(e.touches || []).filter(
-          (t) => t.identifier !== this.joystickTouchId
+          (t) => t.identifier !== this.joystickTouchId && !this.uiTouchIds.has(t.identifier)
         );
         if (nonJoystickTouches.length > 1) {
           this.lookTouchId = null;
@@ -559,7 +731,7 @@ export class TouchController {
 
         for (let i = 0; i < e.changedTouches.length; i++) {
           const touch = e.changedTouches[i];
-          if (touch.identifier === this.joystickTouchId) continue;
+          if (touch.identifier === this.joystickTouchId || this.uiTouchIds.has(touch.identifier)) continue;
 
           // Reserve bottom-left area for joystick movement; allow camera look outside the joystick area
           const isJoystickArea =
@@ -573,6 +745,104 @@ export class TouchController {
       },
       { passive: false }
     );
+
+    // Elevation Up Button (Bottom-Right, Above Launcher)
+    if (this.elevateUpBtn) {
+      this.elevateUpBtn.addEventListener(
+        'touchstart',
+        (e: TouchEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            this.uiTouchIds.add(e.changedTouches[i].identifier);
+          }
+          this.startElevateUp();
+        },
+        { passive: false }
+      );
+
+      this.elevateUpBtn.addEventListener(
+        'touchend',
+        (e: TouchEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            this.uiTouchIds.delete(e.changedTouches[i].identifier);
+          }
+          this.stopElevateUp();
+        },
+        { passive: false }
+      );
+
+      this.elevateUpBtn.addEventListener('touchcancel', (e: TouchEvent) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          this.uiTouchIds.delete(e.changedTouches[i].identifier);
+        }
+        this.stopElevateUp();
+      });
+
+      this.elevateUpBtn.addEventListener('mousedown', (e: MouseEvent) => {
+        e.preventDefault();
+        this.startElevateUp();
+      });
+
+      this.elevateUpBtn.addEventListener('mouseup', () => {
+        this.stopElevateUp();
+      });
+
+      this.elevateUpBtn.addEventListener('mouseleave', () => {
+        this.stopElevateUp();
+      });
+    }
+
+    // Elevation Down Button (Bottom-Right, Above Launcher)
+    if (this.elevateDownBtn) {
+      this.elevateDownBtn.addEventListener(
+        'touchstart',
+        (e: TouchEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            this.uiTouchIds.add(e.changedTouches[i].identifier);
+          }
+          this.startElevateDown();
+        },
+        { passive: false }
+      );
+
+      this.elevateDownBtn.addEventListener(
+        'touchend',
+        (e: TouchEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            this.uiTouchIds.delete(e.changedTouches[i].identifier);
+          }
+          this.stopElevateDown();
+        },
+        { passive: false }
+      );
+
+      this.elevateDownBtn.addEventListener('touchcancel', (e: TouchEvent) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          this.uiTouchIds.delete(e.changedTouches[i].identifier);
+        }
+        this.stopElevateDown();
+      });
+
+      this.elevateDownBtn.addEventListener('mousedown', (e: MouseEvent) => {
+        e.preventDefault();
+        this.startElevateDown();
+      });
+
+      this.elevateDownBtn.addEventListener('mouseup', () => {
+        this.stopElevateDown();
+      });
+
+      this.elevateDownBtn.addEventListener('mouseleave', () => {
+        this.stopElevateDown();
+      });
+    }
 
     // Vision Spatial Window Launcher Button (Bottom-Right)
     if (this.visionLauncherBtn) {
@@ -589,16 +859,25 @@ export class TouchController {
 
       this.visionLauncherBtn.addEventListener('touchstart', (e) => {
         e.stopPropagation();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          this.uiTouchIds.add(e.changedTouches[i].identifier);
+        }
         this.visionLauncherBtn?.classList.add('is-pressed');
       }, { passive: false });
 
       this.visionLauncherBtn.addEventListener('touchend', (e) => {
         e.stopPropagation();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          this.uiTouchIds.delete(e.changedTouches[i].identifier);
+        }
         this.visionLauncherBtn?.classList.remove('is-pressed');
         triggerLauncher(e);
       }, { passive: false });
 
-      this.visionLauncherBtn.addEventListener('touchcancel', () => {
+      this.visionLauncherBtn.addEventListener('touchcancel', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          this.uiTouchIds.delete(e.changedTouches[i].identifier);
+        }
         this.visionLauncherBtn?.classList.remove('is-pressed');
       });
 

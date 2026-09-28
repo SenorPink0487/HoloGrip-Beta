@@ -978,7 +978,99 @@ await (async () => {
   console.log('✓ Test 25 passed: VisionProCursor unified white reticle and dual-pinch invariants verified\n');
 }
 
+// Test 26: Dual-Hand Simultaneous Pinch Scales Floating Spatial Window When Open
+{
+  console.log('Test 26: Dual-Hand Simultaneous Pinch Scales Floating Spatial Window When Open');
+  const engineCode = fs.readFileSync(path.join(rootDir, 'src/core/Engine.ts'), 'utf-8');
+
+  // 1. Verify Engine.ts checks visionModal.visible on dual pinch
+  assert(engineCode.includes('this.visionModal && this.visionModal.visible'), 'Engine must check visionModal.visible on dual pinch');
+  assert(engineCode.includes('initialDualPinchSpatialWindowScale = this.visionModal.scale'), 'Engine must capture spatial window scale on pinch start');
+  assert(engineCode.includes('this.visionModal.setScale(targetScale)'), 'Engine must update visionModal scale on pinch move');
+
+  // 2. Behavioral verification of dual pinch priority routing
+  let visionModalScale = 1.0;
+  let visionModalVisible = true;
+  let stereometryScale = 1.0;
+  let stereometryScaled = false;
+
+  const mockVisionModal = {
+    get visible() {
+      return visionModalVisible;
+    },
+    get scale() {
+      return visionModalScale;
+    },
+    setScale(s: number) {
+      visionModalScale = Math.min(2.0, Math.max(0.5, s));
+    },
+  };
+
+  const mockStereometry = {
+    setScale(s: number) {
+      stereometryScale = s;
+      stereometryScaled = true;
+    },
+  };
+
+  let initialDualPinchSpatialWindowScale = 1.0;
+  let initialDualPinchStereometryScale = 1.0;
+
+  const simulateDualPinch = (event: { state: 'start' | 'move' | 'end'; scaleFactor: number }) => {
+    // Logic identical to Engine.ts
+    if (mockVisionModal && mockVisionModal.visible) {
+      if (event.state === 'start') {
+        initialDualPinchSpatialWindowScale = mockVisionModal.scale;
+      } else if (event.state === 'move') {
+        const targetScale = Math.min(2.0, Math.max(0.5, initialDualPinchSpatialWindowScale * event.scaleFactor));
+        mockVisionModal.setScale(targetScale);
+      }
+      return;
+    }
+
+    if (mockStereometry) {
+      if (event.state === 'start') {
+        initialDualPinchStereometryScale = stereometryScale;
+      } else if (event.state === 'move') {
+        const targetScale = Math.min(3.0, Math.max(0.35, initialDualPinchStereometryScale * event.scaleFactor));
+        mockStereometry.setScale(targetScale);
+      }
+    }
+  };
+
+  // Case A: When floating window is OPEN, dual pinch scales floating window
+  visionModalVisible = true;
+  stereometryScaled = false;
+  simulateDualPinch({ state: 'start', scaleFactor: 1.0 });
+  simulateDualPinch({ state: 'move', scaleFactor: 1.5 });
+  assert.strictEqual(visionModalScale, 1.5, 'Floating window scale must update to 1.5');
+  assert.strictEqual(stereometryScaled, false, 'Stereometry model must NOT scale when floating window is open');
+
+  // Clamping test
+  simulateDualPinch({ state: 'move', scaleFactor: 3.5 });
+  assert.strictEqual(visionModalScale, 2.0, 'Floating window scale must clamp at max 2.0');
+
+  simulateDualPinch({ state: 'move', scaleFactor: 0.2 });
+  assert.strictEqual(visionModalScale, 0.5, 'Floating window scale must clamp at min 0.5');
+
+  // Case B: When floating window is CLOSED, dual pinch falls back to 3D stereometry model
+  visionModalVisible = false;
+  stereometryScaled = false;
+  simulateDualPinch({ state: 'start', scaleFactor: 1.0 });
+  simulateDualPinch({ state: 'move', scaleFactor: 1.8 });
+  assert.strictEqual(stereometryScaled, true, 'Stereometry model must be scaled when floating window is closed');
+  assert.strictEqual(stereometryScale, 1.8, 'Stereometry model scale must update to 1.8');
+
+  // 3. Verify VisionModal.ts multi-touch and gesture bindings
+  const visionModalCode = fs.readFileSync(path.join(rootDir, 'src/ui/vision/VisionModal.ts'), 'utf-8');
+  assert(visionModalCode.includes("addEventListener('touchstart'"), 'VisionModal must listen for touchstart');
+  assert(visionModalCode.includes("addEventListener('touchmove'"), 'VisionModal must listen for touchmove');
+  assert(visionModalCode.includes("addEventListener('gesturechange'"), 'VisionModal must listen for gesturechange');
+
+  console.log('✓ Test 26 passed: Dual-hand simultaneous pinch scales floating window when open verified\n');
+}
+
 console.log('========================================================');
-console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (25/25)!');
+console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (26/26)!');
 console.log('========================================================\n');
 

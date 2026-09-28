@@ -55,6 +55,15 @@ export interface StereometryTelemetryData {
   selectedCutPoints: string[];
   modelScale?: number;
   interactionHint?: string;
+  auxiliaryFaces?: Array<{
+    id: string;
+    labels: string[];
+    faceLabel: string;
+    polygonType: string;
+    area: number;
+    perimeter: number;
+    centroid: [number, number, number];
+  }>;
 }
 
 export default class MathStereometryExperiment extends BaseExperiment {
@@ -385,9 +394,10 @@ export default class MathStereometryExperiment extends BaseExperiment {
   public getStereometryTelemetry(): StereometryTelemetryData {
     const opts = this.mesh.getOptions();
     const segments = this.mesh.getSegments();
+    const auxFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
     const cutPoints = this.interactionManager ? this.interactionManager.getSelectedCutPoints() : [];
     const planeConstant = opts.crossSectionPlane ? opts.crossSectionPlane.constant.toFixed(3) : 'none';
-    const stateKey = `${this.modelType}_${opts.originKeyPointId ?? 'v_0'}_${segments.length}_${cutPoints.length}_${opts.unfoldProgress}_${opts.clippingEnabled}_${planeConstant}_${opts.explodeDistance}_${this.interactionMode}_${this.mesh.getScale()}_${opts.dimensions?.a}_${opts.dimensions?.h}`;
+    const stateKey = `${this.modelType}_${opts.originKeyPointId ?? 'v_0'}_${segments.length}_${auxFaces.length}_${cutPoints.length}_${opts.unfoldProgress}_${opts.clippingEnabled}_${planeConstant}_${opts.explodeDistance}_${this.interactionMode}_${this.mesh.getScale()}_${opts.dimensions?.a}_${opts.dimensions?.h}`;
 
     if (this.cachedTelemetry && stateKey === this.lastTelemetryStateKey) {
       return this.cachedTelemetry;
@@ -481,6 +491,19 @@ export default class MathStereometryExperiment extends BaseExperiment {
       selectedCutPoints: cutPoints.map((p) => p.label),
       modelScale: this.mesh ? this.mesh.getScale() : 1.0,
       interactionHint: this.interactionManager ? this.interactionManager.getInteractionHint() : '',
+      auxiliaryFaces: auxFaces.map((f) => ({
+        id: f.id,
+        labels: f.labels,
+        faceLabel: f.faceLabel,
+        polygonType: f.polygonType,
+        area: Math.round(f.area * 1000) / 1000,
+        perimeter: Math.round(f.perimeter * 1000) / 1000,
+        centroid: [
+          Math.round(f.centroid.x * 1000) / 1000,
+          Math.round(f.centroid.y * 1000) / 1000,
+          Math.round(f.centroid.z * 1000) / 1000,
+        ] as [number, number, number],
+      })),
     };
 
     this.cachedTelemetry = result;

@@ -1560,9 +1560,26 @@ export class Engine {
       }
     });
 
-    // Dual Hand Pinch: Zoom 3D Stereometry Model
+    // Dual Hand Pinch: Zoom Floating Window (if open) or 3D Stereometry Model
     let initialDualPinchStereometryScale = 1.0;
+    let initialDualPinchSpatialWindowScale = 1.0;
     this.handGestureService.onDualPinchZoom((event) => {
+      // 1. If floating spatial window is open, dual-hand pinch scales the floating window
+      if (this.visionModal && this.visionModal.visible) {
+        if (event.state === 'start') {
+          initialDualPinchSpatialWindowScale = this.visionModal.scale;
+        } else if (event.state === 'move') {
+          const targetScale = THREE.MathUtils.clamp(
+            initialDualPinchSpatialWindowScale * event.scaleFactor,
+            0.5,
+            2.0
+          );
+          this.visionModal.setScale(targetScale);
+        }
+        return;
+      }
+
+      // 2. Otherwise (when floating window is closed), zoom 3D Stereometry Model
       if (this.currentExperimentId === 'math-stereometry') {
         const exp = this.holoStage?.activeExperiment as any;
         if (exp) {

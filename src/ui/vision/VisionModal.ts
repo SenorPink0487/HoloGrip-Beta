@@ -198,6 +198,78 @@ export class VisionModal {
     this.element.addEventListener('mousedown', (e) => e.stopPropagation());
     this.element.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
 
+    // Multi-touch pinch-to-zoom for iPad and touch devices
+    let touchInitialDist = 0;
+    let touchInitialScale = 1.0;
+    const activeTouches = new Map<number, { x: number; y: number }>();
+
+    this.element.addEventListener('touchstart', (e: TouchEvent) => {
+      e.stopPropagation();
+      if (!e.changedTouches) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        activeTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }
+      if (activeTouches.size === 2) {
+        const pts = Array.from(activeTouches.values());
+        touchInitialDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        touchInitialScale = this.currentScale;
+      }
+    }, { passive: false });
+
+    this.element.addEventListener('touchmove', (e: TouchEvent) => {
+      e.stopPropagation();
+      if (!e.changedTouches) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (activeTouches.has(t.identifier)) {
+          activeTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
+        }
+      }
+      if (activeTouches.size === 2 && touchInitialDist > 10) {
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        const pts = Array.from(activeTouches.values());
+        const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const factor = currentDist / touchInitialDist;
+        this.setScale(touchInitialScale * factor);
+      }
+    }, { passive: false });
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.stopPropagation();
+      if (e.changedTouches) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          activeTouches.delete(e.changedTouches[i].identifier);
+        }
+      }
+      if (activeTouches.size < 2) {
+        touchInitialDist = 0;
+      }
+    };
+
+    this.element.addEventListener('touchend', handleTouchEnd, { passive: false });
+    this.element.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+    // Safari / iPadOS native GestureEvent
+    let gestureInitialScale = 1.0;
+    this.element.addEventListener('gesturestart', (e: any) => {
+      e.stopPropagation();
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      gestureInitialScale = this.currentScale;
+    });
+
+    this.element.addEventListener('gesturechange', (e: any) => {
+      e.stopPropagation();
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      if (typeof e.scale === 'number') {
+        this.setScale(gestureInitialScale * e.scale);
+      }
+    });
+
+    this.element.addEventListener('gestureend', (e: any) => {
+      e.stopPropagation();
+    });
+
     // Sub-components
     this.disciplineSelector = new DisciplineSelector({
       onSelectChemistry: () => this.switchTab('chemistry'),

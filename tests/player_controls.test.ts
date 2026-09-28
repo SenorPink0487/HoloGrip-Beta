@@ -427,7 +427,94 @@ console.log('=== PlayerController Vertical Elevation Tests ===\n');
   console.log('✓ Test 10 passed: iPad touchscreen camera rotation and dual-touch look verified\n');
 }
 
+// Test 11: iPad perspective elevation button controls (Up/Down) & physics integration verification
+{
+  console.log('Test 11: iPad perspective elevation button controls (Up/Down) & physics integration verification');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { TouchController } = await import('../src/controls/TouchController.ts');
+
+  const touchCode = fs.readFileSync(path.resolve('src/controls/TouchController.ts'), 'utf8');
+
+  // Verify DOM elements and labels
+  assert(touchCode.includes('#touch-elevation-controls'), 'Must define #touch-elevation-controls container');
+  assert(touchCode.includes('#touch-elevate-up'), 'Must define #touch-elevate-up button');
+  assert(touchCode.includes('#touch-elevate-down'), 'Must define #touch-elevate-down button');
+  assert(touchCode.includes('升高视角'), 'Must contain aria-label/title 升高视角');
+  assert(touchCode.includes('降低视角'), 'Must contain aria-label/title 降低视角');
+
+  // Verify iPad responsive styling
+  assert(
+    touchCode.includes('#touch-elevation-controls') && touchCode.includes('border-radius: 24px'),
+    'iPad elevation controls must scale with 24px border radius capsule'
+  );
+  assert(
+    touchCode.includes('.touch-elevate-btn') && touchCode.includes('height: 46px'),
+    'iPad elevation buttons must provide adequate touch target height'
+  );
+
+  // Verify hand tracking hide rule
+  assert(
+    touchCode.includes('.hand-tracking-active #touch-elevation-controls'),
+    'Elevation controls must have elegant hide animation when hand tracking is active'
+  );
+
+  // Functional verification of elevation methods
+  const mockCam = new THREE.PerspectiveCamera();
+  const mockDom = { addEventListener: () => {}, removeEventListener: () => {} };
+  const player = new PlayerController(mockCam, mockDom as any);
+  const initialElevation = mockCam.position.y;
+
+  const mockUpBtn: any = { classList: { add: () => {}, remove: () => {} } };
+  const mockDownBtn: any = { classList: { add: () => {}, remove: () => {} } };
+
+  const dummyTouch: any = Object.create(TouchController.prototype);
+  dummyTouch.player = player;
+  dummyTouch.elevateUpBtn = mockUpBtn;
+  dummyTouch.elevateDownBtn = mockDownBtn;
+  dummyTouch.uiTouchIds = new Set();
+
+  // 1. Trigger Ascend (Elevate Up)
+  assert.strictEqual(player.keys.up, false, 'keys.up must be false initially');
+  dummyTouch.startElevateUp();
+  assert.strictEqual(player.keys.up, true, 'keys.up must be true after startElevateUp');
+
+  for (let i = 0; i < 15; i++) {
+    player.update(0.016);
+  }
+  assert(mockCam.position.y > initialElevation, 'Camera Y must have ascended');
+
+  // Release Ascend
+  dummyTouch.stopElevateUp();
+  assert.strictEqual(player.keys.up, false, 'keys.up must be false after stopElevateUp');
+
+  // Wait for damping
+  for (let i = 0; i < 60; i++) {
+    player.update(0.016);
+  }
+  assert(Math.abs(player.velocity.y) < 1e-3, 'Vertical velocity must damp to zero');
+
+  const elevatedY = mockCam.position.y;
+
+  // 2. Trigger Descend (Elevate Down)
+  assert.strictEqual(player.keys.down, false, 'keys.down must be false initially');
+  dummyTouch.startElevateDown();
+  assert.strictEqual(player.keys.down, true, 'keys.down must be true after startElevateDown');
+
+  for (let i = 0; i < 15; i++) {
+    player.update(0.016);
+  }
+  assert(mockCam.position.y < elevatedY, 'Camera Y must have descended');
+
+  // Release Descend
+  dummyTouch.stopElevateDown();
+  assert.strictEqual(player.keys.down, false, 'keys.down must be false after stopElevateDown');
+
+  console.log('✓ Test 11 passed: iPad perspective elevation button controls and physics verified\n');
+}
+
 console.log('========================================================');
-console.log('All PlayerController & Touch Interaction Tests Passed (10/10)!');
+console.log('All PlayerController & Touch Interaction Tests Passed (11/11)!');
 console.log('========================================================\n');
+
 

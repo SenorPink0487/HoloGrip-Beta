@@ -7,6 +7,9 @@ import {
   type CrossSectionResult,
   type SphereAnalysisResult,
 } from './GeometrySolver.ts';
+import { AuxiliaryFaceSolver, type AuxiliaryFace } from './AuxiliaryFaceSolver.ts';
+
+export type { AuxiliaryFace };
 
 export interface StereometryDisplayOptions {
   modelType: HighSchoolModelType;
@@ -61,6 +64,8 @@ export class StereometryMesh {
   private previewSegmentGroup = new THREE.Group();
   private segmentAnimGroup = new THREE.Group();
   private auxGroup = new THREE.Group();
+  private auxFacesGroup = new THREE.Group();
+  private auxiliaryFaces: AuxiliaryFace[] = [];
   private hitEnvelopeMesh: THREE.Mesh | null = null;
   private modelScale = 1.0;
 
@@ -413,6 +418,8 @@ export class StereometryMesh {
     this.modelContainer.add(this.segmentAnimGroup);
     this.auxGroup.name = 'auxEdges';
     this.modelContainer.add(this.auxGroup);
+    this.auxFacesGroup.name = 'auxFaces';
+    this.modelContainer.add(this.auxFacesGroup);
 
     // Invisible interaction hit envelope for effortless direct drag-rotation
     const hitGeo = new THREE.SphereGeometry(0.75, 16, 16);
@@ -741,6 +748,8 @@ export class StereometryMesh {
     this.clearGroup(this.unfoldGroup);
     this.clearGroup(this.threeViewsGroup);
     this.clearGroup(this.auxGroup);
+    this.clearGroup(this.auxFacesGroup);
+    this.auxiliaryFaces = [];
     this.keyPointMeshes.clear();
     this.unfoldingFaceGroups = [];
     this.solidEdgesMesh = null;
@@ -1263,11 +1272,21 @@ export class StereometryMesh {
     this.drawnSegments = [];
     this.clearGroup(this.segmentAnimGroup);
     this.activeSegmentAnimations = [];
+    this.auxiliaryFaces = [];
+    this.clearGroup(this.auxFacesGroup);
     this.rebuildSegments();
   }
 
   public getSegments(): DrawnSegment[] {
     return [...this.drawnSegments];
+  }
+
+  public getAuxiliaryFaces(): AuxiliaryFace[] {
+    return [...this.auxiliaryFaces];
+  }
+
+  public getAuxFacesGroup(): THREE.Group {
+    return this.auxFacesGroup;
   }
 
   private rebuildSegments(): void {
@@ -1297,6 +1316,135 @@ export class StereometryMesh {
       pipe.renderOrder = 5;
       this.segmentsGroup.add(pipe);
     }
+
+    this.rebuildAuxiliaryFaces();
+  }
+
+  private rebuildAuxiliaryFaces(): void {
+    this.clearGroup(this.auxFacesGroup);
+    this.auxiliaryFaces = AuxiliaryFaceSolver.findAuxiliaryFaces(
+      this.drawnSegments,
+      this.currentModelDef.keyPoints
+    );
+
+    if (this.auxiliaryFaces.length === 0) return;
+
+    for (const face of this.auxiliaryFaces) {
+      const verts = face.vertices3D;
+      if (!verts || verts.length < 3) continue;
+
+      // 1. Semi-transparent crystal glass polygon surface (Double-sided)
+      const fillPositions: number[] = [];
+      const centroid = face.centroid;
+      for (let i = 0; i < verts.length; i++) {
+        const p1 = verts[i];
+        const p2 = verts[(i + 1) % verts.length];
+        fillPositions.push(centroid.x, centroid.y, centroid.z);
+        fillPositions.push(p1.x, p1.y, p1.z);
+        fillPositions.push(p2.x, p2.y, p2.z);
+      }
+
+      const fillGeo = new THREE.BufferGeometry();
+      fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fillPositions, 3));
+      fillGeo.computeVertexNormals();
+
+      const faceMat = new THREE.MeshPhysicalMaterial({
+        color: face.color ?? 0x0284c7,
+        emissive: face.color ?? 0x0284c7,
+        emissiveIntensity: 0.22,
+        roughness: 0.15,
+        metalness: 0.1,
+        transmission: 0.55,
+        ior: 1.45,
+        transparent: true,
+        opacity: 0.38,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+
+      const faceMesh = new THREE.Mesh(fillGeo, faceMat);
+      faceMesh.name = `aux_face_${face.id}`;
+      faceMesh.renderOrder = 4;
+      this.auxFacesGroup.add(faceMesh);
+
+      // 2. Glowing boundary contour line loop
+      const contourPositions: number[] = [];
+      for (const v of verts) {
+        contourPositions.push(v.x, v.y, v.z);
+      }
+      const contourGeo = new THREE.BufferGeometry();
+      contourGeo.setAttribute('position', new THREE.Float32BufferAttribute(contourPositions, 3));
+      const contourMat = new THREE.LineBasicMaterial({
+        color: 0x38bdf8,
+        linewidth: 2,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false,
+      });
+      const contourLoop = new THREE.LineLoop(contourGeo, contourMat);
+      contourLoop.name = `aux_face_contour_${face.id}`;
+      contourLoop.renderOrder = 6;
+      this.auxFacesGroup.add(contourLoop);
+
+      // 3. Floating centroid label badge sprite
+      const badgeSprite = this.createFaceBadgeSprite(
+        face.faceLabel,
+        `${face.polygonType} · S=${face.area.toFixed(3)}m²`
+      );
+      const badgePos = face.centroid.clone().addScaledVector(face.normal, 0.015);
+      badgeSprite.position.copy(badgePos);
+      badgeSprite.name = `aux_face_badge_${face.id}`;
+      this.auxFacesGroup.add(badgeSprite);
+    }
+  }
+
+  private createFaceBadgeSprite(title: string, subtitle?: string): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 384;
+    canvas.height = 128;
+    const ctx = typeof (canvas as any).getContext === 'function' ? (canvas as any).getContext('2d') : null;
+    if (ctx) {
+      // Rounded pill background
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.82)';
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(16, 16, 352, 96, 48);
+      } else if (typeof ctx.rect === 'function') {
+        ctx.rect(16, 16, 352, 96);
+      } else if (typeof ctx.fillRect === 'function') {
+        ctx.fillRect(16, 16, 352, 96);
+      }
+      if (typeof ctx.fill === 'function') {
+        ctx.fill();
+      }
+
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+      ctx.stroke();
+
+      ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText(title, 192, subtitle ? 48 : 64);
+
+      if (subtitle) {
+        ctx.font = '500 24px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillText(subtitle, 192, 84);
+      }
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    const spriteMat = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(0.12, 0.04, 1);
+    sprite.renderOrder = 9;
+    return sprite;
   }
 
   // -------------------------------------------------------------
@@ -2154,6 +2302,8 @@ export class StereometryMesh {
     this.clearGroup(this.group);
     this.clearGroup(this.modelContainer);
     this.clearGroup(this.stagePresentationGroup);
+    this.clearGroup(this.auxFacesGroup);
+    this.auxiliaryFaces = [];
     this.sharedVertexGeo.dispose();
     this.sharedMidpointGeo.dispose();
     this.sharedThirdGeo.dispose();

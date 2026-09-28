@@ -230,7 +230,7 @@ export class StereometryTouchZoomWidget {
 
     const setupBtn = (el: HTMLElement | null, action: () => void) => {
       if (!el) return;
-      let lastTrigger = 0;
+      let lastTrigger = -Infinity;
 
       const trigger = (e?: Event) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();

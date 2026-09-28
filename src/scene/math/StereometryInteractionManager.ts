@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { StereometryMesh } from './StereometryMesh.ts';
 import { GeometrySolver, type KeyPoint } from './GeometrySolver.ts';
+import type { AuxiliaryFace } from './AuxiliaryFaceSolver.ts';
 import type { ExperimentContext } from '../../core/types.ts';
 
 export type InteractionMode =
@@ -15,6 +16,8 @@ export interface StereometryInteractionCallbacks {
   onKeyPointHover?: (point: KeyPoint | null, snapLabel?: string) => void;
   onSegmentCreated?: (segLabel: string, length: number) => void;
   onSegmentRemoved?: (segLabel: string, length: number) => void;
+  onAuxiliaryFaceCreated?: (face: AuxiliaryFace) => void;
+  onAuxiliaryFaceRemoved?: (faceId: string) => void;
   onCrossSectionCreated?: (type: string, area: number) => void;
   onOriginChanged?: (point: KeyPoint) => void;
   onScaleChange?: (scale: number) => void;
@@ -81,10 +84,18 @@ export class StereometryInteractionManager {
   }
 
   public undoLastSegment(): any {
+    const prevFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
     const seg = this.mesh.undoLastSegment();
     if (seg) {
+      const newFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
       this.callbacks.onSegmentRemoved?.(seg.label, seg.length);
-      this.callbacks.onGuidanceChange?.(`已撤销辅助线 ${seg.label}`, 'warn');
+      if (prevFaces.length > newFaces.length) {
+        const removedFace = prevFaces.find((pf) => !newFaces.some((nf) => nf.id === pf.id)) || prevFaces[prevFaces.length - 1];
+        this.callbacks.onAuxiliaryFaceRemoved?.(removedFace.id);
+        this.callbacks.onGuidanceChange?.(`已撤销辅助线 ${seg.label}，并移除关联辅助面 ${removedFace.faceLabel}`, 'warn');
+      } else {
+        this.callbacks.onGuidanceChange?.(`已撤销辅助线 ${seg.label}`, 'warn');
+      }
     }
     return seg;
   }
@@ -94,7 +105,7 @@ export class StereometryInteractionManager {
     this.mesh.clearAllSegments();
     this.mesh.setOptions({ crossSectionPlane: undefined, clippingEnabled: false });
     this.callbacks.onClearSegments?.();
-    this.callbacks.onGuidanceChange?.('已清空所有辅助线', 'warn');
+    this.callbacks.onGuidanceChange?.('已清空所有辅助线与辅助面', 'warn');
   }
 
   /**
@@ -466,10 +477,21 @@ export class StereometryInteractionManager {
    * Create line segment between two keypoints.
    */
   private connectTwoPoints(p1: KeyPoint, p2: KeyPoint): void {
+    const prevFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
     const seg = this.mesh.addSegment(p1.id, p2.id);
     if (seg) {
       this.callbacks.onSegmentCreated?.(seg.label, seg.length);
-      this.callbacks.onGuidanceChange?.(`成功生成辅助线 ${seg.label} (长 ${seg.length.toFixed(3)}m)`, 'success');
+      const newFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
+      if (newFaces.length > prevFaces.length) {
+        const latestFace = newFaces[newFaces.length - 1];
+        this.callbacks.onAuxiliaryFaceCreated?.(latestFace);
+        this.callbacks.onGuidanceChange?.(
+          `已闭合生成辅助面: ${latestFace.faceLabel} (${latestFace.polygonType}, 面积: ${latestFace.area.toFixed(3)}m²)`,
+          'success'
+        );
+      } else {
+        this.callbacks.onGuidanceChange?.(`成功生成辅助线 ${seg.label} (长 ${seg.length.toFixed(3)}m)`, 'success');
+      }
     }
   }
 

@@ -12,6 +12,8 @@ import {
 import {
   StereometryMesh,
 } from '../src/scene/math/StereometryMesh.ts';
+import { StereometryInteractionManager } from '../src/scene/math/StereometryInteractionManager.ts';
+import { AuxiliaryFaceSolver, type AuxiliaryFace } from '../src/scene/math/AuxiliaryFaceSolver.ts';
 import MathStereometryExperiment from '../src/experiments/catalog/math-stereometry/index.ts';
 import {
   StereometryStatusCard,
@@ -66,6 +68,8 @@ class MockElement {
       clearRect: () => {},
       fillRect: () => {},
       strokeRect: () => {},
+      rect: () => {},
+      roundRect: () => {},
       fillText: () => {},
       strokeText: () => {},
       beginPath: () => {},
@@ -1183,8 +1187,185 @@ assert.strictEqual(dualExp.getScale(), 1.0, 'resetScale must restore scale to 1.
 dualExp.dispose(mockContext);
 console.log('✓ Test 23 passed: Hand gesture dual-pinch 3D stereometry scaling & clamping verified\n');
 
+// -------------------------------------------------------------
+// Test 24: Automatic Planar Triangle Face Generation when Auxiliary Lines Connect
+// -------------------------------------------------------------
+console.log('Test 24: Automatic Planar Triangle Face Generation when Auxiliary Lines Connect');
+const faceMesh = new StereometryMesh();
+faceMesh.setOptions({ modelType: 'cube' });
+
+// In cube: v_0 (A), v_1 (B), v_2 (C), v_3 (D), v_4 (A1), v_5 (B1), v_6 (C1), v_7 (D1)
+// Connect 2 segments: A-B and B-C. No closed loop yet.
+faceMesh.addSegment('v_0', 'v_1');
+faceMesh.addSegment('v_1', 'v_2');
+assert.strictEqual(faceMesh.getAuxiliaryFaces().length, 0, '2 open line segments must not produce an auxiliary face');
+
+// Connect 3rd segment: C-A. Closes triangle ABC!
+faceMesh.addSegment('v_2', 'v_0');
+const facesT24 = faceMesh.getAuxiliaryFaces();
+assert.strictEqual(facesT24.length, 1, 'Closing 3 lines must automatically generate 1 auxiliary face');
+
+const faceABC = facesT24[0];
+assert.strictEqual(faceABC.pointIds.length, 3, 'Face must have 3 vertices');
+assert.strictEqual(faceABC.polygonType, '等腰直角三角形', 'Right triangle ABC on cube face must be classified as 等腰直角三角形');
+assert(faceABC.faceLabel.includes('A') && faceABC.faceLabel.includes('B') && faceABC.faceLabel.includes('C'), 'Face label must contain vertices A, B, C');
+
+// Area of right triangle ABC with side a=0.58: 0.5 * 0.58 * 0.58 = 0.1682
+const expectedArea = 0.5 * 0.58 * 0.58;
+assert(Math.abs(faceABC.area - expectedArea) < 1e-3, `Face area (${faceABC.area}) must match expected (${expectedArea})`);
+
+// Normal should be parallel to Y-axis (coplanar with XZ plane)
+assert(Math.abs(Math.abs(faceABC.normal.y) - 1.0) < 1e-4, 'Face normal must align with Y axis');
+
+// Verify THREE.js scene graph meshes in auxFacesGroup
+const auxGroupChildren = faceMesh.getAuxFacesGroup().children;
+assert(auxGroupChildren.length >= 3, 'auxFacesGroup must contain surface mesh, contour line loop, and badge sprite');
+const surfaceMesh = auxGroupChildren.find((c) => c.name.startsWith('aux_face_') && !c.name.includes('contour') && !c.name.includes('badge'));
+const contourMesh = auxGroupChildren.find((c) => c.name.startsWith('aux_face_contour_'));
+const faceBadgeSprite = auxGroupChildren.find((c) => c.name.startsWith('aux_face_badge_'));
+assert(surfaceMesh instanceof THREE.Mesh, 'Surface mesh must be present');
+assert(contourMesh instanceof THREE.LineLoop, 'Contour loop must be present');
+assert(faceBadgeSprite instanceof THREE.Sprite, 'Centroid badge sprite must be present');
+
+faceMesh.dispose();
+console.log('✓ Test 24 passed: Automatic planar triangle face generation when auxiliary lines connect verified\n');
+
+// -------------------------------------------------------------
+// Test 25: Quadrilateral Face & Diagonal Auxiliary Line Chordless Subdivision
+// -------------------------------------------------------------
+console.log('Test 25: Quadrilateral Face & Diagonal Auxiliary Line Chordless Subdivision');
+const quadMesh = new StereometryMesh();
+quadMesh.setOptions({ modelType: 'cube' });
+
+// Connect a 4-vertex planar cycle on the bottom base: A -> B -> C -> D -> A
+quadMesh.addSegment('v_0', 'v_1'); // A-B
+quadMesh.addSegment('v_1', 'v_2'); // B-C
+quadMesh.addSegment('v_2', 'v_3'); // C-D
+quadMesh.addSegment('v_3', 'v_0'); // D-A
+
+const quadFaces = quadMesh.getAuxiliaryFaces();
+assert.strictEqual(quadFaces.length, 1, '4 coplanar segments forming a closed loop must generate 1 quadrilateral face');
+assert.strictEqual(quadFaces[0].polygonType, '正方形', 'Cube base quad ABCD must be recognized as 正方形');
+const quadArea = quadFaces[0].area;
+assert(Math.abs(quadArea - 0.58 * 0.58) < 1e-3, 'Square area must equal 0.58^2');
+
+// Now draw diagonal AC ('v_0' to 'v_2').
+// The outer 4-vertex cycle now contains chord AC, so chordless cycle filter must
+// discard the composite quad and replace it with the two minimal triangles: ABC and CDA!
+quadMesh.addSegment('v_0', 'v_2'); // diagonal AC
+const splitFaces = quadMesh.getAuxiliaryFaces();
+assert.strictEqual(splitFaces.length, 2, 'Adding diagonal line must subdivide quadrilateral into 2 minimal triangles without composite quad overlap');
+
+const sumTriangleAreas = splitFaces[0].area + splitFaces[1].area;
+assert(Math.abs(sumTriangleAreas - quadArea) < 1e-3, 'Sum of subdivided triangle areas must equal original quad area');
+assert.strictEqual(splitFaces[0].polygonType, '等腰直角三角形');
+assert.strictEqual(splitFaces[1].polygonType, '等腰直角三角形');
+
+// Test undoing the diagonal line restores the single quad face
+quadMesh.undoLastSegment();
+const restoredFaces = quadMesh.getAuxiliaryFaces();
+assert.strictEqual(restoredFaces.length, 1, 'Undoing diagonal line must restore the single quad face');
+assert.strictEqual(restoredFaces[0].polygonType, '正方形', 'Restored face must be 正方形');
+
+quadMesh.dispose();
+console.log('✓ Test 25 passed: Quadrilateral face & diagonal chordless subdivision verified\n');
+
+// -------------------------------------------------------------
+// Test 26: Skew Non-Planar Cycle Rejection & Interaction Guidance Lifecycle
+// -------------------------------------------------------------
+console.log('Test 26: Skew Non-Planar Cycle Rejection & Interaction Guidance Lifecycle');
+const skewMesh = new StereometryMesh();
+skewMesh.setOptions({ modelType: 'cube' });
+
+// Connect a non-coplanar 4-vertex cycle:
+// A (v_0), B (v_1), C (v_2) all have y=0.
+// D1 (v_7) has y=h=0.58, x=0, z=0.58.
+// Loop: A -> B -> C -> D1 -> A
+// D1 is not in the plane of ABC, so this 4-gon is twisted/non-planar (skew cycle).
+skewMesh.addSegment('v_0', 'v_1'); // A-B
+skewMesh.addSegment('v_1', 'v_2'); // B-C
+skewMesh.addSegment('v_2', 'v_7'); // C-D1
+skewMesh.addSegment('v_7', 'v_0'); // D1-A
+
+const skewFaces = skewMesh.getAuxiliaryFaces();
+assert.strictEqual(skewFaces.length, 0, 'Skew non-planar auxiliary line loops must be strictly rejected from forming faces');
+
+// Verify StereometryInteractionManager guidance events and telemetry
+let lastGuidance = '';
+let faceCreatedCount = 0;
+let faceRemovedCount = 0;
+
+const managerMesh = new StereometryMesh();
+managerMesh.setOptions({ modelType: 'cube' });
+const manager = new StereometryInteractionManager(managerMesh, {
+  onGuidanceChange: (hint) => {
+    lastGuidance = hint;
+  },
+  onAuxiliaryFaceCreated: (face) => {
+    faceCreatedCount++;
+  },
+  onAuxiliaryFaceRemoved: (faceId) => {
+    faceRemovedCount++;
+  },
+});
+
+// Step 1: Connect 3 vertices using manager ray snapping simulation
+const kpA = managerMesh.getModelDef().keyPoints.find((k) => k.id === 'v_0')!;
+const kpB = managerMesh.getModelDef().keyPoints.find((k) => k.id === 'v_1')!;
+const kpC = managerMesh.getModelDef().keyPoints.find((k) => k.id === 'v_2')!;
+
+// Connect A to B
+(manager as any).connectTwoPoints(kpA, kpB);
+assert.strictEqual(faceCreatedCount, 0);
+
+// Connect B to C
+(manager as any).connectTwoPoints(kpB, kpC);
+assert.strictEqual(faceCreatedCount, 0);
+
+// Connect C to A -> triggers closed auxiliary face
+(manager as any).connectTwoPoints(kpC, kpA);
+assert.strictEqual(faceCreatedCount, 1, 'onAuxiliaryFaceCreated must be triggered exactly once');
+assert(lastGuidance.includes('已闭合生成辅助面'), `Guidance must announce face creation, got: ${lastGuidance}`);
+assert(lastGuidance.includes('等腰直角三角形'), `Guidance must include polygon type, got: ${lastGuidance}`);
+
+// Step 2: Undo the last line -> disbands the face
+manager.undoLastSegment();
+assert.strictEqual(faceRemovedCount, 1, 'onAuxiliaryFaceRemoved must be triggered when segment disbanding face is undone');
+assert(lastGuidance.includes('移除关联辅助面'), `Guidance must announce face removal, got: ${lastGuidance}`);
+assert.strictEqual(managerMesh.getAuxiliaryFaces().length, 0, 'Auxiliary faces must be empty after undo');
+
+// Step 3: Re-create face and test clearAll()
+(manager as any).connectTwoPoints(kpC, kpA);
+assert.strictEqual(managerMesh.getAuxiliaryFaces().length, 1);
+manager.clearAll();
+assert.strictEqual(managerMesh.getAuxiliaryFaces().length, 0, 'clearAll must clear auxiliary faces');
+assert.strictEqual(managerMesh.getAuxFacesGroup().children.length, 0, 'clearAll must empty auxFacesGroup children');
+assert(lastGuidance.includes('已清空所有辅助线与辅助面'), `Guidance must announce clearing all lines and faces, got: ${lastGuidance}`);
+
+// Step 4: Verify Experiment Telemetry includes auxiliaryFaces
+const expT26 = new MathStereometryExperiment();
+expT26.init(mockContext);
+expT26.mount(mockContext);
+
+const expMesh = (expT26 as any).mesh as StereometryMesh;
+expMesh.addSegment('v_0', 'v_1');
+expMesh.addSegment('v_1', 'v_2');
+expMesh.addSegment('v_2', 'v_0');
+
+const telemFaces = expT26.getStereometryTelemetry().auxiliaryFaces;
+assert(Array.isArray(telemFaces), 'Telemetry auxiliaryFaces must be an array');
+assert.strictEqual(telemFaces.length, 1, 'Telemetry auxiliaryFaces must contain 1 face');
+assert.strictEqual(telemFaces[0].polygonType, '等腰直角三角形');
+assert(telemFaces[0].area > 0, 'Telemetry area must be positive');
+assert(Array.isArray(telemFaces[0].centroid) && telemFaces[0].centroid.length === 3, 'Centroid must be 3-tuple');
+
+expT26.dispose(mockContext);
+skewMesh.dispose();
+managerMesh.dispose();
+console.log('✓ Test 26 passed: Skew non-planar cycle rejection & interaction guidance lifecycle verified\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (23/23)!');
+console.log('All High School Stereometry Tests Passed Successfully (26/26)!');
 console.log('========================================================');
 
 

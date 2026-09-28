@@ -102,3 +102,28 @@
 - **Worker 任务**：`EM_FIELD_STEP`（毕奥-萨伐尔定律 3D 网格矢量场积分计算）；
 - **内存协议**：三维网格矢量磁感应强度 `bField: Float32Array`；
 - **渲染落地**：带方向箭头的场线切片或体积流线粒子渲染。
+
+---
+
+## iPad 版本发布与安装规范
+
+每次交付 iPad 版本，都必须生成可独立运行的 iPadOS Release 应用，并安装到用户的 iPad 上核对版本和启动状态。不得把 Vite 开发服务器、热更新页面或 localhost API 当作交付物。
+
+### 构建要求
+
+- 前端必须使用 `npm run build:ios`，该脚本以 `ios-production` 模式构建，并使用 `.env.ios-production` 中的生产 API 配置。部署版 API 为 `https://hologrip.cn/account-service`；DeepSeek 等服务密钥只放在后端环境变量中，不打入 App。
+- 原生应用必须使用 Tauri iOS `release` 配置，目标架构为设备 `aarch64`，生成 `.ipa`。直接安装到已登记的 iPad 时使用 `--export-method debugging` 和对应设备的 Apple 开发签名；这表示签名/分发方式，不代表使用 Debug 编译。
+- 调用 Tauri 构建时，将 `beforeBuildCommand` 覆盖为 `npm run build:ios`，避免默认桌面构建脚本额外运行性能测试：
+  ```sh
+  npx tauri ios build --target aarch64 --export-method debugging --build-number <递增构建号> --ci \
+    --config '{"version":"<递增版本号>","build":{"beforeBuildCommand":"npm run build:ios"}}'
+  ```
+- 每次交付都要递增应用版本号和构建号，检查 IPA 内的 `CFBundleShortVersionString`、`CFBundleVersion` 与 `com.virtuallab.app` Bundle ID，避免设备继续显示旧版本。
+- 交付的 IPA 应保存在 `src-tauri/gen/apple/build/arm64/HoloGrip.ipa`，并在完成后提供可下载文件链接。
+
+### 安装与交付核对
+
+- 将生成的 IPA 解包后，把其中的 `Payload/HoloGrip.app` 安装到用户已连接且已登记签名配置的 iPad；不得只构建 IPA 后就宣称部署完成。
+- 安装后从设备启动 `com.virtuallab.app`，并用设备应用信息确认显示版本和构建号与本次产物相符。
+- 核对生产 API 地址已进入前端构建产物，必要时请求健康检查和关键 API，确认线上服务可用。
+- 直接设备安装使用开发签名时，说明该 IPA 面向已登记设备安装；若用户要求 TestFlight 或 App Store 发布，需改用相应 Apple 分发签名与发布配置。
