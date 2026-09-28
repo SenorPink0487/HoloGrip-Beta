@@ -1,3 +1,5 @@
+import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
+
 export interface ConductionTelemetryData {
   heatSourceTemp: number; // K
   coldSourceTemp: number; // K
@@ -64,6 +66,7 @@ export class ConductionStatusCard {
   private sliderTempC: HTMLInputElement | null = null;
   private sliderProbe: HTMLInputElement | null = null;
   private selectMaterial: HTMLSelectElement | null = null;
+  private activeSliders = new Set<string>();
   private btnInsulation: HTMLButtonElement | null = null;
   private lastChartRenderTime = 0;
   private lastRenderedNormX = -1;
@@ -202,19 +205,28 @@ export class ConductionStatusCard {
   }
 
   private bindEvents(): void {
-    this.sliderTempH?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      this.callbacks.onHeatSourceTempChange?.(val);
+    bindVisionSlider(this.sliderTempH, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.callbacks.onHeatSourceTempChange?.(val),
+      onScrub: (val) => {
+        if (this.valTempHEl) this.valTempHEl.textContent = `${Math.round(val)} K`;
+      },
     });
 
-    this.sliderTempC?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      this.callbacks.onColdSourceTempChange?.(val);
+    bindVisionSlider(this.sliderTempC, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.callbacks.onColdSourceTempChange?.(val),
+      onScrub: (val) => {
+        if (this.valTempCEl) this.valTempCEl.textContent = `${Math.round(val)} K`;
+      },
     });
 
-    this.sliderProbe?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      this.callbacks.onProbePositionChange?.(val);
+    bindVisionSlider(this.sliderProbe, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.callbacks.onProbePositionChange?.(val),
+      onScrub: (val) => {
+        if (this.valProbeEl) this.valProbeEl.textContent = `${(val * 100).toFixed(0)}%`;
+      },
     });
 
     this.selectMaterial?.addEventListener('change', () => {
@@ -272,13 +284,13 @@ export class ConductionStatusCard {
       this.btnInsulation.classList.toggle('active', data.lateralInsulation);
     }
 
-    if (this.sliderTempH && document.activeElement !== this.sliderTempH) {
+    if (this.sliderTempH && !isSliderActive(this.sliderTempH, this.activeSliders)) {
       this.sliderTempH.value = String(data.heatSourceTemp);
     }
-    if (this.sliderTempC && document.activeElement !== this.sliderTempC) {
+    if (this.sliderTempC && !isSliderActive(this.sliderTempC, this.activeSliders)) {
       this.sliderTempC.value = String(data.coldSourceTemp);
     }
-    if (this.sliderProbe && document.activeElement !== this.sliderProbe) {
+    if (this.sliderProbe && !isSliderActive(this.sliderProbe, this.activeSliders)) {
       this.sliderProbe.value = String(data.probePositionNorm);
     }
     if (this.selectMaterial && document.activeElement !== this.selectMaterial) {

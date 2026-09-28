@@ -1,3 +1,5 @@
+import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
+
 export interface InductionTelemetry {
   axial: number;
   velocity: number;
@@ -32,6 +34,7 @@ export class InductionStatusCard {
   private isVisible = false;
   private data: InductionTelemetry | null = null;
   private canvas: HTMLCanvasElement | null = null;
+  private activeSliders = new Set<string>();
 
   constructor(onCommand: (cmd: InductionCommand) => void = () => {}) {
     this.onCommand = onCommand;
@@ -189,23 +192,39 @@ export class InductionStatusCard {
 
   private setSlider(selector: string, value: number): void {
     const slider = this.element.querySelector(selector) as HTMLInputElement | null;
-    if (!slider || document.activeElement === slider) return;
+    if (!slider || isSliderActive(slider, this.activeSliders)) return;
     slider.value = String(value);
   }
 
   private bind(): void {
-    this.element.querySelector('#ind-axial')?.addEventListener('input', (event) => {
-      this.onCommand({ type: 'axial', axial: parseFloat((event.target as HTMLInputElement).value) });
+    const axialSlider = this.element.querySelector('#ind-axial') as HTMLInputElement | null;
+    bindVisionSlider(axialSlider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.onCommand({ type: 'axial', axial: val }),
     });
-    this.element.querySelector('#ind-probe-slider')?.addEventListener('input', (event) => {
-      this.onCommand({ type: 'probe', axial: parseFloat((event.target as HTMLInputElement).value) });
+
+    const probeSlider = this.element.querySelector('#ind-probe-slider') as HTMLInputElement | null;
+    bindVisionSlider(probeSlider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.onCommand({ type: 'probe', axial: val }),
     });
-    this.element.querySelector('#ind-turns')?.addEventListener('input', (event) => {
-      this.onCommand({ type: 'turns', turns: parseFloat((event.target as HTMLInputElement).value) });
+
+    const turnsSlider = this.element.querySelector('#ind-turns') as HTMLInputElement | null;
+    const turnsLabel = this.element.querySelector('#ind-turns-label');
+    bindVisionSlider(turnsSlider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.onCommand({ type: 'turns', turns: val }),
+      onScrub: (val) => { if (turnsLabel) turnsLabel.textContent = String(Math.round(val)); },
     });
-    this.element.querySelector('#ind-r')?.addEventListener('input', (event) => {
-      this.onCommand({ type: 'resistance', ohm: parseFloat((event.target as HTMLInputElement).value) });
+
+    const rSlider = this.element.querySelector('#ind-r') as HTMLInputElement | null;
+    const rLabel = this.element.querySelector('#ind-r-label');
+    bindVisionSlider(rSlider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.onCommand({ type: 'resistance', ohm: val }),
+      onScrub: (val) => { if (rLabel) rLabel.textContent = `${val.toFixed(1)} Ω`; },
     });
+
     this.element.querySelector('#ind-flip')?.addEventListener('click', () => this.onCommand({ type: 'flip' }));
     this.element.querySelector('#ind-pass')?.addEventListener('click', () => this.onCommand({ type: 'pass' }));
     this.element.querySelector('#ind-reset')?.addEventListener('click', () => this.onCommand({ type: 'reset' }));

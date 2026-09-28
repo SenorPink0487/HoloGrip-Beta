@@ -1,4 +1,5 @@
 import type { CarrierType } from '../../scene/em/HallCarrierParticleSystem.ts';
+import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
 
 export interface HallTelemetryData {
   // Operational variables
@@ -576,10 +577,7 @@ export class HallStatusCard {
   }
 
   private isSliderActive(slider: HTMLInputElement | null): boolean {
-    if (!slider) return false;
-    if (this.activeSliders.has(slider.id)) return true;
-    if (typeof document !== 'undefined' && document.activeElement === slider) return true;
-    return false;
+    return isSliderActive(slider, this.activeSliders);
   }
 
   private bindTouchSlider(slider: HTMLInputElement | null, onChange: (val: number) => void): void {
@@ -640,223 +638,23 @@ export class HallStatusCard {
       this.dragHud.style.opacity = '1';
     };
 
-    const updateFromClientX = (clientX: number) => {
-      if (typeof slider.getBoundingClientRect !== 'function') return;
-      const rect = slider.getBoundingClientRect();
-      if (!rect || rect.width <= 0) return;
-
-      const stepStr = String(slider.step || (typeof slider.getAttribute === 'function' ? slider.getAttribute('step') : '') || '0.01');
-      const min = parseFloat(String(slider.min || (typeof slider.getAttribute === 'function' ? slider.getAttribute('min') : '') || '0')) || 0;
-      const max = parseFloat(String(slider.max || (typeof slider.getAttribute === 'function' ? slider.getAttribute('max') : '') || '1')) || 1;
-      const step = parseFloat(stepStr) || 0.01;
-
-      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      let val = min + ratio * (max - min);
-      if (step > 0) {
-        val = Math.round((val - min) / step) * step + min;
-      }
-      val = Math.max(min, Math.min(max, val));
-      const decimals = (stepStr.split('.')[1] || '').length;
-      val = parseFloat(val.toFixed(decimals));
-
-      if (slider.value !== String(val)) {
-        slider.value = String(val);
+    bindVisionSlider(slider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => {
         onChange(val);
-      }
-      updateDirectReadouts(val);
-      updateHUD(val, ratio, clientX);
-    };
-
-    const onGlobalPointerMove = (e: any) => {
-      if (!isDragging) return;
-      if (typeof e.clientX === 'number') {
-        updateFromClientX(e.clientX);
-      }
-    };
-
-    const onGlobalPointerUp = (e: any) => {
-      stopDrag(e?.pointerId);
-    };
-
-    const onGlobalMouseMove = (e: any) => {
-      if (!isDragging) return;
-      if (e.buttons === 0) {
-        stopDrag();
-        return;
-      }
-      if (typeof e.clientX === 'number') {
-        updateFromClientX(e.clientX);
-      }
-    };
-
-    const onGlobalMouseUp = () => {
-      stopDrag();
-    };
-
-    const onGlobalTouchMove = (e: any) => {
-      if (!isDragging) return;
-      if (e.touches && e.touches.length > 0 && typeof e.touches[0].clientX === 'number') {
-        updateFromClientX(e.touches[0].clientX);
-      }
-    };
-
-    const onGlobalTouchUp = () => {
-      stopDrag();
-    };
-
-    const startDrag = (clientX: number, pointerId?: number) => {
-      isDragging = true;
-      this.activeSliders.add(slider.id);
-      if (slider.classList && typeof slider.classList.add === 'function') {
-        slider.classList.add('is-pinching');
-      }
-      if (wrap && wrap.classList && typeof wrap.classList.add === 'function') {
-        wrap.classList.add('is-pinching');
-      }
-
-      if (pointerId != null && typeof slider.setPointerCapture === 'function') {
-        try {
-          slider.setPointerCapture(pointerId);
-        } catch {
-          // ignore
+        updateDirectReadouts(val);
+      },
+      onScrub: (val, ratio, clientX) => {
+        updateDirectReadouts(val);
+        updateHUD(val, ratio, clientX);
+      },
+      onDragEnd: () => {
+        if (this.dragHud) {
+          this.dragHud.style.opacity = '0';
+          this.dragHud.style.display = 'none';
         }
-      }
-
-      if (typeof clientX === 'number') {
-        updateFromClientX(clientX);
-      }
-
-      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-        window.addEventListener('pointermove', onGlobalPointerMove, { passive: false });
-        window.addEventListener('pointerup', onGlobalPointerUp, { passive: false });
-        window.addEventListener('pointercancel', onGlobalPointerUp, { passive: false });
-        window.addEventListener('mousemove', onGlobalMouseMove, { passive: false });
-        window.addEventListener('mouseup', onGlobalMouseUp, { passive: false });
-        window.addEventListener('touchmove', onGlobalTouchMove, { passive: false });
-        window.addEventListener('touchend', onGlobalTouchUp, { passive: false });
-        window.addEventListener('touchcancel', onGlobalTouchUp, { passive: false });
-      }
-    };
-
-    const stopDrag = (pointerId?: number) => {
-      if (!isDragging && !this.activeSliders.has(slider.id)) return;
-      isDragging = false;
-      this.activeSliders.delete(slider.id);
-      if (slider.classList && typeof slider.classList.remove === 'function') {
-        slider.classList.remove('is-pinching');
-      }
-      if (wrap && wrap.classList && typeof wrap.classList.remove === 'function') {
-        wrap.classList.remove('is-pinching');
-      }
-
-      if (pointerId != null && typeof slider.releasePointerCapture === 'function') {
-        try {
-          slider.releasePointerCapture(pointerId);
-        } catch {
-          // ignore
-        }
-      }
-
-      if (this.dragHud) {
-        this.dragHud.style.opacity = '0';
-        this.dragHud.style.display = 'none';
-      }
-
-      if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
-        window.removeEventListener('pointermove', onGlobalPointerMove);
-        window.removeEventListener('pointerup', onGlobalPointerUp);
-        window.removeEventListener('pointercancel', onGlobalPointerUp);
-        window.removeEventListener('mousemove', onGlobalMouseMove);
-        window.removeEventListener('mouseup', onGlobalMouseUp);
-        window.removeEventListener('touchmove', onGlobalTouchMove);
-        window.removeEventListener('touchend', onGlobalTouchUp);
-        window.removeEventListener('touchcancel', onGlobalTouchUp);
-      }
-    };
-
-    // 1. Standard HTML input event (works with keyboard, automated test suite, desktop drag)
-    slider.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      onChange(val);
-      updateDirectReadouts(val);
+      },
     });
-
-    // 2. High-precision Pointer Events (iOS 13+, iPadOS, VisionProCursor hand pinch, Chrome, Edge)
-    slider.addEventListener('pointerdown', (e: any) => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      startDrag(e.clientX, e.pointerId);
-    });
-
-    slider.addEventListener('pointermove', (e: any) => {
-      if (!this.activeSliders.has(slider.id)) return;
-      if (typeof e.clientX === 'number') {
-        updateFromClientX(e.clientX);
-      }
-    });
-
-    slider.addEventListener('pointerup', (e: any) => stopDrag(e?.pointerId));
-    slider.addEventListener('pointercancel', (e: any) => stopDrag(e?.pointerId));
-
-    // 3. Mouse Events fallback (when pointer events are not polyfilled or for desktop mouse drag)
-    slider.addEventListener('mousedown', (e: any) => {
-      if (e.button !== 0) return;
-      if (!isDragging) startDrag(e.clientX);
-    });
-
-    slider.addEventListener('mousemove', (e: any) => {
-      if (isDragging && typeof e.clientX === 'number') {
-        updateFromClientX(e.clientX);
-      }
-    });
-
-    slider.addEventListener('mouseup', () => stopDrag());
-
-    // 4. Robust touch listeners specifically addressing iOS Safari touch subtleties
-    slider.addEventListener('touchstart', (e: any) => {
-      const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : 0;
-      startDrag(clientX);
-    }, { passive: true });
-
-    slider.addEventListener('touchmove', (e: any) => {
-      if (this.activeSliders.has(slider.id) && e.touches && e.touches.length > 0 && typeof e.touches[0].clientX === 'number') {
-        updateFromClientX(e.touches[0].clientX);
-      }
-    }, { passive: true });
-
-    slider.addEventListener('touchend', () => stopDrag(), { passive: true });
-    slider.addEventListener('touchcancel', () => stopDrag(), { passive: true });
-
-    // 5. Track wrapper tap/seek/pinch hit zone support (44px hit target)
-    if (wrap && wrap !== slider && typeof wrap.addEventListener === 'function') {
-      wrap.addEventListener('pointerdown', (e: any) => {
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
-        startDrag(e.clientX, e.pointerId);
-      });
-      wrap.addEventListener('pointermove', (e: any) => {
-        if (this.activeSliders.has(slider.id) && typeof e.clientX === 'number') {
-          updateFromClientX(e.clientX);
-        }
-      });
-      wrap.addEventListener('pointerup', (e: any) => stopDrag(e?.pointerId));
-      wrap.addEventListener('pointercancel', (e: any) => stopDrag(e?.pointerId));
-
-      wrap.addEventListener('mousedown', (e: any) => {
-        if (e.button !== 0) return;
-        if (!isDragging) startDrag(e.clientX);
-      });
-
-      wrap.addEventListener('touchstart', (e: any) => {
-        const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : 0;
-        startDrag(clientX);
-      }, { passive: true });
-      wrap.addEventListener('touchmove', (e: any) => {
-        if (this.activeSliders.has(slider.id) && e.touches && e.touches.length > 0 && typeof e.touches[0].clientX === 'number') {
-          updateFromClientX(e.touches[0].clientX);
-        }
-      }, { passive: true });
-      wrap.addEventListener('touchend', () => stopDrag(), { passive: true });
-      wrap.addEventListener('touchcancel', () => stopDrag(), { passive: true });
-    }
   }
 
   public setVisible(visible: boolean): void {

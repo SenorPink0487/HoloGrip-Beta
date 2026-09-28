@@ -1,3 +1,5 @@
+import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
+
 export interface PhaseTelemetryData {
   temperatureK: number;
   temperatureC: number;
@@ -59,6 +61,7 @@ export class PhaseStatusCard {
   private badgeStageEl: HTMLElement | null = null;
   private sliderPower: HTMLInputElement | null = null;
   private sliderMass: HTMLInputElement | null = null;
+  private activeSliders = new Set<string>();
   private selectAccel: HTMLSelectElement | null = null;
   private btnHeating: HTMLButtonElement | null = null;
   private lastChartRenderTime = 0;
@@ -194,10 +197,17 @@ export class PhaseStatusCard {
   }
 
   private bindEvents(): void {
-    this.sliderPower?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      this.callbacks.onHeatPowerChange?.(val);
-    });
+    if (this.sliderPower) {
+      bindVisionSlider(this.sliderPower, {
+        activeSet: this.activeSliders,
+        onChange: (val) => {
+          this.callbacks.onHeatPowerChange?.(val);
+        },
+        onScrub: (val) => {
+          if (this.valPowerEl) this.valPowerEl.textContent = `${Math.round(val)} W`;
+        },
+      });
+    }
 
     this.selectAccel?.addEventListener('change', () => {
       const val = parseFloat(this.selectAccel?.value || '5');
@@ -254,7 +264,7 @@ export class PhaseStatusCard {
       if (txt) txt.textContent = data.isHeating ? '加热中' : '已暂停';
     }
 
-    if (this.sliderPower && document.activeElement !== this.sliderPower) {
+    if (this.sliderPower && !isSliderActive(this.sliderPower, this.activeSliders)) {
       this.sliderPower.value = String(data.heatPowerW);
     }
 

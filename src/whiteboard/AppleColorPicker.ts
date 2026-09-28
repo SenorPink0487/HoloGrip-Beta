@@ -1,3 +1,5 @@
+import { bindVisionSlider } from '../ui/vision/sliderGestureHelper.ts';
+
 export interface ColorPickerCallbacks {
   onChange: (color: string) => void;
   onClose?: () => void;
@@ -105,14 +107,14 @@ export class AppleColorPicker {
     });
 
     // Hue slider
-    this.hueSlider.addEventListener('input', () => {
-      this.hue = Number(this.hueSlider.value);
+    bindVisionSlider(this.hueSlider, (val) => {
+      this.hue = val;
       this.updateColorFromHSL();
     });
 
     // Lightness slider
-    this.lightSlider.addEventListener('input', () => {
-      this.lightness = Number(this.lightSlider.value);
+    bindVisionSlider(this.lightSlider, (val) => {
+      this.lightness = val;
       this.updateColorFromHSL();
     });
 

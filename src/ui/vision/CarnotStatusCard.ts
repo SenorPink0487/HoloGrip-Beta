@@ -1,3 +1,5 @@
+import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
+
 export interface CarnotTelemetryData {
   tempHigh: number;      // K
   tempLow: number;       // K
@@ -86,6 +88,7 @@ export class CarnotStatusCard {
   private btnDirection: HTMLButtonElement | null = null;
   private sliderTempH: HTMLInputElement | null = null;
   private sliderTempC: HTMLInputElement | null = null;
+  private activeSliders = new Set<string>();
 
   private lastChartRenderTime = 0;
   private lastRenderedVol = -1;
@@ -232,14 +235,20 @@ export class CarnotStatusCard {
   }
 
   private bindEvents(): void {
-    this.sliderTempH?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      this.callbacks.onTempHighChange?.(val);
+    bindVisionSlider(this.sliderTempH, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.callbacks.onTempHighChange?.(val),
+      onScrub: (val) => {
+        if (this.valTempHEl) this.valTempHEl.textContent = `${Math.round(val)} K`;
+      },
     });
 
-    this.sliderTempC?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      this.callbacks.onTempLowChange?.(val);
+    bindVisionSlider(this.sliderTempC, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.callbacks.onTempLowChange?.(val),
+      onScrub: (val) => {
+        if (this.valTempCEl) this.valTempCEl.textContent = `${Math.round(val)} K`;
+      },
     });
 
     this.btnPlayPause?.addEventListener('click', () => {
@@ -296,10 +305,10 @@ export class CarnotStatusCard {
       if (txt) txt.textContent = data.isReversed ? '逆向制冷' : '正向热机';
     }
 
-    if (this.sliderTempH && document.activeElement !== this.sliderTempH) {
+    if (this.sliderTempH && !isSliderActive(this.sliderTempH, this.activeSliders)) {
       this.sliderTempH.value = String(data.tempHigh);
     }
-    if (this.sliderTempC && document.activeElement !== this.sliderTempC) {
+    if (this.sliderTempC && !isSliderActive(this.sliderTempC, this.activeSliders)) {
       this.sliderTempC.value = String(data.tempLow);
     }
 

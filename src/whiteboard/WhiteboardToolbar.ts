@@ -213,9 +213,7 @@ export class WhiteboardToolbar {
       </svg>
     `;
     clearBtn.addEventListener('click', () => {
-      if (confirm('确认清空当前页板书？')) {
-        this.canvas.clearCurrentPage();
-      }
+      this.canvas.clearCurrentPage();
     });
 
     subActionsRow.appendChild(addBtn);

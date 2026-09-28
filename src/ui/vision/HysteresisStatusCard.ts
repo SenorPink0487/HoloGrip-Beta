@@ -1,3 +1,5 @@
+import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
+
 export interface HysteresisTelemetry {
   materialId: string;
   materialName: string;
@@ -27,6 +29,7 @@ export class HysteresisStatusCard {
   private isVisible = false;
   private data: HysteresisTelemetry | null = null;
   private canvas: HTMLCanvasElement | null = null;
+  private activeSliders = new Set<string>();
 
   constructor(onCommand: (cmd: HysteresisCommand) => void = () => {}) {
     this.onCommand = onCommand;
@@ -169,7 +172,7 @@ export class HysteresisStatusCard {
 
   private setSlider(selector: string, value: number): void {
     const slider = this.element.querySelector(selector) as HTMLInputElement | null;
-    if (!slider || document.activeElement === slider) return;
+    if (!slider || isSliderActive(slider, this.activeSliders)) return;
     slider.value = String(value);
   }
 
@@ -177,9 +180,13 @@ export class HysteresisStatusCard {
     this.element.querySelector('#hy-material')?.addEventListener('change', (event) => {
       this.onCommand({ type: 'material', id: (event.target as HTMLSelectElement).value });
     });
-    this.element.querySelector('#hy-slider')?.addEventListener('input', (event) => {
-      this.onCommand({ type: 'field', H: parseFloat((event.target as HTMLInputElement).value) });
+
+    const hySlider = this.element.querySelector('#hy-slider') as HTMLInputElement | null;
+    bindVisionSlider(hySlider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.onCommand({ type: 'field', H: val }),
     });
+
     this.element.querySelector('#hy-sweep')?.addEventListener('click', () => this.onCommand({ type: 'sweep' }));
     this.element.querySelector('#hy-reset')?.addEventListener('click', () => this.onCommand({ type: 'reset' }));
     this.element.querySelector('#btn-top-reset-hy')?.addEventListener('click', () => this.onCommand({ type: 'reset' }));

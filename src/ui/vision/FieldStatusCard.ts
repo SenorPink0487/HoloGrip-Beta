@@ -1,4 +1,5 @@
 import type { ElectrostaticTelemetry } from '../../physics/em/electrostatic.ts';
+import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
 
 export type FieldCommand =
   | { type: 'addCharge'; q: number }
@@ -17,6 +18,7 @@ export class FieldStatusCard {
   private onCommand: (cmd: FieldCommand) => void;
   private isVisible = false;
   private data: ElectrostaticTelemetry | null = null;
+  private activeSliders = new Set<string>();
 
   constructor(onCommand: (cmd: FieldCommand) => void = () => {}) {
     this.onCommand = onCommand;
@@ -496,7 +498,9 @@ export class FieldStatusCard {
       }
       if (slider) {
         slider.disabled = false;
-        slider.value = String(qVal);
+        if (!isSliderActive(slider, this.activeSliders)) {
+          slider.value = String(qVal);
+        }
       }
       pillButtons.forEach((btn) => {
         (btn as HTMLButtonElement).disabled = false;
@@ -569,19 +573,25 @@ export class FieldStatusCard {
 
     // Selected charge slider
     const slider = this.element.querySelector('#field-charge-slider') as HTMLInputElement | null;
-    slider?.addEventListener('input', () => {
-      const q = parseFloat(slider.value);
-      const selectedQEl = this.element.querySelector('#field-selected-q') as HTMLElement | null;
-      const orbEl = this.element.querySelector('#field-charge-orb') as HTMLElement | null;
-      if (selectedQEl) {
-        selectedQEl.textContent = `${q > 0 ? '+' : ''}${q.toFixed(1)} µC`;
-      }
-      if (orbEl) {
-        orbEl.style.display = 'inline-block';
-        orbEl.className = q > 0 ? 'field-dot-red' : q < 0 ? 'field-dot-blue' : '';
-      }
-      this.onCommand({ type: 'setChargeMagnitude', q });
-    });
+    if (slider) {
+      bindVisionSlider(slider, {
+        activeSet: this.activeSliders,
+        onChange: (q: number) => {
+          this.onCommand({ type: 'setChargeMagnitude', q });
+        },
+        onScrub: (q: number) => {
+          const selectedQEl = this.element.querySelector('#field-selected-q') as HTMLElement | null;
+          const orbEl = this.element.querySelector('#field-charge-orb') as HTMLElement | null;
+          if (selectedQEl) {
+            selectedQEl.textContent = `${q > 0 ? '+' : ''}${q.toFixed(1)} µC`;
+          }
+          if (orbEl) {
+            orbEl.style.display = 'inline-block';
+            orbEl.className = q > 0 ? 'field-dot-red' : q < 0 ? 'field-dot-blue' : '';
+          }
+        },
+      });
+    }
 
     // Quick adjustment pills
     const pillButtons = this.element.querySelectorAll('.field-pill-btn');

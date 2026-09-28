@@ -1,3 +1,5 @@
+import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
+
 export interface ThermoTelemetryData {
   temperature: number; // K
   volume: number;      // L
@@ -57,6 +59,7 @@ export class ThermoStatusCard {
   private subVrmsEl: HTMLElement | null = null;
   private sliderTempEl: HTMLInputElement | null = null;
   private sliderVolEl: HTMLInputElement | null = null;
+  private activeSliders = new Set<string>();
 
   // Cached text strings to eliminate layout thrashing
   private lastTempStr = '';
@@ -165,14 +168,22 @@ export class ThermoStatusCard {
   }
 
   private bindControls(): void {
-    this.sliderTempEl?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      this.callbacks.onTemperatureChange?.(val);
+    bindVisionSlider(this.sliderTempEl, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.callbacks.onTemperatureChange?.(val),
+      onScrub: (val) => {
+        if (this.valTempEl) this.valTempEl.textContent = `${Math.round(val)} K`;
+        if (this.subTempEl) this.subTempEl.textContent = `${(val - 273.15).toFixed(1)} °C`;
+      },
     });
 
-    this.sliderVolEl?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      this.callbacks.onVolumeChange?.(val);
+    bindVisionSlider(this.sliderVolEl, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.callbacks.onVolumeChange?.(val),
+      onScrub: (val) => {
+        if (this.valVolEl) this.valVolEl.textContent = `${val.toFixed(2)} L`;
+        if (this.subVolEl) this.subVolEl.textContent = `${(val * 1000).toFixed(0)} cm³`;
+      },
     });
   }
 
@@ -258,11 +269,11 @@ export class ThermoStatusCard {
       this.lastVrmsStr = vrmsStr;
     }
 
-    // Sync sliders if not currently focused
-    if (this.sliderTempEl && document.activeElement !== this.sliderTempEl) {
+    // Sync sliders if not currently active / focused
+    if (this.sliderTempEl && !isSliderActive(this.sliderTempEl, this.activeSliders)) {
       this.sliderTempEl.value = String(Math.round(d.temperature));
     }
-    if (this.sliderVolEl && document.activeElement !== this.sliderVolEl) {
+    if (this.sliderVolEl && !isSliderActive(this.sliderVolEl, this.activeSliders)) {
       this.sliderVolEl.value = d.volume.toFixed(2);
     }
   }

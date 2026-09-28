@@ -1959,29 +1959,37 @@ textarea:focus::placeholder {
 .slider-track-wrapper {
   position: relative;
   width: 100%;
-  height: 14px;
+  min-height: 36px;
   display: flex;
   align-items: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .apple-range-slider {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 12px;
-  border-radius: 9999px;
+  height: 28px;
+  background: transparent;
   outline: none;
   margin: 0;
   cursor: pointer;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .hue-slider {
   background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .light-slider {
   background: linear-gradient(to right, #000000 0%, var(--current-hue, #0071e3) 50%, #ffffff 100%);
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .apple-range-slider::-webkit-slider-thumb {
@@ -1997,8 +2005,15 @@ textarea:focus::placeholder {
   transition: transform 0.12s ease;
 }
 
-.apple-range-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.12);
+.apple-range-slider:hover::-webkit-slider-thumb,
+.apple-range-slider:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.apple-range-slider.is-pinching::-webkit-slider-thumb,
+.slider-track-wrapper.is-pinching .apple-range-slider::-webkit-slider-thumb {
+  transform: scale(1.35) !important;
+  box-shadow: 0 4px 16px rgba(0, 113, 227, 0.85), 0 0 0 3px #64d2ff !important;
 }
 
 .apple-range-slider::-moz-range-thumb {
@@ -2009,6 +2024,12 @@ textarea:focus::placeholder {
   border: 1px solid rgba(0, 0, 0, 0.15);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
   cursor: pointer;
+}
+
+.apple-range-slider.is-pinching::-moz-range-thumb,
+.slider-track-wrapper.is-pinching .apple-range-slider::-moz-range-thumb {
+  transform: scale(1.35) !important;
+  box-shadow: 0 4px 16px rgba(0, 113, 227, 0.85), 0 0 0 3px #64d2ff !important;
 }
 
 .whiteboard-sync-status {

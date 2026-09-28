@@ -1,4 +1,5 @@
 import type { IonHit } from '../../physics/em/massSpec.ts';
+import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
 
 export interface MassSpecTelemetry {
   sampleId: string;
@@ -29,6 +30,7 @@ export class MassSpecStatusCard {
   private isVisible = false;
   private data: MassSpecTelemetry | null = null;
   private canvas: HTMLCanvasElement | null = null;
+  private activeSliders = new Set<string>();
 
   constructor(onCommand: (cmd: MassSpecCommand) => void = () => {}) {
     this.onCommand = onCommand;
@@ -196,7 +198,7 @@ export class MassSpecStatusCard {
 
   private setSlider(selector: string, value: number): void {
     const slider = this.element.querySelector(selector) as HTMLInputElement | null;
-    if (!slider || document.activeElement === slider) return;
+    if (!slider || isSliderActive(slider, this.activeSliders)) return;
     slider.value = String(value);
   }
 
@@ -204,18 +206,31 @@ export class MassSpecStatusCard {
     this.element.querySelector('#ms-sample-select')?.addEventListener('change', (event) => {
       this.onCommand({ type: 'sample', id: (event.target as HTMLSelectElement).value });
     });
-    this.element.querySelector('#ms-accel')?.addEventListener('input', (event) => {
-      this.onCommand({ type: 'accel', voltage: parseFloat((event.target as HTMLInputElement).value) });
+
+    const accelSlider = this.element.querySelector('#ms-accel') as HTMLInputElement | null;
+    bindVisionSlider(accelSlider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.onCommand({ type: 'accel', voltage: val }),
     });
-    this.element.querySelector('#ms-field')?.addEventListener('input', (event) => {
-      this.onCommand({ type: 'field', tesla: parseFloat((event.target as HTMLInputElement).value) });
+
+    const fieldSlider = this.element.querySelector('#ms-field') as HTMLInputElement | null;
+    bindVisionSlider(fieldSlider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.onCommand({ type: 'field', tesla: val }),
     });
-    this.element.querySelector('#ms-jaw')?.addEventListener('input', (event) => {
-      this.onCommand({ type: 'jaw', opening: parseFloat((event.target as HTMLInputElement).value) });
+
+    const jawSlider = this.element.querySelector('#ms-jaw') as HTMLInputElement | null;
+    bindVisionSlider(jawSlider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.onCommand({ type: 'jaw', opening: val }),
     });
-    this.element.querySelector('#ms-plate')?.addEventListener('input', (event) => {
-      this.onCommand({ type: 'plate', voltage: parseFloat((event.target as HTMLInputElement).value) });
+
+    const plateSlider = this.element.querySelector('#ms-plate') as HTMLInputElement | null;
+    bindVisionSlider(plateSlider, {
+      activeSet: this.activeSliders,
+      onChange: (val) => this.onCommand({ type: 'plate', voltage: val }),
     });
+
     this.element.querySelector('#ms-flip')?.addEventListener('click', () => this.onCommand({ type: 'flip' }));
     this.element.querySelector('#ms-reset')?.addEventListener('click', () => this.onCommand({ type: 'reset' }));
     this.element.querySelector('#btn-top-reset-ms')?.addEventListener('click', () => this.onCommand({ type: 'reset' }));
