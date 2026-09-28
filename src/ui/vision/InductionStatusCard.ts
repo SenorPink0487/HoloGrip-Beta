@@ -36,63 +36,118 @@ export class InductionStatusCard {
   constructor(onCommand: (cmd: InductionCommand) => void = () => {}) {
     this.onCommand = onCommand;
     this.element = document.createElement('div');
-    this.element.className = 'vision-thermo-status-card hud-interactive';
+    this.element.className = 'vision-hall-status-card hud-interactive';
     this.element.innerHTML = `
-      <div class="hall-pure-container">
+      <div class="em-unified-container">
+        <!-- 1. Apple Minimal Window Header matching Hall Effect -->
         <div class="hall-pure-header">
           <div class="hall-header-brand">
             <span class="hall-brand-title">法拉第电磁感应</span>
             <span class="hall-clean-badge">ε = −dΨ/dt</span>
           </div>
-        </div>
-      <div class="thermo-card-container">
-        <div class="thermo-metrics-deck">
-          <div class="thermo-metric-card">
-            <span class="thermo-metric-label">磁通链 Ψ</span>
-            <div class="thermo-metric-value" id="ind-flux" style="color:#38bdf8;">0 mWb</div>
-            <span class="thermo-metric-sub" id="ind-flux-sub">N∫B·dA</span>
-          </div>
-          <div class="thermo-metric-card">
-            <span class="thermo-metric-label">感应电动势 ε</span>
-            <div class="thermo-metric-value" id="ind-emf" style="color:#fbbf24;">0 mV</div>
-            <span class="thermo-metric-sub" id="ind-current">I = 0 mA</span>
-          </div>
-          <div class="thermo-metric-card">
-            <span class="thermo-metric-label">探针 B</span>
-            <div class="thermo-metric-value" id="ind-probe" style="color:#22d3ee;">0 mT</div>
-            <span class="thermo-metric-sub" id="ind-bmag">线圈中心 B</span>
-          </div>
-          <div class="thermo-metric-card">
-            <span class="thermo-metric-label">感应磁场</span>
-            <div class="thermo-metric-value" id="ind-bind" style="color:#a855f7;">0 μT</div>
-            <span class="thermo-metric-sub">楞次定律方向</span>
+
+          <div class="hall-header-actions">
+            <button class="apple-circle-btn" id="btn-top-reset-ind" title="重置基准">
+              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+            </button>
           </div>
         </div>
-        <div class="thermo-charts-deck">
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header"><span class="thermo-chart-title">Ψ 与 ε 随时间</span></div>
-            <div class="thermo-canvas-wrap"><canvas id="canvas-induction" width="480" height="220"></canvas></div>
-          </div>
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header"><span class="thermo-chart-title" id="ind-caption">磁铁静止，磁通不变</span></div>
-            <span class="thermo-metric-sub">磁铁位置</span>
-            <input type="range" class="thermo-mini-slider" id="ind-axial" min="-0.18" max="0.26" step="0.01" value="0.22" />
-            <span class="thermo-metric-sub">探针位置</span>
-            <input type="range" class="thermo-mini-slider" id="ind-probe-slider" min="-0.18" max="0.26" step="0.01" value="0" />
-            <span class="thermo-metric-sub">匝数 <span id="ind-turns-label">200</span></span>
-            <input type="range" class="thermo-mini-slider" id="ind-turns" min="50" max="800" step="50" value="200" />
-            <span class="thermo-metric-sub">回路电阻 <span id="ind-r-label">8 Ω</span></span>
-            <input type="range" class="thermo-mini-slider" id="ind-r" min="1" max="40" step="0.5" value="8" />
+
+        <!-- 2. Hero Centerpiece Stage with hairlines & Hall color tokens -->
+        <div class="em-stage">
+          <div class="em-metric-grid">
+            <div class="em-metric-col">
+              <span class="em-metric-label">磁通链 Ψ</span>
+              <div class="em-val-main" id="ind-flux">0.00 mWb</div>
+              <span class="em-sub-tag" id="ind-flux-sub">N∫B·dA</span>
+            </div>
+            <div class="em-metric-col">
+              <span class="em-metric-label">感应电动势 ε</span>
+              <div class="em-val-main em-val-accent" id="ind-emf">0.0 mV</div>
+              <span class="em-sub-tag em-sub-cyan" id="ind-current">I = 0.0 mA</span>
+            </div>
+            <div class="em-metric-col">
+              <span class="em-metric-label">探针 B</span>
+              <div class="em-val-main" id="ind-probe">0.00 mT</div>
+              <span class="em-sub-tag" id="ind-bmag">线圈中心 B</span>
+            </div>
+            <div class="em-metric-col">
+              <span class="em-metric-label">感应磁场</span>
+              <div class="em-val-main em-val-accent" id="ind-bind">0.0 μT</div>
+              <span class="em-sub-tag">楞次定律反向</span>
+            </div>
           </div>
         </div>
-        <div class="carnot-control-deck">
-          <div class="carnot-btn-group">
-            <button class="carnot-btn" id="ind-flip" type="button">翻转 N/S</button>
-            <button class="carnot-btn" id="ind-pass" type="button">匀速穿过</button>
-            <button class="carnot-btn" id="ind-reset" type="button">黄金复位</button>
+
+        <!-- 3. Dynamic Waveform & Controls Deck -->
+        <div class="em-panels-deck">
+          <!-- Left: Canvas Waveform Chart -->
+          <div class="em-panel-box">
+            <div class="em-panel-head">
+              <span class="em-panel-title">Ψ 与 ε 动态时域波形</span>
+              <div class="em-panel-legend">
+                <span style="display:flex; align-items:center; gap:4px;">
+                  <span style="width:7px; height:7px; border-radius:50%; background:#64d2ff; display:inline-block;"></span>
+                  <span>Ψ (磁通)</span>
+                </span>
+                <span style="display:flex; align-items:center; gap:4px;">
+                  <span style="width:7px; height:7px; border-radius:50%; background:#ffffff; display:inline-block;"></span>
+                  <span>ε (电动势)</span>
+                </span>
+              </div>
+            </div>
+            <div class="em-canvas-wrap">
+              <canvas id="canvas-induction" width="480" height="200"></canvas>
+            </div>
+          </div>
+
+          <!-- Right: Parameter Control Deck -->
+          <div class="em-panel-box">
+            <div class="em-panel-head">
+              <span class="em-panel-title" id="ind-caption">磁铁静止，磁通不变</span>
+            </div>
+            <div class="em-controls-stack">
+              <div class="em-slider-row">
+                <div class="em-slider-label">
+                  <span>磁铁位置</span>
+                </div>
+                <input type="range" class="hall-apple-slider" id="ind-axial" min="-0.18" max="0.26" step="0.01" value="0.22" />
+              </div>
+              <div class="em-slider-row">
+                <div class="em-slider-label">
+                  <span>探针位置</span>
+                </div>
+                <input type="range" class="hall-apple-slider" id="ind-probe-slider" min="-0.18" max="0.26" step="0.01" value="0" />
+              </div>
+              <div class="em-slider-row">
+                <div class="em-slider-label">
+                  <span>线圈匝数</span>
+                  <span class="em-slider-val" id="ind-turns-label">200</span>
+                </div>
+                <input type="range" class="hall-apple-slider" id="ind-turns" min="50" max="800" step="50" value="200" />
+              </div>
+              <div class="em-slider-row">
+                <div class="em-slider-label">
+                  <span>回路电阻</span>
+                  <span class="em-slider-val" id="ind-r-label">8.0 Ω</span>
+                </div>
+                <input type="range" class="hall-apple-slider" id="ind-r" min="1" max="40" step="0.5" value="8" />
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+
+        <!-- 4. Floating Action Dock Capsule -->
+        <div style="display:flex; justify-content:center; flex-shrink:0;">
+          <div class="em-dock-capsule">
+            <button class="em-apple-btn" id="ind-flip" type="button">翻转 N/S</button>
+            <button class="em-apple-btn" id="ind-pass" type="button">匀速穿过</button>
+            <button class="em-apple-btn" id="ind-reset" type="button">黄金复位</button>
+          </div>
+        </div>
       </div>
     `;
     this.canvas = this.element.querySelector('#canvas-induction') as HTMLCanvasElement;
@@ -154,6 +209,7 @@ export class InductionStatusCard {
     this.element.querySelector('#ind-flip')?.addEventListener('click', () => this.onCommand({ type: 'flip' }));
     this.element.querySelector('#ind-pass')?.addEventListener('click', () => this.onCommand({ type: 'pass' }));
     this.element.querySelector('#ind-reset')?.addEventListener('click', () => this.onCommand({ type: 'reset' }));
+    this.element.querySelector('#btn-top-reset-ind')?.addEventListener('click', () => this.onCommand({ type: 'reset' }));
   }
 
   private draw(): void {
@@ -163,7 +219,7 @@ export class InductionStatusCard {
     const ctx = canvas.getContext('2d');
     if (!ctx || typeof ctx.clearRect !== 'function') return;
     const w = canvas.width || 480;
-    const h = canvas.height || 220;
+    const h = canvas.height || 200;
     ctx.clearRect(0, 0, w, h);
     const flux = data.fluxHistory;
     const emf = data.emfHistory;
@@ -182,12 +238,12 @@ export class InductionStatusCard {
       });
       ctx.stroke();
     };
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
     ctx.beginPath();
     ctx.moveTo(16, h / 2);
     ctx.lineTo(w - 16, h / 2);
     ctx.stroke();
-    plot(flux, fMax, '#38bdf8');
-    plot(emf, eMax, '#fbbf24');
+    plot(flux, fMax, '#64d2ff');
+    plot(emf, eMax, '#ffffff');
   }
 }

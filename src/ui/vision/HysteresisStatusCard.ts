@@ -31,62 +31,95 @@ export class HysteresisStatusCard {
   constructor(onCommand: (cmd: HysteresisCommand) => void = () => {}) {
     this.onCommand = onCommand;
     this.element = document.createElement('div');
-    this.element.className = 'vision-thermo-status-card hud-interactive';
+    this.element.className = 'vision-hall-status-card hud-interactive';
     this.element.innerHTML = `
-      <div class="hall-pure-container">
+      <div class="em-unified-container">
+        <!-- 1. Apple Minimal Window Header matching Hall Effect -->
         <div class="hall-pure-header">
           <div class="hall-header-brand">
             <span class="hall-brand-title">磁滞回线</span>
             <span class="hall-clean-badge">B = μ₀(H + M)</span>
           </div>
-        </div>
-      <div class="thermo-card-container">
-        <div class="thermo-metrics-deck">
-          <div class="thermo-metric-card">
-            <span class="thermo-metric-label">磁场强度 H</span>
-            <div class="thermo-metric-value" id="hy-h" style="color:#f59e0b;">0 A/m</div>
-            <span class="thermo-metric-sub" id="hy-i">励磁电流 0 A</span>
-          </div>
-          <div class="thermo-metric-card">
-            <span class="thermo-metric-label">探针 B</span>
-            <div class="thermo-metric-value" id="hy-b" style="color:#38bdf8;">0 T</div>
-            <span class="thermo-metric-sub" id="hy-mat">硅钢片</span>
-          </div>
-          <div class="thermo-metric-card">
-            <span class="thermo-metric-label">搜索线圈磁通</span>
-            <div class="thermo-metric-value" id="hy-flux" style="color:#22d3ee;">0 mWb</div>
-            <span class="thermo-metric-sub" id="hy-br">剩磁</span>
-          </div>
-          <div class="thermo-metric-card">
-            <span class="thermo-metric-label">每周磁滞损耗</span>
-            <div class="thermo-metric-value" id="hy-area" style="color:#c084fc;">0 J/m³</div>
-            <span class="thermo-metric-sub" id="hy-hc">矫顽力</span>
+
+          <div class="hall-header-actions">
+            <button class="apple-circle-btn" id="btn-top-reset-hy" title="重置基准">
+              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+            </button>
           </div>
         </div>
-        <div class="thermo-charts-deck">
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header"><span class="thermo-chart-title">B–H 回线</span></div>
-            <div class="thermo-canvas-wrap"><canvas id="canvas-hysteresis" width="480" height="220"></canvas></div>
-          </div>
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header"><span class="thermo-chart-title" id="hy-caption">初始磁化曲线</span></div>
-            <select class="carnot-select" id="hy-material">
-              <option value="silicon-steel">硅钢片</option>
-              <option value="soft-iron">软铁</option>
-              <option value="carbon-steel">碳钢</option>
-              <option value="ferrite">铁氧体</option>
-            </select>
-            <span class="thermo-metric-sub">励磁 H</span>
-            <input type="range" class="thermo-mini-slider" id="hy-slider" min="-9000" max="9000" step="50" value="0" />
+
+        <!-- 2. Hero Centerpiece Stage with hairlines & Hall color tokens -->
+        <div class="em-stage">
+          <div class="em-metric-grid">
+            <div class="em-metric-col">
+              <span class="em-metric-label">磁场强度 H</span>
+              <div class="em-val-main" id="hy-h">0 A/m</div>
+              <span class="em-sub-tag" id="hy-i">励磁电流 0 A</span>
+            </div>
+            <div class="em-metric-col">
+              <span class="em-metric-label">探针 B</span>
+              <div class="em-val-main em-val-accent" id="hy-b">0.000 T</div>
+              <span class="em-sub-tag em-sub-cyan" id="hy-mat">硅钢片</span>
+            </div>
+            <div class="em-metric-col">
+              <span class="em-metric-label">搜索线圈磁通</span>
+              <div class="em-val-main" id="hy-flux">0.00 mWb</div>
+              <span class="em-sub-tag" id="hy-br">剩磁</span>
+            </div>
+            <div class="em-metric-col">
+              <span class="em-metric-label">每周磁滞损耗</span>
+              <div class="em-val-main em-val-accent" id="hy-area">0 J/m³</div>
+              <span class="em-sub-tag" id="hy-hc">矫顽力</span>
+            </div>
           </div>
         </div>
-        <div class="carnot-control-deck">
-          <div class="carnot-btn-group">
-            <button class="carnot-btn" id="hy-sweep" type="button">自动扫描</button>
-            <button class="carnot-btn" id="hy-reset" type="button">黄金复位</button>
+
+        <!-- 3. Dynamic Waveform & Controls Deck -->
+        <div class="em-panels-deck">
+          <!-- Left: Canvas B-H Curve -->
+          <div class="em-panel-box">
+            <div class="em-panel-head">
+              <span class="em-panel-title">B–H 磁滞回线</span>
+            </div>
+            <div class="em-canvas-wrap">
+              <canvas id="canvas-hysteresis" width="480" height="200"></canvas>
+            </div>
+          </div>
+
+          <!-- Right: Material & Excitation Studio -->
+          <div class="em-panel-box">
+            <div class="em-panel-head">
+              <span class="em-panel-title" id="hy-caption">初始磁化曲线</span>
+            </div>
+            <div class="em-controls-stack">
+              <div style="margin-bottom: 2px;">
+                <select class="em-apple-select" id="hy-material">
+                  <option value="silicon-steel">硅钢片 (Silicon Steel)</option>
+                  <option value="soft-iron">软铁 (Soft Iron)</option>
+                  <option value="carbon-steel">碳钢 (Carbon Steel)</option>
+                  <option value="ferrite">铁氧体 (Ferrite)</option>
+                </select>
+              </div>
+              <div class="em-slider-row">
+                <div class="em-slider-label">
+                  <span>励磁强度 H</span>
+                </div>
+                <input type="range" class="hall-apple-slider" id="hy-slider" min="-9000" max="9000" step="50" value="0" />
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+
+        <!-- 4. Floating Action Dock Capsule -->
+        <div style="display:flex; justify-content:center; flex-shrink:0;">
+          <div class="em-dock-capsule">
+            <button class="em-apple-btn" id="hy-sweep" type="button">自动扫描</button>
+            <button class="em-apple-btn" id="hy-reset" type="button">黄金复位</button>
+          </div>
+        </div>
       </div>
     `;
     this.canvas = this.element.querySelector('#canvas-hysteresis') as HTMLCanvasElement;
@@ -120,7 +153,14 @@ export class HysteresisStatusCard {
     if (area) area.textContent = `${Math.round(data.area)} J/m³`;
     if (hc) hc.textContent = `矫顽力 ${Math.round(data.coercivity)} A/m`;
     if (caption) caption.textContent = data.caption;
-    if (sweep) sweep.textContent = data.auto ? '停止扫描' : '自动扫描';
+    if (sweep) {
+      sweep.textContent = data.auto ? '停止扫描' : '自动扫描';
+      if (data.auto) {
+        sweep.classList.add('active');
+      } else {
+        sweep.classList.remove('active');
+      }
+    }
     this.setSlider('#hy-slider', data.H);
     const select = this.element.querySelector('#hy-material') as HTMLSelectElement | null;
     if (select && document.activeElement !== select) select.value = data.materialId;
@@ -142,6 +182,7 @@ export class HysteresisStatusCard {
     });
     this.element.querySelector('#hy-sweep')?.addEventListener('click', () => this.onCommand({ type: 'sweep' }));
     this.element.querySelector('#hy-reset')?.addEventListener('click', () => this.onCommand({ type: 'reset' }));
+    this.element.querySelector('#btn-top-reset-hy')?.addEventListener('click', () => this.onCommand({ type: 'reset' }));
   }
 
   private draw(): void {
@@ -151,20 +192,24 @@ export class HysteresisStatusCard {
     const ctx = canvas.getContext('2d');
     if (!ctx || typeof ctx.clearRect !== 'function') return;
     const w = canvas.width || 480;
-    const h = canvas.height || 220;
+    const h = canvas.height || 200;
     const hMax = 9000;
     const bMax = 2;
     const xOf = (H: number) => 36 + ((H + hMax) / (2 * hMax)) * (w - 56);
     const yOf = (B: number) => h / 2 - (B / bMax) * (h * 0.4);
     ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    
+    // Axes
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.beginPath();
     ctx.moveTo(36, h / 2);
     ctx.lineTo(w - 20, h / 2);
     ctx.moveTo(xOf(0), 16);
     ctx.lineTo(xOf(0), h - 16);
     ctx.stroke();
-    ctx.strokeStyle = '#c084fc';
+
+    // B-H curve in unified Hall cyan
+    ctx.strokeStyle = '#64d2ff';
     ctx.lineWidth = 2;
     ctx.beginPath();
     data.loop.forEach((point, index) => {
@@ -174,8 +219,10 @@ export class HysteresisStatusCard {
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
-    if (typeof ctx.arc === 'function') {
-      ctx.fillStyle = '#f8fafc';
+
+    // Active operating point in crisp white with halo
+    if (typeof ctx.arc === 'function' && typeof ctx.fill === 'function') {
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(xOf(data.H), yOf(data.B), 4, 0, Math.PI * 2);
       ctx.fill();
