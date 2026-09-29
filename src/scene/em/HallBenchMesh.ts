@@ -645,13 +645,15 @@ export class HallBenchMesh {
     _thicknessMm = 0.50
   ): void {
     // 1. Magnetic flux arrows: strictly depend ONLY on B (unaffected by I, d, or material)
-    if (Math.abs(this.lastB - bTesla) > 0.002) {
+    const bChanged = Math.abs(this.lastB - bTesla) > 0.002;
+    if (bChanged) {
       this.lastB = bTesla;
       this.updateFluxArrows(bTesla);
     }
 
     // 2. Carrier particle physics & surface charges: depend on (I, B, V_H, carrierType)
     const isDifferent =
+      bChanged ||
       Math.abs(this.lastI - currentMa) > 0.02 ||
       Math.abs(this.lastVh - vhMv) > 0.005 ||
       this.lastMaterial !== materialName ||

@@ -761,9 +761,11 @@ export class HallCarrierParticleSystem {
     const hasCurrent = Math.abs(this.currentMa) > 1e-4;
     const hasField = Math.abs(b) > 1e-4;
 
-    // Physical Lorentz driving factor: normalized around nominal operation (B = 0.5 T, I = 10 mA)
+    // Physical Lorentz driving factor: strictly governed by magnetic field strength B
+    // Carrier transverse deflection amplitude (Hall angle tanθ_H = μB) depends only on B,
+    // independent of drift current I.
     const driveNorm = (hasCurrent && hasField)
-      ? (Math.abs(b) / 0.5) * (Math.abs(this.currentMa) / 10.0)
+      ? (Math.abs(b) / 0.5)
       : 0;
 
     // High dynamic range saturation curve with significantly raised upper limit (up to 1.60)
@@ -925,7 +927,7 @@ export class HallCarrierParticleSystem {
     const hasCurrent = Math.abs(this.currentMa) > 1e-4;
     const hasField = Math.abs(b) > 1e-4;
     const driveNorm = (hasCurrent && hasField)
-      ? (Math.abs(b) / 0.5) * (Math.abs(this.currentMa) / 10.0)
+      ? (Math.abs(b) / 0.5)
       : 0;
     const deflectionAlpha = THREE.MathUtils.clamp(
       Math.pow(driveNorm, 0.55) * 0.92,

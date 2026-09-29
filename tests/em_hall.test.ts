@@ -665,6 +665,42 @@ console.log('Test 12: Dynamic Multi-Charge & B-Only Magnetic Arrow Kinetics');
   const diffEndY = Math.abs(posArr[1] - posArr[7]);
   assert.ok(diffEndY > 0.005, `End streamline must be noticeably curved compared to middle, diff: ${diffEndY}`);
 
+  // 3b. Deflection amplitude invariance with Current I vs sensitivity to Magnetic Field B:
+  // Carrier deflection amplitude (tanθ_H = μB) depends strictly on B, not on I.
+  // First, let system fully relax to steady state under B = 0.2T, I = 5mA
+  particleSys.setPhysicsState(5.0, 0.2, -5.0, 'electron');
+  posArr[0] = 0;
+  posArr[1] = 0;
+  for (let t = 0; t < 50; t++) {
+    posArr[0] = 0; // maintain center longitudinal position
+    particleSys.update(0.016);
+  }
+  const deflAt5mA = posArr[1];
+
+  // Now change current to I = 25mA at the same B = 0.2T
+  particleSys.setPhysicsState(25.0, 0.2, -25.0, 'electron');
+  for (let t = 0; t < 50; t++) {
+    posArr[0] = 0;
+    particleSys.update(0.016);
+  }
+  const deflAt25mA = posArr[1];
+  assert.ok(
+    Math.abs(deflAt25mA - deflAt5mA) < 0.002,
+    `Carrier deflection amplitude must remain invariant when current changes (5mA: ${deflAt5mA}, 25mA: ${deflAt25mA})`
+  );
+
+  // Increasing magnetic field to B = 0.5T must significantly increase deflection amplitude
+  particleSys.setPhysicsState(25.0, 0.5, -62.5, 'electron');
+  for (let t = 0; t < 50; t++) {
+    posArr[0] = 0;
+    particleSys.update(0.016);
+  }
+  const deflAt05T = posArr[1];
+  assert.ok(
+    deflAt05T < deflAt25mA - 0.003,
+    `Carrier deflection amplitude must increase with magnetic field strength B (0.2T: ${deflAt25mA}, 0.5T: ${deflAt05T})`
+  );
+
   particleSys.dispose();
 
   // 4. Magnetic Flux Arrows: depend SOLELY on B with raised 11 arrow upper limit

@@ -27,3 +27,4 @@ rayon = "1.10"
 
 [patch.crates-io]
 swift-rs = { git = "https://github.com/michakfromparis/swift-rs", rev = "3788d3d2bae8e7a863b3e281a59477438e12c632" }
+tao = { git = "https://github.com/tauri-apps/tao", rev = "f2163508" }

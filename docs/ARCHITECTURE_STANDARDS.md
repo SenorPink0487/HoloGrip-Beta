@@ -113,6 +113,7 @@
 
 - 前端必须使用 `npm run build:ios`，该脚本以 `ios-production` 模式构建，并使用 `.env.ios-production` 中的生产 API 配置。部署版 API 为 `https://hologrip.cn/account-service`；DeepSeek 等服务密钥只放在后端环境变量中，不打入 App。
 - 原生应用必须使用 Tauri iOS `release` 配置，目标架构为设备 `aarch64`，生成 `.ipa`。直接安装到已登记的 iPad 时使用 `--export-method debugging` 和对应设备的 Apple 开发签名；这表示签名/分发方式，不代表使用 Debug 编译。
+- 使用 iOS/iPadOS 27 SDK 构建时，必须在 `src-tauri/Info.ios.plist` 声明有效的 `UIApplicationSceneManifest`，并配置 `TaoSceneDelegate`。当前 Tauri 2 仍约束 Tao `0.35.x`，Scene 生命周期的 Release 构建还必须保留 `src-tauri/Cargo.toml` 与 `Cargo.lock` 中针对上游 Tao 提交 `f2163508` 的 use-after-free 修复；Scene manifest 与 Tao 修复必须一起交付，避免应用在启动时被系统终止。
 - 调用 Tauri 构建时，将 `beforeBuildCommand` 覆盖为 `npm run build:ios`，避免默认桌面构建脚本额外运行性能测试：
   ```sh
   npx tauri ios build --target aarch64 --export-method debugging --build-number <递增构建号> --ci \
