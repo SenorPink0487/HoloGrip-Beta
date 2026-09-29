@@ -279,6 +279,52 @@ console.log('=== Starting Chemistry Engine Comprehensive Verification ===\n');
   console.log('✓ Test 10 passed: All realistic liquid color transformations verified\n');
 }
 
+// Test 11: Concrete chemical substances display after reaction (CO2, NaCl, MgCl2, etc.)
+{
+  console.log('Test 11: Concrete chemical substances display after reaction');
+  const engine = new ChemistryEngine();
+
+  // 11a: Carbonate reaction (Na2CO3 + HCl -> CO2 gas, NaCl, excess HCl)
+  engine.addReagent('Na2CO3', 20); // 0.5 M * 20 mL = 10 mmol Na2CO3 (20 mmol Na+, 10 mmol CO3^2-)
+  engine.addReagent('HCl', 25);    // 1.0 M * 25 mL = 25 mmol HCl (25 mmol H+, 25 mmol Cl-)
+  // Reaction consumes 10 mmol CO3^2- and 20 mmol H+ -> 10 mmol CO2 gas, 5 mmol excess H+
+  const comp = engine.getCompositionAnalysis('substance');
+  const names = comp.components.map((c) => c.name);
+  const formulas = comp.components.map((c) => c.formula);
+
+  console.log('  Substances after Na2CO3 + HCl:', comp.components.map(c => `${c.formula} (${c.name}: ${c.millimoles.toFixed(2)}mmol, ${c.percentage}%)`));
+
+  assert(comp.components.some((c) => c.category === 'gas' && c.formula.includes('CO₂')), 'Must include CO2 gas product');
+  assert(comp.components.some((c) => c.formula === 'NaCl' && c.name === '氯化钠'), 'Must include NaCl compound instead of separate Na+ and Cl- ions');
+  assert(comp.components.some((c) => c.formula === 'HCl' && c.name === '稀盐酸'), 'Must include excess HCl compound');
+  assert(!comp.components.some((c) => c.name === '氯离子' || c.name === '钠离子'), 'Must not display raw ion names in substance mode');
+
+  // Verify percentages sum to 100.0%
+  const totalPct = comp.components.reduce((sum, c) => sum + c.percentage, 0);
+  assert(Math.abs(totalPct - 100.0) < 0.1, `Percentages must sum to 100.0%, got ${totalPct}%`);
+
+  // 11b: Acid-base neutralization (NaOH + HCl -> NaCl)
+  engine.reset();
+  engine.addReagent('NaOH', 25); // 25 mmol
+  engine.addReagent('HCl', 25);  // 25 mmol
+  const neutComp = engine.getCompositionAnalysis('substance');
+  assert.strictEqual(neutComp.components.length, 1, 'Exact stoichiometric neutralization should leave only NaCl');
+  assert.strictEqual(neutComp.components[0].formula, 'NaCl');
+  assert.strictEqual(neutComp.components[0].name, '氯化钠');
+  assert.strictEqual(neutComp.components[0].percentage, 100.0);
+
+  // 11c: Metal acid displacement (Mg + HCl -> H2 gas + MgCl2 + HCl)
+  engine.reset();
+  engine.addReagent('Mg', 1);    // 0.015 mol = 15 mmol
+  engine.addReagent('HCl', 50);  // 50 mmol
+  const mgComp = engine.getCompositionAnalysis('substance');
+  assert(mgComp.components.some((c) => c.category === 'gas' && c.formula.includes('H₂')), 'Must include H2 gas product');
+  assert(mgComp.components.some((c) => c.formula === 'MgCl₂' && c.name === '氯化镁'), 'Must include MgCl2 compound');
+  assert(mgComp.components.some((c) => c.formula === 'HCl'), 'Must include excess HCl');
+
+  console.log('✓ Test 11 passed: Concrete chemical substances (CO2, NaCl, MgCl2, etc.) verified\n');
+}
+
 console.log('========================================================');
-console.log('All Comprehensive Chemistry Engine Tests Passed (10/10)!');
+console.log('All Comprehensive Chemistry Engine Tests Passed (11/11)!');
 console.log('========================================================');

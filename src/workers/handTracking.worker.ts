@@ -55,15 +55,36 @@ if (defaultWorkerCanvas) {
   }
 }
 
+// Bypass Emscripten Safari getContext wrap check across all OffscreenCanvas instances in workers
+if (typeof OffscreenCanvas !== 'undefined' && OffscreenCanvas.prototype) {
+  if (typeof (OffscreenCanvas.prototype as any).getContextSafariWebGL2Fixed === 'undefined') {
+    (OffscreenCanvas.prototype as any).getContextSafariWebGL2Fixed = OffscreenCanvas.prototype.getContext;
+  }
+}
+
+// Preserve ModuleFactory across re-initialization if MediaPipe attempts to clear it
+let _preservedModuleFactory: any = undefined;
+Object.defineProperty(self, 'ModuleFactory', {
+  get: () => _preservedModuleFactory,
+  set: (val: any) => {
+    if (val) {
+      _preservedModuleFactory = val;
+    }
+  },
+  configurable: true,
+  enumerable: true,
+});
+
 // Polyfill HTMLCanvasElement and WebGLRenderingContext in worker global scope
 if (typeof (self as any).HTMLCanvasElement === 'undefined' && typeof OffscreenCanvas !== 'undefined') {
   (self as any).HTMLCanvasElement = OffscreenCanvas;
 }
 
 if (typeof (self as any).WebGLRenderingContext === 'undefined') {
-  if (typeof WebGL2RenderingContext !== 'undefined') {
-    (self as any).WebGLRenderingContext = WebGL2RenderingContext;
-  }
+  // Use a distinct dummy class so `gl instanceof WebGLRenderingContext` evaluates to false
+  // for WebGL2RenderingContext instances in Emscripten's fixedGetContext check:
+  // ((ver == "webgl") == (gl instanceof WebGLRenderingContext)) ? gl : null
+  (self as any).WebGLRenderingContext = class WebGLRenderingContext {};
 }
 
 // Initialize Emscripten Module object with pre-bound worker canvas
@@ -223,7 +244,7 @@ ctx.onmessage = async (e: MessageEvent) => {
       }
       ctx.postMessage({
         type: 'DETECT_ERROR',
-        error: err instanceof Error ? err.message : String(err),
+        error: err instanceof Error ? `${err.message}\n${err.stack}` : String(err),
         timestamp,
       });
     }

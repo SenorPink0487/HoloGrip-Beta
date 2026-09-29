@@ -774,6 +774,8 @@ await (async () => {
   assert(workerCode.includes('defaultWorkerCanvas'), 'Worker must create dedicated worker canvas for WebGL context creation');
   assert(workerCode.includes('HTMLCanvasElement'), 'Worker must polyfill HTMLCanvasElement for WebGL context creation');
   assert(workerCode.includes('WebGLRenderingContext'), 'Worker must polyfill WebGLRenderingContext for WebGL context creation');
+  assert(workerCode.includes('class WebGLRenderingContext'), 'Worker must define distinct WebGLRenderingContext class so fixedGetContext returns WebGL2 context');
+  assert(workerCode.includes('ModuleFactory'), 'Worker must preserve ModuleFactory to prevent MediaPipe re-init errors');
   assert(workerCode.includes('document.getElementById'), 'Worker must polyfill document.getElementById for Emscripten target resolution');
   assert(workerCode.includes('gpuOptions.canvas = defaultWorkerCanvas'), 'Worker must pass explicit canvas to HandLandmarker.createFromOptions for GPU delegate');
   console.log('✓ Test 18 passed: Worker ES module WASM loading & scope polyfill invariants verified\n');
@@ -836,11 +838,14 @@ await (async () => {
   assert(!serviceCode.includes("zIndex = '-999'"), 'videoElement must not be placed behind page background (zIndex -999) to avoid compositor occlusion culling');
   assert(serviceCode.includes("width = '320px'"), 'videoElement width must be 320px for active compositor hardware decoding');
   assert(serviceCode.includes("height = '240px'"), 'videoElement height must be 240px for active compositor hardware decoding');
+  assert(serviceCode.includes("opacity = '0.06'"), 'videoElement opacity must be 0.06 to prevent compositor occlusion down-throttling');
   assert(serviceCode.includes("zIndex = '1'"), 'videoElement must be on active layer (zIndex 1) to prevent compositor occlusion');
 
   // 2. Verify rAF watchdog loop coordinates with rVFC via lastRvfCallTime
   assert(serviceCode.includes('requestAnimationFrame(loop)'), 'startLoop must include rAF heartbeat loop');
   assert(serviceCode.includes('lastRvfCallTime'), 'startLoop must track lastRvfCallTime to prevent duplicate frame dispatch');
+  assert(!serviceCode.includes('>= 120'), 'Watchdog must not enforce 120ms delay which caps frame rate to single digits');
+  assert(serviceCode.includes('>= 25'), 'Watchdog must enforce high-cadence <= 25ms delay for 30+ FPS dispatch');
   assert(serviceCode.includes('hasPendingFrame'), 'HandGestureService must track hasPendingFrame for zero-idle frame dispatch');
 
   // 3. Simulate continuous 30+ FPS dispatch in HandGestureService via watchdog fallback

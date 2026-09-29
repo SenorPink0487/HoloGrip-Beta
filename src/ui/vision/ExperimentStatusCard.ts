@@ -32,6 +32,7 @@ export class ExperimentStatusCard {
   private engineLeft: ChemistryEngine;
   private engineRight?: ChemistryEngine;
   public currentActiveBeakerId: 'left' | 'right' = 'left';
+  public compositionMode: 'substance' | 'ion' = 'substance';
 
   private callbacks: ExperimentStatusCardCallbacks;
   private mixtureQuery: MixtureQueryBinding | null = null;
@@ -155,6 +156,17 @@ export class ExperimentStatusCard {
 
       <!-- 2. Apple VisionOS Minimalist Breakdown Strip (全景成分占比条) -->
       <div class="apple-breakdown-bar-wrap">
+        <div class="comp-view-mode-bar">
+          <span class="comp-mode-title" id="comp-mode-title">体系成分全息分析 · 化学物质</span>
+          <div class="apple-mini-segmented" role="tablist" aria-label="展示视角">
+            <button class="mini-seg-btn active" id="btn-mode-substance" type="button" title="显示具体化学物质与生成物(分子/气体/沉淀/盐)">
+              <span>化学物质</span>
+            </button>
+            <button class="mini-seg-btn" id="btn-mode-ions" type="button" title="显示溶液中游离阴阳离子">
+              <span>离子分布</span>
+            </button>
+          </div>
+        </div>
         <div class="apple-meter-bar" id="comp-segmented-bar"></div>
         <div class="apple-legend-chips" id="comp-legend-container"></div>
       </div>
@@ -240,6 +252,14 @@ export class ExperimentStatusCard {
       this.getCurrentEngine().reset();
     });
 
+    this.element.querySelector('#btn-mode-substance')?.addEventListener('click', () => {
+      this.setCompositionMode('substance');
+    });
+
+    this.element.querySelector('#btn-mode-ions')?.addEventListener('click', () => {
+      this.setCompositionMode('ion');
+    });
+
     this.mixtureQuery = bindMixtureQuery(this.element, {
       input: '#mixture-query',
       voice: '#btn-mixture-voice',
@@ -250,9 +270,26 @@ export class ExperimentStatusCard {
     });
   }
 
+  public setCompositionMode(mode: 'substance' | 'ion'): void {
+    this.compositionMode = mode;
+    const btnSubstance = this.element.querySelector('#btn-mode-substance');
+    const btnIons = this.element.querySelector('#btn-mode-ions');
+    const title = this.element.querySelector('#comp-mode-title');
+    if (mode === 'substance') {
+      btnSubstance?.classList.add('active');
+      btnIons?.classList.remove('active');
+      if (title) title.textContent = '体系成分全息分析 · 化学物质';
+    } else {
+      btnSubstance?.classList.remove('active');
+      btnIons?.classList.add('active');
+      if (title) title.textContent = '体系成分全息分析 · 游离离子';
+    }
+    this.updateState(this.getCurrentEngine().state);
+  }
+
   public updateState(state: ChemistryState): void {
     const engine = this.getCurrentEngine();
-    const comp: ChemistryComposition = engine.getCompositionAnalysis();
+    const comp: ChemistryComposition = engine.getCompositionAnalysis(this.compositionMode);
 
     // 1. Ambient Status Capsule: Volume, pH, Temp
     const volSummary = this.element.querySelector('#summary-volume');
@@ -343,20 +380,29 @@ export class ExperimentStatusCard {
           .map((c) => {
             const isPrecipitate = c.category === 'precipitate';
             const isSolid = c.category === 'solid';
+            const isGas = c.category === 'gas';
             const isCompound = c.category === 'compound';
 
-            let categoryLabel = '可溶离子';
-            if (isCompound) categoryLabel = '成分';
-            else if (isPrecipitate) categoryLabel = '沉淀';
-            else if (isSolid) categoryLabel = '固态单质';
-            else if (c.formula.includes('⁺') || c.formula.includes('+')) categoryLabel = '阳离子';
-            else if (c.formula.includes('⁻') || c.formula.includes('-')) categoryLabel = '阴离子';
+            let categoryLabel = c.categoryLabel || '可溶离子';
+            if (!c.categoryLabel) {
+              if (isGas) categoryLabel = '气体生成物';
+              else if (isCompound) categoryLabel = '成分';
+              else if (isPrecipitate) categoryLabel = '沉淀';
+              else if (isSolid) categoryLabel = '固态单质';
+              else if (c.formula.includes('⁺') || c.formula.includes('+')) categoryLabel = '阳离子';
+              else if (c.formula.includes('⁻') || c.formula.includes('-')) categoryLabel = '阴离子';
+            }
 
             let heroVal = '';
             let heroUnit = '';
             let gaugeWidth = 0;
 
-            if (isPrecipitate || isSolid) {
+            if (isGas) {
+              const gasVolMl = c.moles * 22400;
+              heroVal = gasVolMl >= 1000 ? (gasVolMl / 1000).toFixed(2) : Math.round(gasVolMl).toString();
+              heroUnit = gasVolMl >= 1000 ? 'L 气体' : 'mL 气体';
+              gaugeWidth = Math.min(100, Math.max(8, (c.moles / 0.03) * 100));
+            } else if (isPrecipitate || isSolid) {
               heroVal = c.massGrams < 0.01 ? (c.massGrams * 1000).toFixed(1) : c.massGrams.toFixed(2);
               heroUnit = c.massGrams < 0.01 ? 'mg' : 'g';
               gaugeWidth = Math.min(100, Math.max(8, (c.massGrams / 3.0) * 100));
@@ -373,6 +419,7 @@ export class ExperimentStatusCard {
 
             const fmtFormula = formatChemicalFormula(c.formula);
             const formulaClass = getFormulaAvatarClass(fmtFormula);
+            const statMassLabel = isPrecipitate ? '沉淀质量' : isGas ? '气体质量' : '质量';
 
             return `
               <div class="apple-solute-card" style="--tint: ${c.color}">
@@ -408,7 +455,7 @@ export class ExperimentStatusCard {
                     <span class="stat-num">${c.millimoles.toFixed(2)} mmol</span>
                   </div>
                   <div class="stat-col">
-                    <span class="stat-lbl">${isPrecipitate ? '沉淀质量' : '质量'}</span>
+                    <span class="stat-lbl">${statMassLabel}</span>
                     <span class="stat-num">${massDisplay}</span>
                   </div>
                 </div>

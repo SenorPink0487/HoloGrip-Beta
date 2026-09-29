@@ -273,7 +273,8 @@ console.log('Test 7: 100% Normalized Composition Analysis Invariants');
   multiEngine.addReagent('HCl', 40);
   multiEngine.addReagent('NaCl', 40);
 
-  const multiComp = multiEngine.getCompositionAnalysis();
+  // 2a. Ion View Mode
+  const multiComp = multiEngine.getCompositionAnalysis('ion');
   assert(multiComp.components.length >= 3, `Expected at least 3 solute ions (H+, Cl-, Na+), got ${multiComp.components.length}`);
 
   // Invariant A: Sum of percentages MUST strictly equal 100.0%
@@ -287,6 +288,24 @@ console.log('Test 7: 100% Normalized Composition Analysis Invariants');
       `Ranked list must be sorted descending: component #${i} (${multiComp.components[i].formula}: ${multiComp.components[i].percentage}%) >= component #${i + 1} (${multiComp.components[i + 1].formula}: ${multiComp.components[i + 1].percentage}%)`
     );
   }
+
+  // 2b. Substance Mode (Chemical compounds: NaCl, HCl)
+  const substanceComp = multiEngine.getCompositionAnalysis('substance');
+  assert.strictEqual(substanceComp.components.length, 2, 'Expected exactly 2 chemical substances: NaCl and HCl');
+  const hasNaCl = substanceComp.components.some((c) => c.formula === 'NaCl' && c.name === '氯化钠');
+  const hasHCl = substanceComp.components.some((c) => c.formula === 'HCl' && c.name === '稀盐酸');
+  assert(hasNaCl, 'Substance composition must include NaCl');
+  assert(hasHCl, 'Substance composition must include HCl');
+
+  // 2c. Reaction Gas Product Invariant (Na2CO3 + HCl -> CO2 gas, NaCl, HCl)
+  const carbEngine = new ChemistryEngine();
+  carbEngine.addReagent('Na2CO3', 25);
+  carbEngine.addReagent('HCl', 50);
+  const carbComp = carbEngine.getCompositionAnalysis('substance');
+  const co2Comp = carbComp.components.find((c) => c.category === 'gas' && c.formula.includes('CO₂'));
+  assert(co2Comp !== undefined, 'Substance composition must include CO2 gas product after carbonate reaction');
+  assert.strictEqual(co2Comp?.name, '二氧化碳气体');
+  assert(co2Comp && co2Comp.moles > 0.01, 'CO2 gas product moles must be tracked');
 
   // Invariant C: Water H2O is separately reported and NOT diluted into the solute chart
   assert(multiComp.waterVolumeMl > 0, 'Water volume must be tracked separately');

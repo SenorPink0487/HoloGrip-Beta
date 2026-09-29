@@ -533,9 +533,14 @@ export class HandGestureService {
         this.broadcastFrame(frame);
         this.notifyStatus();
 
-        // Process next available frame if video advanced or frame is pending
+        // Process next available frame if video advanced, frame is pending, or fallback cadence elapsed
         if (this.status === 'running' && this.videoElement && this.videoElement.readyState >= 2) {
-          if (this.hasPendingFrame || this.videoElement.currentTime !== this.lastVideoCurrentTime) {
+          const nowMs = performance.now();
+          if (
+            this.hasPendingFrame ||
+            this.videoElement.currentTime !== this.lastVideoCurrentTime ||
+            (this.videoFrameCallbackId === null && nowMs - this.lastFrameSendTime >= 25)
+          ) {
             this.processFrame(false);
           }
         }
@@ -574,7 +579,7 @@ export class HandGestureService {
         this.videoElement.style.left = '0';
         this.videoElement.style.width = '320px';
         this.videoElement.style.height = '240px';
-        this.videoElement.style.opacity = '0.01';
+        this.videoElement.style.opacity = '0.06';
         this.videoElement.style.pointerEvents = 'none';
         this.videoElement.style.zIndex = '1';
         document.body.appendChild(this.videoElement);
@@ -727,8 +732,11 @@ export class HandGestureService {
     const loop = () => {
       if (this.status !== 'running') return;
       const now = performance.now();
-      // Watchdog fallback: drives processing cadence if rVFC is stalled (> 120ms) or unsupported
-      if (now - this.lastRvfCallTime >= 120) {
+      // High-cadence watchdog / fallback loop:
+      // When rVFC is actively delivering hardware frames, tolerate normal 33ms camera interval and intervene on stall (>= 80ms).
+      // If rVFC is unsupported or stalled, drive high-cadence dispatch (>= 25ms delay, 40 FPS).
+      const hasActiveRvfc = this.videoFrameCallbackId !== null && (now - this.lastRvfCallTime < 80);
+      if (!hasActiveRvfc && (now - this.lastFrameSendTime >= 25)) {
         this.processFrame(false);
       }
       this.animFrameId = requestAnimationFrame(loop);

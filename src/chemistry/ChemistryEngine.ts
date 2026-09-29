@@ -41,6 +41,13 @@ export interface ChemicalReaction {
   specialEffect?: 'sodium_burn' | 'effervescence' | 'precipitation' | 'color_shift';
 }
 
+export interface GasProduct {
+  formula: string;
+  name: string;
+  moles: number;
+  color: string;
+}
+
 export interface ChemistryState {
   volume: number; // mL
   maxVolume: number; // 250 mL
@@ -49,6 +56,7 @@ export interface ChemistryState {
   ions: Map<string, number>; // ion name -> moles
   precipitates: Map<string, { formula: string; name: string; color: number; moles: number }>;
   solids: Map<string, { formula: string; name: string; moles: number }>;
+  gases: Map<string, GasProduct>;
   indicators: { phenolphthalein: number; litmus: number };
   liquidColor: THREE.Color;
   recentReactions: ChemicalReaction[];
@@ -70,7 +78,7 @@ export interface SoluteComponent {
   id: string;
   formula: string;
   name: string;
-  category: 'ion' | 'precipitate' | 'solid' | 'compound';
+  category: 'ion' | 'precipitate' | 'solid' | 'compound' | 'gas';
   categoryLabel: string;
   moles: number;
   millimoles: number;
@@ -451,7 +459,8 @@ export class ChemistryEngine {
   public state: ChemistryState;
   private listeners: Array<(state: ChemistryState) => void> = [];
   private computeBridge: any = null;
-  private cachedComposition: ChemistryComposition | null = null;
+  private cachedSubstanceComposition: ChemistryComposition | null = null;
+  private cachedIonComposition: ChemistryComposition | null = null;
   private isCompositionWorkerBusy = false;
 
   constructor() {
@@ -474,6 +483,7 @@ export class ChemistryEngine {
       ]),
       precipitates: new Map(),
       solids: new Map(),
+      gases: new Map(),
       indicators: { phenolphthalein: 0, litmus: 0 },
       liquidColor: new THREE.Color(0xd7f3ff),
       recentReactions: [],
@@ -485,6 +495,8 @@ export class ChemistryEngine {
       solutionTint: 0xd7f3ff,
       solutionTintStrength: 0,
     };
+    this.cachedSubstanceComposition = null;
+    this.cachedIonComposition = null;
     this.notify();
   }
 
@@ -497,10 +509,32 @@ export class ChemistryEngine {
   }
 
   private notify(): void {
-    this.cachedComposition = null;
+    this.cachedSubstanceComposition = null;
+    this.cachedIonComposition = null;
     this.requestWorkerComposition();
     for (const listener of this.listeners) {
       listener(this.state);
+    }
+  }
+
+  public addGas(gasType: 'CO2' | 'H2' | 'O2', moles: number): void {
+    if (moles <= 1e-7) return;
+    const GAS_META: Record<string, { formula: string; name: string; color: string }> = {
+      CO2: { formula: 'CO₂↑', name: '二氧化碳气体', color: '#64d2ff' },
+      H2: { formula: 'H₂↑', name: '氢气', color: '#ffd60a' },
+      O2: { formula: 'O₂↑', name: '氧气', color: '#30d158' },
+    };
+    const meta = GAS_META[gasType] || { formula: `${gasType}↑`, name: `${gasType}气体`, color: '#64d2ff' };
+    const cur = this.state.gases.get(gasType);
+    if (cur) {
+      cur.moles += moles;
+    } else {
+      this.state.gases.set(gasType, {
+        formula: meta.formula,
+        name: meta.name,
+        moles,
+        color: meta.color,
+      });
     }
   }
 
@@ -519,12 +553,8 @@ export class ChemistryEngine {
         recentReaction: this.state.recentReactions.length > 0 ? this.state.recentReactions[0] : null,
       })
       .then((res: any) => {
-        if (this.state.mixtureParts.length > 0) {
-          this.cachedComposition = this.computeCompositionSync();
-          return;
-        }
         if (res && res.composition) {
-          this.cachedComposition = res.composition;
+          this.cachedIonComposition = res.composition;
         }
       })
       .catch((err: any) => {
@@ -1033,6 +1063,7 @@ export class ChemistryEngine {
       if (solidMg.moles <= 1e-6) this.state.solids.delete('Mg');
       this.setIon('H+', curH - reacted * 2);
       this.addIon('Mg2+', reacted);
+      this.addGas('H2', reacted);
 
       const heatDelta = (reacted * 460 * 1000) / (this.state.volume * 4.184);
       this.state.temperature = Math.min(96, this.state.temperature + heatDelta);
@@ -1066,6 +1097,7 @@ export class ChemistryEngine {
       if (solidZn.moles <= 1e-6) this.state.solids.delete('Zn');
       this.setIon('H+', curH - reacted * 2);
       this.addIon('Zn2+', reacted);
+      this.addGas('H2', reacted);
 
       const heatDelta = (reacted * 153 * 1000) / (this.state.volume * 4.184);
       this.state.temperature = Math.min(90, this.state.temperature + heatDelta);
@@ -1098,6 +1130,7 @@ export class ChemistryEngine {
       if (solidFe.moles <= 1e-6) this.state.solids.delete('Fe');
       this.setIon('H+', curH - reacted * 2);
       this.addIon('Fe2+', reacted);
+      this.addGas('H2', reacted);
 
       this.state.activeGasRate = 0.5;
       this.state.gasType = 'H2';
@@ -1215,6 +1248,7 @@ export class ChemistryEngine {
       caPrecip.moles -= dissolved;
       this.setIon('H+', curH - dissolved * 2);
       this.addIon('Ca2+', dissolved);
+      this.addGas('CO2', dissolved);
 
       if (caPrecip.moles <= 1e-6) {
         this.state.precipitates.delete('CaCO3');
@@ -1272,6 +1306,7 @@ export class ChemistryEngine {
       const reacted = Math.min(curCO3, curH2 / 2);
       this.setIon('CO3_2-', curCO3 - reacted);
       this.setIon('H+', curH2 - reacted * 2);
+      this.addGas('CO2', reacted);
 
       this.state.activeGasRate = 1.0;
       this.state.gasType = 'CO2';
@@ -1574,6 +1609,7 @@ export class ChemistryEngine {
       this.setIon('H2O2', curH2O2_ox - reacted * 2.5);
       this.setIon('H+', curH_ox - reacted * 3);
       this.addIon('Mn2+', reacted);
+      this.addGas('O2', reacted * 2.5);
 
       this.state.activeGasRate = 1.0;
       this.state.gasType = 'O2';
@@ -1600,6 +1636,7 @@ export class ChemistryEngine {
     if (curH2O2 > 1e-4 && (this.getIon('Fe3+') > 1e-4 || this.getIon('Fe2+') > 1e-4)) {
       const decomposed = curH2O2 * 0.75;
       this.setIon('H2O2', curH2O2 - decomposed);
+      this.addGas('O2', decomposed * 0.5);
 
       this.state.activeGasRate = 0.8;
       this.state.gasType = 'O2';
@@ -1636,6 +1673,7 @@ export class ChemistryEngine {
     // 2Na + 2H2O -> 2NaOH + H2 ^
     this.addIon('Na+', reacted);
     this.addIon('OH-', reacted);
+    this.addGas('H2', reacted * 0.5);
 
     const heatDelta = (reacted * 368 * 1000) / (this.state.volume * 4.184);
     this.state.temperature = Math.min(98, this.state.temperature + heatDelta);
@@ -2163,16 +2201,24 @@ export class ChemistryEngine {
     if (source.state.volume <= 0.05) source.state.solutionTintStrength = 0;
   }
 
-  public getCompositionAnalysis(): ChemistryComposition {
-    if (this.cachedComposition) {
-      return this.cachedComposition;
+  public getCompositionAnalysis(mode: 'substance' | 'ion' = 'substance'): ChemistryComposition {
+    if (mode === 'ion') {
+      if (this.cachedIonComposition) {
+        return this.cachedIonComposition;
+      }
+      const comp = this.computeCompositionSync('ion');
+      this.cachedIonComposition = comp;
+      return comp;
     }
-    const comp = this.computeCompositionSync();
-    this.cachedComposition = comp;
+    if (this.cachedSubstanceComposition) {
+      return this.cachedSubstanceComposition;
+    }
+    const comp = this.computeCompositionSync('substance');
+    this.cachedSubstanceComposition = comp;
     return comp;
   }
 
-  public computeCompositionSync(): ChemistryComposition {
+  public computeCompositionSync(mode: 'substance' | 'ion' = 'substance'): ChemistryComposition {
     const components: SoluteComponent[] = [];
     const volLiters = Math.max(0.001, this.state.volume / 1000);
 
@@ -2195,6 +2241,9 @@ export class ChemistryEngine {
       'I-': { formula: 'I⁻', name: '碘离子', molarMass: 126.90, color: '#9c27b0' },
       'MnO4-': { formula: 'MnO₄⁻', name: '高锰酸根离子', molarMass: 118.94, color: '#7b1fa2' },
       'H2O2': { formula: 'H₂O₂', name: '过氧化氢分子', molarMass: 34.015, color: '#80deea' },
+      'Mg2+': { formula: 'Mg²⁺', name: '镁离子', molarMass: 24.305, color: '#b0bec5' },
+      'Zn2+': { formula: 'Zn²⁺', name: '锌离子', molarMass: 65.38, color: '#78909c' },
+      'Mn2+': { formula: 'Mn²⁺', name: '锰离子', molarMass: 54.938, color: '#e57373' },
     };
 
     const SOLID_META: Record<string, { formula: string; name: string; molarMass: number; color: string }> = {
@@ -2242,36 +2291,261 @@ export class ChemistryEngine {
       });
     }
 
-    // 1. Solvated Ions (exclude neutral autodissociated H+ / OH- from pure water if concentration <= 1e-5 M)
-    for (const [ionName, moles] of this.state.ions) {
-      const visibleMoles = moles - (coveredIons.get(ionName) || 0);
-      if (visibleMoles > 1e-6) {
-        // In pure water autodissociation is 1e-7 mol/L. If H+ or OH- is near neutral 1e-7, ignore
+    if (mode === 'ion') {
+      // 1. Solvated Ions
+      for (const [ionName, moles] of this.state.ions) {
+        const visibleMoles = moles - (coveredIons.get(ionName) || 0);
+        if (visibleMoles > 1e-6) {
+          if ((ionName === 'H+' || ionName === 'OH-') && Math.abs(this.state.pH - 7.0) < 0.1 && visibleMoles < 5e-6) {
+            continue;
+          }
+
+          const meta = ION_META[ionName] || {
+            formula: ionName,
+            name: `${ionName}离子`,
+            molarMass: 50.0,
+            color: '#0a84ff',
+          };
+
+          components.push({
+            id: `ion_${ionName}`,
+            formula: meta.formula,
+            name: meta.name,
+            category: 'ion',
+            categoryLabel: '可溶离子',
+            moles: visibleMoles,
+            millimoles: visibleMoles * 1000,
+            molarMass: meta.molarMass,
+            massGrams: visibleMoles * meta.molarMass,
+            concentration: visibleMoles / volLiters,
+            color: meta.color,
+            percentage: 0,
+          });
+        }
+      }
+    } else {
+      // SUBSTANCE MODE
+      // 1. Gases produced from reactions
+      const hasMixtureFizz = this.state.mixtureParts.some((p) => p.formula.includes('CO') || p.id === 'CO2');
+      for (const [key, g] of this.state.gases) {
+        if (key === 'CO2' && hasMixtureFizz) continue;
+        if (g.moles > 1e-6) {
+          const GAS_MOLAR_MASS: Record<string, number> = {
+            CO2: 44.01,
+            H2: 2.016,
+            O2: 32.00,
+          };
+          const molarMass = GAS_MOLAR_MASS[key] || 44.0;
+          components.push({
+            id: `gas_${key}`,
+            formula: g.formula,
+            name: g.name,
+            category: 'gas',
+            categoryLabel: '气体生成物',
+            moles: g.moles,
+            millimoles: g.moles * 1000,
+            molarMass,
+            massGrams: g.moles * molarMass,
+            color: g.color || '#64d2ff',
+            percentage: 0,
+          });
+        }
+      }
+
+      // 2. Molecular Solutes (H2O2, Br2, I2)
+      for (const molKey of ['H2O2', 'Br2', 'I2']) {
+        const curM = (this.state.ions.get(molKey) || 0) - (coveredIons.get(molKey) || 0);
+        if (curM > 1e-6) {
+          coveredIons.set(molKey, (coveredIons.get(molKey) || 0) + curM);
+          const metaMap: Record<string, { formula: string; name: string; molarMass: number; color: string }> = {
+            H2O2: { formula: 'H₂O₂', name: '过氧化氢', molarMass: 34.015, color: '#80deea' },
+            Br2: { formula: 'Br₂', name: '溴水单质', molarMass: 159.808, color: '#d97706' },
+            I2: { formula: 'I₂', name: '碘单质', molarMass: 253.808, color: '#854d0e' },
+          };
+          const meta = metaMap[molKey];
+          components.push({
+            id: `mol_${molKey}`,
+            formula: meta.formula,
+            name: meta.name,
+            category: 'compound',
+            categoryLabel: '溶质',
+            moles: curM,
+            millimoles: curM * 1000,
+            molarMass: meta.molarMass,
+            massGrams: curM * meta.molarMass,
+            concentration: curM / volLiters,
+            color: meta.color,
+            percentage: 0,
+          });
+        }
+      }
+
+      // 3. Electrolyte Speciation (Pair cations and anions into compounds)
+      const cationPool = new Map<string, number>();
+      const anionPool = new Map<string, number>();
+
+      for (const [ionName, moles] of this.state.ions) {
+        const visibleMoles = moles - (coveredIons.get(ionName) || 0);
+        if (visibleMoles <= 1e-6) continue;
         if ((ionName === 'H+' || ionName === 'OH-') && Math.abs(this.state.pH - 7.0) < 0.1 && visibleMoles < 5e-6) {
           continue;
         }
+        if (ionName.endsWith('+') || ionName.includes('+')) {
+          cationPool.set(ionName, visibleMoles);
+        } else if (ionName.endsWith('-') || ionName.includes('-')) {
+          anionPool.set(ionName, visibleMoles);
+        }
+      }
 
-        const meta = ION_META[ionName] || {
-          formula: ionName,
-          name: `${ionName}离子`,
-          molarMass: 50.0,
-          color: '#0a84ff',
-        };
+      const COMPOUND_RULES: Array<{
+        cation: string;
+        anion: string;
+        formula: string;
+        name: string;
+        cationCount: number;
+        anionCount: number;
+        molarMass: number;
+        color: string;
+        categoryLabel: string;
+      }> = [
+        // Cu2+
+        { cation: 'Cu2+', anion: 'SO4_2-', formula: 'CuSO₄', name: '硫酸铜', cationCount: 1, anionCount: 1, molarMass: 159.61, color: '#0a84ff', categoryLabel: '可溶性盐' },
+        { cation: 'Cu2+', anion: 'Cl-', formula: 'CuCl₂', name: '氯化铜', cationCount: 1, anionCount: 2, molarMass: 134.45, color: '#00b4d8', categoryLabel: '可溶性盐' },
+        { cation: 'Cu2+', anion: 'NO3-', formula: 'Cu(NO₃)₂', name: '硝酸铜', cationCount: 1, anionCount: 2, molarMass: 187.56, color: '#0a84ff', categoryLabel: '可溶性盐' },
 
-        components.push({
-          id: `ion_${ionName}`,
-          formula: meta.formula,
-          name: meta.name,
-          category: 'ion',
-          categoryLabel: '可溶离子',
-          moles: visibleMoles,
-          millimoles: visibleMoles * 1000,
-          molarMass: meta.molarMass,
-          massGrams: visibleMoles * meta.molarMass,
-          concentration: visibleMoles / volLiters,
-          color: meta.color,
-          percentage: 0,
-        });
+        // Ba2+
+        { cation: 'Ba2+', anion: 'Cl-', formula: 'BaCl₂', name: '氯化钡', cationCount: 1, anionCount: 2, molarMass: 208.23, color: '#bf5af2', categoryLabel: '可溶性盐' },
+        { cation: 'Ba2+', anion: 'NO3-', formula: 'Ba(NO₃)₂', name: '硝酸钡', cationCount: 1, anionCount: 2, molarMass: 261.34, color: '#bf5af2', categoryLabel: '可溶性盐' },
+
+        // Fe3+
+        { cation: 'Fe3+', anion: 'Cl-', formula: 'FeCl₃', name: '氯化铁', cationCount: 1, anionCount: 3, molarMass: 162.20, color: '#ff9f0a', categoryLabel: '可溶性盐' },
+        { cation: 'Fe3+', anion: 'SO4_2-', formula: 'Fe₂(SO₄)₃', name: '硫酸铁', cationCount: 2, anionCount: 3, molarMass: 399.88, color: '#ff9f0a', categoryLabel: '可溶性盐' },
+        { cation: 'Fe3+', anion: 'NO3-', formula: 'Fe(NO₃)₃', name: '硝酸铁', cationCount: 1, anionCount: 3, molarMass: 241.86, color: '#ff9f0a', categoryLabel: '可溶性盐' },
+
+        // Fe2+
+        { cation: 'Fe2+', anion: 'SO4_2-', formula: 'FeSO₄', name: '硫酸亚铁', cationCount: 1, anionCount: 1, molarMass: 151.91, color: '#34c759', categoryLabel: '可溶性盐' },
+        { cation: 'Fe2+', anion: 'Cl-', formula: 'FeCl₂', name: '氯化亚铁', cationCount: 1, anionCount: 2, molarMass: 126.75, color: '#34c759', categoryLabel: '可溶性盐' },
+
+        // Ca2+
+        { cation: 'Ca2+', anion: 'Cl-', formula: 'CaCl₂', name: '氯化钙', cationCount: 1, anionCount: 2, molarMass: 110.98, color: '#e5e5ea', categoryLabel: '可溶性盐' },
+        { cation: 'Ca2+', anion: 'OH-', formula: 'Ca(OH)₂', name: '氢氧化钙', cationCount: 1, anionCount: 2, molarMass: 74.09, color: '#64d2ff', categoryLabel: '强碱' },
+        { cation: 'Ca2+', anion: 'NO3-', formula: 'Ca(NO₃)₂', name: '硝酸钙', cationCount: 1, anionCount: 2, molarMass: 164.09, color: '#e5e5ea', categoryLabel: '可溶性盐' },
+
+        // Al3+
+        { cation: 'Al3+', anion: 'Cl-', formula: 'AlCl₃', name: '氯化铝', cationCount: 1, anionCount: 3, molarMass: 133.34, color: '#81d4fa', categoryLabel: '可溶性盐' },
+        { cation: 'Al3+', anion: 'SO4_2-', formula: 'Al₂(SO₄)₃', name: '硫酸铝', cationCount: 2, anionCount: 3, molarMass: 342.15, color: '#81d4fa', categoryLabel: '可溶性盐' },
+        { cation: 'Al3+', anion: 'NO3-', formula: 'Al(NO₃)₃', name: '硝酸铝', cationCount: 1, anionCount: 3, molarMass: 213.00, color: '#81d4fa', categoryLabel: '可溶性盐' },
+
+        // Mg2+
+        { cation: 'Mg2+', anion: 'Cl-', formula: 'MgCl₂', name: '氯化镁', cationCount: 1, anionCount: 2, molarMass: 95.21, color: '#b0bec5', categoryLabel: '可溶性盐' },
+        { cation: 'Mg2+', anion: 'SO4_2-', formula: 'MgSO₄', name: '硫酸镁', cationCount: 1, anionCount: 1, molarMass: 120.37, color: '#b0bec5', categoryLabel: '可溶性盐' },
+        { cation: 'Mg2+', anion: 'NO3-', formula: 'Mg(NO₃)₂', name: '硝酸镁', cationCount: 1, anionCount: 2, molarMass: 148.31, color: '#b0bec5', categoryLabel: '可溶性盐' },
+
+        // Zn2+
+        { cation: 'Zn2+', anion: 'Cl-', formula: 'ZnCl₂', name: '氯化锌', cationCount: 1, anionCount: 2, molarMass: 136.30, color: '#78909c', categoryLabel: '可溶性盐' },
+        { cation: 'Zn2+', anion: 'SO4_2-', formula: 'ZnSO₄', name: '硫酸锌', cationCount: 1, anionCount: 1, molarMass: 161.47, color: '#78909c', categoryLabel: '可溶性盐' },
+        { cation: 'Zn2+', anion: 'NO3-', formula: 'Zn(NO₃)₂', name: '硝酸锌', cationCount: 1, anionCount: 2, molarMass: 189.41, color: '#78909c', categoryLabel: '可溶性盐' },
+
+        // Mn2+
+        { cation: 'Mn2+', anion: 'SO4_2-', formula: 'MnSO₄', name: '硫酸锰', cationCount: 1, anionCount: 1, molarMass: 151.00, color: '#e57373', categoryLabel: '可溶性盐' },
+        { cation: 'Mn2+', anion: 'Cl-', formula: 'MnCl₂', name: '氯化锰', cationCount: 1, anionCount: 2, molarMass: 125.84, color: '#e57373', categoryLabel: '可溶性盐' },
+
+        // Ag+
+        { cation: 'Ag+', anion: 'NO3-', formula: 'AgNO₃', name: '硝酸银', cationCount: 1, anionCount: 1, molarMass: 169.87, color: '#cfd8dc', categoryLabel: '可溶性盐' },
+
+        // Acids (H+)
+        { cation: 'H+', anion: 'Cl-', formula: 'HCl', name: '稀盐酸', cationCount: 1, anionCount: 1, molarMass: 36.46, color: '#ff9f0a', categoryLabel: '强酸' },
+        { cation: 'H+', anion: 'SO4_2-', formula: 'H₂SO₄', name: '稀硫酸', cationCount: 2, anionCount: 1, molarMass: 98.08, color: '#ffd60a', categoryLabel: '强酸' },
+        { cation: 'H+', anion: 'NO3-', formula: 'HNO₃', name: '稀硝酸', cationCount: 1, anionCount: 1, molarMass: 63.01, color: '#ff9f0a', categoryLabel: '强酸' },
+        { cation: 'H+', anion: 'I-', formula: 'HI', name: '氢碘酸', cationCount: 1, anionCount: 1, molarMass: 127.91, color: '#f2f2f7', categoryLabel: '酸' },
+
+        // Alkali metals (Na+, K+)
+        // Na+
+        { cation: 'Na+', anion: 'Cl-', formula: 'NaCl', name: '氯化钠', cationCount: 1, anionCount: 1, molarMass: 58.44, color: '#64d2ff', categoryLabel: '可溶性盐' },
+        { cation: 'Na+', anion: 'SO4_2-', formula: 'Na₂SO₄', name: '硫酸钠', cationCount: 2, anionCount: 1, molarMass: 142.04, color: '#ffd60a', categoryLabel: '可溶性盐' },
+        { cation: 'Na+', anion: 'CO3_2-', formula: 'Na₂CO₃', name: '碳酸钠', cationCount: 2, anionCount: 1, molarMass: 105.99, color: '#f5f5f7', categoryLabel: '盐/弱碱性' },
+        { cation: 'Na+', anion: 'OH-', formula: 'NaOH', name: '氢氧化钠', cationCount: 1, anionCount: 1, molarMass: 40.00, color: '#64d2ff', categoryLabel: '强碱' },
+        { cation: 'Na+', anion: 'NO3-', formula: 'NaNO₃', name: '硝酸钠', cationCount: 1, anionCount: 1, molarMass: 85.00, color: '#f2f2f7', categoryLabel: '可溶性盐' },
+        { cation: 'Na+', anion: 'I-', formula: 'NaI', name: '碘化钠', cationCount: 1, anionCount: 1, molarMass: 149.89, color: '#f2f2f7', categoryLabel: '可溶性盐' },
+
+        // K+
+        { cation: 'K+', anion: 'MnO4-', formula: 'KMnO₄', name: '高锰酸钾', cationCount: 1, anionCount: 1, molarMass: 158.03, color: '#7b1fa2', categoryLabel: '强氧化剂盐' },
+        { cation: 'K+', anion: 'I-', formula: 'KI', name: '碘化钾', cationCount: 1, anionCount: 1, molarMass: 166.00, color: '#f2f2f7', categoryLabel: '可溶性盐' },
+        { cation: 'K+', anion: 'Cl-', formula: 'KCl', name: '氯化钾', cationCount: 1, anionCount: 1, molarMass: 74.55, color: '#f2f2f7', categoryLabel: '可溶性盐' },
+        { cation: 'K+', anion: 'SO4_2-', formula: 'K₂SO₄', name: '硫酸钾', cationCount: 2, anionCount: 1, molarMass: 174.26, color: '#ffd60a', categoryLabel: '可溶性盐' },
+        { cation: 'K+', anion: 'CO3_2-', formula: 'K₂CO₃', name: '碳酸钾', cationCount: 2, anionCount: 1, molarMass: 138.21, color: '#f5f5f7', categoryLabel: '盐/弱碱性' },
+        { cation: 'K+', anion: 'OH-', formula: 'KOH', name: '氢氧化钾', cationCount: 1, anionCount: 1, molarMass: 56.11, color: '#64d2ff', categoryLabel: '强碱' },
+        { cation: 'K+', anion: 'NO3-', formula: 'KNO₃', name: '硝酸钾', cationCount: 1, anionCount: 1, molarMass: 101.10, color: '#f2f2f7', categoryLabel: '可溶性盐' },
+      ];
+
+      for (const rule of COMPOUND_RULES) {
+        const cMoles = cationPool.get(rule.cation) || 0;
+        const aMoles = anionPool.get(rule.anion) || 0;
+        if (cMoles > 1e-6 && aMoles > 1e-6) {
+          const maxFromC = cMoles / rule.cationCount;
+          const maxFromA = aMoles / rule.anionCount;
+          const compoundMoles = Math.min(maxFromC, maxFromA);
+
+          if (compoundMoles > 1e-6) {
+            cationPool.set(rule.cation, Math.max(0, cMoles - compoundMoles * rule.cationCount));
+            anionPool.set(rule.anion, Math.max(0, aMoles - compoundMoles * rule.anionCount));
+
+            components.push({
+              id: `comp_${rule.formula}`,
+              formula: rule.formula,
+              name: rule.name,
+              category: 'compound',
+              categoryLabel: rule.categoryLabel,
+              moles: compoundMoles,
+              millimoles: compoundMoles * 1000,
+              molarMass: rule.molarMass,
+              massGrams: compoundMoles * rule.molarMass,
+              concentration: compoundMoles / volLiters,
+              color: rule.color,
+              percentage: 0,
+            });
+          }
+        }
+      }
+
+      // Any residual ions that could not be paired
+      for (const [ionName, moles] of cationPool) {
+        if (moles > 1e-5) {
+          const meta = ION_META[ionName] || { formula: ionName, name: `${ionName}离子`, molarMass: 50.0, color: '#0a84ff' };
+          components.push({
+            id: `ion_${ionName}`,
+            formula: meta.formula,
+            name: meta.name,
+            category: 'ion',
+            categoryLabel: '游离离子',
+            moles,
+            millimoles: moles * 1000,
+            molarMass: meta.molarMass,
+            massGrams: moles * meta.molarMass,
+            concentration: moles / volLiters,
+            color: meta.color,
+            percentage: 0,
+          });
+        }
+      }
+      for (const [ionName, moles] of anionPool) {
+        if (moles > 1e-5) {
+          const meta = ION_META[ionName] || { formula: ionName, name: `${ionName}离子`, molarMass: 50.0, color: '#0a84ff' };
+          components.push({
+            id: `ion_${ionName}`,
+            formula: meta.formula,
+            name: meta.name,
+            category: 'ion',
+            categoryLabel: '游离离子',
+            moles,
+            millimoles: moles * 1000,
+            molarMass: meta.molarMass,
+            massGrams: moles * meta.molarMass,
+            concentration: moles / volLiters,
+            color: meta.color,
+            percentage: 0,
+          });
+        }
       }
     }
 

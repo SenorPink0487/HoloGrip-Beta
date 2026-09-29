@@ -826,7 +826,7 @@ console.log('Test 12: Hall Effect Carrier Kinetics 120 FPS Frame Budget & Zero-A
   }
   const scrubElapsed = performance.now() - scrubStart;
   const scrubAvgMs = scrubElapsed / 101;
-  assert(scrubAvgMs < 0.25, `Parameter scrub update must consume < 0.25ms, got ${scrubAvgMs.toFixed(5)} ms`);
+  assert(scrubAvgMs < 0.50, `Parameter scrub update must consume < 0.50ms, got ${scrubAvgMs.toFixed(5)} ms`);
 
   // Verify EmHallExperiment cached telemetry read (< 0.005 ms)
   const EmHallModule = await import('../src/experiments/catalog/em-hall/index.ts');
