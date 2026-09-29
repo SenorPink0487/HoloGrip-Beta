@@ -33,7 +33,7 @@ export class ThermoInteractionManager {
       return { id: 'heater_knob', label: '水平拖动旋钮调节温度 T', cursor: 'ew-resize' };
     }
 
-    // Raycast against interactive meshes
+    // 对可交互网格执行光线投射检测
     const hits = raycaster.intersectObjects([
       this.callbacks.piston.handleMesh,
       this.callbacks.heater.knobMesh,
@@ -69,7 +69,7 @@ export class ThermoInteractionManager {
       if (obj === this.callbacks.heater.knobMesh) {
         this.dragTarget = 'heater_knob';
         this.startClientX = event.clientX;
-        this.startTempK = 300; // Will be passed via current temp
+        this.startTempK = 300; // 将通过当前温度传入
         return true;
       }
       obj = obj.parent;
@@ -81,14 +81,14 @@ export class ThermoInteractionManager {
 
   public onPointerMove(event: PointerEvent, _hit: THREE.Intersection | null, _context: ExperimentContext): void {
     if (this.dragTarget === 'piston_handle') {
-      // Invert Y: dragging mouse up increases volume, dragging down decreases
+      // 反转 Y 轴：鼠标向上拖动增大容积，向下拖动减小容积
       const deltaY = this.startClientY - event.clientY;
-      const sensitivity = 0.015; // liters per pixel
+      const sensitivity = 0.015; // 每像素对应的升数
       const newVol = Math.max(1.0, Math.min(5.0, this.startVolume + deltaY * sensitivity));
       this.callbacks.onVolumeChange(newVol);
     } else if (this.dragTarget === 'heater_knob') {
       const deltaX = event.clientX - this.startClientX;
-      const sensitivity = 1.8; // Kelvin per pixel
+      const sensitivity = 1.8; // 每像素对应的开尔文温度变化
       const newTemp = Math.max(100, Math.min(800, this.startTempK + deltaX * sensitivity));
       this.callbacks.onTemperatureChange(newTemp);
     }

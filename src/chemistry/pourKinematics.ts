@@ -1,10 +1,10 @@
 /**
- * Beaker pour kinematics.
+ * 烧杯倾倒运动学与液体自由液面几何解算。
  *
- * The beaker group's only tilt is rotation.z = θ (right-handed, Y up).
- * θ < 0 lowers local +X, so a left beaker pours to the right over that lip.
- * R_z(θ) sends local +X to (cos θ, sin θ, 0). The free surface is a plane of
- * constant world Y, which in beaker-local space has slope dy/dx = -tan θ.
+ * 烧杯组件仅绕 Z 轴发生倾斜：rotation.z = θ（右手坐标系，Y轴向上）。
+ * 当 θ < 0 时，局部 +X 下降，左侧烧杯越过杯口向右侧倾倒。
+ * 旋转矩阵 R_z(θ) 将局部 +X 映射至 (cos θ, sin θ, 0)。
+ * 自由液面在世界坐标系中为恒定 Y 的水平面，在烧杯局部坐标系中斜率为 dy/dx = -tan θ。
  */
 
 export const POUR_TILT = (78 * Math.PI) / 180;
@@ -18,17 +18,17 @@ export const POUR_STREAM_RADIAL = 12;
 
 export interface LiquidPlane {
   spilling: boolean;
-  /** dy/dx of the free surface in beaker-local meters. */
+  /** 自由液面在烧杯局部坐标系下的斜率 dy/dx（单位：米）。 */
   slope: number;
-  /** Local Y of the free surface at x = 0 (the plane, even if that point is dry). */
+  /** 自由液面在 x = 0 处的局部 Y 坐标（即使该点无液体亦表示所在平面位置）。 */
   yAtZero: number;
-  /** Local X of the pour-side inner wall. */
+  /** 倒液侧内壁的局部 X 坐标。 */
   xLip: number;
   yLip: number;
   yBottom: number;
   yRim: number;
   radius: number;
-  /** Upright-equivalent head above the lip, in meters. Zero when the surface is below the rim. */
+  /** 倾倒杯口上方的等效垂直液柱高度（单位：米）。液面低于杯沿时为 0。 */
   overflow: number;
 }
 
@@ -59,7 +59,7 @@ function normalize(v: Vec3): Vec3 {
   return { x: v.x / len, y: v.y / len, z: v.z / len };
 }
 
-/** Volume under y(x) = yLip + slope * (x - xLip), clipped to the beaker floor. */
+/** 计算以 y(x) = yLip + slope * (x - xLip) 为上表面、被烧杯内壁与底部截断的液体体积。 */
 function volumeForLip(yLip: number, slope: number, xLip: number, radius: number, yBottom: number): number {
   const steps = 64;
   const dx = (2 * radius) / steps;
@@ -133,7 +133,7 @@ export function solveLiquidPlane(
   };
 }
 
-/** Point on the inner wall where the free surface meets the pour side, flared out toward the rim when it is close. */
+/** 自由液面与倒液侧内壁相交的点；接近杯口时向外扩张至杯沿半径。 */
 export function lipContactLocal(plane: LiquidPlane, rimRadius: number): Vec3 {
   const sign = plane.xLip >= 0 ? 1 : -1;
   const yWall = plane.yAtZero + plane.slope * sign * plane.radius;
@@ -143,7 +143,7 @@ export function lipContactLocal(plane: LiquidPlane, rimRadius: number): Vec3 {
   return { x: sign * r, y, z: 0 };
 }
 
-/** A point on the free surface a couple of centimeters back from the pour wall. */
+/** 自由液面上距离倒液侧杯壁向内退让数厘米的参考点。 */
 export function lipInsetLocal(plane: LiquidPlane): Vec3 {
   const sign = plane.xLip >= 0 ? 1 : -1;
   const inset = Math.min(0.022, plane.radius * 0.28);
@@ -223,7 +223,7 @@ export function buildTiltedLiquidGeometry(plane: LiquidPlane, segments: number, 
       const y0 = positions[t0 * 3 + 1];
       const y1 = positions[t1 * 3 + 1];
       if (y0 - plane.yBottom < 1e-4 && y1 - plane.yBottom < 1e-4) continue;
-      // CCW seen from outside the cylinder. Increasing azimuth walks toward +Z at +X.
+      // 从圆柱体外侧看为逆时针方向。沿 +X 增加方位角朝向 +Z。
       indices.push(b0, t0, b1, b1, t0, t1);
     }
   };
@@ -254,7 +254,7 @@ export function buildTiltedLiquidGeometry(plane: LiquidPlane, segments: number, 
     pushSides(bottom, top, true);
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
-      // Increasing azimuth is +Z at +X. center → next → current faces local up.
+      // 方位角增加朝向 +Z。中心 -> 下一个 -> 当前顶点朝向局部上方。
       indices.push(tc, top[j], top[i]);
       indices.push(bc, bottom[i], bottom[j]);
     }
@@ -318,7 +318,7 @@ export function buildTiltedLiquidGeometry(plane: LiquidPlane, segments: number, 
   };
 }
 
-/** World direction of the pour-side wall after a pure rotation.z. Parent rotation is applied by the caller. */
+/** 经纯 Z 轴旋转后倒液侧杯壁的世界方向矢量。父级旋转由调用方叠加。 */
 export function lipOutwardFromTilt(tiltZ: number, direction: 'left' | 'right'): Vec3 {
   const sign = direction === 'right' ? 1 : -1;
   const c = Math.cos(tiltZ);
@@ -348,8 +348,8 @@ function landingOffset(outward: Vec3, drop: number, speed: number, gravity: numb
 }
 
 /**
- * Where the outer lip should sit so a ballistic stream at the lip's outward
- * direction lands on the target liquid, directly under the mouth center.
+ * 计算外杯口的目标位置，使得沿杯口外侧法线方向喷射的抛体流
+ * 能够准确落入目标烧杯液面中央。
  */
 export function lipGoalForPour(args: {
   outward: Vec3;
@@ -509,7 +509,7 @@ export function ellipticTubeIndices(rings: number, radial: number): Uint32Array 
   return new Uint32Array(indices);
 }
 
-/** Writes an elliptical tube. Width follows the horizontal binormal, thickness the surface normal. */
+/** 构建椭圆管道几何体。管径截面宽度跟随水平副法线，厚度跟随表面法线。 */
 export function writeEllipticTube(samples: StreamSample[], radial: number, out: Float32Array): void {
   let prevB = { x: 0, y: 0, z: 1 };
   for (let i = 0; i < samples.length; i++) {

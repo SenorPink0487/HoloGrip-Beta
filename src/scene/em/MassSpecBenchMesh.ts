@@ -52,7 +52,7 @@ export class MassSpecBenchMesh {
   public readonly probeGroup = new THREE.Group();
   public computeBridge?: ComputeBridge;
 
-  // Required by invariant test in tests/boost_multicore_fix.test.ts
+  // tests/boost_multicore_fix.test.ts 不变量测试所需属性
   private readonly trails: THREE.BufferAttribute[] = [];
   private readonly trailLines: THREE.Line[] = [];
   private readonly trailHist: Array<Array<[number, number]>> = [[], [], [], []];
@@ -91,18 +91,32 @@ export class MassSpecBenchMesh {
     this.chromeMat = labMetal(0xf1f5f9, 0.95, 0.12);
     this.darkScreenMat = labMetal(0x020617, 0.2, 0.35);
 
-    // Beveled Optical Knife-Edge Slit Jaws
+    // 倒角光学刀口狭缝光阑
     const jawGeo = new THREE.BoxGeometry(0.018, 0.042, 0.032);
     const jawMat = anodizedAluminum(0xe2e8f0, 0.18);
     this.upperJaw = new THREE.Mesh(jawGeo, jawMat);
     this.lowerJaw = new THREE.Mesh(jawGeo, jawMat);
 
-    // Magnetic Analyzer Pole Shoes - Proportioned realistically with chamfered rim
-    const poleGeo = new THREE.CylinderGeometry(0.038, 0.042, 0.016, 32);
-    this.nearPole = new THREE.Mesh(poleGeo, this.redMat);
-    this.farPole = new THREE.Mesh(poleGeo, this.blueMat);
+    // 磁分析器极靴 - 开架式环形外框极靴与后置实心 D 形极靴
+    const reach = MASS_STAGE.plateReach;
+    const nearPoleGeo = new THREE.TorusGeometry(reach + 0.006, 0.008, 16, 48, Math.PI);
+    this.nearPole = new THREE.Mesh(nearPoleGeo, this.redMat);
 
-    // Dynamic Polarity Jewel Badges
+    const dShape = new THREE.Shape();
+    dShape.moveTo(0, -(reach + 0.006));
+    dShape.absarc(0, 0, reach + 0.006, -Math.PI / 2, Math.PI / 2, false);
+    dShape.lineTo(0, -(reach + 0.006));
+    const farPoleGeo = new THREE.ExtrudeGeometry(dShape, {
+      depth: 0.012,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      steps: 1,
+      bevelSize: 0.001,
+      bevelThickness: 0.001,
+    });
+    this.farPole = new THREE.Mesh(farPoleGeo, this.blueMat);
+
+    // 动态极性宝石徽标
     const badgeGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.006, 24);
     this.poleLabelN = new THREE.Mesh(badgeGeo, this.redMat);
     this.poleLabelS = new THREE.Mesh(badgeGeo, this.blueMat);
@@ -162,13 +176,13 @@ export class MassSpecBenchMesh {
       (halo.material as THREE.SpriteMaterial).color.setHex(ion.color);
       (halo.material as THREE.SpriteMaterial).opacity = ion.opacity;
 
-      // Focal plane impact spot on the detector
+      // 探测器焦平面上的撞击光斑
       spot.visible = ion.spotVisible;
       spot.position.set(MASS_STAGE.entranceX, ion.spotY, 0.0);
       (spot.material as THREE.MeshStandardMaterial).color.setHex(ion.color);
       (spot.material as THREE.MeshStandardMaterial).emissive.setHex(ion.color);
 
-      // Compact front monitor spectral indicator peak (cleanly housed on console deck)
+      // 前面板紧凑型谱线峰值指示器（整齐置于控制台台面）
       mag.visible = ion.magVisible;
       mag.position.set(ion.magX, 0.065, 0.115);
       (mag.material as THREE.MeshStandardMaterial).color.setHex(ion.color);
@@ -198,43 +212,43 @@ export class MassSpecBenchMesh {
   }
 
   private build(): void {
-    // 1. Streamlined Precision Base Plinth with Rounded Ends
+    // 1. 圆角流线型精密基座
     this.buildBasePlatform();
 
-    // 2. Rigid Structural Support Pylons (Securely grounded)
+    // 2. 刚性结构支撑立柱（牢固接地）
     this.buildSupportPylons();
 
-    // 3. Stage 1: Ultra-High Vacuum Electron-Bombardment Ion Source
+    // 3. 第一阶段：超高真空电子轰击离子源
     this.buildIonSource();
 
-    // 4. Stage 2: Orthogonal Crossed-Field Wien Velocity Selector (E x B)
+    // 4. 第二阶段：正交电磁场维恩速度选择器（E x B）
     this.buildVelocitySelector();
 
-    // 5. Stage 3: Micrometer-Driven Precision Slit Collimator
+    // 5. 第三阶段：测微头驱动精密狭缝准直器
     this.buildCollimatorJaws();
 
-    // 6. Stage 4: D-Shaped Semicircular Flight Vacuum Chamber with Quartz Viewport
+    // 6. 第四阶段：带石英视窗的 D 形半圆形飞行真空室
     this.buildVacuumChamber();
 
-    // 7. Stage 5: Entrance Slit & Microchannel Plate (MCP) Focal Plane Detector
+    // 7. 第五阶段：入射狭缝与微通道板（MCP）焦平面探测器
     this.buildDetectorAndSlit();
 
-    // 8. Stage 6: C-Yoke Analyzer Electromagnet with Unobstructed Front View
+    // 8. 第六阶段：C 型磁轭分析电磁铁（前方视角无遮挡）
     this.buildAnalyzerMagnet();
 
-    // 9. Integrated Front Control Consoles (Flush-mounted on chassis)
+    // 9. 一体化前置控制台（平齐安装于机箱）
     this.buildFrontConsoles();
 
-    // 10. Dynamic Trajectory Visuals, Halos, Trails, & Draggable Probe
+    // 10. 动态轨迹视觉效果、光晕、拖尾与可拖拽探针
     this.buildIonVisuals();
 
-    // Hide redundant 3D floating canvas readout
+    // 隐藏冗余的 3D 悬浮画布读数
     this.readout.mesh.visible = false;
     this.group.add(this.readout.mesh);
   }
 
   private buildBasePlatform(): void {
-    // Streamlined Rounded-Corner Instrument Console Plinth
+    // 流线型圆角仪器控制台基座
     const w = 0.88;
     const d = 0.28;
     const r = 0.04;
@@ -263,7 +277,7 @@ export class MassSpecBenchMesh {
     const rim = outlined(plinth, 0x64748b, 0.4);
     this.group.add(plinth, rim);
 
-    // Four Vibration-Isolation Leveling Feet
+    // 四个减震调平底脚
     const footGeo = new THREE.CylinderGeometry(0.018, 0.022, 0.010, 24);
     for (const [x, z] of [
       [-w / 2 + 0.04, -d / 2 + 0.04],
@@ -279,7 +293,7 @@ export class MassSpecBenchMesh {
       this.group.add(foot, collar);
     }
 
-    // Front Laser-Etched Nameplate Badge
+    // 前侧激光蚀刻铭牌标识
     const badge = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.010, 0.002), this.goldMat);
     badge.position.set(-0.02, 0.015, d / 2 + 0.002);
     this.group.add(badge);
@@ -287,10 +301,10 @@ export class MassSpecBenchMesh {
 
   private buildSupportPylons(): void {
     const pylonSpecs = [
-      { x: -0.40, z: 0.0, topY: MASS_STAGE.entranceY - 0.028, r: 0.011 }, // under Ion Source
-      { x: -0.25, z: 0.0, topY: MASS_STAGE.entranceY - 0.032, r: 0.011 }, // under Velocity Selector
-      { x: 0.06, z: 0.0, topY: MASS_STAGE.entranceY - 0.025, r: 0.013 },  // under Slit / Entrance
-      { x: 0.28, z: 0.0, topY: MASS_STAGE.entranceY - 0.035, r: 0.015 },  // under Magnet Return Yoke
+      { x: -0.40, z: 0.0, topY: MASS_STAGE.entranceY - 0.028, r: 0.011 }, // 位于离子源下方
+      { x: -0.25, z: 0.0, topY: MASS_STAGE.entranceY - 0.032, r: 0.011 }, // 位于速度选择器下方
+      { x: 0.06, z: 0.0, topY: MASS_STAGE.entranceY - 0.025, r: 0.013 },  // 位于狭缝 / 入口下方
+      { x: 0.28, z: 0.0, topY: MASS_STAGE.entranceY - 0.035, r: 0.015 },  // 位于磁铁回路磁轭下方
     ];
 
     for (const spec of pylonSpecs) {
@@ -314,7 +328,7 @@ export class MassSpecBenchMesh {
     this.sourceGroup.name = 'IonSource';
     this.sourceGroup.position.set(MASS_STAGE.sourceX, MASS_STAGE.entranceY, 0);
 
-    // 1. UHV Ionization Chamber Cylinder
+    // 1. 超高真空电离室圆柱筒
     const chamber = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.062, 24), this.aluminumMat);
     chamber.rotation.z = Math.PI / 2;
 
@@ -325,14 +339,14 @@ export class MassSpecBenchMesh {
       this.sourceGroup.add(fin);
     }
 
-    // 2. Optical Quartz Inspection Viewport
+    // 2. 光学石英观察视窗
     const window = new THREE.Mesh(new THREE.SphereGeometry(0.020, 24, 18), opticalQuartz(0x38bdf8, 0.35));
 
-    // 3. Heated Tungsten Filament
+    // 3. 白炽钨丝阴极
     const filament = new THREE.Mesh(new THREE.TorusGeometry(0.008, 0.002, 8, 20), labGlow(0xf97316, 0.95));
     filament.rotation.y = Math.PI / 2;
 
-    // 4. Ceramic HV Insulation Stacks
+    // 4. 陶瓷高压绝缘支柱
     for (const x of [-0.015, 0.015]) {
       const insulator = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.007, 0.026, 16), labMetal(0xf8fafc, 0.1, 0.9));
       insulator.position.set(x, 0.036, 0);
@@ -341,7 +355,7 @@ export class MassSpecBenchMesh {
       this.sourceGroup.add(insulator, cap);
     }
 
-    // 5. Accelerating Extraction Nozzle
+    // 5. 加速引出喷嘴
     const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.024, 20), this.aluminumMat);
     nozzle.rotation.z = -Math.PI / 2;
     nozzle.position.x = 0.040;
@@ -358,19 +372,19 @@ export class MassSpecBenchMesh {
     const selectorGroup = new THREE.Group();
     selectorGroup.position.set((MASS_STAGE.selector0 + MASS_STAGE.selector1) / 2, MASS_STAGE.entranceY, 0);
 
-    // Transparent Quartz Cover
+    // 透明石英外罩
     const coverGeo = new THREE.BoxGeometry(0.16, 0.064, 0.052);
     const cover = new THREE.Mesh(coverGeo, opticalQuartz(0x93c5fd, 0.14));
     selectorGroup.add(cover, outlined(cover, 0x60a5fa, 0.35));
 
-    // Parallel Deflection Plates
+    // 平行偏转极板
     const plateGeo = new THREE.BoxGeometry(0.14, 0.005, 0.034);
     const upperPlate = new THREE.Mesh(plateGeo, this.goldMat);
     const lowerPlate = new THREE.Mesh(plateGeo, this.goldMat);
     upperPlate.position.set(0, 0.022, 0);
     lowerPlate.position.set(0, -0.022, 0);
 
-    // Ceramic Standoffs
+    // 陶瓷绝缘支撑柱
     const ceramicMat = labMetal(0xf8fafc, 0.05, 0.85);
     for (const x of [-0.05, 0.05]) {
       for (const y of [0.022, -0.022]) {
@@ -380,7 +394,7 @@ export class MassSpecBenchMesh {
       }
     }
 
-    // Lateral Permalloy Magnetic Pole Cheeks
+    // 侧向坡莫合金磁极侧板
     const cheekMat = anodizedAluminum(0x475569, 0.3);
     const cheekGeo = new THREE.BoxGeometry(0.13, 0.046, 0.005);
     const poleCheekFront = new THREE.Mesh(cheekGeo, cheekMat);
@@ -417,14 +431,14 @@ export class MassSpecBenchMesh {
     dShape.absarc(x0, y0, reach, -Math.PI / 2, Math.PI / 2, false);
     dShape.lineTo(x0, y0 - reach);
 
-    // Rear Dark Absorber Baseplate
+    // 后置暗色吸收底板
     const backplateGeo = new THREE.ShapeGeometry(dShape, 48);
     const backplateMat = labMetal(0x020617, 0.4, 0.6);
     const backplate = new THREE.Mesh(backplateGeo, backplateMat);
     backplate.position.set(0, 0, -0.030);
     chamberGroup.add(backplate);
 
-    // Outer Perimeter Wall Frame
+    // 外周壁框架
     const wallCurvePoints: THREE.Vector3[] = [];
     const wallSteps = 48;
     for (let i = 0; i <= wallSteps; i++) {
@@ -440,7 +454,7 @@ export class MassSpecBenchMesh {
     );
     chamberGroup.add(wallMesh);
 
-    // Front Quartz Window
+    // 前置石英视窗
     const quartzWindow = new THREE.Mesh(backplateGeo, labGlass(0.14));
     quartzWindow.position.set(0, 0, 0.030);
     chamberGroup.add(quartzWindow);
@@ -452,13 +466,13 @@ export class MassSpecBenchMesh {
     bezelLine.position.set(0, 0, 0.032);
     chamberGroup.add(bezelLine);
 
-    // Reference Guide Orbits
-    this.addGuideArc(0.043, 1, 0x38bdf8, 0.45);  // ¹H⁺
-    this.addGuideArc(0.086, 1, 0xfacc15, 0.45);  // ⁴He⁺
-    this.addGuideArc(0.149, 1, 0xf97316, 0.45);  // ¹²C⁺
-    this.addGuideArc(0.086, -1, 0x64748b, 0.25); // Reverse polarity preview
+    // 参考引导轨道
+    this.addGuideArc(0.043, 1, 0x38bdf8, 0.45);  // ¹H⁺ 轨道
+    this.addGuideArc(0.086, 1, 0xfacc15, 0.45);  // ⁴He⁺ 轨道
+    this.addGuideArc(0.149, 1, 0xf97316, 0.45);  // ¹²C⁺ 轨道
+    this.addGuideArc(0.086, -1, 0x64748b, 0.25); // 反向极性预览轨道
 
-    // High-Vacuum Pump Port
+    // 高真空抽气法兰接口
     const pumpFlange = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.020, 0.040, 20), this.chassisMat);
     pumpFlange.position.set(x0 + 0.12, y0 - reach - 0.020, -0.015);
     const bellows = new THREE.Mesh(new THREE.TorusGeometry(0.021, 0.003, 8, 20), this.aluminumMat);
@@ -473,12 +487,12 @@ export class MassSpecBenchMesh {
     const x0 = MASS_STAGE.entranceX;
     const y0 = MASS_STAGE.entranceY;
 
-    // Slit Aperture Frame
+    // 狭缝光阑框架
     const apertureCollar = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.014, 0.030), this.aluminumMat);
     apertureCollar.position.set(x0 - 0.004, y0, 0);
     this.group.add(apertureCollar);
 
-    // Upper & Lower MCP Detection Strips
+    // 上下微通道板（MCP）探测通道条
     const stripHeight = MASS_STAGE.plateReach - 0.015;
     const upperDetector = new THREE.Mesh(
       new THREE.BoxGeometry(0.008, stripHeight, 0.028),
@@ -504,49 +518,57 @@ export class MassSpecBenchMesh {
 
   private buildAnalyzerMagnet(): void {
     this.magnetGroup.name = 'AnalyzerMagnet';
-    const xCenter = MASS_STAGE.entranceX + 0.16;
-    const yCenter = MASS_STAGE.entranceY;
+    const x0 = MASS_STAGE.entranceX;
+    const y0 = MASS_STAGE.entranceY;
+    const reach = MASS_STAGE.plateReach;
 
-    // Rear Solid Magnetic Pole Shoe
-    this.farPole.rotation.x = Math.PI / 2;
-    this.farPole.position.set(xCenter, yCenter, -0.050);
+    // 后置实心 D 形磁极极靴（衬于真空室背板后侧，提供坚实磁极基板）
+    this.farPole.rotation.set(0, 0, 0);
+    this.farPole.position.set(x0, y0, -0.046);
 
-    // Front Open-Frame Magnetic Pole Collar (Proportioned, NOT a giant dinner plate!)
-    this.nearPole.rotation.x = Math.PI / 2;
-    this.nearPole.position.set(xCenter, yCenter + 0.16, 0.050);
+    // 前置开架式环形外框极靴（沿 D 形真空室弧形外沿贴合，视野 100% 贯通通透，无任何圆盘遮挡）
+    this.nearPole.rotation.z = -Math.PI / 2;
+    this.nearPole.position.set(x0, y0, 0.042);
 
-    const lowerNearPole = new THREE.Mesh(this.nearPole.geometry, this.nearPole.material);
-    lowerNearPole.rotation.x = Math.PI / 2;
-    lowerNearPole.position.set(xCenter, yCenter - 0.16, 0.050);
+    // 前端直边极靴锁紧端梁（固定于狭缝探测侧基准线）
+    const frontCheek = new THREE.Mesh(new THREE.BoxGeometry(0.012, reach * 2 + 0.016, 0.008), this.chassisMat);
+    frontCheek.position.set(x0 - 0.006, y0, 0.042);
 
-    // Copper Field Excitation Coils
-    const coilGeo = new THREE.TorusGeometry(0.060, 0.011, 10, 32);
+    // C 型重型磁轭几何定位
+    const yokeX = x0 + reach + 0.045;
+    const spineHeight = (reach + 0.024) * 2 + 0.032;
+    const yokeSpine = new THREE.Mesh(new THREE.BoxGeometry(0.034, spineHeight, 0.11), this.chassisMat);
+    yokeSpine.position.set(yokeX, y0, -0.005);
+
+    const armLength = yokeX - x0 + 0.04;
+    const armCenterX = x0 + (yokeX - x0) / 2 - 0.01;
+    const yokeTop = new THREE.Mesh(new THREE.BoxGeometry(armLength, 0.030, 0.11), this.chassisMat);
+    yokeTop.position.set(armCenterX, y0 + reach + 0.024, -0.005);
+
+    const yokeBottom = new THREE.Mesh(new THREE.BoxGeometry(armLength, 0.030, 0.11), this.chassisMat);
+    yokeBottom.position.set(armCenterX, y0 - reach - 0.024, -0.005);
+
+    // 铜质磁场励磁线圈（套绕于上下磁轭横臂上，符合工业电磁铁经典布局）
+    const coilGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.10, 24);
     const topCoil = new THREE.Mesh(coilGeo, this.copperMat);
-    topCoil.position.set(xCenter, yCenter + 0.19, 0.008);
+    topCoil.rotation.z = Math.PI / 2;
+    topCoil.position.set(armCenterX + 0.02, y0 + reach + 0.024, -0.005);
+
     const bottomCoil = new THREE.Mesh(coilGeo, this.copperMat);
-    bottomCoil.position.set(xCenter, yCenter - 0.19, 0.008);
+    bottomCoil.rotation.z = Math.PI / 2;
+    bottomCoil.position.set(armCenterX + 0.02, y0 - reach - 0.024, -0.005);
 
-    // C-Frame Yoke (Heavy-duty gunmetal steel)
-    const yokeSpine = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.44, 0.12), this.chassisMat);
-    yokeSpine.position.set(xCenter + 0.15, yCenter, -0.01);
-
-    const yokeTop = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.028, 0.12), this.chassisMat);
-    yokeTop.position.set(xCenter + 0.06, yCenter + 0.22, -0.01);
-
-    const yokeBottom = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.028, 0.12), this.chassisMat);
-    yokeBottom.position.set(xCenter + 0.06, yCenter - 0.22, -0.01);
-
-    // Dynamic Polarity Jewel Badges
+    // 动态极性宝石徽标
     this.poleLabelN.rotation.x = Math.PI / 2;
-    this.poleLabelN.position.set(xCenter, yCenter + 0.22, 0.058);
+    this.poleLabelN.position.set(x0 + 0.02, y0 + reach + 0.024, 0.052);
 
     this.poleLabelS.rotation.x = Math.PI / 2;
-    this.poleLabelS.position.set(xCenter, yCenter - 0.22, 0.058);
+    this.poleLabelS.position.set(x0 + 0.02, y0 - reach - 0.024, 0.052);
 
     this.magnetGroup.add(
       this.nearPole,
-      lowerNearPole,
       this.farPole,
+      frontCheek,
       topCoil,
       bottomCoil,
       yokeSpine,
@@ -559,7 +581,7 @@ export class MassSpecBenchMesh {
   }
 
   private buildFrontConsoles(): void {
-    // Left Control Console (Flush with chassis)
+    // 左侧控制台（与机箱平齐）
     const leftConsoleBox = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.042, 0.08), this.chassisMat);
     leftConsoleBox.position.set(-0.25, 0.038, 0.095);
     leftConsoleBox.rotation.x = Math.PI / 8;
@@ -572,7 +594,7 @@ export class MassSpecBenchMesh {
     this.group.add(leftConsoleBox, outlined(leftConsoleBox, 0x64748b, 0.35));
     this.group.add(this.accelKnob, this.selectorKnob);
 
-    // Right Spectrum Monitor Deck
+    // 右侧质谱监视器台面
     const rightMonitorBox = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.042, 0.08), this.chassisMat);
     rightMonitorBox.position.set(0.42, 0.038, 0.095);
     rightMonitorBox.rotation.x = Math.PI / 8;

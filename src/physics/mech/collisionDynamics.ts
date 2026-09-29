@@ -1,5 +1,5 @@
 /**
- * 1D Momentum Conservation & Collision Dynamics on Air Track
+ * 气垫导轨一维碰撞与动量守恒动力学
  */
 
 import { DEFAULT_PHOTOGATE_WIDTH_M } from './constants.ts';
@@ -9,8 +9,8 @@ export type CollisionMode = 'elastic' | 'inelastic';
 export interface CollisionConfig {
   m1Kg: number;
   m2Kg: number;
-  v1: number; // m/s
-  v2: number; // m/s
+  v1: number; // 初速度 v1 (m/s)
+  v2: number; // 初速度 v2 (m/s)
   mode: CollisionMode;
   shutterWidthM?: number;
 }
@@ -57,7 +57,7 @@ export function solveCollisionDynamics(config: CollisionConfig): CollisionTeleme
     v1After = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2);
     v2After = (2 * m1 * v1 + (m2 - m1) * v2) / (m1 + m2);
   } else {
-    // Completely inelastic
+    // 完全非弹性碰撞，两滑块粘合具有共同速度
     const vCommon = (m1 * v1 + m2 * v2) / (m1 + m2);
     v1After = vCommon;
     v2After = vCommon;

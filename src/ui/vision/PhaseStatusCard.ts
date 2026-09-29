@@ -53,7 +53,7 @@ export class PhaseStatusCard {
     tempPoints: [-20, -10, 0, 0, 0, 0, 0, 0, 0],
   };
 
-  // Cached DOM elements
+  // 缓存的 DOM 元素
   private valTempEl: HTMLElement | null = null;
   private valPowerEl: HTMLElement | null = null;
   private valEnergyEl: HTMLElement | null = null;
@@ -309,23 +309,23 @@ export class PhaseStatusCard {
     const chartH = h - padT - padB;
 
     const d = this.currentData;
-    const tMin = -30, tMax = 120; // -30°C to 120°C
+    const tMin = -30, tMax = 120; // -30°C 至 120°C
 
     const mapY = (tC: number) => padT + chartH - ((tC - tMin) / (tMax - tMin)) * chartH;
 
-    // Time window (auto scales to accommodate elapsed time)
+    // 时间窗口（根据已加热时长自适应扩展）
     const maxT = Math.max(120, d.timeElapsedS * 1.15);
     const mapX = (tSec: number) => padL + (tSec / maxT) * chartW;
 
-    // Grid lines for key temperatures (-20°C, 0°C, 50°C, 100°C)
+    // 关键温度网格线（-20°C、0°C、50°C、100°C）
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
 
-    // 0°C and 100°C Plateau Guide Lines
+    // 0°C 与 100°C 潜热平台参考线
     const y0 = mapY(0);
     const y100 = mapY(100);
 
-    // 0°C Melting Line
+    // 0°C 熔化线
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
     ctx.setLineDash([4, 3]);
     ctx.beginPath();
@@ -338,7 +338,7 @@ export class PhaseStatusCard {
     ctx.textAlign = 'right';
     ctx.fillText('0°C (熔化)', padL - 6, y0 + 3);
 
-    // 100°C Boiling Line
+    // 100°C 沸腾线
     ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
     ctx.beginPath();
     ctx.moveTo(padL, y100);
@@ -349,7 +349,7 @@ export class PhaseStatusCard {
     ctx.fillStyle = '#ef4444';
     ctx.fillText('100°C (沸腾)', padL - 6, y100 + 3);
 
-    // Time ticks
+    // 时间刻度
     ctx.fillStyle = '#64748b';
     ctx.font = '10px monospace';
     ctx.textAlign = 'center';
@@ -358,7 +358,7 @@ export class PhaseStatusCard {
       ctx.fillText(`${Math.round(t)}s`, x, h - 12);
     }
 
-    // Axes
+    // 坐标轴
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -367,7 +367,7 @@ export class PhaseStatusCard {
     ctx.lineTo(w - padR, padT + chartH);
     ctx.stroke();
 
-    // Live T(t) Curve Plotting
+    // 实时绘制 T(t) 升温曲线
     const tPoints = d.timePoints;
     const tempPoints = d.tempPoints;
     if (tPoints && tPoints.length > 1) {
@@ -382,7 +382,7 @@ export class PhaseStatusCard {
       ctx.stroke();
     }
 
-    // Live Head Cursor
+    // 实时当前点游标
     const curX = mapX(d.timeElapsedS);
     const curY = mapY(d.temperatureC);
 
@@ -417,7 +417,7 @@ export class PhaseStatusCard {
 
     const d = this.currentData;
 
-    // Stacked Bar for Ice, Water, Vapor
+    // 冰-水-汽三态质量百分比堆叠条
     const wIce = d.iceFraction * barW;
     const wWater = d.waterFraction * barW;
     const wVapor = d.vaporFraction * barW;
@@ -426,19 +426,19 @@ export class PhaseStatusCard {
     ctx.roundRect(padL, barY, barW, barH, 6);
     ctx.clip();
 
-    // 1. Ice segment (Cyan)
+    // 1. 固态冰分段（青色）
     ctx.fillStyle = '#38bdf8';
     ctx.fillRect(padL, barY, wIce, barH);
 
-    // 2. Water segment (Deep Blue)
+    // 2. 液态水分段（深蓝色）
     ctx.fillStyle = '#0284c7';
     ctx.fillRect(padL + wIce, barY, wWater, barH);
 
-    // 3. Vapor segment (Orange/Amber)
+    // 3. 水蒸气分段（橙色/琥珀色）
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(padL + wIce + wWater, barY, wVapor, barH);
 
-    // Reset clip
+    // 重置裁剪区域
     ctx.restore();
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
@@ -447,7 +447,7 @@ export class PhaseStatusCard {
     ctx.roundRect(padL, barY, barW, barH, 6);
     ctx.stroke();
 
-    // Percentages Text Callouts
+    // 百分比数值标注
     ctx.fillStyle = '#f8fafc';
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'center';
@@ -460,7 +460,7 @@ export class PhaseStatusCard {
     ctx.fillText(`液态水: ${pWater}%`, padL + barW * 0.50, barY + barH + 24);
     ctx.fillText(`气态水汽: ${pVapor}%`, padL + barW * 0.82, barY + barH + 24);
 
-    // Internal labels on bar if wide enough
+    // 宽度充足时在柱条内部显示标注
     ctx.font = 'bold 11px -apple-system, sans-serif';
     if (wIce > 40) ctx.fillText(`${pIce}%`, padL + wIce * 0.5, barY + barH * 0.6);
     if (wWater > 40) ctx.fillText(`${pWater}%`, padL + wIce + wWater * 0.5, barY + barH * 0.6);

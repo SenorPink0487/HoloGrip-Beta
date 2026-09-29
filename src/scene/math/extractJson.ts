@@ -1,4 +1,4 @@
-/** Pull the first JSON object out of a model reply, including fenced blocks. */
+/** 从模型回复中提取首个 JSON 对象，兼容 Markdown 代码块。 */
 export function extractJsonObject(text: string): unknown {
   const trimmed = text.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);

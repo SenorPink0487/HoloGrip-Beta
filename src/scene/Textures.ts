@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 
 /**
- * Procedural Texture Generator for High-Fidelity Sci-Fi Lab
+ * 高精科幻实验室程序化纹理生成器
  */
 export class TextureGenerator {
   /**
-   * Generates pseudo-random smooth 2D value noise lattice
+   * 生成伪随机平滑 2D 晶格数值噪声
    */
   private static generateNoiseGrid(w: number, h: number, seed: number): Float32Array {
     const grid = new Float32Array(w * h);
@@ -39,7 +39,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Generates the polished epoxy microcement floor texture matching reference image
+   * 生成抛光环氧微水泥地面纹理
    */
   static createFloorTexture(prebakedFbm?: Uint8ClampedArray): THREE.CanvasTexture {
     const size = 1024;
@@ -60,7 +60,7 @@ export class TextureGenerator {
     } else {
       ctx.fillStyle = '#cfdbe3';
       ctx.fillRect(0, 0, size, size);
-      // Soft radial illumination gradient matching the oculus light cone
+      // 匹配天窗光锥的柔和径向漫射光照渐变
       const glow = ctx.createRadialGradient(size * 0.5, size * 0.5, 30, size * 0.5, size * 0.5, size * 0.60);
       glow.addColorStop(0, 'rgba(245, 248, 252, 0.75)');
       glow.addColorStop(0.45, 'rgba(235, 240, 246, 0.45)');
@@ -70,7 +70,7 @@ export class TextureGenerator {
       ctx.fillRect(0, 0, size, size);
     }
 
-    // Micro-fine clean terrazzo pearlescent flecks (subtle, clean, not dirty splotches)
+    // 微细洁净水磨石珠光微粒（保持通透纯净质感）
     let seed = 20260324;
     const rand = () => {
       seed = (seed * 16807) % 2147483647;
@@ -98,7 +98,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Generates roughness map for floor with organic microcement satin finish
+   * 生成地面粗糙度贴图（呈现微水泥缎面哑光质感）
    */
   static createFloorRoughnessMap(prebaked?: Uint8ClampedArray): THREE.CanvasTexture {
     const size = 1024;
@@ -107,11 +107,11 @@ export class TextureGenerator {
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
 
-    // Refined satin-gloss roughness (~0.18 base roughness) to prevent blown-out specular glare
+    // 精细缎面光泽粗糙度（基准约 0.18），防止高光过曝眩光
     ctx.fillStyle = '#2c2c2c';
     ctx.fillRect(0, 0, size, size);
 
-    // Correlated micro-roughness variations
+    // 相关的微观粗糙度扰动
     const off = document.createElement('canvas');
     off.width = 256;
     off.height = 256;
@@ -152,7 +152,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Generates micro-relief bump map for liquid epoxy surface tension
+   * 生成模拟液体环氧树脂表面张力的微浮雕凹凸贴图
    */
   static createFloorBumpMap(prebaked?: Uint8ClampedArray): THREE.CanvasTexture {
     const size = 512;
@@ -192,7 +192,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Bake all floor textures concurrently in Web Worker
+   * 在 Web Worker 中并行烘焙所有地面纹理
    */
   static async bakeAllTexturesAsync(computeBridge: any): Promise<{
     floorTex: THREE.CanvasTexture;
@@ -213,7 +213,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Creates the Apple Vision Pro Minimalist Spatial Hologram Screen Texture
+   * 创建极简空间全息屏幕纹理
    */
   static createHoloScreenTexture(): THREE.CanvasTexture {
     const width = 1024;
@@ -225,18 +225,18 @@ export class TextureGenerator {
 
     ctx.clearRect(0, 0, width, height);
 
-    // Minimalist Apple Vision Pro clean frosted glass aperture
+    // 极简毛玻璃孔径视窗
     ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.beginPath();
     ctx.roundRect(16, 16, width - 32, height - 32, 28);
     ctx.fill();
 
-    // Delicate specular rim
+    // 精致的高光边框
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    // Top subtle highlight edge
+    // 顶部微妙的高亮边缘
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -244,14 +244,14 @@ export class TextureGenerator {
     ctx.lineTo(width - 48, 16);
     ctx.stroke();
 
-    // Clean Apple typography - Header
+    // 标题文字排版
     ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
     ctx.font = '500 28px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('  Spatial Laboratory', width / 2, 210);
 
-    // Clean Apple typography - Minimalist invitation
+    // 引导提示文字排版
     ctx.fillStyle = '#ffffff';
     ctx.font = '600 36px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif';
     ctx.fillText('轻触开启 3D 悬浮视窗', width / 2, 285);
@@ -276,7 +276,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Apple Pro Industrial Design: Monolithic Dark Obsidian Optical Metrology Panel (2048 x 1280)
+   * 工业设计风格：一体化深黑黑曜石光学计量展板（2048 x 1280）
    */
   static createWallMainOpticsBoard(): THREE.CanvasTexture {
     const width = 2048;
@@ -288,7 +288,7 @@ export class TextureGenerator {
 
     ctx.clearRect(0, 0, width, height);
 
-    // 1. Deep Obsidian Monolith Surface
+    // 1. 深色黑曜石面板基底
     const grad = ctx.createLinearGradient(0, 0, 0, height);
     grad.addColorStop(0, 'rgba(10, 14, 20, 0.98)');
     grad.addColorStop(0.5, 'rgba(7, 10, 15, 0.98)');
@@ -298,12 +298,12 @@ export class TextureGenerator {
     this.drawRoundRect(ctx, 16, 16, width - 32, height - 32, 20);
     ctx.fill();
 
-    // 2. Micro Hairline Metallic Rim
+    // 2. 超细微发丝金属边框
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
     ctx.lineWidth = 1.0;
     ctx.stroke();
 
-    // Top subtle specular highlight
+    // 顶部微妙镜面高光
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -311,24 +311,24 @@ export class TextureGenerator {
     ctx.lineTo(width - 48, 16);
     ctx.stroke();
 
-    // 3. Header Bar
-    // Apple Glyph
+    // 3. 顶部标题栏
+    // 标志图符
     ctx.fillStyle = '#f4f6fa';
     ctx.font = '400 36px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText('', 72, 85);
 
-    // Title
+    // 主标题
     ctx.font = '600 30px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.fillText('OPTICAL METROLOGY MONOLITH', 120, 75);
 
-    // Subtitle
+    // 副标题
     ctx.fillStyle = '#8a99a8';
     ctx.font = '400 16px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
     ctx.fillText('HOLOGRIP SPATIAL PHYSICS • PARAXIAL WAVEFRONT & COHERENCE METRICS', 120, 104);
 
-    // Right Technical Pill
+    // 右侧技术参数胶囊标签
     ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.beginPath();
     this.drawRoundRect(ctx, width - 340, 62, 268, 44, 12);
@@ -341,7 +341,7 @@ export class TextureGenerator {
     ctx.font = '500 15px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
     ctx.fillText('λ: 532.0 nm • Nd:YAG', width - 315, 84);
 
-    // Razor-thin Divider
+    // 极细分割线
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
     ctx.lineWidth = 1.0;
     ctx.beginPath();
@@ -349,7 +349,7 @@ export class TextureGenerator {
     ctx.lineTo(width - 72, 138);
     ctx.stroke();
 
-    // 4. Section 1 (Left): Paraxial Refraction & Ray Transfer Matrix
+    // 4. 第一分区（左侧）：近轴折射与光线传输矩阵
     ctx.fillStyle = '#f4f6fa';
     ctx.font = '600 19px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.fillText('01  PARAXIAL RAY ANALYSIS & FOCAL GEOMETRY', 72, 185);
@@ -370,7 +370,7 @@ export class TextureGenerator {
     ctx.lineWidth = 1.0;
     ctx.stroke();
 
-    // Optical Axis
+    // 光轴
     const axisY = box1Y + box1H * 0.44;
     ctx.strokeStyle = 'rgba(160, 180, 205, 0.35)';
     ctx.lineWidth = 1.0;
@@ -381,7 +381,7 @@ export class TextureGenerator {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Bi-Convex Lens
+    // 双凸透镜
     const lensX = box1X + box1W * 0.46;
     const lensH = 260;
     const lensW = 64;
@@ -400,7 +400,7 @@ export class TextureGenerator {
     const fDist = 240;
     const focalX1 = lensX + fDist;
 
-    // Laser Rays (Monochrome Cold Silver-White)
+    // 激光光束（单色冷银白）
     const rayYs = [-85, -42, 0, 42, 85];
     rayYs.forEach((offset) => {
       const startY = axisY + offset;
@@ -431,7 +431,7 @@ export class TextureGenerator {
       ctx.stroke();
     });
 
-    // Crosshair at Focal Point F1
+    // 焦点 F1 处的十字准星
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
@@ -448,7 +448,7 @@ export class TextureGenerator {
     ctx.font = '500 14px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
     ctx.fillText('F₁ (150.0 mm)', focalX1 - 45, axisY + 28);
 
-    // Dimension Arrow f
+    // 焦距标注箭头 f
     ctx.strokeStyle = '#6a7888';
     ctx.lineWidth = 1.0;
     ctx.beginPath();
@@ -466,7 +466,7 @@ export class TextureGenerator {
     ctx.fillText('focal length = 150.00 mm', (lensX + focalX1) / 2, axisY + 135);
     ctx.textAlign = 'left';
 
-    // Lower Diagram (Gaussian Beam Profile)
+    // 下方图表（高斯光束剖面）
     ctx.fillStyle = '#f4f6fa';
     ctx.font = '600 15px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.fillText('GAUSSIAN BEAM WAIST PROFILE w(z) = w₀ √[1 + (z/z_R)²]', box1X + 40, box1Y + box1H - 80);
@@ -492,7 +492,7 @@ export class TextureGenerator {
     }
     ctx.stroke();
 
-    // 5. Section 2 (Right): Coherent Interference & Airy Diffraction
+    // 5. 第二分区（右侧）：相干干涉与艾里斑衍射
     const rightX = 1008;
     ctx.fillStyle = '#f4f6fa';
     ctx.font = '600 19px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
@@ -513,7 +513,7 @@ export class TextureGenerator {
     ctx.lineWidth = 1.0;
     ctx.stroke();
 
-    // Airy Disk Rings on Left of Box 2
+    // 框 2 左侧艾里斑同心圆环
     const airyCenterX = rightX + 155;
     const airyCenterY = box2Y + box2H / 2;
     const ringRadii = [18, 38, 58, 78, 98];
@@ -531,7 +531,7 @@ export class TextureGenerator {
     ctx.fillText('2D AIRY DISC INTENSITY', airyCenterX, box2Y + box2H - 18);
     ctx.textAlign = 'left';
 
-    // Bessel Curve on Right of Box 2
+    // 框 2 右侧贝塞尔函数光强曲线
     const besselX = rightX + 320;
     const besselW = box2W - 360;
     const besselBaseY = box2Y + box2H * 0.65;
@@ -563,7 +563,7 @@ export class TextureGenerator {
     ctx.fillText('Central Disk Power: 83.8%', besselX, box2Y + 45);
     ctx.fillText('Diffraction Limit: 1.22 λ/D', besselX, box2Y + 70);
 
-    // Right Box 2: Telemetry Table
+    // 右侧框 2：遥测参数表格
     const box3Y = box2Y + box2H + 20;
     const box3H = 285;
     ctx.fillStyle = 'rgba(14, 19, 28, 0.55)';
@@ -602,7 +602,7 @@ export class TextureGenerator {
       ctx.fillText(row[2], rightX + 430, rowY);
     });
 
-    // 6. Footer (4 Monolith Blocks)
+    // 6. 底部信息栏（4 个面板卡片）
     const cardY = 848;
     const cardH = 340;
     const cardW = (width - 144 - 3 * 24) / 4;
@@ -686,7 +686,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Apple Pro Industrial Design: Monolithic Dark Obsidian Thermodynamics Panel (1536 x 1024)
+   * Apple 专业工业设计：一体化黑曜石热力学展板纹理（1536 x 1024）
    */
   static createWallThermodynamicsBoard(): THREE.CanvasTexture {
     const width = 1536;
@@ -731,7 +731,7 @@ export class TextureGenerator {
     ctx.lineTo(width - 60, 118);
     ctx.stroke();
 
-    // Left Panel: Carnot P-V Diagram
+    // 左侧面板：卡诺循环 P-V 状态图
     const leftW = 680;
     const leftH = 500;
     const leftX = 60;
@@ -793,7 +793,7 @@ export class TextureGenerator {
     ctx.fillText('η = 1 - (T_C / T_H) = 53.85%', (pt1.x + pt3.x) / 2, (pt1.y + pt3.y) / 2 + 24);
     ctx.textAlign = 'left';
 
-    // Right Panel: Maxwell-Boltzmann Distribution
+    // 右侧面板：麦克斯韦-玻尔兹曼速率分布曲线
     const rightX = leftX + leftW + 24;
     const rightW = width - rightX - 60;
     const rightH = 500;
@@ -849,7 +849,7 @@ export class TextureGenerator {
     ctx.fillStyle = '#8a99a8';
     ctx.fillText('-- T₂ = 600 K (v_p = 563 m/s)', mbOriginX + 160, leftY + 98);
 
-    // 4 Footer Cards
+    // 底部 4 组参数指标卡
     const cardY = 670;
     const cardH = 300;
     const cardW = (width - 120 - 3 * 20) / 4;
@@ -890,7 +890,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Apple Pro Industrial Design: Monolithic Dark Obsidian Stereometry Panel (1536 x 1024)
+   * Apple 专业工业设计：一体化黑曜石立体几何展板纹理（1536 x 1024）
    */
   static createWallStereometryBoard(): THREE.CanvasTexture {
     const width = 1536;
@@ -935,7 +935,7 @@ export class TextureGenerator {
     ctx.lineTo(width - 60, 118);
     ctx.stroke();
 
-    // Left Panel: Isometric Cube with Diagonal Skew Lines
+    // 左侧面板：带有对角异面直线的等轴测正方体
     const leftW = 680;
     const leftH = 500;
     const leftX = 60;
@@ -980,7 +980,7 @@ export class TextureGenerator {
       ctx.stroke();
     });
 
-    // Skew Lines (Fine Silver and Platinum)
+    // 异面直线（银白与白金线条）
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
@@ -1007,7 +1007,7 @@ export class TextureGenerator {
     ctx.font = '500 14px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
     ctx.fillText('cos θ = |A₁B · B₁C| / (|A₁B||B₁C|) = 1/2', leftX + 30, leftY + leftH - 28);
 
-    // Right Panel: Platonic Solids
+    // 右侧面板：柏拉图多面体结构
     const rightX = leftX + leftW + 24;
     const rightW = width - rightX - 60;
     const rightH = 500;
@@ -1050,7 +1050,7 @@ export class TextureGenerator {
       ctx.fillText(`${poly[1]}  ${poly[2]}  ${poly[3]}`, rightX + 290, rowY);
     });
 
-    // 4 Footer Cards
+    // 底部 4 组参数指标卡
     const cardY = 670;
     const cardH = 300;
     const cardW = (width - 120 - 3 * 20) / 4;
@@ -1091,7 +1091,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Apple Pro Industrial Design: Monolithic Dark Obsidian Signage Plaque (1024 x 512)
+   * Apple 专业工业设计：一体化黑曜石实验室标牌铭牌（1024 x 512）
    */
   static createWallSignageTexture(): THREE.CanvasTexture {
     const width = 1024;
@@ -1115,14 +1115,14 @@ export class TextureGenerator {
     ctx.lineWidth = 1.0;
     ctx.stroke();
 
-    // Apple Logo
+    // Apple 品牌标识
     ctx.fillStyle = '#f4f6fa';
     ctx.font = '300 48px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText('', 56, 90);
 
-    // Main Room Number
+    // 实验室房间主编号
     ctx.font = '300 72px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.fillText('LABORATORY 03', 125, 90);
 
@@ -1139,7 +1139,7 @@ export class TextureGenerator {
     ctx.lineTo(width - 56, 215);
     ctx.stroke();
 
-    // Metadata Grid
+    // 元数据信息网格
     const meta = [
       ['CAMPUS', 'CUPERTINO HEADQUARTERS • AP-E03'],
       ['FACILITY', 'CLASS 10 OPTICAL CLEANROOM METROLOGY'],
@@ -1158,7 +1158,7 @@ export class TextureGenerator {
       ctx.fillText(m[1], 200, my);
     });
 
-    // Monochrome Precision Tick Ruler
+    // 单色精密微距刻度标尺
     const rulerY = 440;
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.lineWidth = 1.0;
@@ -1182,8 +1182,8 @@ export class TextureGenerator {
   }
 
   /**
-   * High-Resolution Futuristic Holographic Tabletop Display Interface (2048 x 1400)
-   * Inspired by high-tech sci-fi workstations (Image 1 reference)
+   * 高分辨率未来主义全息实验台交互界面纹理（2048 x 1400）
+   * 汲取高科技科幻工作站设计风格
    */
   static createTabletopHoloTexture(): THREE.CanvasTexture {
     const width = 2048;
@@ -1195,7 +1195,7 @@ export class TextureGenerator {
 
     ctx.clearRect(0, 0, width, height);
 
-    // 1. Semi-translucent dark sapphire base
+    // 1. 半透明深蓝宝石底色背景
     const baseGrad = ctx.createRadialGradient(width / 2, height / 2, 80, width / 2, height / 2, width * 0.65);
     baseGrad.addColorStop(0, 'rgba(12, 32, 54, 0.72)');
     baseGrad.addColorStop(0.6, 'rgba(8, 22, 38, 0.85)');
@@ -1204,12 +1204,12 @@ export class TextureGenerator {
     this.drawRoundRect(ctx, 30, 30, width - 60, height - 60, 48);
     ctx.fill();
 
-    // 2. Exterior cyan glow boundary and precision corner brackets
+    // 2. 外部青色发光边界与精密拐角支架
     ctx.strokeStyle = 'rgba(77, 208, 225, 0.75)';
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    // Corner brackets
+    // 拐角支架定位线
     const bracketLen = 80;
     ctx.strokeStyle = '#00e5ff';
     ctx.lineWidth = 4;
@@ -1238,7 +1238,7 @@ export class TextureGenerator {
     ctx.lineTo(width - 30, height - 30 - bracketLen);
     ctx.stroke();
 
-    // 3. Subtle Isometric/Technical Coordinate Grid
+    // 3. 精细等轴测/工程技术坐标网格
     ctx.strokeStyle = 'rgba(77, 208, 225, 0.08)';
     ctx.lineWidth = 1.0;
     const gridStep = 48;
@@ -1255,11 +1255,11 @@ export class TextureGenerator {
       ctx.stroke();
     }
 
-    // 4. Center Molecular / Spatial Targeting HUD Reticle
+    // 4. 中央分子结构/空间对准 HUD 准星
     const cx = width / 2;
     const cy = height / 2;
 
-    // Outer concentric circle with tick marks
+    // 带有刻度标记的外同心圆环
     ctx.strokeStyle = 'rgba(100, 225, 255, 0.55)';
     ctx.lineWidth = 1.8;
     ctx.beginPath();
@@ -1273,7 +1273,7 @@ export class TextureGenerator {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Degree Ticks
+    // 角度刻度标线
     for (let deg = 0; deg < 360; deg += 15) {
       const rad = (deg * Math.PI) / 180;
       const isMajor = deg % 45 === 0;
@@ -1287,7 +1287,7 @@ export class TextureGenerator {
       ctx.stroke();
     }
 
-    // Inner reticle rings
+    // 内部准星环
     ctx.strokeStyle = 'rgba(77, 208, 225, 0.8)';
     ctx.lineWidth = 2.0;
     ctx.beginPath();
@@ -1300,7 +1300,7 @@ export class TextureGenerator {
     ctx.arc(cx, cy, 140, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Central 3D Hexagonal / Molecular Wireframe
+    // 中央 3D 六边形/分子线框结构
     const hexRadius = 88;
     ctx.strokeStyle = '#80d8ff';
     ctx.lineWidth = 2.2;
@@ -1325,7 +1325,7 @@ export class TextureGenerator {
       ctx.arc(hx, hy, 5, 0, Math.PI * 2);
       ctx.fill();
 
-      // Connecting inner struts
+      // 内部连接支撑线
       ctx.strokeStyle = 'rgba(128, 216, 255, 0.35)';
       ctx.lineWidth = 1.2;
       ctx.beginPath();
@@ -1338,7 +1338,7 @@ export class TextureGenerator {
     ctx.arc(cx, cy, 6, 0, Math.PI * 2);
     ctx.fill();
 
-    // 5. Left Instrumentation & Waveform Telemetry Panel
+    // 5. 左侧仪器仪表与遥测波形面板
     const leftX = 120;
     ctx.fillStyle = '#00e5ff';
     ctx.font = '600 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", monospace';
@@ -1349,7 +1349,7 @@ export class TextureGenerator {
     ctx.font = '400 14px "SF Pro Text", monospace';
     ctx.fillText('FOURIER DECOMPOSITION // SAMPLING RATE: 192 kHz // REALTIME', leftX, 190);
 
-    // Telemetry Waveform Box
+    // 遥测波形边框盒
     const waveBoxW = 480;
     const waveBoxH = 220;
     const waveBoxY = 220;
@@ -1361,7 +1361,7 @@ export class TextureGenerator {
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    // Glowing sine wave
+    // 发光正弦波形
     ctx.strokeStyle = '#00e5ff';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
@@ -1373,7 +1373,7 @@ export class TextureGenerator {
     }
     ctx.stroke();
 
-    // Harmonic frequency bars below waveform
+    // 波形下方的谐波频率柱状图
     const barStartY = 480;
     const numBars = 28;
     const barWidth = 12;
@@ -1389,7 +1389,7 @@ export class TextureGenerator {
       ctx.fillRect(bx, by, barWidth, bh);
     }
 
-    // Coordinates Readout Box
+    // 空间坐标读数盒
     const coordY = 640;
     ctx.fillStyle = 'rgba(8, 24, 40, 0.6)';
     ctx.beginPath();
@@ -1408,7 +1408,7 @@ export class TextureGenerator {
     ctx.font = '400 14px monospace';
     ctx.fillText('STATUS: STATIONARY // KINEMATICS DAMPED // READY', leftX + 24, coordY + 108);
 
-    // 6. Right Instrumentation Panel: Chemistry & Quantum Metrology
+    // 6. 右侧仪器面板：化学与量子测量
     const rightX = width - 600;
     ctx.fillStyle = '#00e5ff';
     ctx.font = '600 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", monospace';
@@ -1418,7 +1418,7 @@ export class TextureGenerator {
     ctx.font = '400 14px "SF Pro Text", monospace';
     ctx.fillText('MOLECULAR ORBITAL SIMULATION // EQUILIBRIUM', rightX, 190);
 
-    // Right Chemistry Status Box
+    // 右侧化学状态信息盒
     const rightBoxW = 480;
     const rightBoxH = 220;
     const rightBoxY = 220;
@@ -1430,7 +1430,7 @@ export class TextureGenerator {
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    // Progress gauges on right
+    // 右侧进度仪表条
     const gauges = [
       { label: 'LASER COHERENCE (Nd:YAG 532nm)', val: 0.98, color: '#00e5ff' },
       { label: 'CHAMBER PRESSURE (101.325 kPa)', val: 0.88, color: '#40c4ff' },
@@ -1451,7 +1451,7 @@ export class TextureGenerator {
       ctx.fillRect(rightX + 24, gy + 8, (rightBoxW - 48) * g.val, 8);
     });
 
-    // Molecular compound matrix box
+    // 分子化合物矩阵盒
     const molBoxY = 480;
     ctx.fillStyle = 'rgba(8, 24, 40, 0.6)';
     ctx.beginPath();
@@ -1485,8 +1485,8 @@ export class TextureGenerator {
       ctx.textAlign = 'left';
     });
 
-    // 7. Top & Bottom System Header Bars
-    // Top Bar
+    // 7. 顶部与底部系统信息栏
+    // 顶部状态栏
     ctx.strokeStyle = 'rgba(77, 208, 225, 0.4)';
     ctx.lineWidth = 1.0;
     ctx.beginPath();
@@ -1504,7 +1504,7 @@ export class TextureGenerator {
     ctx.fillText('WORKSTATION 01 // AUTONOMOUS METROLOGY SYSTEM // ONLINE', width - 80, 85);
     ctx.textAlign = 'left';
 
-    // Bottom Bar
+    // 底部控制栏
     ctx.strokeStyle = 'rgba(77, 208, 225, 0.4)';
     ctx.beginPath();
     ctx.moveTo(60, height - 100);
@@ -1526,8 +1526,8 @@ export class TextureGenerator {
   }
 
   /**
-   * Floating Translucent Holographic HUD Texture for Wall Niche (1024 x 600)
-   * Matches the floating HUD screen visible in the left niche of Image 1
+   * 墙面壁龛悬浮半透明全息 HUD 界面纹理（1024 x 600）
+   * 匹配实验室壁龛悬浮全息监视视窗
    */
   static createNicheHudTexture(): THREE.CanvasTexture {
     const width = 1024;
@@ -1539,17 +1539,17 @@ export class TextureGenerator {
 
     ctx.clearRect(0, 0, width, height);
 
-    // Frosted glass background
+    // 磨砂玻璃毛玻璃背景
     ctx.fillStyle = 'rgba(6, 20, 36, 0.45)';
     this.drawRoundRect(ctx, 12, 12, width - 24, height - 24, 28);
     ctx.fill();
 
-    // Delicate cyan border
+    // 精细青色边框线条
     ctx.strokeStyle = 'rgba(100, 217, 255, 0.65)';
     ctx.lineWidth = 1.6;
     ctx.stroke();
 
-    // Top Header
+    // 顶部标题栏
     ctx.fillStyle = '#f4f6fa';
     ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.fillText('LABORATORY ENVIRONMENTAL TELEMETRY', 48, 56);
@@ -1558,7 +1558,7 @@ export class TextureGenerator {
     ctx.font = '500 13px monospace';
     ctx.fillText('SYS.01 // DIAGNOSTIC: NORMAL', 48, 80);
 
-    // Left Circular Gauges
+    // 左侧环形状态仪表
     const gaugeX1 = 140;
     const gaugeY = 220;
     ctx.strokeStyle = 'rgba(100, 225, 255, 0.3)';
@@ -1600,7 +1600,7 @@ export class TextureGenerator {
     ctx.fillText('CHAMBER TEMP', gaugeX2, gaugeY + 36);
     ctx.textAlign = 'left';
 
-    // Right Data Metrics
+    // 右侧核心数据指标
     const rx = 480;
     ctx.fillStyle = '#78909c';
     ctx.font = '500 13px monospace';
@@ -1610,7 +1610,7 @@ export class TextureGenerator {
     ctx.fillText('O₂ CONCENTRATION: 20.95%', rx, 255);
     ctx.fillText('ACOUSTIC NOISE FLOOR: < 18 dBA', rx, 290);
 
-    // Miniature Graph at Bottom
+    // 底部微型趋势图表
     const graphX = 48;
     const graphY = 380;
     const graphW = width - 96;
@@ -1622,7 +1622,7 @@ export class TextureGenerator {
     ctx.lineWidth = 1.0;
     ctx.stroke();
 
-    // Wave in mini graph
+    // 微型图表中的正弦波动曲线
     ctx.strokeStyle = '#00e5ff';
     ctx.lineWidth = 2.0;
     ctx.beginPath();
@@ -1640,8 +1640,8 @@ export class TextureGenerator {
   }
 
   /**
-   * Soft Panoramic Cleanroom Observation Backdrop (1024 x 512)
-   * Renders inside the center observation window for authentic sci-fi depth
+   * 全景净化实验室观察窗柔和背景纹理（1024 x 512）
+   * 渲染于中央观察窗内，营造深远真实的纵深感
    */
   static createWindowObservationTexture(): THREE.CanvasTexture {
     const width = 1024;
@@ -1651,7 +1651,7 @@ export class TextureGenerator {
     canvas.height = height;
     const ctx = canvas.getContext('2d')!;
 
-    // Soft gradient daylight into cleanroom void
+    // 射入洁净室空间的柔和自然渐变天光
     const grad = ctx.createLinearGradient(0, 0, 0, height);
     grad.addColorStop(0, '#cce0ec');
     grad.addColorStop(0.4, '#d8e8f2');
@@ -1660,7 +1660,7 @@ export class TextureGenerator {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, width, height);
 
-    // Subtle horizontal architectural mullions and perspective grid
+    // 细腻的水平建筑窗棂与透视网格线
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -1670,7 +1670,7 @@ export class TextureGenerator {
     ctx.lineTo(width, height * 0.65);
     ctx.stroke();
 
-    // Distant soft light cove
+    // 远景柔和建筑灯槽光晕
     const lightGrad = ctx.createRadialGradient(width / 2, height * 0.35, 20, width / 2, height * 0.35, width * 0.5);
     lightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
     lightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');

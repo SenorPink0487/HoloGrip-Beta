@@ -18,7 +18,7 @@ export class BeakerMesh {
   private liquidMaterial: THREE.MeshPhysicalMaterial;
   private sedimentMaterial: THREE.MeshStandardMaterial;
 
-  private targetLiquidLevel = 0.24; // 0 to 1 ratio
+  private targetLiquidLevel = 0.24; // 0 至 1 之间的液面比例
   private currentLiquidLevel = 0.24;
   private targetLiquidColor = new THREE.Color(0xd7f3ff);
   private currentLiquidColor = new THREE.Color(0xd7f3ff);
@@ -37,14 +37,14 @@ export class BeakerMesh {
   private targetBeakerScale = 0.0;
   private currentBeakerScale = 0.0;
 
-  public readonly maxLiquidHeight = 0.28; // Max height in meters
+  public readonly maxLiquidHeight = 0.28; // 最大液体高度（米）
   public readonly beakerHeight = 0.36;
   public readonly beakerRadius = 0.14;
   public readonly liquidRadius = this.beakerRadius - 0.009;
   public readonly liquidBottomY = 0.009;
-  /** Outer edge of the flared lip. Matches the lathe profile. */
+  /** 外扩杯嘴外边缘，与车削轮廓一致。 */
   public readonly glassLipRadius = this.beakerRadius + 0.008;
-  /** How far the waterline may flare toward the mouth when it reaches the rim. */
+  /** 水线达到杯口边缘时向外扩散的最大范围。 */
   public readonly liquidRimRadius = this.beakerRadius - 0.004;
 
   public restingPosition = new THREE.Vector3(0, 0.852, 1.10);
@@ -65,12 +65,12 @@ export class BeakerMesh {
   private builtTilt = Number.NaN;
   private builtLevel = Number.NaN;
 
-  /** Fizz, pour, or precipitation disturbing the free surface. Amount is 0–1. */
+  /** 气泡沸腾、倾倒或沉淀产生的自由液面扰动，范围为 0–1。 */
   public disturbSurface(amount: number): void {
     this.surfaceDisturbance = Math.min(1, Math.max(this.surfaceDisturbance, amount));
   }
 
-  /** Warm the glass while an exothermic reaction is running. Amount is 0–1. */
+  /** 放热反应进行时加热玻璃杯壁，范围为 0–1。 */
   public pulseHeat(amount: number): void {
     this.heatPulse = Math.min(1, Math.max(this.heatPulse, amount));
   }
@@ -92,18 +92,18 @@ export class BeakerMesh {
 
     ctx.clearRect(0, 0, 1024, 1024);
 
-    // Beaker markings on one side
+    // 烧杯单侧刻度线
     ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
     ctx.lineWidth = 4;
     ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace';
 
-    // Top logo / text
+    // 顶部标识与文本
     ctx.fillText('BORO 3.3', 280, 240);
     ctx.font = '20px monospace';
     ctx.fillText('APPROX. VOL', 280, 275);
 
-    // Ticks: 50, 100, 150, 200, 250 mL
+    // 刻度刻线：50, 100, 150, 200, 250 mL
     const ticks = [
       { ml: '250', y: 340 },
       { ml: '200', y: 440 },
@@ -113,16 +113,16 @@ export class BeakerMesh {
     ];
 
     for (const t of ticks) {
-      // Main tick line
+      // 主刻度线
       ctx.beginPath();
       ctx.moveTo(280, t.y);
       ctx.lineTo(360, t.y);
       ctx.stroke();
 
-      // Number
+      // 刻度数值
       ctx.fillText(t.ml, 380, t.y + 7);
 
-      // Sub-tick line in between
+      // 中间次级刻度线
       if (t.ml !== '50') {
         ctx.beginPath();
         ctx.moveTo(280, t.y + 50);
@@ -143,35 +143,34 @@ export class BeakerMesh {
     const wallThickness = 0.008;
     const innerRadius = outerRadius - wallThickness;
 
-    // Lathe profile for realistic laboratory beaker with beveled base and flaring lip
+    // 真实实验室烧杯车削轮廓（带倒角底部与外扩杯嘴）
     const points: THREE.Vector2[] = [];
     const segments = 24;
 
-    // 1. Inner bottom center to inner wall
+    // 1. 杯底内中心至杯内壁
     points.push(new THREE.Vector2(0, wallThickness));
     points.push(new THREE.Vector2(innerRadius - 0.01, wallThickness));
     points.push(new THREE.Vector2(innerRadius, wallThickness + 0.01));
 
-    // 2. Inner wall going up
+    // 2. 杯内壁竖直向上
     points.push(new THREE.Vector2(innerRadius, height - 0.02));
 
-    // 3. Flaring top lip
+    // 3. 外扩杯嘴
     points.push(new THREE.Vector2(innerRadius + 0.008, height));
     points.push(new THREE.Vector2(outerRadius + 0.008, height));
     points.push(new THREE.Vector2(outerRadius, height - 0.01));
 
-    // 4. Outer wall going down
+    // 4. 杯外壁竖直向下
     points.push(new THREE.Vector2(outerRadius, 0.01));
     points.push(new THREE.Vector2(outerRadius - 0.01, 0));
 
-    // 5. Outer bottom center
+    // 5. 杯底外中心
     points.push(new THREE.Vector2(0, 0));
 
     const latheGeo = new THREE.LatheGeometry(points, 48);
     const tickTexture = this.createTickTexture();
 
-    // High-performance physical glass: uses forward specular clearcoat lobes instead of
-    // transmission framebuffer copies, maintaining 120+ FPS with crystal-clear laboratory glass fidelity
+    // 高性能物理玻璃材质：采用前向镜面清漆层替代透射帧缓冲区复制，保持 120+ FPS 高帧率与清透质感
     const glassMat = new THREE.MeshPhysicalMaterial({
       color: 0xf0f8ff,
       roughness: 0.04,
@@ -187,12 +186,12 @@ export class BeakerMesh {
 
     this.glassMaterial = glassMat;
     this.glassBody = new THREE.Mesh(latheGeo, glassMat);
-    this.glassBody.castShadow = false; // Clear glass does not cast dense opaque shadow
+    this.glassBody.castShadow = false; // 透明玻璃不产生浓重不透明阴影
     this.glassBody.receiveShadow = true;
     this.glassBody.renderOrder = 5;
     this.group.add(this.glassBody);
 
-    // Ground holographic interaction halo ring
+    // 地面全息交互光环
     const haloGeo = new THREE.RingGeometry(outerRadius * 0.98, outerRadius * 1.25, 48);
     this.haloMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
@@ -208,7 +207,7 @@ export class BeakerMesh {
     this.haloRing.renderOrder = 1;
     this.group.add(this.haloRing);
 
-    // Beaker markings cylinder overlay
+    // 烧杯刻度圆柱贴花层
     const markingsGeo = new THREE.CylinderGeometry(outerRadius + 0.0005, outerRadius + 0.0005, height * 0.95, 64, 1, true);
     const markingsMat = new THREE.MeshBasicMaterial({
       map: tickTexture,
@@ -245,7 +244,7 @@ export class BeakerMesh {
     this.group.add(this.liquidMesh);
     this.refreshLiquidBody(true);
 
-    // Top surface disc (meniscus reflection while the beaker is upright)
+    // 顶部液面圆盘（烧杯竖直放置时的弯月面反射）
     const discGeo = new THREE.CircleGeometry(liquidRadius, 64);
     const discMat = new THREE.MeshPhysicalMaterial({
       color: 0xd7f3ff,
@@ -321,7 +320,7 @@ export class BeakerMesh {
     return worldPos;
   }
 
-  /** Outer flared lip, the point water actually leaves. */
+  /** 外扩杯嘴外沿，即液体流出的脱离点。 */
   public glassLipLocal(direction: 'left' | 'right'): THREE.Vector3 {
     const sign = direction === 'right' ? 1 : -1;
     return new THREE.Vector3(sign * this.glassLipRadius, this.beakerHeight, 0);
@@ -331,7 +330,7 @@ export class BeakerMesh {
     return this.group.localToWorld(this.glassLipLocal(direction));
   }
 
-  /** Move the beaker so the chosen lip sits on `worldLip`. Rotation is left as-is, so the body pivots about the lip. */
+  /** 移动烧杯使指定杯嘴对齐 worldLip。保持现有旋转，使杯体以杯嘴为轴旋转。 */
   public placeLipAt(worldLip: THREE.Vector3, direction: 'left' | 'right'): void {
     this.group.updateWorldMatrix(true, false);
     const current = this.group.localToWorld(this.glassLipLocal(direction));
@@ -355,7 +354,7 @@ export class BeakerMesh {
     return this.liquidPlane?.overflow ?? 0;
   }
 
-  /** Free-surface points leading to the outer lip: inset on the water, contact at the wall, then the glass lip. */
+  /** 延伸至外杯嘴的自由液面点列：水体内部点、杯壁接触点、玻璃杯嘴。 */
   public getPourApproachWorld(): THREE.Vector3[] {
     const plane = this.liquidPlane;
     const sign = plane.xLip >= 0 ? 1 : -1;
@@ -401,7 +400,7 @@ export class BeakerMesh {
     this.targetLiquidLevel = Math.max(0.05, Math.min(1.0, state.volume / state.maxVolume));
     this.targetLiquidColor.copy(state.liquidColor);
 
-    // Check precipitates for sediment and turbidity
+    // 检查沉淀物以计算沉淀层与浊度
     let totalPrecipMoles = 0;
     let dominantColor = 0xffffff;
 
@@ -416,13 +415,13 @@ export class BeakerMesh {
       this.targetSedimentScale = Math.min(1.0, totalPrecipMoles * 40.0);
       this.targetSedimentColor.setHex(dominantColor);
       this.targetSedimentOpacity = 0.94;
-      // Turbid milky suspension scattering
+      // 浑浊乳状悬浊液漫射散射
       this.targetLiquidOpacity = 0.95;
       this.targetLiquidRoughness = 0.32;
     } else {
       this.targetSedimentOpacity = 0.0;
       this.targetSedimentScale = 0.001;
-      // Clear solution: slightly higher opacity for colored solutions, high clarity
+      // 澄清溶液：有色溶液透明度略低，整体保持高透明度
       const isColored = Math.abs(state.liquidColor.r - 0.84) > 0.08 ||
                         Math.abs(state.liquidColor.g - 0.95) > 0.08 ||
                         Math.abs(state.liquidColor.b - 1.0) > 0.08;
@@ -442,7 +441,7 @@ export class BeakerMesh {
     return this.beakerRadius - 0.01;
   }
 
-  /** Rebuild the liquid so its free surface stays horizontal and meets the low lip. */
+  /** 重建液体网格，使其自由表面保持水平并与较低杯嘴贴合。 */
   private refreshLiquidBody(force: boolean): void {
     const tiltChanged = Math.abs(this.currentTiltZ - this.builtTilt) > 1e-4;
     const levelChanged = Math.abs(this.currentLiquidLevel - this.builtLevel) > 1e-4;
@@ -494,7 +493,7 @@ export class BeakerMesh {
   }
 
   public update(delta: number): void {
-    // 1. Smooth beaker scale animation
+    // 1. 烧杯平滑缩放动画
     if (this.currentBeakerScale !== this.targetBeakerScale) {
       this.currentBeakerScale = THREE.MathUtils.lerp(this.currentBeakerScale, this.targetBeakerScale, delta * 5.0);
       if (Math.abs(this.currentBeakerScale - this.targetBeakerScale) < 0.001) {
@@ -508,7 +507,7 @@ export class BeakerMesh {
       }
     }
 
-    // 2. Smooth beaker tilt. Slow enough that the waterline can be seen climbing the wall.
+    // 2. 烧杯平滑倾斜动画，速度平缓以展示水线沿杯壁上升的过程
     const tiltDiff = Math.abs(this.currentTiltZ - this.targetTiltZ);
     if (tiltDiff > 1e-4) {
       const blend = 1 - Math.exp(-Math.max(0, delta) * 4.2);
@@ -519,7 +518,7 @@ export class BeakerMesh {
       this.group.rotation.z = this.currentTiltZ;
     }
 
-    // 3. Smooth level change. The body itself is rebuilt to the horizontal free surface below.
+    // 3. 平滑液位变化动画，液体网格按水平自由液面重建
     const levelDiff = Math.abs(this.currentLiquidLevel - this.targetLiquidLevel);
     if (levelDiff > 1e-4) {
       this.currentLiquidLevel = THREE.MathUtils.lerp(this.currentLiquidLevel, this.targetLiquidLevel, delta * 3.5);
@@ -543,7 +542,7 @@ export class BeakerMesh {
       }
     }
 
-    // Bubble packets and impacts rock the meniscus. Applied after the fill wobble so fizz wins.
+    // 气泡包和冲击扰动弯月液面，在填充晃动之后计算以保证气泡效果占优
     this.surfacePhase += delta;
     if (this.surfaceDisturbance > 0.001 && Math.abs(this.currentTiltZ) <= 0.001) {
       const wobble = Math.sin(this.surfacePhase * 28) * 0.022 * this.surfaceDisturbance;
@@ -553,7 +552,7 @@ export class BeakerMesh {
     this.surfaceDisturbance = Math.max(0, this.surfaceDisturbance - delta * 0.7);
     this.heatPulse = Math.max(0, this.heatPulse - delta * 0.45);
 
-    // 4. Smooth liquid color change
+    // 4. 液体平滑颜色过渡
     if (this.currentLiquidColor.getHex() !== this.targetLiquidColor.getHex()) {
       this.currentLiquidColor.lerp(this.targetLiquidColor, delta * 5.0);
       if (this.currentLiquidColor.getHex() === this.targetLiquidColor.getHex()) {
@@ -563,7 +562,7 @@ export class BeakerMesh {
       (this.liquidTopDisc.material as THREE.MeshPhysicalMaterial).color.copy(this.currentLiquidColor);
     }
 
-    // 5. Smooth liquid opacity & roughness change (turbidity scattering)
+    // 5. 液体不透明度与粗糙度平滑过渡（浊度散射）
     if (Math.abs(this.currentLiquidOpacity - this.targetLiquidOpacity) > 1e-3) {
       this.currentLiquidOpacity = THREE.MathUtils.lerp(this.currentLiquidOpacity, this.targetLiquidOpacity, delta * 4.0);
       if (Math.abs(this.currentLiquidOpacity - this.targetLiquidOpacity) < 1e-3) {
@@ -581,7 +580,7 @@ export class BeakerMesh {
       this.liquidMaterial.roughness = this.currentLiquidRoughness;
     }
 
-    // 6. Smooth sediment animation
+    // 6. 沉淀物平滑动画
     if (Math.abs(this.currentSedimentOpacity - this.targetSedimentOpacity) > 1e-3) {
       this.currentSedimentOpacity = THREE.MathUtils.lerp(this.currentSedimentOpacity, this.targetSedimentOpacity, delta * 4.0);
       if (Math.abs(this.currentSedimentOpacity - this.targetSedimentOpacity) < 1e-3) {
@@ -606,7 +605,7 @@ export class BeakerMesh {
       this.sedimentMaterial.color.copy(this.currentSedimentColor);
     }
 
-    // 7. Smooth hover interactive feedback
+    // 7. 平滑悬停交互反馈
     const targetHover = this.isHovered ? 1.0 : 0.0;
     if (Math.abs(this.hoverIntensity - targetHover) > 1e-3) {
       this.hoverIntensity = THREE.MathUtils.lerp(this.hoverIntensity, targetHover, delta * 8.0);
@@ -623,7 +622,7 @@ export class BeakerMesh {
       }
     }
 
-    // Exotherm reads on the glass itself; hover glow returns once the beaker cools.
+    // 放热反应直接体现在玻璃杯壁上；烧杯冷却后恢复悬停辉光
     const hoverEmissive = this.hoverIntensity * 0.16;
     if (this.heatPulse > 0.02) {
       this.glassMaterial.emissive.setHex(0xff7043);

@@ -1,28 +1,28 @@
 /**
- * Electrostatic Field and Charge Dynamics.
- * Conforms strictly to Maxwell's electrostatic equations and Coulomb's Law:
+ * 静电场与电荷动力学求解器。
+ * 严格遵循麦克斯韦静电方程与库仑定律：
  *   E(r) = (1 / 4πε₀) ∑ q_i / |r - r_i|³ · (r - r_i)
  *   V(r) = (1 / 4πε₀) ∑ q_i / |r - r_i|
  *   U    = (1 / 8πε₀) ∑_{i≠j} q_i q_j / |r_i - r_j|
  *   F    = q₀ · E
  */
 
-export const EPSILON0 = 8.8541878128e-12; // F/m
-export const COULOMB_K = 1 / (4 * Math.PI * EPSILON0); // ~8.9875517923e9 N·m²/C²
+export const EPSILON0 = 8.8541878128e-12; // 真空介电常数 (F/m)
+export const COULOMB_K = 1 / (4 * Math.PI * EPSILON0); // 静电力常量 ~8.9875517923e9 N·m²/C²
 
-// Effective constant when q is in micro-Coulombs (µC) and distances are in meters (m)
+// 当电荷量 q 单位为微库 (µC)、距离为米 (m) 时的等效比例系数
 // k_eff = COULOMB_K * 1e-6 => ~8987.5518 V·m/µC
 export const K_EFF = COULOMB_K * 1e-6;
 
-/** Default elevation of charges in the local stage space (meters) */
+/** 本地场景坐标系中电荷的默认标高 (米) */
 export const DEFAULT_CHARGE_ELEVATION = 0.0;
 
 export interface PointCharge {
   id: string;
-  x: number; // meters
-  y: number; // meters
-  z: number; // meters (depth offset in 3D field space)
-  q: number; // charge in micro-Coulombs (µC)
+  x: number; // 单位：米 (m)
+  y: number; // 单位：米 (m)
+  z: number; // 单位：米 (m) (3D 电场空间中的深度偏移)
+  q: number; // 电荷量，单位：微库 (µC)
 }
 
 export interface Vector3D {
@@ -51,19 +51,19 @@ export interface TestChargeState {
   x: number;
   y: number;
   z: number;
-  q0: number; // in micro-Coulombs (µC), default 0.001 (1 nC)
+  q0: number; // 检验电荷量，单位：微库 (µC)，默认 0.001 (即 1 nC)
   visible: boolean;
   fieldVector: Vector3D;
-  fieldMagnitude: number; // V/m
-  potential: number; // V
-  forceVector: Vector3D; // N
-  forceMagnitude: number; // N
+  fieldMagnitude: number; // 电场强度大小 (V/m)
+  potential: number; // 电势 (V)
+  forceVector: Vector3D; // 电场力矢量 (N)
+  forceMagnitude: number; // 电场力大小 (N)
 }
 
 export interface ElectrostaticTelemetry {
   chargeCount: number;
   totalChargeMicroC: number;
-  dipoleMomentMagnitude: number; // µC·m
+  dipoleMomentMagnitude: number; // 电偶极矩大小 (µC·m)
   dipoleMomentVector: Vector3D;
   potentialEnergyJoules: number;
   fieldLineCount: number;
@@ -73,8 +73,8 @@ export interface ElectrostaticTelemetry {
 }
 
 /**
- * Calculates net electric field E(r) at a given point due to multiple point charges.
- * Softening factor avoids singular infinities at r = r_i.
+ * 计算多个点电荷在给定位置激发的合电场 E(r)。
+ * 引入平滑因子 (softening factor) 避免在 r = r_i 处产生奇点无穷大。
  */
 export function electricFieldAt(
   r: Vector3D,
@@ -95,7 +95,7 @@ export function electricFieldAt(
     const dist = Math.sqrt(distSq);
     const invDist3 = 1 / (dist * distSq);
 
-    // E_i = K_EFF * q_i * (r - r_i) / |r - r_i|³
+    // 点电荷电场贡献：E_i = K_EFF * q_i * (r - r_i) / |r - r_i|³
     const factor = K_EFF * c.q * invDist3;
     ex += factor * dx;
     ey += factor * dy;
@@ -106,7 +106,7 @@ export function electricFieldAt(
 }
 
 /**
- * Calculates electric potential V(r) at a given point.
+ * 计算给定位置处的电势 V(r)。
  */
 export function potentialAt(
   r: Vector3D,
@@ -129,12 +129,12 @@ export function potentialAt(
 }
 
 /**
- * Calculates total electrostatic potential energy of the charge configuration:
- *   U = ∑_{i < j} (k_e · q_i · q_j) / r_ij   (in Joules)
+ * 计算点电荷系统的总静电势能：
+ *   U = ∑_{i < j} (k_e · q_i · q_j) / r_ij   (单位：焦耳 J)
  */
 export function totalPotentialEnergy(charges: readonly PointCharge[]): number {
   let u = 0;
-  // Convert µC * µC to Joules: COULOMB_K * 1e-12
+  // 将 µC * µC 换算为焦耳 (J)：COULOMB_K * 1e-12
   const energyK = COULOMB_K * 1e-12;
 
   for (let i = 0; i < charges.length; i++) {
@@ -155,7 +155,7 @@ export function totalPotentialEnergy(charges: readonly PointCharge[]): number {
 }
 
 /**
- * Calculates electric dipole moment p = ∑ q_i · r_i (in µC·m).
+ * 计算电偶极矩 p = ∑ q_i · r_i (单位：µC·m)。
  */
 export function electricDipoleMoment(charges: readonly PointCharge[]): {
   magnitude: number;
@@ -180,20 +180,20 @@ export function electricDipoleMoment(charges: readonly PointCharge[]): {
 }
 
 export interface TraceFieldLinesOptions {
-  linesPerUnitCharge?: number; // base number of lines per 1 µC (default 12)
-  stepSize?: number; // RK4 step size in meters (default 0.012)
-  maxSteps?: number; // max integration steps per line (default 380)
-  bounds?: number; // coordinate boundary limit (default 0.85)
-  minY?: number; // minimum Y boundary (e.g. table surface cutoff)
-  maxY?: number; // maximum Y boundary
-  minZ?: number; // minimum Z boundary above platform
-  maxZ?: number; // maximum Z boundary above platform
-  captureRadius?: number; // capture radius near target charge (default 0.046)
+  linesPerUnitCharge?: number; // 每 1 µC 电荷发射的基础电力线数量 (默认 12)
+  stepSize?: number; // RK4 积分步长，单位：米 (默认 0.012)
+  maxSteps?: number; // 每条电力线的最大积分步数 (默认 380)
+  bounds?: number; // 坐标边界范围限制 (默认 0.85)
+  minY?: number; // Y 方向下限边界 (例如桌面高度截断)
+  maxY?: number; // Y 方向上限边界
+  minZ?: number; // 平台上方 Z 方向下限边界
+  maxZ?: number; // 平台上方 Z 方向上限边界
+  captureRadius?: number; // 目标电荷捕获吸收半径 (默认 0.046)
   softening?: number;
 }
 
 /**
- * Evaluates the physics state of a movable test charge q0 in the electrostatic field.
+ * 计算静电场中可移动检验电荷 q0 的物理受力与状态。
  */
 export function evaluateTestCharge(
   pos: Vector3D,
@@ -232,7 +232,7 @@ export interface SeedDir {
 }
 
 /**
- * Generates an isotropic 3D spherical seed canopy for realistic volumetric field lines.
+ * 生成各向同性 3D 球面发射方向，用于生成逼真的空间体感电力线。
  */
 export function generateSphericalSeedDirections(numLines: number): SeedDir[] {
   const dirs: SeedDir[] = [];
@@ -244,7 +244,7 @@ export function generateSphericalSeedDirections(numLines: number): SeedDir[] {
     return dirs;
   }
 
-  // Multi-tier latitude layers to form an elegant 3D volumetric canopy
+  // 多层纬度分布，形成优雅的 3D 空间立体伞状电力线束
   const layers = [
     { phi: 0, weight: 0.40, offset: 0 },
     { phi: (28 * Math.PI) / 180, weight: 0.20, offset: Math.PI / 6 },
@@ -287,12 +287,12 @@ export function generateSphericalSeedDirections(numLines: number): SeedDir[] {
 }
 
 /**
- * High-precision RK4 numerical integration of electrostatic field lines.
- * Physical guarantees:
- * 1. Streamlines are tangent to E at all points: dr/ds = E / |E|
- * 2. Originates from positive charges and/or terminates on negative charges
- * 3. Seed density is strictly proportional to charge magnitude |q|
- * 4. Traverses superposition field cleanly without crossing in vacuum
+ * 基于高精度四阶龙格-库塔法 (RK4) 的静电场电力线数值积分追踪。
+ * 满足以下物理特性保证：
+ * 1. 电力线上每一点均与电场强度 E 相切：dr/ds = E / |E|
+ * 2. 电力线起自正电荷，终止于负电荷 (或延伸至无穷远)
+ * 3. 电力线发射密度严格正比于电荷量绝对值 |q|
+ * 4. 在真空中平滑穿过叠加电场，互不相交
  */
 export function traceFieldLines(
   charges: readonly PointCharge[],
@@ -318,7 +318,7 @@ export function traceFieldLines(
 
   let lineCounter = 0;
 
-  // 1. Trace outward lines from positive charges along +E
+  // 1. 从正电荷出发，沿 +E 方向追踪向外发散的电力线
   for (const posC of positiveCharges) {
     const numLines = Math.max(4, Math.min(36, Math.round(linesPerUnit * Math.abs(posC.q))));
     const rEmit = 0.025;
@@ -334,8 +334,8 @@ export function traceFieldLines(
       let targetChargeId: string | undefined;
 
       for (let s = 0; s < maxSteps; s++) {
-        // RK4 integration step: f(r) = E(r) / |E(r)|
-        // k1
+        // RK4 积分单步：积分方向向量 f(r) = E(r) / |E(r)|
+        // 步长斜率 k1
         const e1 = electricFieldAt({ x: currX, y: currY, z: currZ }, charges, softening);
         const m1 = Math.hypot(e1.x, e1.y, e1.z);
         if (m1 < 1e-6) break;
@@ -343,7 +343,7 @@ export function traceFieldLines(
         const u1y = e1.y / m1;
         const u1z = e1.z / m1;
 
-        // k2
+        // 步长斜率 k2
         const x2 = currX + 0.5 * h * u1x;
         const y2 = currY + 0.5 * h * u1y;
         const z2 = currZ + 0.5 * h * u1z;
@@ -354,7 +354,7 @@ export function traceFieldLines(
         const u2y = e2.y / m2;
         const u2z = e2.z / m2;
 
-        // k3
+        // 步长斜率 k3
         const x3 = currX + 0.5 * h * u2x;
         const y3 = currY + 0.5 * h * u2y;
         const z3 = currZ + 0.5 * h * u2z;
@@ -365,7 +365,7 @@ export function traceFieldLines(
         const u3y = e3.y / m3;
         const u3z = e3.z / m3;
 
-        // k4
+        // 步长斜率 k4
         const x4 = currX + h * u3x;
         const y4 = currY + h * u3y;
         const z4 = currZ + h * u3z;
@@ -376,14 +376,14 @@ export function traceFieldLines(
         const u4y = e4.y / m4;
         const u4z = e4.z / m4;
 
-        // Next point
+        // 计算下一采样点坐标
         currX += (h / 6) * (u1x + 2 * u2x + 2 * u3x + u4x);
         currY += (h / 6) * (u1y + 2 * u2y + 2 * u3y + u4y);
         currZ += (h / 6) * (u1z + 2 * u2z + 2 * u3z + u4z);
 
         path.push({ x: currX, y: currY, z: currZ });
 
-        // Boundary check
+        // 边界越界检查
         if (
           Math.abs(currX) > bounds ||
           currY < minY ||
@@ -394,7 +394,7 @@ export function traceFieldLines(
           break;
         }
 
-        // Check if captured by any negative charge
+        // 检查是否落入任意负电荷的捕获半径内
         let captured = false;
         for (const negC of negativeCharges) {
           const ddx = currX - negC.x;
@@ -409,7 +409,7 @@ export function traceFieldLines(
         }
         if (captured) break;
 
-        // Stop if looping into another positive charge
+        // 若回绕碰撞到其他正电荷，则终止追踪
         let hitPos = false;
         for (const otherPos of positiveCharges) {
           if (otherPos.id === posC.id) continue;
@@ -437,8 +437,8 @@ export function traceFieldLines(
     }
   }
 
-  // 2. Trace inward lines towards negative charges from infinity (along -E)
-  // Essential for isolated negative charges or when negative charge exceeds positive charge
+  // 2. 对于负电荷，逆向从无穷远沿 -E 方向追踪汇聚的电力线
+  // 适用于孤立负电荷，或体系中负电荷总量大于正电荷的情形
   for (const negC of negativeCharges) {
     const numLines = Math.max(4, Math.min(36, Math.round(linesPerUnit * Math.abs(negC.q))));
     const rEmit = 0.025;
@@ -454,7 +454,7 @@ export function traceFieldLines(
       let sourceChargeId: string | undefined;
 
       for (let s = 0; s < maxSteps; s++) {
-        // Trace backward along -E
+        // 沿 -E 方向逆向反向追踪
         const e1 = electricFieldAt({ x: currX, y: currY, z: currZ }, charges, softening);
         const m1 = Math.hypot(e1.x, e1.y, e1.z);
         if (m1 < 1e-6) break;
@@ -508,7 +508,7 @@ export function traceFieldLines(
           break;
         }
 
-        // If it terminates at a positive charge, it connects to a positive charge
+        // 若终止在某个正电荷附近，说明该电力线与正电荷连通
         let hitPos = false;
         for (const posC of positiveCharges) {
           const ddx = currX - posC.x;
@@ -523,14 +523,14 @@ export function traceFieldLines(
         if (hitPos) break;
       }
 
-      // If this backward line did NOT hit a positive charge, it came from infinity!
-      // Invert path order so it flows from infinity inwards to negative charge
+      // 若该反向电力线未落到正电荷上，说明它来自无穷远处！
+      // 将采样路径翻转，使其表现为从无穷远汇入负电荷
       if (!sourceChargeId && pathBack.length >= 2) {
         pathBack.reverse();
         lines.push({
           id: `line-${lineCounter++}`,
           points: pathBack,
-          startSign: 1, // represents incoming from virtual positive infinity
+          startSign: 1, // 代表从等效正无穷远处射入
           endSign: -1,
           targetChargeId: negC.id,
         });
@@ -542,7 +542,7 @@ export function traceFieldLines(
 }
 
 /**
- * Generates an N x N discrete sample grid of electric field vectors on the XY plane.
+ * 在 XY 平面上生成 N x N 网格离散电场矢量采样点。
  */
 export function sampleVectorGrid(
   charges: readonly PointCharge[],
@@ -560,7 +560,7 @@ export function sampleVectorGrid(
       const y = -halfSpan + j * step;
       const pos: Vector3D = { x, y, z: 0 };
 
-      // Avoid samples too close to charge cores
+      // 避免采样点过分靠近电荷中心奇点
       let nearCore = false;
       for (const c of charges) {
         if (Math.hypot(x - c.x, y - c.y) < 0.02) {
@@ -582,7 +582,7 @@ export function sampleVectorGrid(
 }
 
 /**
- * Standard Educational Presets
+ * 经典教学演示预设配置
  */
 export const FIELD_PRESETS: Record<string, { name: string; charges: PointCharge[] }> = {
   dipole: {

@@ -13,8 +13,8 @@ export interface Viewport {
 }
 
 /**
- * Pointer ray against the bench face (local XY, normal local +Z).
- * With the camera on +Z looking toward −Z, screen-right is local +X and screen-up is local +Y.
+ * 指针光线与实验台表面的交点（局部 XY 平面，法线为局部 +Z 方向）。
+ * 当相机位于 +Z 朝向 -Z 观察时，屏幕向右对应局部 +X，屏幕向上对应局部 +Y。
  */
 export function localPointOnBenchFace(
   event: { clientX: number; clientY: number },

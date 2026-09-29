@@ -248,7 +248,7 @@ export class MassSpecStatusCard {
     const reach = 0.32;
     const xOf = (hitY: number) => 28 + ((hitY + reach) / (2 * reach)) * (w - 56);
     
-    // Baseline
+    // 基准线
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.beginPath();
     ctx.moveTo(28, h - 28);
@@ -260,7 +260,7 @@ export class MassSpecStatusCard {
       const x = xOf(Math.max(-reach, Math.min(reach, hit.hitY)));
       const barH = Math.max(4, hit.transmission * (h - 56));
       
-      // Spectral peak in unified Hall cyan
+      // 统一霍尔青色的质谱峰
       ctx.fillStyle = '#64d2ff';
       ctx.fillRect(x - 5, h - 28 - barH, 10, barH);
       

@@ -81,49 +81,49 @@ export interface IExperiment {
   readonly hideCenterEmitter?: boolean;
   
   /**
-   * Asynchronous preload phase (load textures, GLTF models, shaders, worker scripts).
+   * 异步预加载阶段（加载纹理、GLTF 模型、着色器及 Worker 脚本等）。
    */
   preload?(context: ExperimentContext, onProgress?: (percent: number) => void): Promise<void>;
 
   /**
-   * Setup geometries, materials, allocate worker buffers and bind events.
+   * 初始化几何体与材质、分配 Worker 缓冲区并绑定事件。
    */
   init(context: ExperimentContext): Promise<void> | void;
 
   /**
-   * Called when mounted to the HoloTable stage.
+   * 挂载至全息实验台时调用。
    */
   mount(context: ExperimentContext): void;
 
   /**
-   * Single frame simulation and render update.
+   * 单帧物理模拟与渲染更新。
    */
   update(delta: number, elapsed: number, context: ExperimentContext): void;
 
   /**
-   * Called when unmounted from the HoloTable stage (before transition or disposal).
+   * 从全息实验台卸载时调用（在过渡动画或销毁前触发）。
    */
   unmount(context: ExperimentContext): void;
 
   /**
-   * Complete memory cleanup: dispose geometries, materials, textures, buffers, cancel workers.
+   * 彻底清理内存：释放几何体、材质、纹理、缓冲区并终止 Worker。
    */
   dispose(context: ExperimentContext): void;
 
   /**
-   * Called when a parameter is altered by the user via UI or API.
+   * 用户通过 UI 或 API 修改实验参数时调用。
    */
   onParameterChange?(id: string, value: any, context: ExperimentContext): void;
 
   /**
-   * Optional 3D scene pointer interaction hooks.
+   * 可选的 3D 场景指针交互钩子。
    */
   onPointerDown?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean | void;
   onPointerMove?(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void;
   onPointerUp?(event: PointerEvent, context: ExperimentContext): void;
   getHoverTarget?(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null;
   /**
-   * Called when switching between 3D laboratory view and 2D whiteboard view.
+   * 在 3D 实验室视图与 2D 白板视图之间切换时调用。
    */
   onViewModeChange?(mode: 'whiteboard' | 'laboratory'): void;
 }

@@ -42,7 +42,7 @@ export class AuthPanel {
     this.element.id = 'auth-panel';
     this.element.className = 'auth-panel';
 
-    // 1. Apple Hero Branding Header with HoloGrip Cat Logo
+    // 1. HoloGrip 头部品牌 Logo
     this.heroEl = document.createElement('div');
     this.heroEl.className = 'auth-hero';
     this.heroEl.innerHTML = `
@@ -52,7 +52,7 @@ export class AuthPanel {
       <h1 class="auth-hero-brand">HoloGrip</h1>
     `;
 
-    // 2. Segmented Mode Controller (登录 / 注册)
+    // 2. 分段控制器（登录 / 注册）
     this.loginTab = tabButton('auth-tab-login', '登录');
     this.registerTab = tabButton('auth-tab-register', '注册');
     this.tabsGlider = document.createElement('div');
@@ -64,7 +64,7 @@ export class AuthPanel {
     this.tabsEl.appendChild(this.loginTab);
     this.tabsEl.appendChild(this.registerTab);
 
-    // 3. Identity Role Selection Row (老师 / 学生)
+    // 3. 身份角色选择行（老师 / 学生）
     this.teacherBtn = tabButton('role-teacher', '老师');
     this.studentBtn = tabButton('role-student', '学生');
     this.roleGlider = document.createElement('div');
@@ -86,7 +86,7 @@ export class AuthPanel {
     this.roleRow.appendChild(roleLabel);
     this.roleRow.appendChild(this.roleSwitch);
 
-    // 4. Form Fields & Inset Grouped Card
+    // 4. 表单输入字段与分组卡片
     this.nameInput = textInput('auth-display-name', 'text', '你的用户名', 'nickname');
     this.nameInput.maxLength = 64;
     this.emailInput = textInput('auth-email', 'email', 'name@school.edu', 'username');
@@ -226,7 +226,7 @@ export class AuthPanel {
     try {
       void (this.element as HTMLElement).offsetWidth;
     } catch {
-      // test environment
+      // 测试环境兼容
     }
     this.element.classList.add('auth-shake');
   }

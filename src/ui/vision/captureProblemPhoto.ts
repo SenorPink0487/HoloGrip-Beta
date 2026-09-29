@@ -2,7 +2,7 @@ export type CaptureResult =
   | { ok: true; dataUrl: string }
   | { ok: false; reason: 'cancel' | 'unavailable' };
 
-/** Open the device camera in a page overlay and return one JPEG frame. */
+/** 在页面浮层中打开设备摄像头并返回单帧 JPEG 图像。 */
 export function captureProblemPhoto(): Promise<CaptureResult> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
     return Promise.resolve({ ok: false, reason: 'unavailable' });

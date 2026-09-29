@@ -1,4 +1,4 @@
-//! One persistent whiteboard per class. Run a single room-owning service instance.
+//! 每个班级对应一个持久化白板。作为持有房间状态的单实例服务运行。
 use crate::{auth::token::CurrentUser, error::AppError, profile::load_me, state::AppState};
 use axum::{
     extract::{
@@ -129,7 +129,7 @@ pub async fn upgrade(
             room
         }
     };
-    // Full commit carries a complete stroke for safe retry; incremental messages stay small.
+    // 完整提交携带完整笔画以支持安全重试；增量消息保持小体积传输。
     Ok(ws
         .max_message_size(2 * 1024 * 1024)
         .max_frame_size(2 * 1024 * 1024)
@@ -222,7 +222,7 @@ async fn serve(
                         let response=if author==user { json!({"type":"ack","opId":cmd.op_id}) } else { json!({"type":"error","opId":cmd.op_id,"message":"操作标识冲突"}) };
                         drop(r); connected=send(&mut socket,response).await; continue;
                     }
-                    // Clone only for durable mutations. The hot points path never copies the board.
+                    // 仅对持久化修改进行克隆。高频的点绘制热路径绝不复制画板。
                     let result=if cmd.durable() {
                         let mut next=r.board.clone(); let mut active=r.active.clone();
                         match next.apply(&mut active,&cmd,&user,&connection) {
@@ -271,8 +271,8 @@ async fn serve(
         }
     }
     let _ = tokio::time::timeout(Duration::from_secs(1), socket.send(Message::Close(None))).await;
-    // Uncommitted previews are transient. The writer retries the full stroke on reconnect.
-    // Use hub -> room lock order consistently with upgrade/eviction.
+    // 未提交的预览数据为临时状态。书写端在重连后会重试发送完整笔画。
+    // 保持 hub -> room 的加锁顺序，与 upgrade/eviction 保持一致。
     let mut h = hub.0.lock().await;
     let mut r = room.lock().await;
     let ids = r
@@ -288,7 +288,7 @@ async fn serve(
         r.publish(json!({"type":"strokes_cancelled","ids":ids,"revision":revision}));
     }
     r.clients -= 1;
-    // Database contains every confirmed mutation, so idle rooms can be safely evicted.
+    // 数据库已包含所有已确认的修改，因此空闲房间可被安全淘汰清理。
     if r.clients == 0 && Arc::strong_count(&room) <= 2 {
         h.rooms.remove(&class);
     }

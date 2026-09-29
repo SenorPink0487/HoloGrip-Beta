@@ -57,7 +57,7 @@ export class WhiteboardToolbar {
     this.element.className = 'whiteboard-left-sidebar';
     this.element.id = 'whiteboard-left-toolbar';
 
-    // 1. Tool Segmented Control (Pen & Eraser side-by-side)
+    // 1. 工具分段控制器（画笔与橡皮擦并排）
     const toolRow = document.createElement('div');
     toolRow.className = 'tool-segmented-row';
 
@@ -84,11 +84,11 @@ export class WhiteboardToolbar {
     toolRow.appendChild(this.penBtn);
     toolRow.appendChild(this.eraserBtn);
 
-    // Separator
+    // 分隔线
     const div1 = document.createElement('div');
     div1.className = 'whiteboard-sidebar-divider';
 
-    // 2. Compact 2-Column Color Grid
+    // 2. 紧凑双列调色板
     const colorGrid = document.createElement('div');
     colorGrid.className = 'palette-grid';
 
@@ -103,7 +103,7 @@ export class WhiteboardToolbar {
       colorGrid.appendChild(btn);
     });
 
-    // Custom Apple Color Picker trigger button (NO NATIVE INPUT)
+    // 自定义仿 Apple 取色器触发按钮（非原生 input）
     const customPickerBtn = document.createElement('button');
     customPickerBtn.className = 'custom-color-dot-wrapper';
     customPickerBtn.title = '更多自定义颜色 (调色板)';
@@ -114,11 +114,11 @@ export class WhiteboardToolbar {
     });
     colorGrid.appendChild(customPickerBtn);
 
-    // Separator
+    // 分隔线
     const div2 = document.createElement('div');
     div2.className = 'whiteboard-sidebar-divider';
 
-    // 3. Horizontal Stroke Thickness Selector
+    // 3. 水平笔画粗细调节器
     const thicknessRow = document.createElement('div');
     thicknessRow.className = 'thickness-row';
 
@@ -138,11 +138,11 @@ export class WhiteboardToolbar {
       thicknessRow.appendChild(btn);
     });
 
-    // Separator
+    // 分隔线
     const div3 = document.createElement('div');
     div3.className = 'whiteboard-sidebar-divider';
 
-    // 4. Compact Pagination Row: [ ‹ ] 1/1 [ › ]
+    // 4. 紧凑分页控制栏：[ ‹ ] 1/1 [ › ]
     const paginationRow = document.createElement('div');
     paginationRow.className = 'pagination-stepper-row';
 
@@ -172,7 +172,7 @@ export class WhiteboardToolbar {
     paginationRow.appendChild(this.pageIndicatorEl);
     paginationRow.appendChild(this.nextPageBtn);
 
-    // 5. Mini Sub-actions row: [ + 新建 ] [ ↺ 撤销 ] [ 🗑 清屏 ]
+    // 5. 迷你操作快捷栏：[ + 新建 ] [ ↺ 撤销 ] [ 清屏 ]
     const subActionsRow = document.createElement('div');
     subActionsRow.className = 'sub-actions-row';
 
@@ -220,7 +220,7 @@ export class WhiteboardToolbar {
     subActionsRow.appendChild(undoBtn);
     subActionsRow.appendChild(clearBtn);
 
-    // Assemble Left Sidebar
+    // 组装左侧工具栏
     this.element.appendChild(toolRow);
     this.element.appendChild(div1);
     this.element.appendChild(colorGrid);
@@ -236,7 +236,7 @@ export class WhiteboardToolbar {
 
 
   private bindEvents(): void {
-    // Tool buttons
+    // 工具切换按钮事件绑定
     this.penBtn.addEventListener('click', () => {
       this.selectTool('pen');
     });
@@ -245,7 +245,7 @@ export class WhiteboardToolbar {
       this.selectTool('eraser');
     });
 
-    // Preset color buttons
+    // 预设颜色按钮事件绑定
     this.colorButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         const color = btn.dataset.color;
@@ -255,7 +255,7 @@ export class WhiteboardToolbar {
       });
     });
 
-    // Preset thickness buttons
+    // 预设粗细按钮事件绑定
     this.thicknessButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         const width = Number(btn.dataset.width);
@@ -265,7 +265,7 @@ export class WhiteboardToolbar {
       });
     });
 
-    // Pagination buttons
+    // 分页按钮事件绑定
     this.prevPageBtn.addEventListener('click', () => {
       this.canvas.prevPage();
       this.updatePaginationUI();
@@ -276,7 +276,7 @@ export class WhiteboardToolbar {
       this.updatePaginationUI();
     });
 
-    // Keyboard shortcuts
+    // 键盘快捷键监听
     window.addEventListener('keydown', (e) => {
       if (this.element.closest('.hidden-view')) return;
       if (isTextInputActive()) return;

@@ -30,7 +30,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
   public override targetScale = 1.95;
   public override hideCenterEmitter = true;
 
-  // 3D Optical Hardware Components
+  // 3D 光学硬件组件
   private rail: OpticalBenchRail;
   private laser: LaserEmitterMesh;
   private rotaryStage: RotaryStageMesh;
@@ -41,7 +41,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
   private detectorScreen: DetectorScreenMesh;
   private beamSystem: OpticalBeamSystem;
 
-  // Saddles
+  // 滑块底座
   private laserSaddle: THREE.Group;
   private centerSaddle: THREE.Group;
   private pol1Saddle: THREE.Group;
@@ -49,7 +49,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
   private screenSaddle: THREE.Group;
   private interactionManager: OpticsInteractionManager;
 
-  // Experiment State
+  // 实验状态
   private currentMode: 'interference' | 'propagation' | 'diffraction' | 'polarization' = 'interference';
   private wavelength = 632.8;
   private slitDistance = 0.25;
@@ -60,7 +60,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
   private pol2Angle = 0.0;
   private show3DWave = true;
 
-  // Multi-core Worker State
+  // 多核 Worker 状态
   private workerIntensityBuffer: Float32Array = new Float32Array(512);
   private displayBuffer: Float32Array = new Float32Array(512);
   private isWorkerBusy = false;
@@ -79,16 +79,16 @@ export default class OpticsLabExperiment extends BaseExperiment {
   private lastPolStateHash = '';
 
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    // 橡胶防震脚垫平稳贴合桌面 (Y=0.063)，沿桌面横向向前平移至交互工作区 (Z=0.96)
     this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
-    // 1. Precision Optical Rail
+    // 1. 精密光学导轨
     this.rail = this.track(new OpticalBenchRail());
     this.rootGroup.add(this.rail.group);
     this.addDisposable(() => this.rail.dispose());
 
-    // 2. Sliding Carrier Saddles
+    // 2. 可滑动承载滑块座
     this.laserSaddle = this.rail.createCarrierSaddle('LaserSaddle');
     this.laserSaddle.position.z = -0.52;
 
@@ -104,12 +104,12 @@ export default class OpticsLabExperiment extends BaseExperiment {
     this.screenSaddle = this.rail.createCarrierSaddle('ScreenSaddle');
     this.screenSaddle.position.z = 0.48;
 
-    // 3. Laser Emitter
+    // 3. 激光发射器
     this.laser = this.track(new LaserEmitterMesh(this.wavelength));
     this.laserSaddle.add(this.laser.group);
     this.addDisposable(() => this.laser.dispose());
 
-    // 4. Rotary Stage + Prism
+    // 4. 旋转台与棱镜
     this.rotaryStage = this.track(new RotaryStageMesh());
     this.centerSaddle.add(this.rotaryStage.group);
     this.addDisposable(() => this.rotaryStage.dispose());
@@ -118,12 +118,12 @@ export default class OpticsLabExperiment extends BaseExperiment {
     this.rotaryStage.rotorGroup.add(this.prism.group);
     this.addDisposable(() => this.prism.dispose());
 
-    // 5. Slit & Grating Aperture Fixture
+    // 5. 狭缝与光栅光阑夹具
     this.slitFixture = this.track(new SlitApertureMesh('double'));
     this.centerSaddle.add(this.slitFixture.group);
     this.addDisposable(() => this.slitFixture.dispose());
 
-    // 6. Polarizer P1 and Analyzer P2
+    // 6. 起偏器 P1 与检偏器 P2
     this.polarizer1 = this.track(new PolarizerMesh('POLARIZER P1', this.pol1Angle));
     this.pol1Saddle.add(this.polarizer1.group);
     this.addDisposable(() => this.polarizer1.dispose());
@@ -132,17 +132,17 @@ export default class OpticsLabExperiment extends BaseExperiment {
     this.pol2Saddle.add(this.analyzer2.group);
     this.addDisposable(() => this.analyzer2.dispose());
 
-    // 7. Detector Screen & Digital Radiometer
+    // 7. 探测屏与数字辐射计
     this.detectorScreen = this.track(new DetectorScreenMesh());
     this.screenSaddle.add(this.detectorScreen.group);
     this.addDisposable(() => this.detectorScreen.dispose());
 
-    // 8. Optical Beam & Wave System
+    // 8. 光束与光波系统
     this.beamSystem = this.track(new OpticalBeamSystem(this.wavelength));
     this.rootGroup.add(this.beamSystem.group);
     this.addDisposable(() => this.beamSystem.dispose());
 
-    // 9. Optics Interaction Manager (Saddles, Rotors, Micrometer, Power & Calibration)
+    // 9. 光学交互管理器（滑块、旋转台、测微螺杆、电源与校准）
     this.interactionManager = new OpticsInteractionManager({
       rootGroup: this.rootGroup,
       rail: this.rail,
@@ -190,18 +190,18 @@ export default class OpticsLabExperiment extends BaseExperiment {
       },
     });
 
-    // Apply initial mode configuration
+    // 应用初始实验模式配置
     this.applyMode(this.currentMode, context);
   }
 
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
-    // Optical axis is at y = 0.186, dynamically tracked across carrier saddles
+    // 光轴位于 y = 0.186，在各滑块座间动态追踪
     _START_POS.set(0, 0.186, this.laserSaddle.position.z + 0.123);
     _END_POS.set(0, 0.186, this.screenSaddle.position.z - 0.006);
     _CENTER_POS.set(0, 0.186, this.centerSaddle.position.z - 0.008);
     const screenDistM = Math.max(0.08, this.screenSaddle.position.z - this.centerSaddle.position.z);
 
-    // If laser power switch is OFF, extinguish beam and detector radiometer
+    // 若激光电源关闭，熄灭光束与探测辐射计
     if (!this.laser.isOn) {
       this.lastDispersionStateHash = '';
       this.lastDiffractionStateHash = '';
@@ -235,7 +235,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
       this.beamSystem.clearGratingOrders();
       this.beamSystem.clearWaveVectors();
 
-      // Multi-Core Worker prism dispersion offload with dirty state check
+      // 棱镜色散光线追踪多核 Worker 计算卸载（带脏状态检查）
       const screenZ = this.screenSaddle.position.z - 0.006;
       const dispHash = `${this.centerSaddle.position.z.toFixed(4)}_${this.laserSaddle.position.z.toFixed(4)}_${this.prismAngle.toFixed(2)}_${this.prism.refractiveIndex.toFixed(4)}_${screenZ.toFixed(4)}`;
       const hasWorker = Boolean(
@@ -278,10 +278,10 @@ export default class OpticsLabExperiment extends BaseExperiment {
       this.beamSystem.clearGratingOrders();
       this.beamSystem.setIntensity(1.0);
 
-      // 1. Incoming beam stops at the slit plate
+      // 1. 入射光束终止于狭缝板
       this.beamSystem.updateSegmentedBeam([{ start: _START_POS, end: _CENTER_POS, intensity: 1.0 }]);
 
-      // 2. Render 3D spatial coherent wavefront ripples expanding towards screen in +Z
+      // 2. 渲染沿 +Z 方向朝光屏扩展的 3D 空间相干波前波纹
       if (this.show3DWave) {
         this.beamSystem.updateDoubleSlitWavefronts(
           this.centerSaddle.position.z,
@@ -299,14 +299,14 @@ export default class OpticsLabExperiment extends BaseExperiment {
         this.beamSystem.clearDiffractionFan();
       }
 
-      // Compute physical fringe spacing: Delta x = lambda * L / d
+      // 计算物理干涉条纹间距: Delta x = lambda * L / d
       const fringeSpacingM = OpticalPhysics.calculateDoubleSlitFringeSpacing(
         this.wavelength,
         this.slitDistance,
         screenDistM
       );
 
-      // Multi-Core Worker physics computation
+      // 多核 Worker 物理计算
       const diffHash = `inter_${this.wavelength}_${this.slitDistance.toFixed(3)}_${this.slitWidth.toFixed(3)}_${screenDistM.toFixed(3)}`;
       const hasWorker = Boolean(
         context.computeBridge || (context.workerPool && context.workerPool.size > 0)
@@ -352,7 +352,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
       this.beamSystem.clearWaveVectors();
       this.beamSystem.setIntensity(1.0);
 
-      // 1. Incoming beam stops at aperture
+      // 1. 入射光束终止于光阑板
       this.beamSystem.updateSegmentedBeam([{ start: _START_POS, end: _CENTER_POS, intensity: 1.0 }]);
 
       const isGrating = this.slitFixture.slitType === 'grating';
@@ -381,7 +381,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
         );
       }
 
-      // Multi-Core Worker physics computation
+      // 多核 Worker 物理计算
       const diffHash = `diff_${this.wavelength}_${this.slitDistance.toFixed(3)}_${this.slitWidth.toFixed(3)}_${screenDistM.toFixed(3)}_${slitCount}_${this.gratingLinesPerMm}`;
       const hasWorker = Boolean(
         context.computeBridge || (context.workerPool && context.workerPool.size > 0)
@@ -442,14 +442,14 @@ export default class OpticsLabExperiment extends BaseExperiment {
       _P2_POS.set(0, 0.186, this.pol2Saddle.position.z);
 
       this.beamSystem.setIntensity(1.0);
-      // Segmented beam: Laser -> P1 (1.0), P1 -> P2 (1.0), P2 -> Screen (Malus)
+      // 分段光束: 激光器 -> P1 (1.0), P1 -> P2 (1.0), P2 -> 光屏 (马吕斯定律衰减)
       this.beamSystem.updateSegmentedBeam([
         { start: _START_POS, end: _P1_POS, intensity: 1.0 },
         { start: _P1_POS, end: _P2_POS, intensity: 1.0 },
         { start: _P2_POS, end: _END_POS, intensity: this.lastMalusIntensity },
       ]);
 
-      // Multi-Core Worker polarization physics offload
+      // 偏振物理多核 Worker 计算卸载
       const polHash = `${this.pol1Angle.toFixed(1)}_${this.pol2Angle.toFixed(1)}_${this.analyzer2.hasWavePlate}_${this.wavelength}`;
       const polStateChanged = polHash !== this.lastPolStateHash;
       if (polStateChanged) {
@@ -460,7 +460,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
         context.computeBridge || (context.workerPool && context.workerPool.size > 0)
       );
 
-      // Continuous 3D electric field vector wave offloaded to multi-core worker
+      // 连续 3D 电场矢量波卸载至多核 Worker 计算
       if (this.show3DWave) {
         if (hasWorker) {
           if (!this.isWorkerPolBusy) {
@@ -520,7 +520,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
   }
 
   /**
-   * Mandatory offload of prism dispersion ray tracing to Multi-Core WorkerPool via ComputeBridge
+   * 通过 ComputeBridge 将棱镜色散光线追踪卸载至多核 WorkerPool
    */
   private async dispatchWorkerDispersion(context: ExperimentContext): Promise<void> {
     if (this.isWorkerDispBusy) return;
@@ -561,7 +561,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
           }
         }
       } else {
-        // Node / unit test fallback
+        // Node / 单元测试后备计算
         const prismWorldPos = new THREE.Vector3(apexPos[0], apexPos[1], apexPos[2]);
         const rays = OpticalPhysics.calculatePrismDispersionRays(
           prismWorldPos,
@@ -573,14 +573,14 @@ export default class OpticsLabExperiment extends BaseExperiment {
         this.beamSystem.updateDispersionRays(rays);
       }
     } catch {
-      // Fallback silently if worker thread is terminating
+      // 若 Worker 线程正在终止则静默降级
     } finally {
       this.isWorkerDispBusy = false;
     }
   }
 
   /**
-   * Mandatory offload of polarization physics to Multi-Core WorkerPool via ComputeBridge
+   * 通过 ComputeBridge 将偏振光学物理计算卸载至多核 WorkerPool
    */
   private async dispatchWorkerPolarization(context: ExperimentContext, elapsed: number): Promise<void> {
     if (this.isWorkerPolBusy) return;
@@ -649,7 +649,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
           }
         }
       } else {
-        // Node / unit test fallback
+        // Node / 单元测试后备计算
         this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
       }
     } catch {
@@ -665,7 +665,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
   }
 
   /**
-   * Mandatory offload of interference/diffraction physics to Multi-Core WorkerPool via ComputeBridge
+   * 通过 ComputeBridge 将干涉/衍射物理计算卸载至多核 WorkerPool
    */
   private async dispatchWorkerComputation(context: ExperimentContext, slitCount: number, screenDistM: number): Promise<void> {
     if (this.isWorkerBusy) return;
@@ -734,7 +734,7 @@ export default class OpticsLabExperiment extends BaseExperiment {
     const isDiff = mode === 'diffraction';
     const isPol = mode === 'polarization';
 
-    // Toggle component visibility
+    // 切换组件可见性
     this.rotaryStage.group.visible = isProp;
     this.slitFixture.group.visible = isInter || isDiff;
     this.centerSaddle.visible = isProp || isInter || isDiff;

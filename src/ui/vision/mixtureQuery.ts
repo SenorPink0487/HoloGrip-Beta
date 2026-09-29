@@ -47,7 +47,7 @@ export function bindMixtureQuery(
     try {
       current?.stop();
     } catch {
-      // The recognizer may already be stopped.
+      // 识别器可能已处于停止状态。
     }
   };
 

@@ -66,7 +66,7 @@
       touch-action: none;
     }
 
-    /* Common Apple Frosted Glass Styling */
+    /* Apple 磨砂玻璃通用样式 */
     .hud-interactive {
       pointer-events: auto;
     }
@@ -79,7 +79,7 @@
       box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
     }
 
-    /* Top Navigation Bar (Hidden per user request: delete top row) */
+    /* 顶部导航栏（根据需求隐藏顶部栏） */
     #hud-topbar {
       display: none !important;
       position: fixed;
@@ -167,7 +167,7 @@
       transform: scale(1.05);
     }
 
-    /* Experiment Drawer - Apple Sidebar Style */
+    /* 实验侧边栏抽屉 - Apple 边栏风格 */
     #experiment-drawer {
       position: fixed;
       top: 0;
@@ -409,7 +409,7 @@
       text-align: center;
     }
 
-    /* Performance Overlay (Apple Metal HUD Style - Top Left Corner) */
+    /* 性能监控浮层（Apple Metal HUD 风格 - 左上角） */
     #perf-overlay {
       position: fixed;
       top: calc(16px + env(safe-area-inset-top, 0px));
@@ -560,7 +560,7 @@
       color: var(--apple-blue);
     }
 
-    /* Transition Toast */
+    /* 过渡提示浮层 (Toast) */
     #transition-toast {
       position: fixed;
       top: calc(20px + env(safe-area-inset-top, 0px));
@@ -602,7 +602,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS Crosshair Styling - Apple Reticle */
+    /* VisionOS 准星指示器样式 - Apple 视盘光标 */
     /* ========================================================== */
     #vision-crosshair {
       position: fixed;
@@ -673,7 +673,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS 3D Spatial Window (Apple Vision Pro Glass) */
+    /* VisionOS 3D 空间视窗（Apple Vision Pro 流体玻璃） */
     /* ========================================================== */
     #css3d-container {
       position: absolute;
@@ -745,7 +745,7 @@
       transform: scaleY(1.4);
     }
 
-    /* Vision Window Scale Indicator (VisionOS Dynamic Toast) */
+    /* 空间视窗缩放指示器（VisionOS 动态提示） */
     .vision-scale-indicator {
       position: absolute;
       top: 58px;
@@ -771,7 +771,7 @@
       transform: translateX(-50%) translateY(6px);
     }
 
-    /* Vision Window Header - Apple Translucent Capsule Bar */
+    /* 空间视窗标题栏 - Apple 半透明胶囊栏 */
     .vision-window-header {
       height: 48px;
       padding: 0 16px;
@@ -787,7 +787,7 @@
       will-change: opacity;
     }
 
-    /* VisionOS subtle dim on window header when secondary modal is active */
+    /* 二级弹窗激活时标题栏呈现 VisionOS 微弱柔和变暗效果 */
     .vision-window-frame.has-modal-popover .vision-window-header {
       opacity: 0.75;
       cursor: pointer;
@@ -861,7 +861,7 @@
       color: #ffffff;
     }
 
-    /* Window Body */
+    /* 视窗主体内容区 */
     .vision-window-body {
       flex: 1;
       overflow-y: auto;
@@ -872,7 +872,7 @@
     }
 
     /* ========================================================== */
-    /* Discipline Selector Styling - Apple Vision Pro Pure Tiles */
+    /* 学科分类选择器样式 - Apple Vision Pro 磁贴设计 */
     /* ========================================================== */
     .vision-discipline-container {
       display: flex;
@@ -993,7 +993,7 @@
       letter-spacing: -0.1px;
     }
 
-    /* Sector Entrance Pages (Physics & Math) - Apple Vision Pro Empty State */
+    /* 学科专区入口页（物理与数学） - Apple Vision Pro 空状态设计 */
     .vision-sector-page {
       display: flex;
       flex-direction: column;
@@ -1058,7 +1058,7 @@
     }
 
     /* ========================================================== */
-    /* Periodic Table Matrix Styling (Apple Vision Pro Pure Minimalist) */
+    /* 元素周期表矩阵样式（Apple Vision Pro 极简设计） */
     /* ========================================================== */
     .vision-periodic-container {
       position: relative;
@@ -1072,7 +1072,7 @@
       user-select: none;
     }
 
-    /* Apple VisionOS Primary Page Content Wrapper (In-place Optical Defocus) */
+    /* Apple VisionOS 主页面内容包裹层（就地光学虚化） */
     .periodic-primary-content {
       width: 100%;
       display: flex;
@@ -1088,7 +1088,7 @@
       will-change: filter, opacity;
     }
 
-    /* Secondary popover open: Primary page stays firmly in place, smoothly defocusing without shrinking */
+    /* 二级浮层展开：主页面保持原位，平滑虚化且无缩放形变 */
     .vision-periodic-container.popover-open .periodic-primary-content {
       filter: blur(8px) saturate(145%) brightness(0.96);
       -webkit-filter: blur(8px) saturate(145%) brightness(0.96);
@@ -1105,8 +1105,8 @@
       max-width: 1160px;
     }
 
-    /* Apple VisionOS Frosted Crystal Element Cells (Hardware accelerated, no per-cell backdrop blur) */
-    /* Apple VisionOS Unified Monochromatic Frosted Crystal Element Cells */
+    /* Apple VisionOS 冰晶元素单元格（硬件加速，避免逐单元格重复背景模糊） */
+    /* Apple VisionOS 统一单色磨砂水晶元素单元格 */
     .element-cell {
       position: relative;
       border-radius: 14px;
@@ -1168,7 +1168,7 @@
     }
 
     /* ========================================================== */
-    /* Apple Vision Pro Floating Contextual Popover (Modal Glass) */
+    /* Apple Vision Pro 悬浮上下文气泡弹窗（模态流体玻璃） */
     /* ========================================================== */
     .element-popover-overlay {
       position: absolute;
@@ -1178,7 +1178,7 @@
       bottom: -16px;
       width: calc(100% + 44px);
       height: calc(100% + 32px);
-      /* VisionOS spatial ambient scrim */
+      /* VisionOS 空间环境光遮罩暗层 */
       background: rgba(8, 12, 20, 0.65);
       display: flex;
       align-items: center;
@@ -1202,7 +1202,7 @@
       cursor: default;
       width: 420px;
       max-width: 92%;
-      /* Secondary page: Apple Vision Pro refined matte glass */
+      /* 二级页面：Apple Vision Pro 精细磨砂玻璃 */
       background: rgba(24, 28, 40, 0.95);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-top: 1px solid rgba(255, 255, 255, 0.22);
@@ -1451,7 +1451,7 @@
       font-weight: 500;
     }
 
-    /* Apple Dynamic Island Toast */
+    /* Apple 灵动岛风格动态提示条 */
     .vision-hud-toast {
       position: absolute;
       top: 16px;
@@ -1482,7 +1482,7 @@
 
 
     /* ========================================================== */
-    /* Vision Status Card (Apple Health / Dashboard Style) */
+    /* 空间状态卡片（Apple 健康 / 仪表盘风格） */
     /* ========================================================== */
     .vision-status-slot {
       padding: 10px 20px;
@@ -1573,7 +1573,7 @@
       background: rgba(255, 255, 255, 0.22);
     }
 
-    /* Top Metrics Row - Apple Vision Pro 3-Metric Bar */
+    /* 顶部核心指标栏 - Apple Vision Pro 三联指标栏 */
     .status-metrics-row {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -1713,7 +1713,7 @@
       transition: left 0.3s ease;
     }
 
-    /* Shared Apple VisionOS Glass Material */
+    /* 共享 Apple VisionOS 玻璃材质样式 */
     .glass-card {
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1724,7 +1724,7 @@
     }
 
     /* ========================================================== */
-    /* Floating Beaker Pouring Volume Indicator Pill (VisionOS Liquid Badge) */
+    /* 悬浮烧杯倾倒体积胶囊徽标（VisionOS 液体徽章） */
     /* ========================================================== */
     .beaker-vol-indicator {
       position: fixed;
@@ -1765,7 +1765,7 @@
     }
 
     /* ========================================================== */
-    /* Beaker Selection Tabs in Experiment Status Card */
+    /* 实验状态卡片中的烧杯切换标签页 */
     /* ========================================================== */
     .beaker-selector-tabs {
       display: flex;
@@ -1804,7 +1804,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS Beaker Main Components & Concentrations (Apple HIG) */
+    /* VisionOS 烧杯主要成分与浓度展示（遵循 Apple HIG 规范） */
     /* ========================================================== */
     .vision-status-card.apple-redesign {
       display: flex;
@@ -1816,7 +1816,7 @@
       box-sizing: border-box;
     }
 
-    /* 1. Apple-Style Clean Top Navigation & Status Bar */
+    /* 1. Apple 风格极简顶部导航与状态栏 */
     .apple-nav-bar {
       display: flex;
       justify-content: space-between;
@@ -1826,7 +1826,7 @@
       flex-shrink: 0;
     }
 
-    /* Segmented Picker */
+    /* 分段选择器 */
     .apple-segmented-picker {
       display: inline-flex;
       background: rgba(255, 255, 255, 0.08);
@@ -1859,7 +1859,7 @@
       font-weight: 600;
     }
 
-    /* Quiet Ambient Status Capsule */
+    /* 静默环境状态胶囊 */
     .apple-status-capsule {
       display: inline-flex;
       align-items: center;
@@ -1885,7 +1885,7 @@
       font-size: 12px;
     }
 
-    /* Action Buttons Group */
+    /* 操作按钮组 */
     .apple-action-group {
       display: inline-flex;
       align-items: center;
@@ -2028,7 +2028,7 @@
       }
     }
 
-    /* 2. Apple VisionOS Minimalist Breakdown Strip */
+    /* 2. Apple VisionOS 极简组分细分条 */
     .comp-view-mode-bar {
       display: flex;
       align-items: center;
@@ -2136,7 +2136,7 @@
       white-space: nowrap;
     }
 
-    /* 3. Solutes Showcase Grid */
+    /* 3. 溶质成分陈列网格 */
     .apple-solutes-grid {
       flex: 1;
       min-height: 0;
@@ -2148,7 +2148,7 @@
       align-content: start;
     }
 
-    /* Apple Solute Card */
+    /* Apple 风格溶质卡片 */
     .apple-solute-card {
       position: relative;
       background: rgba(255, 255, 255, 0.05);
@@ -2172,7 +2172,7 @@
       box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
     }
 
-    /* Top Identity Row */
+    /* 顶部标识行 */
     .card-identity-row {
       display: flex;
       align-items: center;
@@ -2267,7 +2267,7 @@
       white-space: nowrap;
     }
 
-    /* Hero Metric Block: Big Number & Clean Bar */
+    /* 核心指标展示块：大字体数字与简洁进度条 */
     .card-hero-block {
       display: flex;
       flex-direction: column;
@@ -2313,7 +2313,7 @@
       transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    /* Bottom Secondary Line */
+    /* 底部次级信息行 */
     .card-stat-line {
       display: flex;
       align-items: center;
@@ -2347,7 +2347,7 @@
       text-overflow: ellipsis;
     }
 
-    /* Empty State */
+    /* 空数据状态 */
     .apple-empty-state {
       grid-column: 1 / -1;
       display: flex;
@@ -2409,7 +2409,7 @@
     }
 
     /* ========================================================== */
-    /* Apple SF Symbols Vector Icon Standards */
+    /* Apple SF Symbols 矢量图标规范 */
     /* ========================================================== */
     .apple-sf-icon {
       display: inline-block;
@@ -2435,7 +2435,7 @@
     }
 
     /* ========================================================== */
-    /* Periodic Table Apple Vision Pro Spatial Toolbar */
+    /* 元素周期表 Apple Vision Pro 空间工具栏 */
     /* ========================================================== */
     .periodic-top-bar {
       display: flex;
@@ -2447,7 +2447,7 @@
       margin-bottom: 6px;
     }
 
-    /* Apple Vision Pro Segmented Control - Beaker Selector */
+    /* Apple Vision Pro 分段控制器 - 烧杯选择器 */
     .periodic-beaker-tabs {
       display: inline-flex;
       background: rgba(255, 255, 255, 0.08);
@@ -2487,7 +2487,7 @@
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     }
 
-    /* Apple Vision Pro Capsule Badge - Common Reagents */
+    /* Apple Vision Pro 胶囊徽章 - 常用试剂 */
     .periodic-mode-badge {
       display: inline-flex;
       align-items: center;
@@ -2505,7 +2505,7 @@
       flex-shrink: 0;
     }
 
-    /* Trailing Action - Apple Glass Capsule */
+    /* 尾部操作 - Apple 玻璃胶囊 */
     .periodic-analysis-action-btn {
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -2568,7 +2568,7 @@
       position: relative;
     }
 
-    /* Apple Minimalist Navigation Bar */
+    /* Apple 极简导航栏 */
     .physics-nav-bar {
       display: flex;
       align-items: center;
@@ -2619,7 +2619,7 @@
       width: 72px;
     }
 
-    /* Level 1: 4 Physics Branches Grid */
+    /* 一级界面：4 大物理学科分支网格 */
     .physics-branches-deck {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -2729,7 +2729,7 @@
       color: rgba(255, 255, 255, 0.5);
     }
 
-    /* VisionOS Dynamic Floating Toast */
+    /* VisionOS 动态悬浮提示条 */
     .physics-floating-toast {
       position: absolute;
       bottom: 24px;
@@ -2754,7 +2754,7 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    /* Level 2: Optics & EM Experiments Spatial Deck */
+    /* 二级界面：光学与电磁学实验空间卡组 */
     .optics-exp-deck {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -2873,7 +2873,7 @@
         height: auto;
       }
     }
-    /* Vision Thermo Status Card */
+    /* 热力学空间状态卡片 */
     .vision-thermo-status-card {
       display: flex;
       flex-direction: column;
@@ -3147,7 +3147,7 @@
     .legend-line.line-carnot-adi-comp { background: #a855f7; }
 
     /* ========================================================== */
-    /* Vision Stereometry Math Unified UI (Pure Apple Minimalist Design) */
+    /* 立体几何数学统一界面（纯粹 Apple 极简设计） */
     /* ========================================================== */
     .vision-math-status-card {
       width: 100%;
@@ -3174,7 +3174,7 @@
       box-sizing: border-box;
     }
 
-    /* Top Prominent Action Buttons: Upload & Camera */
+    /* 顶部核心操作按钮：图片上传与拍照识别 */
     .math-hero-actions {
       display: flex;
       align-items: center;
@@ -3245,7 +3245,7 @@
       vertical-align: -2px;
     }
 
-    /* 4 Built-in Models Deck: Matching physics-branches-deck */
+    /* 4 款内置几何模型卡组 */
     .math-deck-container {
       width: 100%;
       max-width: 1140px;
@@ -3339,7 +3339,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
     }
 
-    /* Camera Capture Overlay */
+    /* 相机拍照取景遮罩层 */
     .math-capture-overlay {
       position: fixed;
       inset: 0;
@@ -3371,7 +3371,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS Hall Effect Studio - Pure Apple Minimalist Design */
+    /* VisionOS 霍尔效应工作台 - 纯粹 Apple 极简设计 */
     /* ========================================================== */
     .vision-hall-status-card {
       width: 100%;
@@ -3397,7 +3397,7 @@
       gap: 16px;
     }
 
-    /* 1. Apple Header */
+    /* 1. Apple 风格头部 */
     .hall-pure-header {
       display: flex;
       justify-content: space-between;
@@ -3461,7 +3461,7 @@
       transform: scale(0.96);
     }
 
-    /* 2. Pure Formula Stage (Hero Centerpiece) */
+    /* 2. 纯粹物理公式演示区（核心视觉舞台） */
     .hall-pure-stage {
       position: relative;
       background: rgba(255, 255, 255, 0.03);
@@ -3476,7 +3476,7 @@
       flex-shrink: 0;
     }
 
-    /* Apple Precision Scrubber HUD */
+    /* Apple 高精度调节游标 HUD */
     .hall-drag-hud {
       position: absolute;
       transform: translate(-50%, -100%);
@@ -3561,7 +3561,7 @@
       border-top: 1px solid rgba(255, 255, 255, 0.15);
     }
 
-    /* Mathematical Typography & Tokens */
+    /* 数学排版与符号 Token */
     .hall-formula-row {
       display: flex;
       align-items: center;
@@ -3621,7 +3621,7 @@
       margin-left: 1px;
     }
 
-    /* Dynamic Value Badge on Tokens: constant height reserved; only active token is visible */
+    /* 符号上的动态数值徽标：预留恒定高度；仅激活符号显示 */
     .hall-token-dynamic-val {
       display: block;
       visibility: hidden;
@@ -3683,7 +3683,7 @@
       justify-content: center;
     }
 
-    /* 3. Apple Control Deck (Carrier Type Switch + Parameter Scrubber) */
+    /* 3. Apple 控制控制台（载流子类型切换 + 参数微调滑杆） */
     .hall-focus-drawer {
       background: rgba(255, 255, 255, 0.035);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -3835,7 +3835,7 @@
       box-shadow: 0 3px 12px rgba(10, 132, 255, 0.6), 0 0 0 2.5px #0a84ff;
     }
 
-    /* Hand Tracking Continuous Pinch & Touch Drag Active State */
+    /* 手部追踪持续捏合与触控拖拽激活状态 */
     .hall-apple-slider.is-pinching::-webkit-slider-thumb,
     .hall-slider-track-wrap.is-pinching .hall-apple-slider::-webkit-slider-thumb {
       transform: scale(1.35) !important;
@@ -3904,7 +3904,7 @@
       white-space: nowrap;
     }
 
-    /* 4. Apple Floating Glass Dock */
+    /* 4. Apple 悬浮流体玻璃 Dock 栏 */
     .hall-pure-toolbar {
       display: flex;
       align-items: center;
@@ -3956,7 +3956,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS Electromagnetism Unified Design Language          */
+    /* VisionOS 电磁学统一设计语言规范          */
     /* ========================================================== */
     .em-unified-container {
       display: flex;

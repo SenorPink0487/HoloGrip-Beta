@@ -60,7 +60,7 @@ export class WhiteboardCanvas {
 
     this.ctx = this.canvas.getContext('2d', {
       alpha: true,
-      desynchronized: true, // Ultra-low latency Apple pencil style rendering
+      desynchronized: true, // 超低延迟 Apple Pencil 级绘制渲染
     })!;
 
     this.element.appendChild(this.canvas);
@@ -83,7 +83,7 @@ export class WhiteboardCanvas {
     const rect = this.element.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
 
-    // Limit pixel ratio to 1.5 on high-DPI displays to eliminate fillrate starvation
+    // 在高分屏上将像素比限制为 1.5，避免填充率瓶颈
     this.dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     this.canvas.width = Math.floor(rect.width * this.dpr);
     this.canvas.height = Math.floor(rect.height * this.dpr);
@@ -97,7 +97,7 @@ export class WhiteboardCanvas {
   private setupEvents(): void {
     window.addEventListener('resize', () => this.resize());
 
-    // Pointer events support mouse, touch, and Apple Pencil / Stylus
+    // 指针事件统合支持鼠标、触控屏及 Apple Pencil / 手写笔
     this.canvas.addEventListener('pointerdown', this.onPointerDown.bind(this));
     this.canvas.addEventListener('pointermove', this.onPointerMove.bind(this));
     this.canvas.addEventListener('pointerup', this.onPointerUp.bind(this));
@@ -121,7 +121,7 @@ export class WhiteboardCanvas {
     e.preventDefault?.();
     this.isDrawing = true;
     this.pointerId = e.pointerId;
-    try { this.canvas.setPointerCapture(e.pointerId); } catch { /* Headless / lost pointer */ }
+    try { this.canvas.setPointerCapture(e.pointerId); } catch { /* 无头测试环境或丢失指针捕获 */ }
     this.drawingPage = this.getCurrentPage().id;
     this.drawingEpoch = this.epochs.get(this.drawingPage) || 0;
     this.currentStroke = {
@@ -157,7 +157,7 @@ export class WhiteboardCanvas {
     this.strokeStream.flush();
     if (this.collaboration) {
       if (!this.command({ type: 'stroke_commit', stroke: structuredClone(this.currentStroke) })) {
-        // Keep the local stroke visible if the bounded retry queue is full.
+        // 若重试队列已满，仍保持本地笔画可见。
         this.isDrawing = false;
         return;
       }
@@ -176,7 +176,7 @@ export class WhiteboardCanvas {
     this.strokeStream.cancel();
     const pointer = this.pointerId;
     this.pointerId = null; this.isDrawing = false; this.currentStroke = null;
-    if (pointer !== null) try { this.canvas.releasePointerCapture(pointer); } catch { /* Already released */ }
+    if (pointer !== null) try { this.canvas.releasePointerCapture(pointer); } catch { /* 已释放捕获 */ }
   }
 
   private command(event: BoardEvent, pageId = this.drawingPage || this.getCurrentPage().id): boolean {
@@ -282,7 +282,7 @@ export class WhiteboardCanvas {
       this.ctx.quadraticCurveTo(p1.x, p1.y, mid.x, mid.y);
     }
 
-    // Connect last segment
+    // 连接末尾线段
     const last = stroke.points[stroke.points.length - 1];
     this.ctx.lineTo(last.x, last.y);
     this.ctx.stroke();
@@ -291,7 +291,7 @@ export class WhiteboardCanvas {
   }
 
   // ==========================================
-  // Multi-Page Pagination API
+  // 多页分页 API
   // ==========================================
   public getCurrentPage(): WhiteboardPage {
     return this.pages[this.currentPageIndex];
@@ -413,7 +413,7 @@ export class WhiteboardCanvas {
   }
 
   // ==========================================
-  // Tool & Appearance Configuration
+  // 工具与外观配置
   // ==========================================
   public setTool(tool: WhiteboardTool): void {
     this.currentTool = tool;
@@ -445,7 +445,7 @@ export class WhiteboardCanvas {
   public setTheme(theme: WhiteboardTheme): void {
     this.currentTheme = theme;
     this.element.className = `whiteboard-canvas-layer theme-${theme}`;
-    // If switching to dark or chalkboard, adjust default dark pen if needed
+    // 若切换为暗黑或黑板主题，按需自动调整深色画笔
     if ((theme === 'chalkboard' || theme === 'dark') && (this.currentColor === '#1c1c1e' || this.currentColor === '#000000')) {
       this.setColor('#ffffff');
     } else if (theme === 'plain' && this.currentColor === '#ffffff') {
@@ -458,7 +458,7 @@ export class WhiteboardCanvas {
   }
 
   // ==========================================
-  // Export High-Res Image Handout
+  // 导出高分辨率图片课件讲义
   // ==========================================
   public exportToImage(): string {
     const exportCanvas = document.createElement('canvas');
@@ -466,7 +466,7 @@ export class WhiteboardCanvas {
     exportCanvas.height = this.canvas.height;
     const expCtx = exportCanvas.getContext('2d')!;
 
-    // Fill background color according to theme
+    // 根据当前主题填充背景色
     let bgColor = '#fbfbfd';
     if (this.currentTheme === 'chalkboard') bgColor = '#173826';
     else if (this.currentTheme === 'dark') bgColor = '#111216';
@@ -475,7 +475,7 @@ export class WhiteboardCanvas {
     expCtx.fillStyle = bgColor;
     expCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
-    // If grid theme, draw subtle grid lines
+    // 网格主题下绘制浅色网格线
     if (this.currentTheme === 'grid') {
       expCtx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
       expCtx.lineWidth = 1;
@@ -494,7 +494,7 @@ export class WhiteboardCanvas {
       }
     }
 
-    // Draw strokes
+    // 绘制笔画
     expCtx.drawImage(this.canvas, 0, 0);
 
     return exportCanvas.toDataURL('image/png');

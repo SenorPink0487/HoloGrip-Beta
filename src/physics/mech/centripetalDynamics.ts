@@ -1,24 +1,24 @@
 /**
- * Uniform Circular Motion & Centripetal Force Inquiry
+ * 匀速圆周运动与向心力探究实验动力学
  */
 
 export interface CentripetalConfig {
-  massKg: number;              // m (kg)
-  radiusM: number;            // r (m)
-  angularVelocityRadS: number;// omega (rad/s)
-  springConstantNpm?: number; // k (N/m) for indicator spring
+  massKg: number;              // 质量 m (kg)
+  radiusM: number;            // 旋转半径 r (m)
+  angularVelocityRadS: number;// 角速度 omega (rad/s)
+  springConstantNpm?: number; // 测力计弹簧劲度系数 k (N/m)
 }
 
 export interface CentripetalTelemetry {
   massKg: number;
   radiusM: number;
   angularVelocityRadS: number;
-  frequencyHz: number;        // f = omega / (2 pi)
-  linearVelocityMs: number;   // v = omega * r
-  centripetalAccMs2: number;  // an = omega^2 * r
-  centripetalForceN: number;  // Fn = m * omega^2 * r
-  springDisplacementMm: number; // Indicator displacement
-  indicatorScaleMarks: number;  // 1 mark per 0.5 N
+  frequencyHz: number;        // 转动频率 f = omega / (2 * pi)
+  linearVelocityMs: number;   // 线速度 v = omega * r
+  centripetalAccMs2: number;  // 向心加速度 an = omega^2 * r
+  centripetalForceN: number;  // 向心力 Fn = m * omega^2 * r
+  springDisplacementMm: number; // 指针弹簧伸长量 (mm)
+  indicatorScaleMarks: number;  // 刻度线格数 (每格 0.5 N)
 }
 
 export function solveCentripetalDynamics(config: CentripetalConfig): CentripetalTelemetry {
@@ -34,7 +34,7 @@ export function solveCentripetalDynamics(config: CentripetalConfig): Centripetal
 
   const springDisplacementM = centripetalForceN / k;
   const springDisplacementMm = springDisplacementM * 1000.0;
-  const indicatorScaleMarks = centripetalForceN / 0.5; // 0.5 N per mark
+  const indicatorScaleMarks = centripetalForceN / 0.5; // 每格刻度对应 0.5 N
 
   return {
     massKg: m,

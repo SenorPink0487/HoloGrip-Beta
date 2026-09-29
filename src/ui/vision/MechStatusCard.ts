@@ -1,6 +1,6 @@
 /**
- * VisionOS Frosted Glass HUD Status Card for Classical Mechanics Experiments
- * Features real-time physics telemetry, data collection table, and least-squares regression fitting.
+ * 经典力学实验 VisionOS 毛玻璃 HUD 状态卡片
+ * 具备实时物理遥测、数据采集表格以及最小二乘法线性回归拟合功能。
  */
 
 import { calculateLinearFit, type Point2D, type LinearRegressionResult } from '../../physics/mech/regression.ts';
@@ -27,7 +27,7 @@ export class MechStatusCard {
   private fitResult: LinearRegressionResult | null = null;
   private isVisible = false;
 
-  // Cached telemetry values
+  // 缓存的遥测数据
   private currentTelemetry: any = null;
 
   constructor() {
@@ -113,7 +113,7 @@ export class MechStatusCard {
         y: t.pAfter,
       };
     } else if (this.currentExpId === 'mech-projectile') {
-      // y = g/(2v0^2) * x^2
+      // 平抛运动方程：y = g/(2v0^2) * x^2
       pt = {
         id: this.recordedPoints.length + 1,
         labelX: 'x² (m²)',
@@ -122,7 +122,7 @@ export class MechStatusCard {
         y: t.targetYM,
       };
     } else if (this.currentExpId === 'mech-pendulum') {
-      // T^2 = (4pi^2/g) * L
+      // 单摆周期公式：T^2 = (4pi^2/g) * L
       pt = {
         id: this.recordedPoints.length + 1,
         labelX: 'L (m)',
@@ -131,7 +131,7 @@ export class MechStatusCard {
         y: t.periodSquaredS2,
       };
     } else if (this.currentExpId === 'mech-centripetal') {
-      // Fn = (m r) * omega^2
+      // 向心力公式：Fn = (m r) * omega^2
       pt = {
         id: this.recordedPoints.length + 1,
         labelX: 'ω² (rad²/s²)',
@@ -181,7 +181,7 @@ export class MechStatusCard {
       }
     }
 
-    // Update regression chart SVG
+    // 更新回归拟合图表 SVG
     const chartSvg = this.element.querySelector('#mech-fit-svg');
     const fitInfo = this.element.querySelector('#mech-fit-info');
     if (chartSvg && fitInfo) {
@@ -210,7 +210,7 @@ export class MechStatusCard {
           <div style="color:#34d399; margin-top:2px;">${physicalMeaning}</div>
         `;
 
-        // Render mini scatter + line SVG
+        // 渲染迷你散点图及拟合线 SVG
         chartSvg.innerHTML = `
           <rect width="280" height="120" rx="8" fill="rgba(15,23,42,0.6)"/>
           <line x1="20" y1="100" x2="260" y2="100" stroke="#475569" stroke-width="1"/>

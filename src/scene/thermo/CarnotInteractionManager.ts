@@ -94,7 +94,7 @@ export class CarnotInteractionManager {
     }
 
     if (this.dragTarget === 'flywheel') {
-      // Dragging horizontally or vertically rotates flywheel angle
+      // 水平或垂直拖拽均可旋转飞轮角度
       const deltaTheta = (dx - dy) * 0.015;
       this.callbacks.onRotateFlywheel(deltaTheta);
       this.startClientX = event.clientX;
@@ -104,7 +104,7 @@ export class CarnotInteractionManager {
 
   public onPointerUp(_event: PointerEvent, _context: ExperimentContext): void {
     if (!this.hasMoved) {
-      // Click events
+      // 处理点击事件
       if (this.dragTarget === 'flywheel' || this.dragTarget === 'lever') {
         this.callbacks.onToggleRunning();
       } else if (this.dragTarget === 'dir_switch') {

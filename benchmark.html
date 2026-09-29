@@ -35,33 +35,33 @@
       log('User Agent: ' + navigator.userAgent);
       log('Hardware Concurrency: ' + navigator.hardwareConcurrency);
 
-      // Create test canvas with a simulated hand silhouette
+      // 创建包含模拟手掌轮廓的测试 Canvas
       const testCanvas = document.createElement('canvas');
       testCanvas.width = 640;
       testCanvas.height = 480;
       const ctx = testCanvas.getContext('2d');
       ctx.fillStyle = '#1e293b';
       ctx.fillRect(0, 0, 640, 480);
-      // Draw palm
+      // 绘制手掌区域
       ctx.fillStyle = '#fbcfe8';
       ctx.beginPath();
       ctx.arc(320, 260, 60, 0, Math.PI * 2);
       ctx.fill();
-      // Draw fingers
+      // 绘制手指区域
       for (let i = -2; i <= 2; i++) {
         ctx.beginPath();
         ctx.ellipse(320 + i * 25, 170, 12, 45, (i * 8 * Math.PI) / 180, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // Helper function to benchmark a worker
+      // 用于对指定 Worker 代理执行性能基准测试的辅助函数
       async function testDelegate(delegateName, frameCount) {
         log(`\n--- Benchmarking ${delegateName} Delegate (${frameCount} frames) ---`);
         const worker = new Worker(new URL('/src/workers/handTracking.worker.ts', import.meta.url), {
           type: 'module',
         });
 
-        // 1. Measure Init Time
+        // 1. 测量初始化耗时
         const initStart = performance.now();
         const initResult = await new Promise((resolve, reject) => {
           const timeout = setTimeout(() => reject(new Error('Init timeout 20s')), 20000);
@@ -93,7 +93,7 @@
         const initTimeMs = performance.now() - initStart;
         log(`Initialization Result: delegate=${initResult.delegate}, initTime=${initTimeMs.toFixed(1)}ms`);
 
-        // 2. Warm up (2 frames)
+        // 2. 预热处理（运行 2 帧）
         for (let i = 0; i < 2; i++) {
           const bmp = await createImageBitmap(testCanvas);
           await new Promise((resolve) => {
@@ -102,7 +102,7 @@
           });
         }
 
-        // 3. Measure test frames
+        // 3. 测量基准测试帧耗时
         const latencies = [];
         const roundTripTimes = [];
         const totalStart = performance.now();

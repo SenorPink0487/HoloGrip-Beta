@@ -32,7 +32,7 @@ export default class MechNewtonExperiment extends BaseExperiment {
     if (this.telemetry && this.telemetry.acceleration > 0) {
       this.currentDist += this.telemetry.acceleration * delta * 0.4;
       if (this.currentDist > 1.05) {
-        this.currentDist = 0.15; // loop back to start of track
+        this.currentDist = 0.15; // 循环回到导轨起点
       }
       this.bench.setCartPosition(this.currentDist);
     }

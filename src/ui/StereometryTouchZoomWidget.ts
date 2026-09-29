@@ -22,7 +22,7 @@ export class StereometryTouchZoomWidget {
   }
 
   private createUI(): void {
-    // Inject styles once if not already present
+    // 若尚未注入样式则注入一次
     if (
       typeof document !== 'undefined' &&
       typeof document.getElementById === 'function' &&
@@ -57,7 +57,7 @@ export class StereometryTouchZoomWidget {
                       box-shadow 0.25s ease;
         }
 
-        /* Responsive placement on touch devices & iPad: positioned right above the vision launcher button */
+        /* 触控设备与 iPad 响应式布局：位于 Vision 启动按钮正上方 */
         body.has-touch-controls .stereometry-touch-zoom-pill,
         @media (pointer: coarse) {
           .stereometry-touch-zoom-pill {
@@ -79,7 +79,7 @@ export class StereometryTouchZoomWidget {
           transform: translateY(12px) scale(0.92);
         }
 
-        /* Auto-hide when returning to whiteboard or when whiteboard app is active */
+        /* 返回白板或白板应用处于激活状态时自动隐藏 */
         body:not(.lab-active) .stereometry-touch-zoom-pill,
         body.lab-returning .stereometry-touch-zoom-pill,
         #whiteboard-app-root:not(.hidden-view) ~ .stereometry-touch-zoom-pill,
@@ -144,7 +144,7 @@ export class StereometryTouchZoomWidget {
           transform: scale(1.1);
         }
 
-        /* Scale Indicator & Reset Badge */
+        /* 缩放指示器与重置徽章 */
         .zoom-touch-badge {
           display: flex;
           flex-direction: column;
@@ -341,7 +341,7 @@ export class StereometryTouchZoomWidget {
       ? !wbRoot.classList.contains('hidden-view')
       : false;
 
-    // When whiteboard app is present in DOM, automatically hide widget if whiteboard is visible or lab is inactive/returning
+    // 当 DOM 中存在白板应用时，若白板可见或实验未激活/正在返回，则自动隐藏组件
     if (wbRoot && (isWbVisible || !isLabActive || isLabReturning)) {
       this.element.classList.add('hidden-by-env');
     } else {

@@ -44,14 +44,14 @@ export default class MechCollisionExperiment extends BaseExperiment {
     this.car1X += this.car1V * delta * 0.5;
     this.car2X += this.car2V * delta * 0.5;
 
-    // Check collision threshold between gliders (distance < 0.14)
+    // 检测滑块间的碰撞阈值（间距 < 0.14）
     if (this.car1X + 0.14 >= this.car2X && this.car1V > this.car2V) {
-      // Trigger collision velocity switch based on analytical model
+      // 根据解析模型触发碰撞后速度切换
       this.car1V = this.telemetry.v1After;
       this.car2V = this.telemetry.v2After;
     }
 
-    // Auto reset if gliders reach boundaries
+    // 若滑块到达轨道边界则自动重置
     if (this.car2X > 0.65 || this.car1X < -0.65) {
       this.resetGliders();
     }

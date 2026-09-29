@@ -291,7 +291,7 @@ export class ExperimentStatusCard {
     const engine = this.getCurrentEngine();
     const comp: ChemistryComposition = engine.getCompositionAnalysis(this.compositionMode);
 
-    // 1. Ambient Status Capsule: Volume, pH, Temp
+    // 1. 烧杯环境状态胶囊栏：体积、pH 值、温度
     const volSummary = this.element.querySelector('#summary-volume');
     if (volSummary) {
       volSummary.textContent = `${Math.round(comp.totalVolumeMl)} mL`;
@@ -307,7 +307,7 @@ export class ExperimentStatusCard {
       tempSummary.textContent = `${comp.temperature.toFixed(1)} °C`;
     }
 
-    // 2. Apple Minimalist Breakdown Strip
+    // 2. 极简成分细分进度条
     const compBar = this.element.querySelector('#comp-segmented-bar');
     const compLegend = this.element.querySelector('#comp-legend-container');
 
@@ -347,7 +347,7 @@ export class ExperimentStatusCard {
       }
     }
 
-    // 3. Apple Solutes Cards
+    // 3. 溶质组分卡片列表
     const cardsContainer = this.element.querySelector('#solutes-cards-container');
     if (cardsContainer) {
       if (comp.components.length === 0) {
@@ -466,7 +466,7 @@ export class ExperimentStatusCard {
       }
     }
 
-    // 4. Update Legacy Fallbacks for Tests & Compatibility
+    // 4. 更新向后兼容字段以适配自动化测试与旧逻辑
     this.updateFallbackDOM(comp, state);
   }
 

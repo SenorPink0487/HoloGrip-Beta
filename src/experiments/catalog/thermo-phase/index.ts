@@ -10,24 +10,24 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
   public override targetScale = 1.95;
   public override hideCenterEmitter = true;
 
-  // 3D Scene Assembly
+  // 3D 场景装配组件
   private calorimeter: PhaseCalorimeterMesh;
 
-  // Physical Parameters
-  private heatPowerW = 800;      // Watts
-  private substanceMassKg = 0.15; // 150g = 0.15 kg
-  private initialTempK = 253.15;  // -20°C
-  private timeAcceleration = 5.0; // 5x demo speed
+  // 物理参数
+  private heatPowerW = 800;      // 加热功率，单位：W
+  private substanceMassKg = 0.15; // 物质质量: 150g = 0.15 kg
+  private initialTempK = 253.15;  // 初始温度: -20°C
+  private timeAcceleration = 5.0; // 5倍演示加速
   private isHeating = true;
 
-  // Physical Constants for H2O
-  private readonly cIce = 2100;     // J/(kg·K)
-  private readonly cWater = 4184;   // J/(kg·K)
-  private readonly cSteam = 2000;   // J/(kg·K)
-  private readonly LMelting = 334000;// J/kg (334 kJ/kg)
-  private readonly LBoiling = 2260000;// J/kg (2260 kJ/kg)
+  // 水 (H2O) 的物理常数
+  private readonly cIce = 2100;     // 冰的比热容，单位：J/(kg·K)
+  private readonly cWater = 4184;   // 水的比热容，单位：J/(kg·K)
+  private readonly cSteam = 2000;   // 水蒸气的比热容，单位：J/(kg·K)
+  private readonly LMelting = 334000;// 熔化潜热，单位：J/kg (334 kJ/kg)
+  private readonly LBoiling = 2260000;// 汽化潜热，单位：J/kg (2260 kJ/kg)
 
-  // Dynamic State Variables
+  // 动态状态变量
   private currentTempK = 253.15;
   private totalEnergyJ = 0;
   private timeElapsedS = 0;
@@ -43,16 +43,16 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
 
   private currentStage: 'subzero_ice' | 'melting_plateau' | 'liquid_water' | 'boiling_plateau' | 'superheated_steam' = 'subzero_ice';
 
-  // Curve History
+  // 曲线历史采样记录
   private timeHistory: number[] = [0];
   private tempHistory: number[] = [-20];
   private lastSampleTime = 0;
 
   public init(_context: ExperimentContext): void {
-    // Rest directly on tabletop in front interaction area
+    // 直接置于前方交互区台面上
     this.rootGroup.position.set(0, -0.056, 0.92);
 
-    // 1. High-precision 3D Calorimeter Apparatus
+    // 1. 高精度 3D 量热计实验装置
     this.calorimeter = this.track(new PhaseCalorimeterMesh());
     this.rootGroup.add(this.calorimeter.group);
     this.addDisposable(() => this.calorimeter.dispose());
@@ -91,13 +91,13 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
 
       this.stepPhaseThermodynamics(dQ);
 
-      // Record curve samples every ~0.5s of simulation time
+      // 模拟时间每隔约 0.5s 记录一次曲线采样点
       if (this.timeElapsedS - this.lastSampleTime >= 0.5) {
         this.lastSampleTime = this.timeElapsedS;
         this.timeHistory.push(this.timeElapsedS);
         this.tempHistory.push(this.currentTempK - 273.15);
 
-        // Keep last 300 points
+        // 保留最近 300 个采样点
         if (this.timeHistory.length > 300) {
           this.timeHistory.shift();
           this.tempHistory.shift();
@@ -105,7 +105,7 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
       }
     }
 
-    // 2. Update 3D apparatus visual state
+    // 2. 更新 3D 实验装置视觉状态
     this.calorimeter.setPhaseState(
       this.currentTempK,
       this.iceFraction,
@@ -123,7 +123,7 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
     const T_BOIL = 373.15; // 100°C
 
     if (this.currentStage === 'subzero_ice') {
-      // 1. Solid Ice Warming Up: Q = m * c_ice * dT
+      // 1. 固态冰显热升温: Q = m * c_ice * dT
       this.iceFraction = 1.0;
       this.waterFraction = 0.0;
       this.vaporFraction = 0.0;
@@ -138,7 +138,7 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
         this.meltingEnergyAccum = 0;
       }
     } else if (this.currentStage === 'melting_plateau') {
-      // 2. Melting Latent Heat Plateau at 0°C (Q = m * L_melting)
+      // 2. 0°C 熔化潜热平台 (Q = m * L_melting)
       this.currentTempK = T_MELT;
       this.isBoiling = false;
 
@@ -156,7 +156,7 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
         this.waterFraction = 1.0;
       }
     } else if (this.currentStage === 'liquid_water') {
-      // 3. Liquid Water Warming Up: Q = m * c_water * dT
+      // 3. 液态水显热升温: Q = m * c_water * dT
       this.iceFraction = 0.0;
       this.waterFraction = 1.0;
       this.vaporFraction = 0.0;
@@ -171,7 +171,7 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
         this.boilingEnergyAccum = 0;
       }
     } else if (this.currentStage === 'boiling_plateau') {
-      // 4. Boiling Latent Heat Plateau at 100°C (Q = m * L_boiling)
+      // 4. 100°C 沸腾汽化潜热平台 (Q = m * L_boiling)
       this.currentTempK = T_BOIL;
       this.isBoiling = true;
 
@@ -190,7 +190,7 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
         this.isBoiling = false;
       }
     } else {
-      // 5. Superheated Vapor Warming Up: Q = m * c_steam * dT
+      // 5. 过热蒸汽显热升温: Q = m * c_steam * dT
       this.iceFraction = 0.0;
       this.waterFraction = 0.0;
       this.vaporFraction = 1.0;
@@ -202,7 +202,7 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
   }
 
   // =========================================================================
-  // Telemetry Provider for UI Status Card
+  // UI 状态卡片遥测数据提供器
   // =========================================================================
   public getPhaseTelemetry(): PhaseTelemetryData {
     const stageNames: Record<string, string> = {
@@ -238,7 +238,7 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
   }
 
   // =========================================================================
-  // Interactive Handlers
+  // 交互控制处理函数
   // =========================================================================
   public setHeatPower(powerW: number): void {
     this.heatPowerW = Math.max(100, Math.min(2000, powerW));

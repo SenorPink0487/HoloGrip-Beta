@@ -58,7 +58,7 @@ export interface HoverTargetInfo {
 export class OpticsInteractionManager {
   private bindings: OpticsInteractionCallbacks;
 
-  // Active Dragging State
+  // 当前拖拽交互状态
   private activeDrag: DragTargetType = 'none';
   private draggedSaddleGroup: THREE.Group | null = null;
   private saddleDragOffset = 0;
@@ -66,7 +66,7 @@ export class OpticsInteractionManager {
   private lastPointer = new THREE.Vector2();
   private hasMovedSignificantly = false;
 
-  // Hover highlighting
+  // 悬停高亮状态
   private currentHoveredMesh: THREE.Mesh | null = null;
   private currentHoveredObject: THREE.Object3D | null = null;
   private origEmissiveMap = new Map<THREE.Material, { color: THREE.Color; intensity: number }>();
@@ -80,7 +80,7 @@ export class OpticsInteractionManager {
   }
 
   /**
-   * Raycast query to detect interactive optical components under pointer
+   * 射线检测查询指针下方的可交互光学元件
    */
   public getHoverTarget(raycaster: THREE.Raycaster): HoverTargetInfo | null {
     if (this.activeDrag !== 'none') {
@@ -133,7 +133,7 @@ export class OpticsInteractionManager {
     let curr: THREE.Object3D | null = hit.object;
 
     while (curr && curr !== this.bindings.rootGroup) {
-      // 1. Laser Switch
+      // 1. 激光电源开关
       if (curr.userData?.isLaserSwitch) {
         const isOn = this.bindings.laser?.isOn ?? true;
         return {
@@ -146,7 +146,7 @@ export class OpticsInteractionManager {
         };
       }
 
-      // 2. Laser Barrel
+      // 2. 激光镜筒
       if (curr.userData?.isLaserBarrel || curr.userData?.isLaser || (this.bindings.laser && (curr === this.bindings.laser.group || curr === this.bindings.laser.mainBarrel))) {
         const wl = this.bindings.laser?.wavelengthNm ?? 632.8;
         return {
@@ -159,7 +159,7 @@ export class OpticsInteractionManager {
         };
       }
 
-      // 3. Quarter Wave Plate
+      // 3. 1/4 波片
       if (curr.userData?.isWavePlate) {
         const hasPlate = this.bindings.analyzer2?.hasWavePlate ?? false;
         return {
@@ -172,7 +172,7 @@ export class OpticsInteractionManager {
         };
       }
 
-      // 4. Polarizer P1 / P2 Rotor Ring
+      // 4. 起偏器 P1 / 检偏器 P2 旋转刻度环
       if (curr.userData?.isPolarizerRotor || curr.userData?.isPolarizer || (this.bindings.polarizer1 && curr === this.bindings.polarizer1.group) || (this.bindings.analyzer2 && curr === this.bindings.analyzer2.group)) {
         const pol = (curr.userData?.polarizer as PolarizerMesh) || (curr === this.bindings.polarizer1?.group ? this.bindings.polarizer1 : this.bindings.analyzer2);
         const isP1 = pol === this.bindings.polarizer1;
@@ -188,7 +188,7 @@ export class OpticsInteractionManager {
         };
       }
 
-      // 5. Rotary Stage (Prism table) & Micrometer
+      // 5. 旋转载物台（棱镜转台）与微分测微分度筒
       if (curr.userData?.isRotaryStageRotor || curr.userData?.isRotaryMicrometer) {
         const angle = this.bindings.rotaryStage?.currentAngleDeg ?? 0;
         return {
@@ -201,7 +201,7 @@ export class OpticsInteractionManager {
         };
       }
 
-      // 6. Prism Glass
+      // 6. 光学棱镜玻璃体
       if (curr.userData?.isPrism || (this.bindings.prism && curr === this.bindings.prism.group)) {
         const pType = this.bindings.prism?.prismType === 'equilateral' ? '60°等边棱镜' : '半圆柱透镜';
         return {
@@ -214,7 +214,7 @@ export class OpticsInteractionManager {
         };
       }
 
-      // 7. Slit Micrometer Drum
+      // 7. 狭缝微调鼓轮
       if (curr.userData?.isSlitMicrometer) {
         const slit = this.bindings.slitFixture;
         const desc = slit?.slitType === 'double'
@@ -232,7 +232,7 @@ export class OpticsInteractionManager {
         };
       }
 
-      // 8. Slit Slide / Clips
+      // 8. 狭缝贴片 / 弹簧压片
       if (curr.userData?.isSlitSlide || curr.userData?.isSlitFixture || (this.bindings.slitFixture && curr === this.bindings.slitFixture.group)) {
         const slit = this.bindings.slitFixture;
         const typeName = slit?.slitType === 'double' ? '杨氏双缝' : (slit?.slitType === 'single' ? '精密单缝' : '透射光栅');
@@ -246,7 +246,7 @@ export class OpticsInteractionManager {
         };
       }
 
-      // 9. Detector Screen
+      // 9. 探测观测屏
       if (curr.userData?.isDetectorScreen || (this.bindings.detectorScreen && (curr === this.bindings.detectorScreen.screenMesh || curr === this.bindings.detectorScreen.group))) {
         const screen = this.bindings.detectorScreen;
         const calipActive = screen?.showCalipers ?? false;
@@ -262,7 +262,7 @@ export class OpticsInteractionManager {
         };
       }
 
-      // 10. Carrier Saddles (Sliding along rail)
+      // 10. 光学滑块鞍座（沿导轨滑动）
       if (curr.userData?.isSaddle || curr === this.bindings.laserSaddle || curr === this.bindings.slitSaddle
           || curr === this.bindings.prismSaddle || curr === this.bindings.pol1Saddle
           || curr === this.bindings.pol2Saddle || curr === this.bindings.screenSaddle) {
@@ -307,7 +307,7 @@ export class OpticsInteractionManager {
   }
 
   /**
-   * Pointer Down: Initiate drag or immediate click action
+   * 指针按下：发起拖拽或触发即时点击响应
    */
   public onPointerDown(
     event: PointerEvent,
@@ -323,7 +323,7 @@ export class OpticsInteractionManager {
     this.lastPointer.set(event.clientX, event.clientY);
     this.hasMovedSignificantly = false;
 
-    // Direct click-only targets
+    // 仅支持直接点击的目标
     if (target.actionType === 'click_only') {
       if (target.id === 'laser-switch') {
         const nextPower = this.bindings.laser?.togglePower() ?? true;
@@ -372,7 +372,7 @@ export class OpticsInteractionManager {
       }
     }
 
-    // Draggable targets
+    // 可拖拽目标
     this.activeDrag = target.actionType as DragTargetType;
 
     if (this.isSaddleDrag(this.activeDrag)) {
@@ -389,7 +389,7 @@ export class OpticsInteractionManager {
   }
 
   /**
-   * Pointer Move: Update positions/rotations during drag
+   * 指针移动：在拖拽过程中更新位置与旋转角
    */
   public onPointerMove(
     event: PointerEvent,
@@ -409,7 +409,7 @@ export class OpticsInteractionManager {
     const dy = event.clientY - this.lastPointer.y;
     this.lastPointer.set(event.clientX, event.clientY);
 
-    // 1. Saddle dragging along optical rail
+    // 1. 光学滑块沿导轨滑动拖拽
     if (this.isSaddleDrag(this.activeDrag) && this.draggedSaddleGroup) {
       const localZ = this.getRailLocalZFromPointer(event, context);
       if (localZ !== null) {
@@ -429,7 +429,7 @@ export class OpticsInteractionManager {
       return true;
     }
 
-    // 2. Polarizer Dial Rotation (P1 / P2)
+    // 2. 偏振片刻度盘旋转（P1 / P2）
     if (this.activeDrag === 'polarizer1_rotor' && this.bindings.polarizer1) {
       const deltaDeg = dx * 0.75;
       const angle = this.bindings.polarizer1.rotateBy(deltaDeg);
@@ -448,7 +448,7 @@ export class OpticsInteractionManager {
       return true;
     }
 
-    // 3. Rotary Stage Rotation (Prism Table)
+    // 3. 旋转载物台旋转（棱镜转台）
     if (this.activeDrag === 'rotary_stage' && this.bindings.rotaryStage) {
       const deltaDeg = dx * 0.35;
       const angle = this.bindings.rotaryStage.rotateBy(deltaDeg);
@@ -458,7 +458,7 @@ export class OpticsInteractionManager {
       return true;
     }
 
-    // 4. Slit Micrometer Drum Tuning
+    // 4. 狭缝微分鼓轮微调
     if (this.activeDrag === 'slit_micrometer' && this.bindings.slitFixture) {
       const delta = -dy * 0.08;
       this.bindings.slitFixture.adjustMicrometer(delta);
@@ -481,7 +481,7 @@ export class OpticsInteractionManager {
   }
 
   /**
-   * Pointer Up: Terminate drag and handle click step fallback
+   * 指针抬起：结束拖拽并处理小位移点击回退动作
    */
   public onPointerUp(event: PointerEvent, context?: ExperimentContext): void {
     if (this.activeDrag === 'none') return;
@@ -490,7 +490,7 @@ export class OpticsInteractionManager {
     this.activeDrag = 'none';
     this.draggedSaddleGroup = null;
 
-    // If pointer released without substantial movement, trigger click fallback actions
+    // 若指针释放时位移极小，则触发步进点击回退动作
     if (!this.hasMovedSignificantly) {
       if (drag === 'polarizer1_rotor' && this.bindings.polarizer1) {
         const next = this.bindings.polarizer1.rotateBy(15);
@@ -517,7 +517,7 @@ export class OpticsInteractionManager {
   }
 
   /**
-   * Solve local Z along the rail from mouse pointer screen coordinate
+   * 根据鼠标指针屏幕坐标计算沿导轨的局部 Z 轴坐标
    */
   private getRailLocalZFromPointer(event: PointerEvent, context?: ExperimentContext): number | null {
     if (!context || !context.camera) return null;
@@ -536,7 +536,7 @@ export class OpticsInteractionManager {
     const invWorld = root.matrixWorld.clone().invert();
     const localRay = raycaster.ray.clone().applyMatrix4(invWorld);
 
-    // Rail line equation: P(s) = (0, 0.052, s), direction D = (0, 0, 1)
+    // 导轨直线方程：P(s) = (0, 0.052, s)，方向向量 D = (0, 0, 1)
     const P0 = new THREE.Vector3(0, 0.052, 0);
     const D = new THREE.Vector3(0, 0, 1);
     const V = localRay.direction.clone().normalize();
@@ -553,7 +553,7 @@ export class OpticsInteractionManager {
       return s;
     }
 
-    // Fallback: horizontal plane intersection
+    // 回退方案：与水平面求交
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.052);
     const pt = new THREE.Vector3();
     if (localRay.intersectPlane(plane, pt)) {
@@ -564,19 +564,19 @@ export class OpticsInteractionManager {
   }
 
   /**
-   * Clamp saddle Z to avoid rail overrun and adjacent saddle collisions
+   * 限制滑块 Z 坐标范围，防止超出导轨行程或与相邻滑块碰撞
    */
   private clampSaddlePosition(saddle: THREE.Group, targetZ: number): number {
     const minRailZ = -0.58;
     const maxRailZ = 0.58;
-    const clearance = 0.088; // Minimum distance between saddles to prevent overlapping
+    const clearance = 0.088; // 滑块之间的最小安全间距，防止重叠碰撞
 
     let minBound = minRailZ;
     let maxBound = maxRailZ;
 
     const isVisibleSaddle = (s?: THREE.Group) => !!(s && s.visible !== false);
 
-    // Specialized boundary constraints per saddle role
+    // 针对各滑块角色的专用边界限制约束
     if (saddle === this.bindings.laserSaddle) {
       minBound = -0.58;
       const rightSaddle = [this.bindings.pol1Saddle, this.bindings.slitSaddle, this.bindings.prismSaddle, this.bindings.pol2Saddle, this.bindings.screenSaddle].find(isVisibleSaddle);
@@ -606,7 +606,7 @@ export class OpticsInteractionManager {
   }
 
   /**
-   * Calculate physical distance L from optical element (slit/prism) to detector screen
+   * 计算从光学元件（狭缝/棱镜）至探测观测屏的物理距离 L
    */
   public calculateScreenDistance(): number {
     const screenZ = this.bindings.screenSaddle?.position.z ?? 0.48;

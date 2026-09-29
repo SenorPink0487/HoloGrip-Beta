@@ -27,8 +27,7 @@ pub fn password_matches(password: &str, encoded: &str, fast: bool) -> bool {
         .is_ok()
 }
 
-/// Spend the same hash verification a real user would, so a missing email
-/// does not return faster than a wrong password.
+/// 执行与真实用户耗时相同的哈希验证，避免邮箱不存在比密码错误返回得更快（防止时序攻击）。
 pub fn obscure_missing_user(password: &str, fast: bool) {
     let slot = if fast { &DUMMY_FAST } else { &DUMMY_SLOW };
     let encoded = slot

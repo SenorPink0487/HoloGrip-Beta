@@ -180,21 +180,21 @@ export function createJumperLead(
 
 export function dialTexture(): THREE.CanvasTexture {
   return paintTexture(512, 512, (ctx, w, h) => {
-    // 1. Off-white instrument enamel dial face
+    // 1. 仪表搪瓷表盘底色
     ctx.fillStyle = '#0a1017';
     ctx.fillRect(0, 0, w, h);
 
     const cx = w / 2;
     const cy = h / 2 + 30;
 
-    // Outer subtle bezel
+    // 外层细边框
     ctx.strokeStyle = 'rgba(56,189,248,0.35)';
     ctx.lineWidth = 2;
     if (typeof ctx.strokeRect === 'function') {
       ctx.strokeRect(8, 8, w - 16, h - 16);
     }
 
-    // 2. Anti-parallax mirror strip
+    // 2. 防视差反射镜条
     if (typeof ctx.arc === 'function') {
       ctx.beginPath();
       ctx.arc(cx, cy, 140, Math.PI * 0.2, Math.PI * 0.8, true);
@@ -202,7 +202,7 @@ export function dialTexture(): THREE.CanvasTexture {
       ctx.lineWidth = 8;
       ctx.stroke();
 
-      // Main scale baseline arc
+      // 主刻度基准弧线
       ctx.beginPath();
       ctx.arc(cx, cy, 185, Math.PI * 0.18, Math.PI * 0.82, true);
       ctx.strokeStyle = '#e2e8f0';
@@ -210,7 +210,7 @@ export function dialTexture(): THREE.CanvasTexture {
       ctx.stroke();
     }
 
-    // 3. Graduated ticks (-50 to +50 with center zero)
+    // 3. 分度刻度线（-50 至 +50，中心为零）
     const maxSteps = 10;
     for (let i = -maxSteps; i <= maxSteps; i++) {
       const angle = -Math.PI / 2 + (i / maxSteps) * 1.05;
@@ -233,7 +233,7 @@ export function dialTexture(): THREE.CanvasTexture {
       }
     }
 
-    // 4. Center G logo & engineering markings
+    // 4. 中心 G 标识与工程标记
     if (typeof ctx.fillText === 'function') {
       ctx.fillStyle = '#38bdf8';
       ctx.font = '700 34px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
@@ -253,18 +253,18 @@ export function dialTexture(): THREE.CanvasTexture {
 
 export function graticuleTexture(): THREE.CanvasTexture {
   return paintTexture(512, 512, (ctx, w, h) => {
-    // 1. Dark phosphor CRT screen background with soft phosphor glow
+    // 1. 带柔和荧光光晕的暗色荧光 CRT 屏幕背景
     ctx.fillStyle = '#02120a';
     ctx.fillRect(0, 0, w, h);
 
-    // Subtle inner CRT shadow border
+    // 细微的 CRT 屏幕内阴影边框
     ctx.strokeStyle = 'rgba(74,222,128,0.45)';
     ctx.lineWidth = 3;
     if (typeof ctx.strokeRect === 'function') {
       ctx.strokeRect(6, 6, w - 12, h - 12);
     }
 
-    // 2. Minor subdivision dots / ticks
+    // 2. 次级细分刻度线
     ctx.strokeStyle = 'rgba(74,222,128,0.18)';
     ctx.lineWidth = 1;
     for (let i = 1; i < 16; i++) {
@@ -281,7 +281,7 @@ export function graticuleTexture(): THREE.CanvasTexture {
       ctx.stroke();
     }
 
-    // 3. Major 8x8 Division Lines
+    // 3. 主要 8x8 分割网格线
     ctx.strokeStyle = 'rgba(74,222,128,0.42)';
     ctx.lineWidth = 1.8;
     for (let i = 1; i < 8; i++) {
@@ -293,7 +293,7 @@ export function graticuleTexture(): THREE.CanvasTexture {
       ctx.stroke();
     }
 
-    // 4. Center Major Axes (H & B) with Sub-millimeter Tick marks
+    // 4. 带有亚毫米刻度标记的中心主坐标轴（H 与 B 轴）
     ctx.strokeStyle = 'rgba(187,247,208,0.92)';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
@@ -303,7 +303,7 @@ export function graticuleTexture(): THREE.CanvasTexture {
     ctx.lineTo(w / 2, h - 16);
     ctx.stroke();
 
-    // Center axis ticks
+    // 中心坐标轴刻度线
     for (let i = 1; i < 32; i++) {
       const x = (w * i) / 32;
       ctx.beginPath();
@@ -318,7 +318,7 @@ export function graticuleTexture(): THREE.CanvasTexture {
       ctx.stroke();
     }
 
-    // 5. Engineering Typography & Axis designations
+    // 5. 工程排版与坐标轴标识
     if (typeof ctx.fillText === 'function') {
       ctx.fillStyle = '#86efac';
       ctx.font = '600 22px -apple-system, BlinkMacSystemFont, "SF Pro Text", monospace';
@@ -337,22 +337,22 @@ export function graticuleTexture(): THREE.CanvasTexture {
 
 export function plateTexture(): THREE.CanvasTexture {
   return paintTexture(256, 1024, (ctx, w, h) => {
-    // 1. Sleek photoplate / MCP detector surface (Space gray metallic backing)
+    // 1. 感光底片 / MCP 探测器表面（深空灰金属底衬）
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Active phosphorescent ion-collection channel strip
+    // 2. 荧光离子收集通道条
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(28, 16, w - 56, h - 32);
 
-    // Border bevel
+    // 边框倒角
     ctx.strokeStyle = 'rgba(56,189,248,0.5)';
     ctx.lineWidth = 2;
     if (typeof ctx.strokeRect === 'function') {
       ctx.strokeRect(28, 16, w - 56, h - 32);
     }
 
-    // 3. Laser-etched millimeter scale and mass-to-charge (m/z) calibration grid
+    // 3. 激光蚀刻毫米刻度与质荷比（m/z）标定网格
     ctx.strokeStyle = 'rgba(226,232,240,0.6)';
     ctx.lineWidth = 1.5;
     const ticks = 32;

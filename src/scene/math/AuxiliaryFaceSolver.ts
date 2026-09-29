@@ -25,14 +25,14 @@ export interface AuxiliaryFace {
 }
 
 /**
- * High School Stereometry Auxiliary Face Solver.
- * Automatically identifies closed planar cycles formed by auxiliary line segments,
- * validates planarity and non-self-intersection, classifies the polygon,
- * and computes exact 3D metrics (area, perimeter, normal, centroid).
+ * 高建立体几何辅助面求解器。
+ * 自动识别辅助线段构成的闭合平面环，
+ * 验证共面性与非自交性，对多边形进行分类，
+ * 并计算精确的 3D 几何指标（面积、周长、法向量、质心）。
  */
 export class AuxiliaryFaceSolver {
   /**
-   * Finds all minimal chordless planar faces formed by connected auxiliary line segments.
+   * 查找由相连辅助线段构成的所有极小无弦平面面元。
    */
   public static findAuxiliaryFaces(
     segments: DrawnSegmentInput[],
@@ -42,13 +42,13 @@ export class AuxiliaryFaceSolver {
       return [];
     }
 
-    // 1. Build KeyPoint lookup map
+    // 1. 构建关键点查找表
     const kpMap = new Map<string, KeyPoint>();
     for (const kp of keyPoints) {
       kpMap.set(kp.id, kp);
     }
 
-    // 2. Build undirected adjacency list
+    // 2. 构建无向邻接表
     const adj = new Map<string, Set<string>>();
     for (const seg of segments) {
       if (!kpMap.has(seg.pointIdA) || !kpMap.has(seg.pointIdB)) continue;
@@ -60,7 +60,7 @@ export class AuxiliaryFaceSolver {
       adj.get(seg.pointIdB)!.add(seg.pointIdA);
     }
 
-    // 3. Find simple cycles (length 3 to 8)
+    // 3. 查找简单环（长度 3 到 8）
     const rawCycles: string[][] = [];
     const visited = new Set<string>();
     const nodes = Array.from(adj.keys()).sort();
@@ -78,15 +78,15 @@ export class AuxiliaryFaceSolver {
 
         for (const next of neighbors) {
           if (next === start) {
-            // Closed loop back to root
+            // 闭合环回到起点
             if (path.length >= 3) {
-              // Enforce orientation canonicalization: path[1] < path[path.length - 1]
+              // 强制方向规范化：path[1] < path[path.length - 1]
               if (path[1] < path[path.length - 1]) {
                 rawCycles.push([...path]);
               }
             }
           } else if (!visited.has(next) && next > start) {
-            // Enforce next > start so each cycle is rooted at its unique minimum node
+            // 强制 next > start，确保每个环以唯一的最小节点为根
             visited.add(next);
             path.push(next);
             dfs(next);
@@ -100,10 +100,10 @@ export class AuxiliaryFaceSolver {
       visited.delete(start);
     }
 
-    // 4. Filter for chordless cycles (minimal cycles without interior shortcut chords)
+    // 4. 过滤无弦环（不含内部快捷弦的极小环）
     const chordlessCycles = rawCycles.filter((cycle) => {
       const m = cycle.length;
-      if (m === 3) return true; // Triangles are always chordless
+      if (m === 3) return true; // 三角形必为无弦环
       const cycleSet = new Set(cycle);
 
       for (let i = 0; i < m; i++) {
@@ -116,7 +116,7 @@ export class AuxiliaryFaceSolver {
           const j = cycle.indexOf(v);
           const dist = Math.min(Math.abs(i - j), m - Math.abs(i - j));
           if (dist > 1) {
-            // Edge (u, v) is a chord dividing this cycle into smaller cycles
+            // 边 (u, v) 为将该环分割为更小环的弦
             return false;
           }
         }
@@ -124,7 +124,7 @@ export class AuxiliaryFaceSolver {
       return true;
     });
 
-    // 5. Planarity validation, 3D metric calculation, and polygon classification
+    // 5. 共面性验证、3D 指标计算与多边形分类
     const faces: AuxiliaryFace[] = [];
 
     for (const cycle of chordlessCycles) {
@@ -138,14 +138,14 @@ export class AuxiliaryFaceSolver {
         labels.push(kp.label);
       }
 
-      // Check collinearity or planarity
+      // 检查共线与共面性
       if (m === 3) {
         const v1 = new THREE.Vector3().subVectors(positions[1], positions[0]);
         const v2 = new THREE.Vector3().subVectors(positions[2], positions[0]);
         const cross = new THREE.Vector3().crossVectors(v1, v2);
         const crossLen = cross.length();
         const area = 0.5 * crossLen;
-        if (area < 1e-4) continue; // Collinear degenerate
+        if (area < 1e-4) continue; // 共线退化
 
         const normal = cross.clone().normalize();
         const centroid = new THREE.Vector3()
@@ -173,11 +173,11 @@ export class AuxiliaryFaceSolver {
           perimeter: Math.round(perimeter * 1000) / 1000,
           normal,
           centroid,
-          color: 0x0284c7, // Azure Crystal
+          color: 0x0284c7, // 蔚蓝水晶色
           vertices3D: positions,
         });
       } else {
-        // N >= 4: Compute normal via Newell's method
+        // N >= 4：使用 Newell 算法计算法向量
         const normal = new THREE.Vector3(0, 0, 0);
         for (let i = 0; i < m; i++) {
           const cur = positions[i];
@@ -190,25 +190,25 @@ export class AuxiliaryFaceSolver {
         if (normLen < 1e-4) continue;
         normal.divideScalar(normLen);
 
-        // Compute centroid
+        // 计算质心
         const centroid = new THREE.Vector3();
         for (const p of positions) {
           centroid.add(p);
         }
         centroid.multiplyScalar(1 / m);
 
-        // Coplanarity check: maximum orthogonal distance to best-fit plane
+        // 共面性检查：到拟合平面的最大正交距离
         let maxDist = 0;
         for (const p of positions) {
           const dist = Math.abs(p.clone().sub(centroid).dot(normal));
           if (dist > maxDist) maxDist = dist;
         }
         if (maxDist > 0.008) {
-          // Reject non-planar skew polygon
+          // 剔除非平面扭曲多边形
           continue;
         }
 
-        // Project onto 2D plane for area & self-intersection check
+        // 投影到 2D 平面以计算面积和检查自交
         const temp = Math.abs(normal.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
         const u = new THREE.Vector3().crossVectors(normal, temp).normalize();
         const v = new THREE.Vector3().crossVectors(normal, u).normalize();
@@ -218,7 +218,7 @@ export class AuxiliaryFaceSolver {
           return new THREE.Vector2(diff.dot(u), diff.dot(v));
         });
 
-        // 2D Shoelace area
+        // 2D 鞋带公式计算面积
         let signedArea = 0;
         for (let i = 0; i < m; i++) {
           const p1 = pts2D[i];
@@ -229,7 +229,7 @@ export class AuxiliaryFaceSolver {
         const area = Math.abs(signedArea);
         if (area < 1e-4) continue;
 
-        // Ensure CCW winding with normal
+        // 确保顶点按法向量逆时针排列
         if (signedArea < 0) {
           positions.reverse();
           labels.reverse();
@@ -237,7 +237,7 @@ export class AuxiliaryFaceSolver {
           normal.negate();
         }
 
-        // Compute perimeter
+        // 计算周长
         let perimeter = 0;
         const edgeLengths: number[] = [];
         for (let i = 0; i < m; i++) {
@@ -284,7 +284,7 @@ export class AuxiliaryFaceSolver {
       Math.abs(l1 - l2) / Math.max(l1, l2) < 0.03 ||
       Math.abs(l2 - l0) / Math.max(l2, l0) < 0.03;
 
-    // Check right angle: Pythagorean theorem on sorted squared edge lengths
+    // 判定直角：对排序后的边长平方使用勾股定理
     const sq = [l0 * l0, l1 * l1, l2 * l2].sort((a, b) => a - b);
     const isRight = Math.abs(sq[0] + sq[1] - sq[2]) / sq[2] < 0.04;
 

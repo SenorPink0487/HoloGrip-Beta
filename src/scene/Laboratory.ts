@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { TextureGenerator } from './Textures.ts';
 
 /**
- * Circular white laboratory matched to the reference chamber:
- * faceted ceiling and cross-mullion oculus, a single cyan datum line,
- * recessed double-bay shelves, ribbed wall panels and a glazed entry.
+ * 环形纯白高精实验室场景：
+ * 包含多面藻井穹顶与十字立柱采光天窗、青色基准光带、
+ * 双隔间内嵌置物壁龛、条纹吸音墙板及玻璃感应门。
  */
 export class Laboratory {
   public readonly group = new THREE.Group();
@@ -87,20 +87,20 @@ export class Laboratory {
     const seamMat = new THREE.MeshBasicMaterial({ color: 0x90a4ae, transparent: true, opacity: 0.48, depthWrite: false });
     const seams = new THREE.Group();
     seams.name = 'reference-floor-seams';
-    // Concentric floor rings matching Image 1
+    // 地面同心圆装饰环带
     for (const radius of [1.82, 3.75, 6.25]) {
       const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.008, radius + 0.008, 160), seamMat);
       ring.position.z = 0.008;
       seams.add(ring);
     }
-    // 8 radial expansion joints
+    // 8 条径向伸缩缝
     for (let i = 0; i < 8; i++) {
       const line = new THREE.Mesh(new THREE.PlaneGeometry(this.roomRadius * 1.58, 0.012), seamMat);
       line.rotation.z = (i / 8) * Math.PI;
       line.position.z = 0.009;
       seams.add(line);
     }
-    // Subtle floor alignment docking notch / marker on middle ring (matching Image 1!)
+    // 中环上的地面定位对齐凹槽标记
     const notch = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.28), seamMat);
     notch.position.set(0, -3.75, 0.01);
     seams.add(notch);
@@ -140,7 +140,7 @@ export class Laboratory {
   }
 
   /**
-   * Smooth, non-broken quad coffer band connecting inner and outer radii with architectural precision
+   * 连接内外半径的平滑四边形穹顶藻井环带，具备高精度建筑细节
    */
   private facetBand(innerR: number, outerR: number, segments: number, y0: number, y1: number, phase = 0): THREE.BufferGeometry {
     const positions: number[] = [];
@@ -157,7 +157,7 @@ export class Laboratory {
       const i0 = [cos0 * innerR, y1, sin0 * innerR];
       const i1 = [cos1 * innerR, y1, sin1 * innerR];
 
-      // Two triangles forming a smooth quad coffer panel
+      // 两个三角形拼合为平滑的四边形藻井嵌板
       positions.push(...o0, ...i0, ...o1, ...o1, ...i0, ...i1);
     }
     const geometry = new THREE.BufferGeometry();
@@ -170,7 +170,7 @@ export class Laboratory {
     const ceiling = new THREE.Group();
     ceiling.name = 'reference-ceiling';
 
-    // 1. Outer architectural coffer dome band (smooth rise from wall to mid-span)
+    // 1. 外侧建筑穹顶藻井环带（从墙壁向中间跨度平滑隆起）
     const outerFacets = new THREE.Mesh(
       this.facetBand(4.85, this.roomRadius - 0.04, 32, 3.86, 4.12, 0),
       this.materials.ceilingWhite,
@@ -179,13 +179,13 @@ export class Laboratory {
     outerFacets.receiveShadow = true;
     ceiling.add(outerFacets);
 
-    // Fine radial coffer reveal grooves
+    // 精细的径向藻井阴影凹槽
     ceiling.add(new THREE.LineSegments(
       new THREE.EdgesGeometry(outerFacets.geometry, 1),
       this.materials.ceilingGroove,
     ));
 
-    // 2. Inner architectural coffer dome band (smooth rise from mid-span to oculus cove)
+    // 2. 内侧建筑穹顶藻井环带（从跨中向天窗灯槽平滑隆起）
     const innerFacets = new THREE.Mesh(
       this.facetBand(3.32, 4.85, 32, 4.12, 4.28, 0),
       this.materials.ceilingWhite,
@@ -200,7 +200,7 @@ export class Laboratory {
     innerEdges.position.y = 0.002;
     ceiling.add(innerEdges);
 
-    // 3. Recessed circular light cove step (housing the indirect halo illumination)
+    // 3. 内嵌圆形间接照明暗藏灯槽台阶
     const step = new THREE.Mesh(new THREE.RingGeometry(2.45, 3.32, 128), this.materials.ceilingWhite);
     step.rotation.x = Math.PI / 2;
     step.position.y = 4.34;
@@ -211,7 +211,7 @@ export class Laboratory {
     stepLip.position.y = 4.28;
     ceiling.add(stepLip);
 
-    // Circular indirect luminous cove halo
+    // 圆形间接漫反射光晕
     const halo = new THREE.Mesh(
       new THREE.CircleGeometry(3.30, 96),
       new THREE.MeshBasicMaterial({
@@ -223,13 +223,13 @@ export class Laboratory {
     halo.name = 'oculus-halo';
     ceiling.add(halo);
 
-    // 4. Skylight bezel rim
+    // 4. 天窗边框压条
     const bezel = new THREE.Mesh(new THREE.RingGeometry(2.36, 2.45, 96), this.materials.ceilingTrim);
     bezel.rotation.x = Math.PI / 2;
     bezel.position.y = 4.38;
     ceiling.add(bezel);
 
-    // 5. Central circular skylight (pure luminous daylight disc)
+    // 5. 中央圆形透光天窗（纯净漫射白日光盘）
     const skylight = new THREE.Mesh(
       new THREE.CircleGeometry(2.40, 96),
       new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, toneMapped: false }),
@@ -244,19 +244,19 @@ export class Laboratory {
     skylightRing.position.y = 4.39;
     ceiling.add(skylightRing);
 
-    // 6. Architectural 8-Segment Radial Mullion Assembly (matching Image 1!)
+    // 6. 8 分割径向天窗立柱骨架组件
     const cross = new THREE.Group();
     cross.name = 'skylight-cross';
     const mullionMat = new THREE.MeshStandardMaterial({
       color: 0xecf2f7, roughness: 0.28, metalness: 0.35, side: THREE.DoubleSide,
     });
 
-    // Central circular hub boss
+    // 中央圆形立柱轮毂核心
     const centerHub = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.035, 48), mullionMat);
     centerHub.position.y = 4.385;
     cross.add(centerHub);
 
-    // 8 radial spokes connecting center hub to perimeter ring
+    // 连接中心轮毂与外围圆环的 8 根径向辐条
     const spokeCount = 8;
     const spokeLength = 2.40 - 0.28;
     const spokeGeom = new THREE.BoxGeometry(spokeLength, 0.028, 0.04);
@@ -270,7 +270,7 @@ export class Laboratory {
     }
     ceiling.add(cross);
 
-    // 7. Outer perimeter light cove where ceiling meets wall
+    // 7. 天花板与墙壁交接处的外圈暗藏灯槽
     const perimeterCove = new THREE.Mesh(
       new THREE.TorusGeometry(this.roomRadius - 0.20, 0.04, 12, 128),
       this.materials.coveLight,
@@ -331,7 +331,7 @@ export class Laboratory {
     return new THREE.Mesh(new THREE.ShapeGeometry(shape, 8), material);
   }
 
-  /** phi = 0 faces the back wall (−Z). Positive phi swings toward +X (screen right). Local +Z points into the room. */
+  /** phi = 0 面向后墙 (−Z)。正 phi 偏向 +X（屏幕右侧）。局部 +Z 指向室内。 */
   private mountOnWall(phi: number, y: number, radius: number): THREE.Group {
     const group = new THREE.Group();
     group.position.set(Math.sin(phi) * radius, y, -Math.cos(phi) * radius);
@@ -382,12 +382,12 @@ export class Laboratory {
   }
 
   /**
-   * Balanced architectural bays matching Image 1:
-   * phi 0: observation window with backlit vista
-   * phi +-0.38: fluted / ribbed acoustic wood panels
-   * phi +-0.66: vertical cyan datum LED light channels
-   * phi +-0.92: deep illuminated wall alcoves (left niche holds floating holographic HUD)
-   * phi 1.42: glazed sci-fi entry door with rounded corners and pocket handle
+   * 建筑立面各功能舱位分布：
+   * phi 0：带背光远景的观察视窗
+   * phi +-0.38：竖向条纹质感墙板
+   * phi +-0.66：垂直青色基准 LED 灯带凹槽
+   * phi +-0.92：深凹带照明置物壁龛（左侧壁龛内嵌全息 HUD 屏幕）
+   * phi 1.42：带圆角与内嵌把手的玻璃感应移门
    */
   private featureLayout() {
     const y = 2.15;
@@ -449,7 +449,7 @@ export class Laboratory {
   }
 
   /**
-   * Vertical fluted / ribbed wall panels flanking window and alcoves (matching Image 1!)
+   * 位于视窗与壁龛两侧的竖向条纹质感墙板
    */
   private createRibbedWallPanels(walls: THREE.Group): void {
     const panels = [
@@ -497,7 +497,7 @@ export class Laboratory {
     bead.position.z = 0.012;
     mount.add(bead);
 
-    // Panoramic cleanroom observation backdrop
+    // 全景无尘实验室观察窗背景
     const obsTex = TextureGenerator.createWindowObservationTexture();
     const obsMat = new THREE.MeshBasicMaterial({
       map: obsTex,
@@ -569,7 +569,7 @@ export class Laboratory {
       shelf.name = `side-niche-shelf-${label}`;
       mount.add(shelf);
 
-      // Left niche holds the floating holographic telemetry HUD screen (Image 1 reference!)
+      // 左侧壁龛内嵌浮空全息遥测 HUD 屏幕
       if (label === 'left') {
         const hudTex = TextureGenerator.createNicheHudTexture();
         const hudMat = new THREE.MeshBasicMaterial({
@@ -625,7 +625,7 @@ export class Laboratory {
     glass.name = 'right-entry-door-glass';
     mount.add(glass);
 
-    // Vertical recessed door handle
+    // 垂直内凹门把手
     const handleMat = this.materials.wallTrim;
     const handleRecess = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.72, 0.02), handleMat);
     handleRecess.position.set(-width / 2 + 0.12, 0, 0.03);
@@ -672,6 +672,6 @@ export class Laboratory {
   }
 
   public update(_delta: number, _elapsed: number): void {
-    // Static architecture; animated experiment content lives on HologramStage.
+    // 静态建筑结构；动态实验交互内容由全息舞台呈现。
   }
 }

@@ -13,7 +13,7 @@ const TRACKING_FRAME_WIDTH = 256;
 const TRACKING_FRAME_HEIGHT = 192;
 
 /**
- * Scale-invariant hysteresis pinch state machine based on HoloPhysics handPoseMath.
+ * 基于全息手势物理学与双阈值迟滞的尺度无关捏合状态机。
  */
 export class PinchStateMachine {
   private enterThreshold: number;
@@ -61,7 +61,7 @@ export class PinchStateMachine {
 }
 
 /**
- * Self-contained single hand state tracker with One Euro smoothing and pinch state machine.
+ * 独立单手状态追踪器，集成 One Euro 自适应滤波防抖与捏合状态机。
  */
 export class SingleHandTracker {
   public handedness: 'left' | 'right';
@@ -71,7 +71,7 @@ export class SingleHandTracker {
   public lastWrist: { x: number; y: number } | null = null;
   public lastSeenAt = -Infinity;
 
-  // Pinch & gesture state
+  // 捏合与手势状态
   public isPinching = false;
   public pinchStartTime: number | null = null;
   public pinchStartX = 0;
@@ -113,34 +113,34 @@ export class SingleHandTracker {
     const wrist = landmarks[0];
     const middleMcp = landmarks[9];
 
-    // Midpoint between thumb tip and index finger tip
+    // 拇指指尖与食指指尖连线的中点坐标
     const midX = (thumbTip.x + indexTip.x) * 0.5;
     const midY = (thumbTip.y + indexTip.y) * 0.5;
     const midZ = (thumbTip.z + indexTip.z) * 0.5;
 
-    // Front-camera horizontal mirroring
+    // 前置摄像头画面水平镜像翻转
     const normCameraX = config.mirrorX ? 1.0 - midX : midX;
     const normCameraY = midY;
 
-    // Active margin calibration
+    // 有效活动边距映射校准
     const mX = config.activeMarginX;
     const mY = config.activeMarginY;
     const boundedNormX = Math.max(0, Math.min(1, (normCameraX - mX) / (1.0 - 2 * mX)));
     const boundedNormY = Math.max(0, Math.min(1, (normCameraY - mY) / (1.0 - 2 * mY)));
 
-    // Viewport coordinates
+    // 视口屏幕绝对像素坐标
     const viewWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
     const viewHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
     const rawScreenX = boundedNormX * viewWidth;
     const rawScreenY = boundedNormY * viewHeight;
 
-    // One Euro signal smoothing
+    // One Euro 自适应滤波平滑处理
     const smoothed = this.filter.filter(rawScreenX, rawScreenY, timestamp);
 
-    // 2D distance excluding noisy monocular Z
+    // 二维平面欧氏距离（排除单目深度 Z 轴的噪声干扰）
     const rawDistance = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
 
-    // Hand scale normalization using stable maximum of palm width and wrist-to-middle MCP
+    // 手掌尺度归一化基准（采用手掌横宽与手腕至中指掌指关节的最大值，保证尺度无关）
     const palmWidth = (landmarks[5] && landmarks[17])
       ? Math.hypot(landmarks[5].x - landmarks[17].x, landmarks[5].y - landmarks[17].y)
       : 0;
@@ -148,11 +148,11 @@ export class SingleHandTracker {
     const handScale = Math.max(palmWidth, wristToMiddle) || 0.22;
     const pinchRatio = rawDistance / handScale;
 
-    // Hysteresis pinch recognition
+    // 双阈值迟滞捏合判定
     const { isPinching, justStarted, justEnded } = this.pinchMachine.update(pinchRatio);
     this.isPinching = isPinching;
 
-    // Proportional pinch strength [0, 1]
+    // 线性比例捏合强度 [0, 1]
     const enterThresh = config.pinchThresholdEnter;
     const exitThresh = config.pinchThresholdExit;
     let pinchStrength = 0;
@@ -162,7 +162,7 @@ export class SingleHandTracker {
       pinchStrength = Math.max(0, Math.min(1, (exitThresh - pinchRatio) / (exitThresh - enterThresh)));
     }
 
-    // Gesture duration and interaction classification
+    // 手势持续时长统计与交互类型判定
     let pinchDuration = 0;
     if (this.handedness === 'left') {
       if (justStarted) {
@@ -240,7 +240,7 @@ export class HandGestureService {
   private animFrameId: number | null = null;
   private videoFrameCallbackId: number | null = null;
 
-  // Dedicated Web Worker architecture (main-thread fallback removed for peak performance)
+  // 专属 Web Worker 后台计算架构（移除主线程回退以保证 3D 渲染峰值性能）
   private worker: Worker | null = null;
   private isWorkerReady = false;
   private isWorkerBusy = false;
@@ -254,30 +254,30 @@ export class HandGestureService {
   private status: TrackerStatus = 'uninitialized';
   private errorMessage = '';
 
-  // Dual-hand state trackers
+  // 双手状态追踪器
   private leftTracker: SingleHandTracker;
   private rightTracker: SingleHandTracker;
 
-  // Telemetry caching
+  // 遥测数据缓存
   private lastHasHand = false;
   private lastLeftHandDetected = false;
   private lastRightHandDetected = false;
   private lastRightPinchRatio = 0;
   private lastRightPinchStrength = 0;
 
-  // Performance telemetry
+  // 性能遥测指标
   private frameCount = 0;
   private lastFpsTimestamp = performance.now();
   private currentFps = 0;
   private lastLatencyMs = 0;
   private delegate: 'GPU' | 'CPU' | 'unknown' = 'unknown';
 
-  // Dual-hand pinch zoom state
+  // 双手协同捏合缩放状态
   private isDualPinchActive = false;
   private dualPinchStartDistance = 0;
   private wasDualPinchingInCurrentSession = false;
 
-  // Event listeners
+  // 事件监听器集合
   private frameListeners: Set<(frame: HandGestureFrame) => void> = new Set();
   private statusListeners: Set<(telemetry: TrackerTelemetry) => void> = new Set();
   private quickPinchMenuListeners: Set<() => void> = new Set();
@@ -415,8 +415,8 @@ export class HandGestureService {
   }
 
   /**
-   * Initializes MediaPipe HandLandmarker exclusively inside dedicated Web Worker.
-   * Main-thread fallback has been completely removed to prevent frame drops in 3D physics rendering.
+   * 专属在独立的 Web Worker 中初始化 MediaPipe HandLandmarker 运算。
+   * 彻底移除主线程回退执行，防止 3D 物理渲染过程出现任何掉帧或卡顿。
    */
   public async init(): Promise<void> {
     if (this.status === 'ready' || this.status === 'running') return;
@@ -516,7 +516,7 @@ export class HandGestureService {
           this.delegate = e.data.delegate;
         }
 
-        // Update FPS counter
+        // 更新每秒帧率 (FPS) 计数器
         this.frameCount++;
         const now = performance.now();
         const elapsedFps = now - this.lastFpsTimestamp;
@@ -533,7 +533,7 @@ export class HandGestureService {
         this.broadcastFrame(frame);
         this.notifyStatus();
 
-        // Process next available frame if video advanced, frame is pending, or fallback cadence elapsed
+        // 当视频时间推进、存在待处理帧或满足保底调度周期时，处理下一帧画面
         if (this.status === 'running' && this.videoElement && this.videoElement.readyState >= 2) {
           const nowMs = performance.now();
           if (
@@ -560,7 +560,7 @@ export class HandGestureService {
   }
 
   /**
-   * Starts front camera stream and begins continuous hand tracking.
+   * 启动前置摄像头视频流并开启手部姿态实时追踪。
    */
   public async start(): Promise<void> {
     if (this.status === 'running') return;
@@ -732,9 +732,9 @@ export class HandGestureService {
     const loop = () => {
       if (this.status !== 'running') return;
       const now = performance.now();
-      // High-cadence watchdog / fallback loop:
-      // When rVFC is actively delivering hardware frames, tolerate normal 33ms camera interval and intervene on stall (>= 80ms).
-      // If rVFC is unsupported or stalled, drive high-cadence dispatch (>= 25ms delay, 40 FPS).
+      // 高频保底自驱动定时循环：
+      // 当 rVFC 正常提交硬件级视频帧时，容忍标准 33ms 摄像头刷新间隔，仅在超时卡顿时介入 (>= 80ms)；
+      // 若浏览器不支持 rVFC 或检测到视频流停滞，以保底高频节奏触发派发 (>= 25ms 间隔，40 FPS)。
       const hasActiveRvfc = this.videoFrameCallbackId !== null && (now - this.lastRvfCallTime < 80);
       if (!hasActiveRvfc && (now - this.lastFrameSendTime >= 25)) {
         this.processFrame(false);
@@ -755,7 +755,7 @@ export class HandGestureService {
     }
 
     if (this.isWorkerBusy) {
-      // Frame Coalescing / LIFO: Worker is busy with in-flight frame, mark pending
+      // 帧合并 / 后进先出策略：Worker 仍在处理中，将当前最新帧标记为待处理挂起
       this.hasPendingFrame = true;
       return;
     }
@@ -776,7 +776,7 @@ export class HandGestureService {
     const tStart = performance.now();
 
     try {
-      // Asynchronous direct ImageBitmap extraction off main thread (avoids synchronous 2D canvas GPU pipeline flush)
+      // 在主线程外直接异步提取 ImageBitmap（彻底避免同步 2D Canvas 绘制冲刷 GPU 管线）
       let bitmapPromise: Promise<ImageBitmap> | null = null;
       if (typeof createImageBitmap === 'function') {
         bitmapPromise = createImageBitmap(video, {
@@ -860,7 +860,7 @@ export class HandGestureService {
   }
 
   /**
-   * Processes up to 2 hands, robustly separates Left vs Right Hand, and calculates gesture state machines.
+   * 处理至多两只手的骨骼数据，稳健分离左右手，并分别计算手势状态机。
    */
   public processMultiHands(
     detectedLandmarks: NormalizedLandmark[][],
@@ -908,7 +908,7 @@ export class HandGestureService {
     let rightHandData: SingleHandData | null = null;
 
     if (detections.length >= 2) {
-      // Two hands: user's Left Hand is to user's left (smaller screenX), user's Right Hand is to user's right (larger screenX)
+      // 检测到两只手：用户左手位于用户左侧（对应镜像后较小的 screenX），右手位于用户右侧（较大的 screenX）
       const [leftDet, rightDet] = detections[0].screenX <= detections[1].screenX
         ? [detections[0], detections[1]]
         : [detections[1], detections[0]];
@@ -916,18 +916,18 @@ export class HandGestureService {
       leftHandData = this.leftTracker.process(leftDet.landmarks, timestamp, leftDet.score, this.config);
       rightHandData = this.rightTracker.process(rightDet.landmarks, timestamp, rightDet.score, this.config);
     } else {
-      // Exactly 1 detection: classify using spatial region + neural handedness
+      // 仅检测到单手：结合空间屏幕区域与神经网络置信度综合判定左右手
       const det = detections[0];
       let isLeft: boolean;
 
       if (det.screenX >= 0.55) {
-        // Distinctly positioned on the right half of the screen
+        // 显著位于屏幕右半区
         isLeft = false;
       } else if (det.screenX <= 0.45) {
-        // Distinctly positioned on the left half of the screen
+        // 显著位于屏幕左半区
         isLeft = true;
       } else {
-        // Center region: preserve recent hand identity or fallback to neural label
+        // 中央区域：优先保持最近一次的手势标识，或回退至神经网络分类标签
         if (Number.isFinite(this.rightTracker.lastSeenAt) && timestamp - this.rightTracker.lastSeenAt < 800) {
           isLeft = false;
         } else if (Number.isFinite(this.leftTracker.lastSeenAt) && timestamp - this.leftTracker.lastSeenAt < 800) {
@@ -946,7 +946,7 @@ export class HandGestureService {
       }
     }
 
-    // Dual Hand Pinch Detection (Zoom 3D stereometry model)
+    // 双手同时捏合检测（连续缩放 3D 几何模型）
     const isDualPinching = Boolean(leftHandData?.isPinching && rightHandData?.isPinching);
     let dualPinchDistance = 0;
     let dualPinchScaleFactor = 1.0;
@@ -987,7 +987,7 @@ export class HandGestureService {
       });
     }
 
-    // Process Left Hand gestures (Quick Pinch -> Menu, Long Pinch Drag -> Camera perspective)
+    // 处理左手手势（短捏合触发菜单/视窗开合，长捏合拖拽转动相机视角）
     let leftHandQuickPinch = false;
     let leftHandCameraDelta: { dx: number; dy: number } | null = null;
 
@@ -1023,7 +1023,7 @@ export class HandGestureService {
       this.wasDualPinchingInCurrentSession = false;
     }
 
-    // Cache telemetry
+    // 缓存遥测结果
     const primary = rightHandData || leftHandData;
     this.lastHasHand = Boolean(leftHandData || rightHandData);
     this.lastLeftHandDetected = Boolean(leftHandData);
@@ -1041,7 +1041,7 @@ export class HandGestureService {
       isDualPinching,
       dualPinchDistance,
       dualPinchScaleFactor,
-      // Backward-compatible primary cursor fields
+      // 向后兼容的主光标数据字段
       landmarks: primary?.landmarks ?? null,
       thumbTip: primary?.thumbTip ?? null,
       indexTip: primary?.indexTip ?? null,
@@ -1059,7 +1059,7 @@ export class HandGestureService {
   }
 
   /**
-   * Computes normalized midpoint, screen projection, and scale-invariant pinch state for a single hand.
+   * 计算单手的归一化中点坐标、屏幕投影位置及尺度无关的捏合状态。
    */
   public computeSingleHandAnalytics(
     landmarks: NormalizedLandmark[],
@@ -1072,7 +1072,7 @@ export class HandGestureService {
   }
 
   /**
-   * Backward-compatible single-hand analytic computation.
+   * 向后兼容的单手解析分析计算。
    */
   public computeGestureAnalytics(
     landmarks: NormalizedLandmark[],

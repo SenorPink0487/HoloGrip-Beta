@@ -27,7 +27,7 @@ export class PlatformBridge {
 
     const isIPad =
       /iPad/i.test(ua) ||
-      (/Macintosh/i.test(ua) && maxTouchPoints > 1); // iPadOS reports as Macintosh with touch
+      (/Macintosh/i.test(ua) && maxTouchPoints > 1); // iPadOS 在带触控时报告为 Macintosh
 
     const isIPhone = /iPhone/i.test(ua);
     const isIOS = isIPad || isIPhone;
@@ -89,7 +89,7 @@ export class PlatformBridge {
       }
     }
 
-    // Standard Web Fullscreen
+    // 标准 Web 全屏
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
     } else {

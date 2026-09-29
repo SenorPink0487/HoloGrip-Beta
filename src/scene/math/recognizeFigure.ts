@@ -1,7 +1,7 @@
 import { parseRecognizedFigure, type RecognizedFigure } from './figureModel.ts';
 import { apiBase } from '../../account/api.ts';
 
-/** Shrink a worksheet photo so the vision request stays small enough to return in a few seconds. */
+/** 压缩题目照片以控制视觉分析请求体积，确保快速返回结果。 */
 export async function compressProblemImage(dataUrl: string): Promise<string> {
   if (typeof document === 'undefined') return dataUrl;
   const img = new Image();

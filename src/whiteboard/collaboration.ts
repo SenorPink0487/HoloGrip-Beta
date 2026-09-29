@@ -34,7 +34,7 @@ export function durable(event: BoardEvent): boolean {
   return event.type !== 'stroke_start' && event.type !== 'stroke_points';
 }
 
-/** Authoritative state, independent of Canvas and sockets so replay is deterministic. */
+/** 权威画板状态，独立于 Canvas 与 Socket，保证重放确定性。 */
 export class BoardState {
   revision = 0;
   generation = '';
@@ -89,7 +89,7 @@ export class BoardState {
   }
 }
 
-/** Batch only new points; pen-up flushes before the reliable full-stroke commit. */
+/** 仅批量发送新增点数据；提笔时在提交完整可靠笔画前执行清空刷新。 */
 export class StrokeStream {
   private pending: BoardCommand & { type: 'stroke_points' } | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;

@@ -29,7 +29,7 @@ export interface StereometryTelemetryData {
   vertexCount: number;
   edgeCount: number;
   faceCount: number;
-  eulerCharacteristic: number; // V - E + F
+  eulerCharacteristic: number; // 欧拉示性数: V - E + F
   originPointId?: string;
   originLabel: string;
   vertexCoords: Array<{ id: string; label: string; coords: [number, number, number] }>;
@@ -76,7 +76,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
   private touchZoomWidget: StereometryTouchZoomWidget | null = null;
   private onKeyDownBound: ((e: KeyboardEvent) => void) | null = null;
 
-  // State cache
+  // 状态缓存
   private modelType: HighSchoolModelType = 'cube';
   private dimA = 0.58;
   private dimH = 0.58;
@@ -91,11 +91,11 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   public init(context: ExperimentContext): void {
-    // Rest experiment root on the white tabletop surface (table surface at Y=0.990, HologramStage offset Y=+0.082)
-    // Positioned in front workbench interaction zone (Z=0.72)
+    // 将实验根节点放置于白色桌面上（桌面高度 Y=0.990，HologramStage 偏移 Y=+0.082）
+    // 位于前方工作台交互区域（Z=0.72）
     this.rootGroup.position.set(0, 0.082, 0.72);
 
-    // Guarantee local clipping is enabled on renderer
+    // 确保渲染器启用局部剖切 (local clipping)
     if (context.renderer) {
       context.renderer.localClippingEnabled = true;
     }
@@ -121,7 +121,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
       },
     });
 
-    // Default canonical textbook oblique view (base horizontal)
+    // 默认教科书经典斜二测视角（底面水平）
     this.interactionManager.resetToIsometricView();
   }
 
@@ -138,7 +138,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
       });
       this.touchZoomWidget.updateScale(this.mesh ? this.mesh.getScale() : 1.0);
 
-      // If whiteboard is currently in foreground, initially hide widget until laboratory view is entered
+      // 若白板当前位于前台，在进入实验室视图前先隐藏控件
       const wbRoot = typeof document.getElementById === 'function' ? document.getElementById('whiteboard-app-root') : null;
       if (wbRoot && typeof wbRoot.classList?.contains === 'function' && !wbRoot.classList.contains('hidden-view')) {
         this.touchZoomWidget.setVisible(false);
@@ -232,7 +232,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   // -------------------------------------------------------------
-  // Public Control API (called from VisionOS StereometryStatusCard)
+  // 公共控制 API（供 VisionOS StereometryStatusCard 调用）
   // -------------------------------------------------------------
 
   public setInteractionMode(mode: InteractionMode): void {
@@ -344,12 +344,12 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   /**
-   * Apply classic Gaokao Stereometry Presets
+   * 应用经典高考立体几何预设
    */
   public applyClassicPreset(preset: 'cube-hexagon' | 'cube-skew-60' | 'tetra-orthogonal' | 'corner-box' | 'cone-conic'): void {
     switch (preset) {
       case 'cube-hexagon': {
-        // Cube regular hexagon cross section: passes through 6 edge midpoints
+        // 正方体正六边形截面：过 6 条棱的中点
         this.setModelType('cube');
         const plane = new THREE.Plane(new THREE.Vector3(1, 1, 1).normalize(), 0);
         this.mesh.setOptions({
@@ -360,26 +360,26 @@ export default class MathStereometryExperiment extends BaseExperiment {
         break;
       }
       case 'cube-skew-60': {
-        // Skew lines in cube: A1B and B1C angle = 60 deg
+        // 正方体异面直线：A1B 与 B1C 所成角为 60 度
         this.setModelType('cube');
         this.mesh.clearAllSegments();
-        // A1 (index 4) to B (index 1)
+        // A1 (索引 4) 至 B (索引 1)
         this.mesh.addSegment('v_4', 'v_1', 0x38d9a9);
-        // B1 (index 5) to C (index 2)
+        // B1 (索引 5) 至 C (索引 2)
         this.mesh.addSegment('v_5', 'v_2', 0xffd43b);
         break;
       }
       case 'tetra-orthogonal': {
-        // Tetrahedron orthogonal opposite edges: AB ⊥ CD
+        // 四面体对棱垂直：AB ⊥ CD
         this.setModelType('tetrahedron');
         this.mesh.clearAllSegments();
-        this.mesh.addSegment('v_0', 'v_1', 0x38d9a9); // AB
-        this.mesh.addSegment('v_2', 'v_3', 0xff6b6b); // CD
+        this.mesh.addSegment('v_0', 'v_1', 0x38d9a9); // 线段 AB
+        this.mesh.addSegment('v_2', 'v_3', 0xff6b6b); // 线段 CD
         this.mesh.setOptions({ showEmbeddingBox: true });
         break;
       }
       case 'corner-box': {
-        // Corner pyramid with complementary cuboid embedding
+        // 墙角三棱锥及其补形长方体
         this.setModelType('corner-pyramid');
         this.mesh.setOptions({
           showEmbeddingBox: true,
@@ -388,7 +388,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
         break;
       }
       case 'cone-conic': {
-        // Cone cross section
+        // 圆锥截面
         this.setModelType('cylinder-cone');
         const plane = new THREE.Plane(new THREE.Vector3(0.6, 0.8, 0).normalize(), 0.05);
         this.mesh.setOptions({
@@ -401,7 +401,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   // -------------------------------------------------------------
-  // Live Telemetry Provider for UI Status Card
+  // UI 状态卡片实时遥测数据提供器
   // -------------------------------------------------------------
   public getStereometryTelemetry(): StereometryTelemetryData {
     const opts = this.mesh.getOptions();
@@ -420,7 +420,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
     const crossSection = this.mesh.getCrossSectionResult();
     const sphereAnalysis = this.mesh.getSphereAnalysisResult();
 
-    // Map vertex coordinates relative to origin
+    // 映射相对于原点的顶点坐标
     const originKp = model.keyPoints.find((k) => k.id === (opts.originKeyPointId ?? 'v_0'));
     const originPos = originKp ? originKp.position : MathStereometryExperiment._ORIGIN_ZERO;
 
@@ -435,7 +435,7 @@ export default class MathStereometryExperiment extends BaseExperiment {
       };
     });
 
-    // Compute angle between first two drawn segments if at least two exist
+    // 若存在至少两条绘制线段，则计算前两条线段所成夹角
     let twoLineAngle: StereometryTelemetryData['twoLineAngle'] = null;
     if (segments.length >= 2) {
       const s1 = segments[0];

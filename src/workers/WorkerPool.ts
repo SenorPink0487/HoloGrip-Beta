@@ -57,7 +57,7 @@ export class WorkerPool {
     const id = this.nextRequestId++;
     const fullRequest = { ...request, id } as WorkerRequest;
 
-    // Round-robin selection of worker
+    // 轮询（Round-robin）分配 Worker
     const worker = this.workers[this.workerIndex];
     this.workerIndex = (this.workerIndex + 1) % this.workers.length;
 

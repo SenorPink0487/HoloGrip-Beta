@@ -42,7 +42,7 @@ async function run() {
         const ctx = testCanvas.getContext('2d');
         ctx.drawImage(img, 775, 145, 230, 160, 0, 0, 320, 240);
 
-        // Test Main Thread MediaPipe
+        // 测试主线程 MediaPipe
         const { FilesetResolver, HandLandmarker } = await import('/node_modules/@mediapipe/tasks-vision/vision_bundle.mjs');
         const vision = await FilesetResolver.forVisionTasks('/mediapipe/wasm', true);
 
@@ -58,7 +58,7 @@ async function run() {
             minTrackingConfidence: 0.5,
           });
 
-          // Warmup
+          // 预热
           for (let i = 0; i < 2; i++) {
             landmarker.detectForVideo(testCanvas, 1000 + i * 33);
           }

@@ -1,6 +1,6 @@
 /**
- * High-precision Least Squares Linear Regression Solver
- * Used for dynamic curve fitting in mechanics HUD status cards.
+ * 高精度最小二乘法线性回归求解器
+ * 用于力学实验 HUD 状态卡片中的动态曲线拟合。
  */
 
 export interface Point2D {
@@ -45,7 +45,7 @@ export function calculateLinearFit(points: Point2D[]): LinearRegressionResult {
   const slope = (n * sumXY - sumX * sumY) / denominator;
   const intercept = (sumY - slope * sumX) / n;
 
-  // Calculate R^2 (coefficient of determination)
+  // 计算决定系数 R^2 (拟合优度)
   const meanY = sumY / n;
   let ssTot = 0;
   let ssRes = 0;

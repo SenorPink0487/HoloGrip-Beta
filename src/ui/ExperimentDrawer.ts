@@ -77,17 +77,17 @@ export class ExperimentDrawer {
     this.searchInput.disabled = true;
     this.searchInput.tabIndex = -1;
 
-    // Close button
+    // 关闭按钮
     this.element.querySelector('#drawer-close-btn')!.addEventListener('click', () => {
       this.toggle(false);
     });
 
-    // Search listener
+    // 搜索输入监听
     this.searchInput.addEventListener('input', () => {
       this.renderList();
     });
 
-    // Category chips listener
+    // 分类标签监听
     const tabsContainer = this.element.querySelector('#drawer-category-tabs')!;
     tabsContainer.addEventListener('click', (e) => {
       const target = (e.target as HTMLElement).closest('.category-chip') as HTMLElement;
@@ -100,7 +100,7 @@ export class ExperimentDrawer {
       this.renderList();
     });
 
-    // Toggle shortcut (Key: 'E') and Escape to close
+    // 切换快捷键（按键：'E'）及按 Escape 关闭
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey) {
         if (this.isOpen) {

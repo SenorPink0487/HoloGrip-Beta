@@ -29,20 +29,20 @@ export interface HandGestureFrame {
   hasHand: boolean;
   timestamp: number;
 
-  // Two-hand tracking support
+  // 双手追踪支持
   leftHand: SingleHandData | null;
   rightHand: SingleHandData | null;
 
-  // Left hand gestures
+  // 左手手势控制
   leftHandQuickPinch: boolean;
   leftHandCameraDelta: { dx: number; dy: number } | null;
 
-  // Dual-hand gestures (zoom/scale 3D geometry)
+  // 双手协同手势（缩放/调整 3D 几何实体）
   isDualPinching?: boolean;
   dualPinchDistance?: number;
   dualPinchScaleFactor?: number;
 
-  // Primary / Right Hand compatibility fields (drives VisionProCursor)
+  // 主交互手/右手兼容字段（驱动 VisionProCursor 光标）
   landmarks: NormalizedLandmark[] | null;
   thumbTip: NormalizedLandmark | null;
   indexTip: NormalizedLandmark | null;

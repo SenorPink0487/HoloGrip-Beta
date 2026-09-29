@@ -50,7 +50,7 @@ export class FieldStatusCard {
           gap: 14px;
         }
 
-        /* 1. Header matching Hall Effect */
+        /* 1. 顶部标题栏 */
         .field-hall-header {
           display: flex;
           justify-content: space-between;
@@ -81,7 +81,7 @@ export class FieldStatusCard {
           color: #64d2ff;
         }
 
-        /* 2. Pure Centerpiece Stage matching hall-pure-stage */
+        /* 2. 核心公式与核心视觉舞台 */
         .field-hall-stage {
           background: rgba(255, 255, 255, 0.03);
           border: 1px solid rgba(255, 255, 255, 0.08);
@@ -114,7 +114,7 @@ export class FieldStatusCard {
           color: rgba(255, 255, 255, 0.40);
         }
 
-        /* Metric Columns with Hall Effect Dividers */
+        /* 指标栏分列与分隔线样式 */
         .field-hall-metric-row {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
@@ -171,7 +171,7 @@ export class FieldStatusCard {
           background: rgba(255, 255, 255, 0.07);
         }
 
-        /* 3. Focus Drawer matching hall-focus-drawer */
+        /* 3. 焦点参数抽屉面板 */
         .field-hall-drawer {
           background: rgba(255, 255, 255, 0.035);
           border: 1px solid rgba(255, 255, 255, 0.08);
@@ -217,7 +217,7 @@ export class FieldStatusCard {
           cursor: not-allowed;
         }
 
-        /* 4. Action Dock matching hall-dock-capsule */
+        /* 4. 底部操作胶囊栏 */
         .field-hall-dock {
           display: flex;
           align-items: center;
@@ -272,7 +272,7 @@ export class FieldStatusCard {
           flex-shrink: 0;
         }
 
-        /* 5. Minimal Semantic Polarity Dots */
+        /* 5. 极简极性指示圆点 */
         .field-dot-red {
           width: 7px;
           height: 7px;
@@ -301,7 +301,7 @@ export class FieldStatusCard {
           flex-shrink: 0;
         }
 
-        /* Bottom Footer Hint */
+        /* 底部提示文字 */
         .field-hall-footer {
           display: flex;
           justify-content: space-between;
@@ -522,7 +522,7 @@ export class FieldStatusCard {
       });
     }
 
-    // Test Charge (Probe) Telemetry Binding
+    // 检验电荷（探针）遥测数据绑定
     const probeQEl = this.element.querySelector('#field-probe-q');
     const probePosEl = this.element.querySelector('#field-probe-pos');
     const probeEEl = this.element.querySelector('#field-probe-e');
@@ -571,7 +571,7 @@ export class FieldStatusCard {
       this.onCommand({ type: 'clearCharges' });
     });
 
-    // Selected charge slider
+    // 选中电荷电量调节滑块
     const slider = this.element.querySelector('#field-charge-slider') as HTMLInputElement | null;
     if (slider) {
       bindVisionSlider(slider, {
@@ -593,7 +593,7 @@ export class FieldStatusCard {
       });
     }
 
-    // Quick adjustment pills
+    // 快捷调节胶囊按钮
     const pillButtons = this.element.querySelectorAll('.field-pill-btn');
     pillButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -614,7 +614,7 @@ export class FieldStatusCard {
       });
     });
 
-    // Reset button
+    // 重置按钮
     this.element.querySelector('#field-btn-reset')?.addEventListener('click', () => {
       this.onCommand({ type: 'reset' });
     });

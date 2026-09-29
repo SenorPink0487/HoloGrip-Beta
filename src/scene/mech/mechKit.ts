@@ -1,5 +1,5 @@
 /**
- * HoloGrip Mechanics 3D Lab Equipment Material & Mesh Utilities
+ * HoloGrip 力学 3D 实验设备材质与网格工具函数库
  */
 
 import * as THREE from 'three';

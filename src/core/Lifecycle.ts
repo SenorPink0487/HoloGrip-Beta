@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 
 /**
- * ResourceTracker manages Three.js GPU resources (geometries, materials, textures, render targets)
- * and guarantees zero-leak teardown when switching between dozens of experiments.
+ * 资源追踪器，负责管理 Three.js GPU 资源（几何体、材质、纹理、渲染目标），
+ * 确保在多个实验之间切换时实现零内存泄漏的完整销毁。
  */
 export class ResourceTracker {
   private resources = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture | THREE.WebGLRenderTarget>();
   private disposables: Array<() => void> = [];
 
   /**
-   * Automatically track an object and all its sub-resources recursively.
+   * 递归自动追踪对象及其所有子资源。
    */
   public track<T>(resource: T): T {
     if (!resource) return resource;
@@ -39,7 +39,7 @@ export class ResourceTracker {
     ) {
       this.resources.add(resource);
 
-      // If it's a material, also track all textures attached to standard properties
+      // 如果是材质，同步追踪其属性上挂载的所有纹理
       if (resource instanceof THREE.Material) {
         for (const value of Object.values(resource)) {
           if (value instanceof THREE.Texture) {
@@ -53,17 +53,17 @@ export class ResourceTracker {
   }
 
   /**
-   * Register custom cleanup callbacks (e.g. interval timers, event listeners, worker tasks)
+   * 注册自定义清理回调（例如定时器、事件监听器、Worker 任务等）。
    */
   public addDisposable(disposeFn: () => void): void {
     this.disposables.push(disposeFn);
   }
 
   /**
-   * Perform comprehensive, leak-free disposal of all registered GPU resources.
+   * 全面释放所有已注册的 GPU 资源，确保无泄漏。
    */
   public dispose(): void {
-    // 1. Run custom disposables
+    // 1. 执行自定义清理回调
     for (const disposeFn of this.disposables) {
       try {
         disposeFn();
@@ -73,11 +73,11 @@ export class ResourceTracker {
     }
     this.disposables = [];
 
-    // 2. Dispose all Three.js GPU resources
+    // 2. 释放所有 Three.js GPU 资源
     for (const resource of this.resources) {
       try {
         if (resource instanceof THREE.Material) {
-          // Dispose textures on material first
+          // 先释放材质上的纹理
           for (const value of Object.values(resource)) {
             if (value instanceof THREE.Texture) {
               value.dispose();

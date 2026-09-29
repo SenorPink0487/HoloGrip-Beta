@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import type { ComputeBridge } from '../../core/platform/ComputeBridge.ts';
 
 export interface HallCarrierOptions {
-  waferLength?: number;    // Along X (width)
-  waferHeight?: number;    // Along Y (height)
-  waferThickness?: number; // Along Z (depth)
-  waferWidth?: number;     // Backwards-compatible alias for waferHeight
+  waferLength?: number;    // 沿X轴（长度/宽度）
+  waferHeight?: number;    // 沿Y轴（高度）
+  waferThickness?: number; // 沿Z轴（厚度）
+  waferWidth?: number;     // waferHeight的向后兼容别名
   particleCount?: number;
   computeBridge?: ComputeBridge;
   useWorkerSimulation?: boolean;
@@ -17,7 +17,7 @@ export class HallCarrierParticleSystem {
   public group: THREE.Group;
   private readonly particleCount: number;
 
-  // Physical dimensions
+  // 物理尺寸
   public readonly waferLength: number;
   public readonly waferHeight: number;
   public readonly waferThickness: number;
@@ -25,7 +25,7 @@ export class HallCarrierParticleSystem {
     return this.waferHeight;
   }
 
-  // Particle positions & simulation state
+  // 粒子位置与仿真状态
   private positions: Float32Array;
   private baseOffsetsY: Float32Array;
   private baseOffsetsZ: Float32Array;
@@ -37,14 +37,14 @@ export class HallCarrierParticleSystem {
   private workerPositions?: Float32Array;
   private workerBaseOffsetsY?: Float32Array;
 
-  // Quantum Luminous Point System (Core + Halo dual-layer)
+  // 量子发光点系统（核心+光晕双层）
   private particleGeo: THREE.BufferGeometry;
   private corePoints: THREE.Points;
   private haloPoints: THREE.Points;
   private coreMat: THREE.PointsMaterial;
   private haloMat: THREE.PointsMaterial;
 
-  // Textures for different carrier types
+  // 不同载流子类型的纹理
   private electronTexture: THREE.CanvasTexture;
   private holeTexture: THREE.CanvasTexture;
   private metalTexture: THREE.CanvasTexture;
@@ -52,13 +52,13 @@ export class HallCarrierParticleSystem {
   private holeHaloTexture: THREE.CanvasTexture;
   private metalHaloTexture: THREE.CanvasTexture;
 
-  // Transverse Electrostatic Potential Glow Ribbons (Top & Bottom boundaries)
+  // 横向静电势发光带（上下面边界）
   private topGlowMesh: THREE.Mesh;
   private bottomGlowMesh: THREE.Mesh;
   private topGlowMat: THREE.MeshBasicMaterial;
   private bottomGlowMat: THREE.MeshBasicMaterial;
 
-  // Surface Charge Badges (Apple Vision Pro Micro-Pills)
+  // 表面电荷指示徽标（微型胶囊徽章）
   private probeBadgeGroup: THREE.Group;
   private topProbeSprites: THREE.Sprite[] = [];
   private bottomProbeSprites: THREE.Sprite[] = [];
@@ -69,7 +69,7 @@ export class HallCarrierParticleSystem {
   private badgeMatTop: THREE.SpriteMaterial;
   private badgeMatBottom: THREE.SpriteMaterial;
 
-  // Sleek 3D Vector Indicators
+  // 立体3D矢量指示器
   private vectorGroup: THREE.Group;
   private arrowVelocity: THREE.ArrowHelper;
   private arrowMagField: THREE.ArrowHelper;
@@ -81,11 +81,11 @@ export class HallCarrierParticleSystem {
   private static readonly _VEC_FL = new THREE.Vector3();
   private static readonly _VEC_EH = new THREE.Vector3();
 
-  // Physical State
+  // 物理状态
   private carrierType: CarrierType = 'electron';
-  private magFieldStrength = 0.5; // Tesla
-  private currentMa = 10.0;       // mA
-  private hallVoltageMv = -25.0;  // mV
+  private magFieldStrength = 0.5; // 特斯拉 (T)
+  private currentMa = 10.0;       // 毫安 (mA)
+  private hallVoltageMv = -25.0;  // 毫伏 (mV)
   private showVectors = false;
   private showParticles = true;
 
@@ -118,38 +118,38 @@ export class HallCarrierParticleSystem {
   }
 
   /**
-   * Procedural radiant quantum carrier textures with high-saturation pigment,
-   * specular glint, crisp luminous boundary, and quantum charge indicator
+   * 程序化辐射量子载流子纹理，具备高饱和色彩、
+   * 镜面高光、清晰发光边界与量子电荷标识
    */
   private initTextures(): void {
-    // n-type Carrier (electron e⁻): Deep Electric Royal Blue body + Vivid Neon Cyan Core + High-Contrast Dark Rim
+    // n型载流子（电子 e⁻）：深电光皇家蓝主体 + 明亮电光青核心 + 高对比暗色边缘
     this.electronTexture = this.createGlowingParticleTexture({
-      innerCore: '#00f0ff',                // Electric neon cyan inner core
-      mainBody: '#0062ff',                 // Vivid royal electric blue
-      shadedEdge: '#003db8',               // Deep saturated sapphire
-      darkRim: 'rgba(0, 18, 56, 0.88)',    // High-contrast perimeter shadow rim for light backgrounds
-      haloColor: 'rgba(0, 130, 255, 0.55)', // Outer aura
-      symbol: '−',                         // True minus symbol (U+2212)
+      innerCore: '#00f0ff',                // 电光青内核
+      mainBody: '#0062ff',                 // 明亮皇家电光蓝
+      shadedEdge: '#003db8',               // 深饱和蓝宝石色
+      darkRim: 'rgba(0, 18, 56, 0.88)',    // 高对比外围阴影边缘（确保在浅色背景下的对比度）
+      haloColor: 'rgba(0, 130, 255, 0.55)', // 外层光晕
+      symbol: '−',                         // 减号符号 (U+2212)
     });
     this.electronHaloTexture = this.createHaloTexture('rgba(0, 110, 255, 0.60)');
 
-    // p-type Carrier (hole h⁺): Radiant Solar Amber Core + Deep Fiery Crimson-Red Body + High-Contrast Dark Rim
+    // p型载流子（空穴 h⁺）：炽烈太阳琥珀内核 + 鲜艳深绯红主体 + 高对比暗色边缘
     this.holeTexture = this.createGlowingParticleTexture({
-      innerCore: '#ffb300',                // Radiant solar gold/amber
-      mainBody: '#e62e2e',                 // Vivid saturated fiery crimson
-      shadedEdge: '#a81313',               // Deep flame ruby
-      darkRim: 'rgba(56, 8, 8, 0.88)',     // High-contrast perimeter shadow rim
-      haloColor: 'rgba(255, 60, 20, 0.55)', // Outer aura
-      symbol: '+',                         // Plus symbol
+      innerCore: '#ffb300',                // 辐射太阳金/琥珀色
+      mainBody: '#e62e2e',                 // 鲜艳饱和深绯红
+      shadedEdge: '#a81313',               // 深焰红宝石色
+      darkRim: 'rgba(56, 8, 8, 0.88)',     // 高对比外围阴影边缘
+      haloColor: 'rgba(255, 60, 20, 0.55)', // 外层光晕
+      symbol: '+',                         // 加号符号
     });
     this.holeHaloTexture = this.createHaloTexture('rgba(255, 50, 10, 0.60)');
 
-    // Metal Carrier: Brilliant Cobalt / Electric Ultramarine
+    // 金属载流子：明亮钴蓝 / 电光群青
     this.metalTexture = this.createGlowingParticleTexture({
-      innerCore: '#38bdf8',                // Electric sky blue
-      mainBody: '#2563eb',                 // Vibrant cobalt blue
-      shadedEdge: '#1d4ed8',               // Deep cobalt
-      darkRim: 'rgba(15, 23, 60, 0.88)',   // High-contrast perimeter shadow rim
+      innerCore: '#38bdf8',                // 电光天蓝
+      mainBody: '#2563eb',                 // 亮丽钴蓝
+      shadedEdge: '#1d4ed8',               // 深钴蓝
+      darkRim: 'rgba(15, 23, 60, 0.88)',   // 高对比外围阴影边缘
       haloColor: 'rgba(37, 99, 235, 0.50)',
       symbol: '−',
     });
@@ -183,9 +183,9 @@ export class HallCarrierParticleSystem {
     const cy = size / 2;
 
     if (ctx && typeof ctx.arc === 'function') {
-      const bodyRadius = size * 0.36; // 46px radius for prominent solid body
+      const bodyRadius = size * 0.36; // 46像素半径，呈现醒目的实心球体
 
-      // 1. Soft Luminous Glow Halo (Outer atmospheric glow)
+      // 1. 柔和发光光晕（外层环境光晕）
       if (typeof ctx.createRadialGradient === 'function') {
         const haloGrad = ctx.createRadialGradient(cx, cy, bodyRadius * 0.75, cx, cy, size * 0.48);
         haloGrad.addColorStop(0.0, config.haloColor);
@@ -197,13 +197,13 @@ export class HallCarrierParticleSystem {
         ctx.fill();
       }
 
-      // 2. High-Contrast Outer Perimeter Shadow Rim (Guarantees contrast on light lab backgrounds)
+      // 2. 高对比外围阴影边缘（确保在浅色实验室背景下的对比度）
       ctx.fillStyle = config.darkRim;
       ctx.beginPath();
       ctx.arc(cx, cy, bodyRadius + 1.5, 0, Math.PI * 2);
       ctx.fill();
 
-      // 3. Solid 3D Spherical Quantum Particle Body with Specular Highlight
+      // 3. 实心3D球形量子粒子主体与镜面高光
       if (typeof ctx.createRadialGradient === 'function') {
         const lightX = cx - bodyRadius * 0.28;
         const lightY = cy - bodyRadius * 0.28;
@@ -215,12 +215,12 @@ export class HallCarrierParticleSystem {
           cy,
           bodyRadius
         );
-        bodyGrad.addColorStop(0.0, '#ffffff');           // Pure specular glint highlight
-        bodyGrad.addColorStop(0.12, '#ffffff');          // Tight pinpoint highlight
-        bodyGrad.addColorStop(0.25, config.innerCore);   // Brilliant neon core
-        bodyGrad.addColorStop(0.60, config.mainBody);    // High-saturation vivid body
-        bodyGrad.addColorStop(0.88, config.shadedEdge);  // Deep saturated shaded body
-        bodyGrad.addColorStop(1.0, config.darkRim);      // Crisp perimeter rim
+        bodyGrad.addColorStop(0.0, '#ffffff');           // 纯白镜面高光点
+        bodyGrad.addColorStop(0.12, '#ffffff');          // 聚集焦点高光
+        bodyGrad.addColorStop(0.25, config.innerCore);   // 亮丽霓虹核心
+        bodyGrad.addColorStop(0.60, config.mainBody);    // 高饱和鲜艳主体
+        bodyGrad.addColorStop(0.88, config.shadedEdge);  // 深度饱和阴影主体
+        bodyGrad.addColorStop(1.0, config.darkRim);      // 清晰外围边缘
         ctx.fillStyle = bodyGrad;
       } else {
         ctx.fillStyle = config.mainBody;
@@ -229,14 +229,14 @@ export class HallCarrierParticleSystem {
       ctx.arc(cx, cy, bodyRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // 4. Subtle Inner Luminance Rim
+      // 4. 微弱内发光边缘
       ctx.strokeStyle = config.innerCore;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(cx, cy, bodyRadius - 0.75, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 5. Centered Quantum Charge Symbol with Dark Contrast Drop Shadow
+      // 5. 居中量子电荷符号及深色高对比投影
       if (config.symbol && typeof ctx.fillText === 'function') {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
         ctx.shadowBlur = 4;
@@ -249,7 +249,7 @@ export class HallCarrierParticleSystem {
         const yOffset = (config.symbol === '−' || config.symbol === '-') ? -1 : 1;
         ctx.fillText(config.symbol, cx, cy + yOffset);
 
-        // Reset shadow
+        // 重置阴影
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
@@ -299,14 +299,14 @@ export class HallCarrierParticleSystem {
   }
 
   private build(): void {
-    // 1. Dual-Layer Quantum Carrier Particle System
+    // 1. 双层量子载流子粒子系统
     this.particleGeo = new THREE.BufferGeometry();
     const posAttr = new THREE.BufferAttribute(this.positions, 3);
     posAttr.setUsage(THREE.DynamicDrawUsage);
     this.particleGeo.setAttribute('position', posAttr);
     this.disposables.push(this.particleGeo);
 
-    // Halo layer: radiant luminous energy aura rendered first with NormalBlending (renderOrder 18)
+    // 光晕层：首先使用 NormalBlending 渲染辐射能量光晕 (renderOrder 18)
     this.haloMat = new THREE.PointsMaterial({
       size: 0.046,
       map: this.electronHaloTexture,
@@ -317,7 +317,7 @@ export class HallCarrierParticleSystem {
       sizeAttenuation: true,
     });
 
-    // Core layer: brilliant concentrated quantum charge point with NormalBlending (renderOrder 20)
+    // 核心层：使用 NormalBlending 渲染高亮集中量子电荷点 (renderOrder 20)
     this.coreMat = new THREE.PointsMaterial({
       size: 0.026,
       map: this.electronTexture,
@@ -338,7 +338,7 @@ export class HallCarrierParticleSystem {
     this.group.add(this.haloPoints);
     this.group.add(this.corePoints);
 
-    // 2. Transverse Electrostatic Potential Glow Ribbons
+    // 2. 横向静电势发光带
     const glowGeo = new THREE.PlaneGeometry(this.waferLength * 0.98, this.waferThickness * 0.92);
     this.disposables.push(glowGeo);
 
@@ -370,10 +370,10 @@ export class HallCarrierParticleSystem {
     this.bottomGlowMesh.position.set(0, -this.waferHeight / 2 + 0.001, 0);
     this.group.add(this.bottomGlowMesh);
 
-    // 3. Precision Hall Voltage Probe Badges (Apple Vision Pro Micro-Pills)
+    // 3. 精密霍尔电压探针徽标（微型胶囊徽章）
     this.buildProbeBadges();
 
-    // 4. Sleek 3D Vector Indicators
+    // 4. 立体3D矢量指示器
     this.buildVectorHelpers();
   }
 
@@ -430,7 +430,7 @@ export class HallCarrierParticleSystem {
     canvas.height = 128;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      // Radiant outer ambient glow
+      // 外部辐射环境光晕
       if (typeof ctx.createRadialGradient === 'function') {
         const grad = ctx.createRadialGradient(64, 64, 20, 64, 64, 62);
         grad.addColorStop(0.0, color);
@@ -442,23 +442,23 @@ export class HallCarrierParticleSystem {
         ctx.fill();
       }
 
-      // High-contrast frosted pill container
+      // 高对比磨砂胶囊背景
       ctx.beginPath();
       ctx.arc(64, 64, 46, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(22, 24, 30, 0.88)';
       ctx.fill();
 
-      // Specular border in polarity accent color
+      // 极性高亮色镜面边框
       ctx.lineWidth = 4.5;
       ctx.strokeStyle = color;
       ctx.stroke();
 
-      // Inner hairline white ring
+      // 内部细白光环
       ctx.lineWidth = 1.2;
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.stroke();
 
-      // Bold, crisp typography
+      // 加粗清晰字样
       if (typeof ctx.fillText === 'function') {
         ctx.fillStyle = '#ffffff';
         ctx.font = '700 70px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
@@ -475,9 +475,9 @@ export class HallCarrierParticleSystem {
   }
 
   /**
-   * Surface charge accumulation on boundaries follows Gauss's Law: sigma = epsilon * E_H = epsilon * V_H / h.
-   * Number of charges increases visibly with |V_H| (governed by I * B / (n * q * d)).
-   * Zero field (B=0) or zero current (I=0) -> 0 accumulated surface charges.
+   * 边界表面电荷积累遵循高斯定律：sigma = epsilon * E_H = epsilon * V_H / h。
+   * 电荷数量随 |V_H| 显著增加（由 I * B / (n * q * d) 决定）。
+   * 零磁场 (B=0) 或零电流 (I=0) -> 0个表面累积电荷。
    */
   private getChargeCountForVoltage(vhMv: number, currentMa: number, bTesla: number): number {
     if (Math.abs(currentMa) < 1e-3 || Math.abs(bTesla) < 0.01) {
@@ -526,7 +526,7 @@ export class HallCarrierParticleSystem {
       this.badgeMatBottom.needsUpdate = true;
     }
 
-    // Dynamic symmetric distribution along top and bottom surfaces
+    // 沿顶面和底面动态对称分布
     const spanX = this.waferLength * 0.78;
     const topY = this.waferHeight * 0.5 + 0.018;
     const bottomY = -this.waferHeight * 0.5 - 0.018;
@@ -545,7 +545,7 @@ export class HallCarrierParticleSystem {
       }
     }
 
-    // Glow intensity scaling based on Hall voltage magnitude
+    // 根据霍尔电压大小调节发光强度
     const normVh = Math.min(1.0, Math.abs(this.hallVoltageMv) / 60.0);
     const glowOpacity = 0.12 + normVh * 0.38;
 
@@ -569,7 +569,7 @@ export class HallCarrierParticleSystem {
   ): THREE.ArrowHelper {
     const arrow = new THREE.ArrowHelper(dir, origin, length, colorHex, headLength, headWidth);
 
-    // Solid 3D cylinder shaft to replace 1-pixel hairline with high-contrast volumetric shaft
+    // 实心3D圆柱形箭杆，替代1像素细线，提供高对比立体箭身
     const shaftLen = Math.max(0.002, length - headLength);
     const shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLen, 12);
     const shaftMat = new THREE.MeshBasicMaterial({ color: colorHex });
@@ -579,7 +579,7 @@ export class HallCarrierParticleSystem {
     shaftMesh.position.set(0, shaftLen * 0.5, 0);
     arrow.add(shaftMesh);
 
-    // Dim the 1px wire line to avoid artifacting
+    // 弱化1像素线框以消除瑕疵伪影
     if (arrow.line && arrow.line.material) {
       (arrow.line.material as THREE.LineBasicMaterial).transparent = true;
       (arrow.line.material as THREE.LineBasicMaterial).opacity = 0;
@@ -597,46 +597,46 @@ export class HallCarrierParticleSystem {
     const halfL = this.waferLength * 0.5;
     const halfT = this.waferThickness * 0.5;
 
-    // Bold, high-contrast, volumetric vector arrows
-    // 1. Velocity v: Rich Saturated Emerald Green
+    // 醒目、高对比立体矢量箭头
+    // 1. 速度 v：浓郁饱和翡翠绿
     this.arrowVelocity = this.createThickArrowHelper(
       new THREE.Vector3(-1, 0, 0),
       new THREE.Vector3(halfL * 0.45, 0, halfT + 0.018),
       0.046,
-      0x00a843, // Deep Vivid Emerald Green
+      0x00a843, // 深邃生动翡翠绿
       0.014,
       0.0085,
       0.0018
     );
 
-    // 2. Magnetic Field B: Deep Royal Azure / Electric Blue
+    // 2. 磁场 B：深邃皇家天蓝 / 电光蓝
     this.arrowMagField = this.createThickArrowHelper(
       new THREE.Vector3(0, 0, 1),
       new THREE.Vector3(-halfL * 0.50, 0, -halfT - 0.020),
       0.052,
-      0x0066ff, // Deep Royal Azure
+      0x0066ff, // 深邃皇家天蓝
       0.015,
       0.0090,
       0.0018
     );
 
-    // 3. Lorentz Force F_L: High-Contrast Fiery Crimson Red
+    // 3. 洛伦兹力 F_L：高对比鲜艳深绯红
     this.arrowLorentz = this.createThickArrowHelper(
       new THREE.Vector3(0, -1, 0),
       new THREE.Vector3(0, 0, halfT + 0.018),
       0.044,
-      0xd92d20, // Vivid Crimson Red
+      0xd92d20, // 鲜艳深绯红
       0.014,
       0.0085,
       0.0018
     );
 
-    // 4. Hall Electric Field E_H: Saturated Solar Amber Ochre
+    // 4. 霍尔电场 E_H：饱和太阳琥珀赭石色
     this.arrowHallField = this.createThickArrowHelper(
       new THREE.Vector3(0, -1, 0),
       new THREE.Vector3(-halfL * 0.45, 0, halfT + 0.018),
       0.044,
-      0xe67300, // Deep Saturated Amber
+      0xe67300, // 浓郁饱和琥珀色
       0.014,
       0.0085,
       0.0018
@@ -748,27 +748,27 @@ export class HallCarrierParticleSystem {
 
     const currentSign = this.currentMa >= 0 ? 1 : -1;
     const isElectron = this.carrierType === 'electron';
-    // Electrons drift against current flow; holes drift with current flow
+    // 电子逆电流方向漂移；空穴顺电流方向漂移
     const driftDirection = isElectron ? -currentSign : currentSign;
 
     const b = this.magFieldStrength;
     const bSign = b >= 0 ? 1 : -1;
 
-    // Lorentz force direction: fl = q(v x B)
-    // Downwards when I > 0 and B > 0 for both electron and hole
+    // 洛伦兹力方向：fl = q(v x B)
+    // 当 I > 0 且 B > 0 时，电子与空穴均向下偏转
     const flSign = -currentSign * bSign;
 
     const hasCurrent = Math.abs(this.currentMa) > 1e-4;
     const hasField = Math.abs(b) > 1e-4;
 
-    // Physical Lorentz driving factor: strictly governed by magnetic field strength B
-    // Carrier transverse deflection amplitude (Hall angle tanθ_H = μB) depends only on B,
-    // independent of drift current I.
+    // 物理洛伦兹力驱动因子：严格由磁感应强度B决定
+    // 载流子横向偏转幅度（霍尔角 tanθ_H = μB）仅取决于B，
+    // 与漂移电流I无关。
     const driveNorm = (hasCurrent && hasField)
       ? (Math.abs(b) / 0.5)
       : 0;
 
-    // High dynamic range saturation curve with significantly raised upper limit (up to 1.60)
+    // 高动态范围饱和曲线，大幅提高上限（最高至 1.60）
     const deflectionAlpha = THREE.MathUtils.clamp(
       Math.pow(driveNorm, 0.55) * 0.92,
       0,
@@ -776,7 +776,7 @@ export class HallCarrierParticleSystem {
     );
     const maxDeflectionY = halfH * deflectionAlpha * flSign;
 
-    // Longitudinal drift velocity: strictly 0 when current is 0 (no forward drift)
+    // 纵向漂移速度：电流为0时严格为0（无向前漂移）
     const speed = hasCurrent ? Math.max(0.04, Math.min(0.28, Math.abs(this.currentMa) * 0.016)) : 0;
 
     this.thermalPhaseClock = (this.thermalPhaseClock + delta * 3.0) % (Math.PI * 2000);
@@ -846,11 +846,11 @@ export class HallCarrierParticleSystem {
     for (let i = 0; i < this.particleCount; i++) {
       const idx = i * 3;
 
-      // 1. Continuous longitudinal drift along X (only when current flows)
+      // 1. 沿X轴持续纵向漂移（仅当有电流通过时）
       if (speed > 0) {
         this.positions[idx] += driftDirection * speed * delta;
 
-        // Continuous modular wrap-around without positional loss or sudden Y jumps
+        // 连续模循环环绕，无位置丢失或突然的Y向跳变
         if (this.positions[idx] > halfL) {
           this.positions[idx] -= curveL;
         } else if (this.positions[idx] < -halfL) {
@@ -858,16 +858,16 @@ export class HallCarrierParticleSystem {
         }
       }
 
-      // 2. Physical Hall equilibrium transverse distribution ("中间平两边弯" Streamline Curvature):
-      // In the central observation region (|u| <= 0.38), Hall electric force perfectly balances
-      // Lorentz force (q*E_H = -F_L), so streamlines are completely horizontal and flat (dY/dx = 0).
-      // Near electrode contacts (|u| > 0.38), equipotential boundaries restore contact injection spread,
-      // producing smooth C^1 Hermite boundary curvature.
+      // 2. 物理霍尔平衡横向分布（"中间平两边弯" 流线曲率）：
+      // 在中心观测区 (|u| <= 0.38)，霍尔静电力与洛伦兹力完全平衡 (q*E_H = -F_L)，
+      // 因而流线完全水平平直 (dY/dx = 0)。
+      // 靠近电极接触端 (|u| > 0.38) 时，等势面边界恢复接触注入扩散，
+      // 形成平滑的 C^1 埃尔米特 (Hermite) 边界弯曲。
       const absU = Math.abs(this.positions[idx] / halfL);
       let curvFactor = 1.0;
       if (absU > 0.38) {
         const t = Math.min(1.0, (absU - 0.38) / 0.62);
-        // Smooth Hermite C1-continuous transition: 1.0 at center down to 0.12 at electrodes
+        // 平滑埃尔米特 C1 连续过渡：中心处为 1.0，逐渐过渡至电极处的 0.12
         curvFactor = 1.0 - 0.88 * t * t * (3.0 - 2.0 * t);
       }
 
@@ -876,7 +876,7 @@ export class HallCarrierParticleSystem {
       const u0 = THREE.MathUtils.clamp(this.baseOffsetsY[i] / halfH, -1.0, 1.0);
       const p = (u0 + 1.0) * 0.5;
 
-      // Nonlinear Boltzmann-Hall carrier accumulation & depletion layer dynamics with raised upper limit
+      // 非线性玻尔兹曼-霍尔载流子积累与耗尽层动力学（上限提升）
       let uSkew: number;
       const gamma = 1.0 + 2.2 * Math.min(1.5, localAlpha);
       if (flSign < 0) {
@@ -892,11 +892,11 @@ export class HallCarrierParticleSystem {
       const targetY = yShift + uSkew * span;
       const clampedTargetY = targetY < minY ? minY : targetY > maxY ? maxY : targetY;
 
-      // Smooth relaxation towards Hall equilibrium streamline (transient migration)
+      // 平滑弛豫趋向霍尔平衡流线（瞬态迁移）
       const currentY = this.positions[idx + 1];
       const nextY = currentY + (clampedTargetY - currentY) * relaxFactor;
 
-      // 3. Gentle organic quantum Brownian fluctuation (multi-frequency, non-synchronized)
+      // 3. 柔和有机量子布朗起伏（多频率非同步）
       const p1 = this.thermalPhases[i] + timeNow * 2.2;
       const p2 = this.thermalPhases[i] * 1.732 + timeNow * 3.7;
       const thermalY = (Math.sin(p1) * 0.65 + Math.sin(p2) * 0.35) * halfH * 0.022;

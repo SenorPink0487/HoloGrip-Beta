@@ -8,7 +8,7 @@ import {
   type PolyhedronModelDef,
 } from './GeometrySolver.ts';
 
-/** Longest axis of a recognized solid, in scene units, so it sits with the preset models. */
+/** 识别多面体的最长轴尺寸（场景单位），使其与预设模型比例协调。 */
 export const RECOGNIZED_MODEL_SPAN = 0.58;
 
 export interface FigureVertex {
@@ -265,8 +265,8 @@ function resolvePoints(figure: RecognizedFigure): Map<string, THREE.Vector3> {
 }
 
 /**
- * Turn a recognized oblique-drawing figure into a centered, scaled polyhedron.
- * Auxiliary points stay labeled and snappable. Construction lines are aux edges.
+ * 将识别到的直观图转换为居中且定标的多面体模型。
+ * 辅助点保留标号与磁吸捕捉能力，作图线转化为辅助线段。
  */
 export function buildRecognizedModel(figure: RecognizedFigure): PolyhedronModelDef {
   const known = resolvePoints(figure);

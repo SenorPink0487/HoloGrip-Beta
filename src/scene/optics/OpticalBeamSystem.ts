@@ -7,7 +7,7 @@ export interface BeamSegment {
   intensity?: number;
 }
 
-// Module-level pre-allocated scratch objects to eliminate per-frame GC allocations
+// 模块级预分配暂存对象，消除逐帧垃圾回收（GC）开销
 const _UP_VEC = new THREE.Vector3(0, 1, 0);
 const _DIR_VEC = new THREE.Vector3();
 const _MID_VEC = new THREE.Vector3();
@@ -19,7 +19,7 @@ const _P_END = new THREE.Vector3();
 export class OpticalBeamSystem {
   public readonly group = new THREE.Group();
 
-  // Multi-segment laser beam support (laser -> opt1 -> opt2 -> screen)
+  // 多段激光光束支持（激光器 -> 元件1 -> 元件2 -> 观测屏）
   private maxSegments = 4;
   private segmentCores: THREE.Mesh[] = [];
   private segmentGlows: THREE.Mesh[] = [];
@@ -28,7 +28,7 @@ export class OpticalBeamSystem {
   private segmentGlowMats: THREE.MeshBasicMaterial[] = [];
   private segmentHaloMats: THREE.MeshBasicMaterial[] = [];
 
-  // Backward-compatible direct references to segment 0
+  // 保持向后兼容的第 0 光段直接引用
   public coreBeamMesh: THREE.Mesh;
   public glowBeamMesh: THREE.Mesh;
   public coreBeamMat: THREE.MeshBasicMaterial;
@@ -40,14 +40,14 @@ export class OpticalBeamSystem {
   private diffractionFanGroup = new THREE.Group();
   private gratingOrdersGroup = new THREE.Group();
 
-  // Pre-allocated line buffer for 3D coherent wavefront arcs (Young's double slit & single slit)
+  // 预分配的 3D 相干波前圆弧线段缓冲区（杨氏双缝与单缝衍射）
   private wavefrontLines: THREE.LineSegments | null = null;
   private wavefrontGeo: THREE.BufferGeometry | null = null;
   private wavefrontPositions: Float32Array | null = null;
   private wavefrontColors: Float32Array | null = null;
   private wavefrontMat: THREE.LineBasicMaterial | null = null;
 
-  // Diffraction light envelope fan mesh
+  // 衍射光强包络扇形网格
   private diffractionFanMesh: THREE.Mesh | null = null;
   private diffractionFanGeo: THREE.BufferGeometry | null = null;
   private diffractionFanMat: THREE.MeshBasicMaterial | null = null;
@@ -56,30 +56,30 @@ export class OpticalBeamSystem {
   private lastFanHalfWidth = -999;
   private cachedWorkerDispersionRays: DispersionRay[] = [];
 
-  // Grating discrete orders beams
+  // 光栅各分立级次衍射光束
   private gratingOrderMeshes: THREE.Mesh[] = [];
   private gratingOrderMats: THREE.MeshBasicMaterial[] = [];
 
-  // Pre-allocated line buffer for 3D polarization vector waves
+  // 预分配的 3D 偏振矢量波线段缓冲区
   private waveVectorLines: THREE.LineSegments | null = null;
   private waveVectorGeo: THREE.BufferGeometry | null = null;
   private waveVectorPositions: Float32Array | null = null;
   private waveVectorColors: Float32Array | null = null;
 
-  // 7-color spectral dispersion ray configs (Red, Orange, Yellow, Green, Cyan, Blue, Violet)
+  // 七色色散光谱光线配置（红、橙、黄、绿、青、蓝、紫）
   public readonly spectrumConfigs = [
-    { wl: 680, hex: 0xff2222 }, // Red
-    { wl: 610, hex: 0xff7700 }, // Orange
-    { wl: 575, hex: 0xffdd00 }, // Yellow
-    { wl: 530, hex: 0x00ff44 }, // Green
-    { wl: 480, hex: 0x00d4ff }, // Cyan
-    { wl: 440, hex: 0x2255ff }, // Blue
-    { wl: 405, hex: 0x8822ff }, // Violet
+    { wl: 680, hex: 0xff2222 }, // 红光
+    { wl: 610, hex: 0xff7700 }, // 橙光
+    { wl: 575, hex: 0xffdd00 }, // 黄光
+    { wl: 530, hex: 0x00ff44 }, // 绿光
+    { wl: 480, hex: 0x00d4ff }, // 青光
+    { wl: 440, hex: 0x2255ff }, // 蓝光
+    { wl: 405, hex: 0x8822ff }, // 紫光
   ];
 
-  // Pre-allocated dispersion ray meshes: [rayIdx 0..6][segmentIdx 0..1]
-  // Segment 0: inside prism (pEnter -> pExit)
-  // Segment 1: prism to screen (pExit -> pScreen)
+  // 预分配色散光线网格：[光线索引 0..6][光段索引 0..1]
+  // 光段 0：棱镜内部（入射点 pEnter -> 出射点 pExit）
+  // 光段 1：棱镜出射至屏幕（出射点 pExit -> 屏落点 pScreen）
   private dispersionCores: THREE.Mesh[][] = [];
   private dispersionGlows: THREE.Mesh[][] = [];
   private dispersionCoreMats: THREE.MeshBasicMaterial[][] = [];
@@ -117,8 +117,8 @@ export class OpticalBeamSystem {
   }
 
   private initDispersionMeshes(): void {
-    const coreRadius = 0.0007; // 1.4mm diameter crisp core filament
-    const glowRadius = 0.0022; // 4.4mm diameter saturated spectral glow
+    const coreRadius = 0.0007; // 直径 1.4mm 的清晰中心光纤
+    const glowRadius = 0.0022; // 直径 4.4mm 的饱和光谱辉光
 
     this.dispersionCoreGeo = new THREE.CylinderGeometry(coreRadius, coreRadius, 1.0, 10);
     this.dispersionGlowGeo = new THREE.CylinderGeometry(glowRadius, glowRadius, 1.0, 10);
@@ -171,16 +171,16 @@ export class OpticalBeamSystem {
   }
 
   private initBeamSegments(): void {
-    const coreRadius = 0.0009; // 1.8mm diameter intense laser core
-    const glowRadius = 0.0035; // 7.0mm diameter inner volumetric glow
-    const haloRadius = 0.0080; // 16.0mm diameter soft outer beam haze
+    const coreRadius = 0.0009; // 直径 1.8mm 的高亮激光纤芯
+    const glowRadius = 0.0035; // 直径 7.0mm 的内层体积散射光晕
+    const haloRadius = 0.0080; // 直径 16.0mm 的外层环境漫射光圈
 
     const coreGeo = new THREE.CylinderGeometry(coreRadius, coreRadius, 1.0, 16);
     const glowGeo = new THREE.CylinderGeometry(glowRadius, glowRadius, 1.0, 16);
     const haloGeo = new THREE.CylinderGeometry(haloRadius, haloRadius, 1.0, 16);
 
     for (let i = 0; i < this.maxSegments; i++) {
-      // 1. High brightness laser filament core (additive, near-white core blend)
+      // 1. 高亮度激光纤芯（加法混合，近纯白芯层）
       const coreMat = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
@@ -195,7 +195,7 @@ export class OpticalBeamSystem {
       this.segmentCores.push(coreMesh);
       this.segmentCoreMats.push(coreMat);
 
-      // 2. Saturated volumetric scattering glow
+      // 2. 饱和体积散射辉光
       const glowMat = new THREE.MeshBasicMaterial({
         color: 0xff1e1e,
         transparent: true,
@@ -210,7 +210,7 @@ export class OpticalBeamSystem {
       this.segmentGlows.push(glowMesh);
       this.segmentGlowMats.push(glowMat);
 
-      // 3. Ambient atmospheric halo
+      // 3. 环境漫射光晕
       const haloMat = new THREE.MeshBasicMaterial({
         color: 0xff1e1e,
         transparent: true,
@@ -300,7 +300,7 @@ export class OpticalBeamSystem {
   public updateWavelength(wavelengthNm: number): void {
     this.wavelengthNm = wavelengthNm;
     const color = OpticalPhysics.wavelengthToColor(wavelengthNm);
-    // Core has high-luminance white mix
+    // 芯层混合高亮度白色
     const coreColor = color.clone().lerp(new THREE.Color(1, 1, 1), 0.70);
 
     for (let i = 0; i < this.maxSegments; i++) {
@@ -343,10 +343,10 @@ export class OpticalBeamSystem {
   }
 
   /**
-   * Render multi-spectral rainbow dispersion beams through prism (Zero-allocation / Pre-allocated pool)
+   * 渲染穿过棱镜的多光谱彩虹色散光束（零分配 / 预分配对象池）
    */
   public updateDispersionRays(rays: DispersionRay[]): void {
-    // If rays exist, render incoming beam to the entrance point on prism face
+    // 若存在光线，渲染从入射点到棱镜表面的入射光束
     if (rays.length > 0 && rays[0].points.length >= 2 && this.intensity > 0.001) {
       const pIn = rays[0].points[0];
       const pEnter = rays[0].points[1];
@@ -374,7 +374,7 @@ export class OpticalBeamSystem {
           const pExit = ray.points[2];
           const pScreen = ray.points[3];
 
-          // 1. Segment inside prism (pEnter -> pExit)
+          // 1. 棱镜内部光段（pEnter -> pExit）
           _DIR_VEC.subVectors(pExit, pEnter);
           const len1 = _DIR_VEC.length();
           if (len1 > 1e-4) {
@@ -396,7 +396,7 @@ export class OpticalBeamSystem {
             }
           }
 
-          // 2. Segment outside prism to screen (pExit -> pScreen)
+          // 2. 棱镜出射至屏幕光段（pExit -> pScreen）
           _DIR_VEC.subVectors(pScreen, pExit);
           const len2 = _DIR_VEC.length();
           if (len2 > 1e-4) {
@@ -438,7 +438,7 @@ export class OpticalBeamSystem {
   }
 
   /**
-   * Apply multi-spectral dispersion rays computed by Worker (Zero-allocation bridge)
+   * 应用 Worker 计算的多光谱色散光线数据（零分配桥接）
    */
   public updateDispersionRaysFromWorker(raysData: Array<{
     wavelengthNm: number;
@@ -473,7 +473,7 @@ export class OpticalBeamSystem {
   }
 
   /**
-   * Apply pre-computed 3D polarization wave vector buffers directly from Multi-Core Worker
+   * 直接应用多核 Worker 预计算的 3D 偏振波矢量缓冲区
    */
   public applyPolarizationWaveBuffer(positions: Float32Array, colors: Float32Array): void {
     const numVectors = Math.floor(positions.length / 6);
@@ -507,11 +507,11 @@ export class OpticalBeamSystem {
       this.waveVectorGroup.add(this.waveVectorLines);
     }
 
-    // 1. Copy field vectors
+    // 1. 复制场强矢量
     this.waveVectorPositions!.set(positions, 0);
     this.waveVectorColors!.set(colors, 0);
 
-    // 2. Connect continuous spatial wave curve between vector tips
+    // 2. 在矢量箭头端点之间连接连续空间波动曲线
     let vIdx = positions.length;
     let cIdx = colors.length;
     for (let i = 0; i < numCurveSegments; i++) {
@@ -547,7 +547,7 @@ export class OpticalBeamSystem {
   }
 
   /**
-   * Build 3D spatial oscillating Electric Field vector waves with continuous wave envelope
+   * 构建带有连续波动包络的 3D 空间振荡电场矢量波
    */
   public updatePolarizationWave(params: {
     startZ: number;
@@ -652,7 +652,7 @@ export class OpticalBeamSystem {
       col[cIdx++] = baseColor.b;
     }
 
-    // Connect adjacent tips directly from written buffer (Zero allocations!)
+    // 直接从已写入缓冲区连接相邻端点（零内存分配）
     const tipStride = 6;
     for (let i = 0; i < numSamples; i++) {
       const tip1Idx = i * tipStride + 3;
@@ -692,9 +692,9 @@ export class OpticalBeamSystem {
   }
 
   /**
-   * Build 3D spatial coherent cylindrical wavefronts for Young's double slit interference.
-   * Waves propagate along the optical axis (+Z direction) from the slits towards the screen.
-   * Additive blending naturally yields bright constructive interference fringes where wave crests intersect!
+   * 构建杨氏双缝干涉的 3D 空间相干柱面波前。
+   * 光波沿光轴（+Z 方向）从双缝向观测屏传播。
+   * 加法混合在波峰相交处自然产生相长干涉亮纹。
    */
   public updateDoubleSlitWavefronts(
     slitZ: number,
@@ -742,7 +742,7 @@ export class OpticalBeamSystem {
     let vIdx = 0;
     let cIdx = 0;
 
-    // Visual slit separation (clear separation between two coherent point sources)
+    // 视觉双缝间距（清晰展现两个相干点光源）
     const dVis = Math.max(0.012, Math.min(0.024, slitSpacingMm * 0.06));
     const slitPositions = [-dVis * 0.5, dVis * 0.5];
 
@@ -750,17 +750,17 @@ export class OpticalBeamSystem {
     const rMax = Math.max(0.08, screenZ - slitZ - 0.01);
     const rSpan = rMax - rMin;
     const ringSpacing = rSpan / numRingsPerSlit;
-    const waveSpeed = 0.16; // 16 cm/s ripple propagation speed
+    const waveSpeed = 0.16; // 16 cm/s 波纹传播速度
 
-    const thetaMax = 0.65; // ~37° arc spread in X towards +Z
+    const thetaMax = 0.65; // 沿 X 方向向 +Z 展开约 37 度的弧度角
     const slitEmitterZ = slitZ + 0.008;
 
     for (const sx of slitPositions) {
       for (let ring = 0; ring < numRingsPerSlit; ring++) {
-        // Continuous smooth outward propagation
+        // 连续平滑向外传播
         const r = rMin + ((ring * ringSpacing + time * waveSpeed) % rSpan);
 
-        // Smooth fade-in near slits and fade-out near screen
+        // 双缝附近平滑淡入，屏幕附近平滑淡出
         const normDist = (r - rMin) / rSpan;
         const fade = Math.sin(Math.PI * normDist);
         const alpha = Math.max(0.05, fade * 0.75);
@@ -779,7 +779,7 @@ export class OpticalBeamSystem {
           const xB = sx + r * Math.sin(tB);
           const zB = slitEmitterZ + r * Math.cos(tB);
 
-          // Segment start
+          // 线段起点
           pos[vIdx++] = xA;
           pos[vIdx++] = beamY;
           pos[vIdx++] = zA;
@@ -788,7 +788,7 @@ export class OpticalBeamSystem {
           col[cIdx++] = cg;
           col[cIdx++] = cb;
 
-          // Segment end
+          // 线段终点
           pos[vIdx++] = xB;
           pos[vIdx++] = beamY;
           pos[vIdx++] = zB;
@@ -807,7 +807,7 @@ export class OpticalBeamSystem {
   }
 
   /**
-   * Build 3D spatial cylindrical wavefronts for single slit diffraction
+   * 构建单缝衍射的 3D 空间柱面波前
    */
   public updateSingleSlitWavefronts(
     slitZ: number,
@@ -916,39 +916,39 @@ export class OpticalBeamSystem {
   }
 
   /**
-   * Diffracted light volumetric envelope fan connecting aperture to screen fringe envelope
+   * 连接光阑孔径与屏上干涉条纹轮廓的衍射光体积包络扇面
    */
   public updateDiffractionFan(slitZ: number, screenZ: number, halfWidth: number, intensity = 1.0): void {
     const beamY = 0.186;
     const startZ = slitZ + 0.008;
     const endZ = screenZ - 0.006;
     const baseColor = OpticalPhysics.wavelengthToColor(this.wavelengthNm);
-    const halfHeight = 0.010; // 20mm vertical slit height
+    const halfHeight = 0.010; // 20mm 垂直狭缝高度
 
     if (!this.diffractionFanMesh) {
       const geo = new THREE.BufferGeometry();
       const positions = new Float32Array([
-        // Horizontal mid fan
+        // 水平中心扇面
         0, beamY, startZ,
         -halfWidth, beamY, endZ,
         halfWidth, beamY, endZ,
 
-        // Top slope
+        // 顶部斜面
         0, beamY + halfHeight * 0.4, startZ,
         -halfWidth * 0.85, beamY + halfHeight, endZ,
         halfWidth * 0.85, beamY + halfHeight, endZ,
 
-        // Bottom slope
+        // 底部斜面
         0, beamY - halfHeight * 0.4, startZ,
         halfWidth * 0.85, beamY - halfHeight, endZ,
         -halfWidth * 0.85, beamY - halfHeight, endZ,
 
-        // Left wing
+        // 左侧翼面
         0, beamY + halfHeight * 0.4, startZ,
         0, beamY - halfHeight * 0.4, startZ,
         -halfWidth, beamY, endZ,
 
-        // Right wing
+        // 右侧翼面
         0, beamY + halfHeight * 0.4, startZ,
         halfWidth, beamY, endZ,
         0, beamY - halfHeight * 0.4, startZ,
@@ -985,27 +985,27 @@ export class OpticalBeamSystem {
         this.lastFanHalfWidth = halfWidth;
 
         const pos = (this.diffractionFanGeo!.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
-        // Mid fan
+        // 中心扇面
         pos[0] = 0; pos[1] = beamY; pos[2] = startZ;
         pos[3] = -halfWidth; pos[4] = beamY; pos[5] = endZ;
         pos[6] = halfWidth; pos[7] = beamY; pos[8] = endZ;
 
-        // Top slope
+        // 顶部斜面
         pos[9] = 0; pos[10] = beamY + halfHeight * 0.4; pos[11] = startZ;
         pos[12] = -halfWidth * 0.85; pos[13] = beamY + halfHeight; pos[14] = endZ;
         pos[15] = halfWidth * 0.85; pos[16] = beamY + halfHeight; pos[17] = endZ;
 
-        // Bottom slope
+        // 底部斜面
         pos[18] = 0; pos[19] = beamY - halfHeight * 0.4; pos[20] = startZ;
         pos[21] = halfWidth * 0.85; pos[22] = beamY - halfHeight; pos[23] = endZ;
         pos[24] = -halfWidth * 0.85; pos[25] = beamY - halfHeight; pos[26] = endZ;
 
-        // Left wing
+        // 左侧翼面
         pos[27] = 0; pos[28] = beamY + halfHeight * 0.4; pos[29] = startZ;
         pos[30] = 0; pos[31] = beamY - halfHeight * 0.4; pos[32] = startZ;
         pos[33] = -halfWidth; pos[34] = beamY; pos[35] = endZ;
 
-        // Right wing
+        // 右侧翼面
         pos[36] = 0; pos[37] = beamY + halfHeight * 0.4; pos[38] = startZ;
         pos[39] = halfWidth; pos[40] = beamY; pos[41] = endZ;
         pos[42] = 0; pos[43] = beamY - halfHeight * 0.4; pos[44] = startZ;
@@ -1030,7 +1030,7 @@ export class OpticalBeamSystem {
   }
 
   /**
-   * Discrete diffraction order rays (m = 0, ±1, ±2) for diffraction grating
+   * 衍射光栅的分立级次衍射光线（m = 0, ±1, ±2）
    */
   public updateGratingOrders(
     slitZ: number,

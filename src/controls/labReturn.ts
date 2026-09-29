@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { labLookDirection, smootherstep, type LabEntryFrame, type LabEntryPose } from './labEntry.ts';
 
-/** Shorter than the entry push, and it steps backward instead of focusing in. */
+/** 耗时短于入场推轨，且表现为后退而非聚焦拉近。 */
 export const LAB_RETURN_BACK = 0.42;
-/** World-up lift, so the gaze leaves the table instead of pushing toward it. */
+/** 世界坐标 Y 轴抬升量，使视线脱离实验台而非贴近。 */
 export const LAB_RETURN_LIFT = 0.14;
-/** Added to pitch. Positive raises the view for the entry pose's downward tilt. */
+/** 俯仰角叠加值。正值抬高视角，抵消入场位姿的下倾角。 */
 export const LAB_RETURN_PITCH = 0.05;
 export const LAB_RETURN_DURATION = 1.08;
 export const LAB_RETURN_FEATHER = 42;
@@ -39,12 +39,12 @@ function smoothstep(edge0: number, edge1: number, value: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Same settle as the camera, so the far corner of the lab stays visible through the middle of the return. */
+/** 与相机具有相同的平滑停靠曲线，使实验室远角在返回中段依然保持可见。 */
 export function sheetEase(t: number): number {
   return smootherstep(t);
 }
 
-/** Tools and the dock arrive after the paper has covered most of the view. */
+/** 工具栏与 Dock 栏在白板覆盖大部分视野后显现。 */
 export function returnChrome(linear: number): number {
   return smoothstep(0.42, 0.88, linear);
 }
@@ -54,7 +54,7 @@ export function returnStartRadius(covered: number, cover: number): number {
   return button + clamp01(covered) * Math.max(0, cover - button);
 }
 
-/** Radius that pushes the soft edge past every corner of the viewport. */
+/** 将羽化边缘推至视口所有角落之外的覆盖半径。 */
 export function returnCoverRadius(width: number, height: number, originX: number, originY: number): number {
   const far = Math.hypot(Math.max(originX, width - originX), Math.max(originY, height - originY));
   return far + LAB_RETURN_FEATHER + 24;
@@ -91,7 +91,7 @@ function allowedDistance(from: LabEntryPose, forward: THREE.Vector3, bounds: Lab
   return lo;
 }
 
-/** End of the return: a short step backward and a lift. Field of view stays put. */
+/** 返回过程结束阶段：轻微后撤一步并小幅抬升，视场角保持不变。 */
 export function labReturnEnd(from: LabEntryPose, bounds: LabReturnBounds): LabEntryPose {
   labLookDirection(from.yaw, from.pitch, look);
   const distance = allowedDistance(from, look, bounds);

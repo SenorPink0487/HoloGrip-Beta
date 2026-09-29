@@ -1,9 +1,9 @@
 import { ATOMIC_MASS, ELEMENTARY_CHARGE } from './constants.ts';
 
 /**
- * Analyzer chamber faces the user. Ions enter along +X.
- * Bz < 0 curves a positive ion toward +Y: v × B with v = +X and B = −Z is +Y.
- * A full semicircle lands at (0, 2r) in that frame.
+ * 分析室正对观测者。离子沿 +X 方向射入。
+ * 当 Bz < 0 时，正离子向 +Y 方向偏转：由洛伦兹力 v × B 可知，v 沿 +X，B 沿 -Z，受力沿 +Y。
+ * 在此坐标系下，完成半圆偏转后落点坐标为 (0, 2r)。
  */
 export interface IonDef {
   id: string;
@@ -204,7 +204,7 @@ export function analyzerFluxWb(analyzerBz: number): number {
   return analyzerBz * Math.PI * MASS_STAGE.poleRadiusM * MASS_STAGE.poleRadiusM;
 }
 
-/** Faster than the selected speed, the magnetic force wins and the ion drifts toward +Y. */
+/** 当离子速度大于选择速度时，洛伦兹磁力占优，离子向 +Y 方向偏转。 */
 export function selectorDeflectionSign(speed: number, passSpeed: number): 1 | -1 {
   return speed >= passSpeed ? 1 : -1;
 }

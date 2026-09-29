@@ -12,11 +12,11 @@ export interface ChemicalReagent {
   formula: string;
   category: 'acid' | 'base' | 'salt' | 'metal' | 'indicator' | 'oxide' | 'water';
   state: 'liquid' | 'solid';
-  concentration?: number; // mol/L if liquid
-  color: number; // Hex color
+  concentration?: number; // 液体状态下单位为 mol/L
+  color: number; // 十六进制颜色代码
   description: string;
   hazard?: string;
-  defaultAmount: number; // mL for liquid, count for solid
+  defaultAmount: number; // 液体单位为 mL，固体为颗粒数
   unit: 'mL' | '片' | '滴';
 }
 
@@ -28,7 +28,7 @@ export interface ChemicalReaction {
   description: string;
   phenomenon: string;
   isExothermic: boolean;
-  heatDelta: number; // in Celsius
+  heatDelta: number; // 单位：摄氏度
   gasType?: 'CO2' | 'H2' | 'O2';
   gasRate?: number; // 0-1
   precipitate?: {
@@ -51,9 +51,9 @@ export interface GasProduct {
 export interface ChemistryState {
   volume: number; // mL
   maxVolume: number; // 250 mL
-  temperature: number; // Celsius
+  temperature: number; // 摄氏度
   pH: number;
-  ions: Map<string, number>; // ion name -> moles
+  ions: Map<string, number>; // 离子名称 -> 摩尔数映射
   precipitates: Map<string, { formula: string; name: string; color: number; moles: number }>;
   solids: Map<string, { formula: string; name: string; moles: number }>;
   gases: Map<string, GasProduct>;
@@ -473,9 +473,9 @@ export class ChemistryEngine {
 
   public reset(): void {
     this.state = {
-      volume: 60, // Start with 60mL pure water in beaker
+      volume: 60, // 烧杯初始注入 60mL 纯水
       maxVolume: 250,
-      temperature: 22.5, // Room temp
+      temperature: 22.5, // 室温环境
       pH: 7.0,
       ions: new Map<string, number>([
         ['H+', 1e-7 * 0.06],
@@ -587,7 +587,7 @@ export class ChemistryEngine {
 
     const qty = amount !== undefined ? amount : reagent.defaultAmount;
 
-    // Trigger pouring effect
+    // 触发倾倒视觉特效
     this.state.activeEffects.push({
       type: 'pour',
       color: reagent.color,
@@ -749,7 +749,7 @@ export class ChemistryEngine {
         });
       }
     } else {
-      // Solid reagents
+      // 固态试剂
       if (reagent.id === 'Na') {
         occurredReactions.push(this.processSodiumReaction(qty));
       } else if (reagent.id === 'Mg') {
@@ -800,11 +800,11 @@ export class ChemistryEngine {
       }
     }
 
-    // Process all chemical reaction pathways
+    // 计算所有可能的化学反应路径
     const reactionsFromEquilibrium = this.processReactions();
     occurredReactions.push(...reactionsFromEquilibrium);
 
-    // If no macroscopic reactions occurred, log the dissolution/ionization event
+    // 若未发生宏观化学反应，则记录溶解与电离过程
     if (occurredReactions.length === 0) {
       const defaultEvent = this.getDefaultDissolutionEvent(reagent, qty);
       if (defaultEvent) {
@@ -812,7 +812,7 @@ export class ChemistryEngine {
       }
     }
 
-    // Recompute pH and liquid color
+    // 重新计算体系 pH 与溶液颜色
     this.updatepH();
     this.updateLiquidColor();
 
@@ -1051,10 +1051,10 @@ export class ChemistryEngine {
   private processReactions(): ChemicalReaction[] {
     const reactions: ChemicalReaction[] = [];
 
-    // 1. Metal + Acid active displacement (Mg, Zn, Fe)
+    // 1. 金属与酸置换反应（活泼金属：Mg、Zn、Fe）
     const molesH = this.getIon('H+');
 
-    // 1a. Magnesium + Acid
+    // 1a. 镁与酸反应
     const solidMg = this.state.solids.get('Mg');
     if (solidMg && solidMg.moles > 1e-6 && this.getIon('H+') > 1e-4) {
       const curH = this.getIon('H+');
@@ -1088,7 +1088,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 1b. Zinc + Acid
+    // 1b. 锌与酸反应
     const solidZn = this.state.solids.get('Zn');
     if (solidZn && solidZn.moles > 1e-6 && this.getIon('H+') > 1e-4) {
       const curH = this.getIon('H+');
@@ -1121,7 +1121,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 1c. Iron + Acid
+    // 1c. 铁与酸反应
     const solidFe = this.state.solids.get('Fe');
     if (solidFe && solidFe.moles > 1e-6 && this.getIon('H+') > 1e-4) {
       const curH = this.getIon('H+');
@@ -1151,7 +1151,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 1d. Aluminium + Acid / Base
+    // 1d. 铝与酸/碱反应
     const solidAl = this.state.solids.get('Al');
     if (solidAl && solidAl.moles > 1e-6 && this.getIon('H+') > 1e-4) {
       const curH = this.getIon('H+');
@@ -1210,8 +1210,8 @@ export class ChemistryEngine {
       });
     }
 
-    // 2. Precipitates Acid Dissolution
-    // 2a. Cu(OH)2 dissolution
+    // 2. 沉淀溶解平衡（酸溶反应）
+    // 2a. 氢氧化铜沉淀溶解
     const cuPrecip = this.state.precipitates.get('Cu(OH)2');
     if (cuPrecip && cuPrecip.moles > 1e-6 && this.getIon('H+') > 1e-4) {
       const curH = this.getIon('H+');
@@ -1238,7 +1238,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 2b. CaCO3 dissolution (Limestone with acid effervescence)
+    // 2b. 碳酸钙溶解放气（石灰石与酸反应产气）
     const caPrecip = this.state.precipitates.get('CaCO3');
     if (caPrecip && caPrecip.moles > 1e-6 && this.getIon('H+') > 1e-4) {
       const curH = this.getIon('H+');
@@ -1272,7 +1272,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 2c. Fe(OH)3 dissolution
+    // 2c. 氢氧化铁沉淀溶解
     const fePrecip = this.state.precipitates.get('Fe(OH)3');
     if (fePrecip && fePrecip.moles > 1e-6 && this.getIon('H+') > 1e-4) {
       const curH = this.getIon('H+');
@@ -1299,7 +1299,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 3. Carbonate Effervescence: CO3(2-) + 2H+ -> H2O + CO2 ^
+    // 3. 碳酸盐剧烈放气反应：CO3(2-) + 2H+ -> H2O + CO2 ^
     const curCO3 = this.getIon('CO3_2-');
     const curH2 = this.getIon('H+');
     if (curCO3 > 1e-5 && curH2 > 1e-4) {
@@ -1328,8 +1328,8 @@ export class ChemistryEngine {
       });
     }
 
-    // 4. Acid-Base Neutralization: H+ + OH- -> H2O
-    // Threshold 1e-4 mol to distinguish actual macroscopic neutralization from solvent autodissociation!
+    // 4. 酸碱中和反应：H+ + OH- -> H2O
+    // 设定 1e-4 mol 反应阈值，以区分宏观酸碱中和反应与水溶剂自身微观电离平衡！
     const curH_neut = this.getIon('H+');
     const curOH_neut = this.getIon('OH-');
     if (curH_neut >= 1e-4 && curOH_neut >= 1e-4) {
@@ -1337,7 +1337,7 @@ export class ChemistryEngine {
       this.setIon('H+', curH_neut - reacted);
       this.setIon('OH-', curOH_neut - reacted);
 
-      // Exothermic: ~57.3 kJ/mol
+      // 放热效应：约 57.3 kJ/mol
       const heatRise = (reacted * 57.3 * 1000) / (this.state.volume * 4.184);
       this.state.temperature = Math.min(95, this.state.temperature + heatRise);
 
@@ -1368,8 +1368,8 @@ export class ChemistryEngine {
       });
     }
 
-    // 5. Precipitations
-    // 5a. Cu(OH)2 precipitate: Cu2+ + 2OH- -> Cu(OH)2 v (Blue flocculent)
+    // 5. 复分解沉淀反应
+    // 5a. 氢氧化铜沉淀：Cu2+ + 2OH- -> Cu(OH)2 v（蓝色絮状沉淀）
     const curCu = this.getIon('Cu2+');
     const curOH = this.getIon('OH-');
     if (curCu > 1e-5 && curOH > 1e-5) {
@@ -1412,7 +1412,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 5b. BaSO4 precipitate: Ba2+ + SO4(2-) -> BaSO4 v (Dense white)
+    // 5b. 硫酸钡沉淀：Ba2+ + SO4(2-) -> BaSO4 v（致密白色沉淀）
     const curBa = this.getIon('Ba2+');
     const curSO4 = this.getIon('SO4_2-');
     if (curBa > 1e-5 && curSO4 > 1e-5) {
@@ -1463,7 +1463,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 5c. CaCO3 precipitate (Cloudy limewater): Ca2+ + CO3(2-) -> CaCO3 v
+    // 5c. 碳酸钙沉淀（澄清石灰水变浑浊）：Ca2+ + CO3(2-) -> CaCO3 v
     const curCa = this.getIon('Ca2+');
     const curCO3_ca = this.getIon('CO3_2-');
     if (curCa > 1e-5 && curCO3_ca > 1e-5) {
@@ -1505,7 +1505,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 5d. Fe(OH)3 precipitate: Fe3+ + 3OH- -> Fe(OH)3 v (Red-brown)
+    // 5d. 氢氧化铁沉淀：Fe3+ + 3OH- -> Fe(OH)3 v（红褐色沉淀）
     const curFe3 = this.getIon('Fe3+');
     const curOH_fe = this.getIon('OH-');
     if (curFe3 > 1e-5 && curOH_fe > 1e-5) {
@@ -1547,7 +1547,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 5e. AgCl precipitate: Ag+ + Cl- -> AgCl v (Curdy white)
+    // 5e. 氯化银沉淀：Ag+ + Cl- -> AgCl v（白色凝乳状沉淀）
     const curAg = this.getIon('Ag+');
     const curCl = this.getIon('Cl-');
     if (curAg > 1e-5 && curCl > 1e-5) {
@@ -1598,7 +1598,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 6. Redox: KMnO4 + H2O2 in acid
+    // 6. 氧化还原反应：酸性高锰酸钾与双氧水
     const curMnO4 = this.getIon('MnO4-');
     const curH2O2_ox = this.getIon('H2O2');
     const curH_ox = this.getIon('H+');
@@ -1631,7 +1631,7 @@ export class ChemistryEngine {
       });
     }
 
-    // 7. Catalytic decomposition: H2O2 decomposition with Fe3+ or Fe2+
+    // 7. 催化分解：铁离子（Fe3+/Fe2+）催化过氧化氢分解
     const curH2O2 = this.getIon('H2O2');
     if (curH2O2 > 1e-4 && (this.getIon('Fe3+') > 1e-4 || this.getIon('Fe2+') > 1e-4)) {
       const decomposed = curH2O2 * 0.75;
@@ -1666,7 +1666,7 @@ export class ChemistryEngine {
   }
 
   private processSodiumReaction(pieceCount: number): ChemicalReaction {
-    const molesNa = pieceCount * 0.02; // ~0.46g per piece
+    const molesNa = pieceCount * 0.02; // 每块约 0.46g
     const molesH2O = (this.state.volume / 18) * 0.01;
     const reacted = Math.min(molesNa, molesH2O);
 
@@ -1681,7 +1681,7 @@ export class ChemistryEngine {
     this.state.activeGasRate = 1.0;
     this.state.gasType = 'H2';
 
-    // Trigger sodium burn effect
+    // 触发金属钠剧烈燃烧与反应视觉特效
     this.state.activeEffects.push({
       type: 'sodium_burn',
       intensity: 1.0,
@@ -1729,13 +1729,13 @@ export class ChemistryEngine {
   }
 
   private updateLiquidColor(): void {
-    const baseColor = new THREE.Color(0xd7f3ff); // Clear water refractive tint
+    const baseColor = new THREE.Color(0xd7f3ff); // 清水微折射偏色
     if (this.state.solutionTintStrength > 0.02) {
       baseColor.lerp(new THREE.Color(this.state.solutionTint), Math.min(0.82, this.state.solutionTintStrength));
     }
     const volL = Math.max(0.01, this.state.volume / 1000);
 
-    // 1. Solute Ions & Halogen Molecules Absorbance Modeling (Beer-Lambert optical curve)
+    // 1. 溶质离子与卤素分子吸光度建模（基于朗伯-比尔定律光学吸收曲线）
     const cuConc = this.getIon('Cu2+') / volL;
     const fe3Conc = this.getIon('Fe3+') / volL;
     const fe2Conc = this.getIon('Fe2+') / volL;
@@ -1743,52 +1743,52 @@ export class ChemistryEngine {
     const br2Conc = this.getIon('Br2') / volL;
     const i2Conc = this.getIon('I2') / volL;
 
-    // Copper(II) hydrated ion [Cu(H2O)4]2+ -> brilliant azure / royal sky-blue
+    // 铜水合离子 [Cu(H2O)4]2+ -> 明亮天蓝/天青色
     if (cuConc > 0.0005) {
       const blueColor = new THREE.Color(0x0091ea);
       const intensity = Math.min(0.96, Math.pow(cuConc / 0.12, 0.5) * 0.96);
       baseColor.lerp(blueColor, intensity);
     }
 
-    // Iron(III) hydrolyzed complex [Fe(H2O)5(OH)]2+ -> rich golden-amber to orange-brown
+    // 铁(III) 水解配合物 [Fe(H2O)5(OH)]2+ -> 金黄琥珀色至橙褐色
     if (fe3Conc > 0.0005) {
       const amberColor = fe3Conc > 0.05 ? new THREE.Color(0xd97706) : new THREE.Color(0xf59e0b);
       const intensity = Math.min(0.96, Math.pow(fe3Conc / 0.10, 0.5) * 0.96);
       baseColor.lerp(amberColor, intensity);
     }
 
-    // Iron(II) hydrated ion [Fe(H2O)6]2+ -> pale apple / jade green
+    // 铁(II) 水合离子 [Fe(H2O)6]2+ -> 浅苹果绿/淡玉绿色
     if (fe2Conc > 0.001) {
       const greenColor = new THREE.Color(0x4caf50);
       const intensity = Math.min(0.90, Math.pow(fe2Conc / 0.12, 0.5) * 0.90);
       baseColor.lerp(greenColor, intensity);
     }
 
-    // Bromine water Br2 -> characteristic amber-orange
+    // 溴水单质 Br2 -> 特征橙黄/琥珀橙色
     if (br2Conc > 0.0005) {
       const bromineColor = new THREE.Color(0xd97706);
       const intensity = Math.min(0.95, Math.pow(br2Conc / 0.04, 0.5) * 0.95);
       baseColor.lerp(bromineColor, intensity);
     }
 
-    // Iodine aqueous solution I2 / I3- -> deep sherry amber / brown-yellow
+    // 碘水溶液 I2 / I3- -> 浓郁雪莉琥珀色/棕黄色
     if (i2Conc > 0.0005) {
       const iodineColor = new THREE.Color(0x854d0e);
       const intensity = Math.min(0.95, Math.pow(i2Conc / 0.03, 0.5) * 0.95);
       baseColor.lerp(iodineColor, intensity);
     }
 
-    // Permanganate MnO4- -> intense royal violet-purple (strongly absorbs visible spectrum)
+    // 高锰酸根离子 MnO4- -> 浓郁紫罗兰深紫色（可见光全波段强吸收）
     if (mno4Conc > 0.0001) {
       const violetColor = new THREE.Color(0x7b1fa2);
       const intensity = Math.min(0.98, Math.pow(mno4Conc / 0.015, 0.4) * 0.98);
       baseColor.lerp(violetColor, intensity);
     }
 
-    // 2. Acid-Base Indicator Sensitive Chromatic Shift
+    // 2. 酸碱指示剂显色灵敏相变
     if (this.state.indicators.phenolphthalein > 0) {
       if (this.state.pH >= 8.2) {
-        // High saturation vibrant fuchsia / magenta pink in alkaline conditions
+        // 碱性环境下呈现高饱和度明亮品红/玫粉色
         const pinkColor = new THREE.Color(0xff1493);
         const intensity = Math.min(0.96, 0.75 + (this.state.pH - 8.2) * 0.15);
         baseColor.lerp(pinkColor, intensity);
@@ -1797,21 +1797,21 @@ export class ChemistryEngine {
 
     if (this.state.indicators.litmus > 0) {
       if (this.state.pH < 5.0) {
-        // Acid red
+        // 酸性红
         const redColor = new THREE.Color(0xd32f2f);
         baseColor.lerp(redColor, 0.94);
       } else if (this.state.pH > 8.0) {
-        // Alkaline royal blue
+        // 碱性皇家蓝
         const deepBlue = new THREE.Color(0x1565c0);
         baseColor.lerp(deepBlue, 0.94);
       } else {
-        // Neutral purple
+        // 中性紫
         const purpleColor = new THREE.Color(0x7b1fa2);
         baseColor.lerp(purpleColor, 0.88);
       }
     }
 
-    // 3. Precipitate Suspension / Turbidity Chromatic Shift
+    // 3. 沉淀悬浊液与浑浊度色差偏移
     let totalPrecipMoles = 0;
     for (const [_, p] of this.state.precipitates) {
       totalPrecipMoles += p.moles;
@@ -1821,14 +1821,14 @@ export class ChemistryEngine {
       const precipConc = totalPrecipMoles / volL;
       const cloudFactor = Math.min(0.95, Math.pow(precipConc / 0.03, 0.5) * 0.92);
 
-      // Dominant precipitate suspension color
-      let precipTint = new THREE.Color(0xf8fafc); // Default milky white (BaSO4, CaCO3, AgCl, Al(OH)3, BaCO3)
+      // 主要沉淀悬浮物表观颜色
+      let precipTint = new THREE.Color(0xf8fafc); // 默认乳白色沉淀（BaSO4、CaCO3、AgCl、Al(OH)3、BaCO3）
       if (this.state.precipitates.has('Cu(OH)2')) {
-        precipTint = new THREE.Color(0x0284c7); // Opaque vibrant azure blue
+        precipTint = new THREE.Color(0x0284c7); // 不透明明亮天蓝色
       } else if (this.state.precipitates.has('Fe(OH)3')) {
-        precipTint = new THREE.Color(0x7c2d12); // Opaque reddish-brown rust
+        precipTint = new THREE.Color(0x7c2d12); // 不透明红褐色铁锈色
       } else if (this.state.precipitates.has('Fe(OH)2')) {
-        precipTint = new THREE.Color(0x556b2f); // Opaque grayish-green
+        precipTint = new THREE.Color(0x556b2f); // 不透明灰绿色
       }
 
       baseColor.lerp(precipTint, cloudFactor);
@@ -1838,12 +1838,12 @@ export class ChemistryEngine {
   }
 
   public update(delta: number): void {
-    // Natural cooling towards room temp (22.5°C)
+    // 体系自发向室温（22.5°C）自然冷却散热
     if (this.state.temperature > 22.5) {
       this.state.temperature = Math.max(22.5, this.state.temperature - delta * 0.35);
     }
 
-    // Decay gas rate
+    // 产气速率平滑衰减
     if (this.state.activeGasRate > 0) {
       this.state.activeGasRate = Math.max(0, this.state.activeGasRate - delta * 0.25);
       if (this.state.activeGasRate === 0) {
@@ -1851,7 +1851,7 @@ export class ChemistryEngine {
       }
     }
 
-    // Decay active effects
+    // 活跃视觉特效逐步衰减
     for (let i = this.state.activeEffects.length - 1; i >= 0; i--) {
       const eff = this.state.activeEffects[i];
       if (eff.duration !== undefined) {
@@ -1872,7 +1872,7 @@ export class ChemistryEngine {
 
     const fraction = transferVol / sourceVol;
 
-    // Trigger pouring visual effect in receiving beaker
+    // 在接收烧杯中触发液体倾倒注入特效
     this.state.activeEffects.push({
       type: 'pour',
       color: source.state.liquidColor.getHex(),
@@ -1880,7 +1880,7 @@ export class ChemistryEngine {
       duration: 1.2,
     });
 
-    // 1. Transfer Solvated Ions
+    // 1. 迁移已溶解的离子
     for (const [ion, moles] of source.state.ions) {
       const transferMoles = moles * fraction;
       if (transferMoles > 1e-9) {
@@ -1889,7 +1889,7 @@ export class ChemistryEngine {
       }
     }
 
-    // 2. Transfer Precipitates
+    // 2. 迁移不溶沉淀物
     for (const [key, p] of source.state.precipitates) {
       const transferMoles = p.moles * fraction;
       if (transferMoles > 1e-9) {
@@ -1906,7 +1906,7 @@ export class ChemistryEngine {
       }
     }
 
-    // 3. Transfer Solid Metals (if pouring almost all volume)
+    // 3. 迁移固态金属（几乎倒空所有液体时附带转移）
     if (fraction >= 0.85) {
       for (const [key, s] of source.state.solids) {
         const transferMoles = s.moles * fraction;
@@ -1925,7 +1925,7 @@ export class ChemistryEngine {
       }
     }
 
-    // 4. Transfer Chemical Indicators
+    // 4. 迁移化学指示剂
     const pTrans = source.state.indicators.phenolphthalein * fraction;
     const lTrans = source.state.indicators.litmus * fraction;
     source.state.indicators.phenolphthalein -= pTrans;
@@ -1933,7 +1933,7 @@ export class ChemistryEngine {
     this.state.indicators.phenolphthalein += pTrans;
     this.state.indicators.litmus += lTrans;
 
-    // 5. Volume & Heat Exchange
+    // 5. 体积与热量交换平衡
     const oldTargetVol = this.state.volume;
     const newTargetVol = Math.min(this.state.maxVolume, oldTargetVol + transferVol);
     this.state.volume = newTargetVol;
@@ -1946,13 +1946,13 @@ export class ChemistryEngine {
 
     this.transferMixture(source, fraction, oldTargetVol, transferVol);
 
-    // 6. Process Chemical Equilibrium and Reactions
+    // 6. 解算化学反应动力学与热力学平衡
     const occurredReactions: ChemicalReaction[] = this.processReactions();
 
     if (occurredReactions.length > 0) {
       for (const rx of occurredReactions) {
-        // If the topmost reaction is already the same continuous reaction (e.g. ongoing neutralization/precipitation/gas),
-        // update it in place rather than creating 60 duplicate reaction entries per second!
+        // 若栈顶记录已属于同类持续反应（如进行中的中和/沉淀/放气），
+        // 则原地更新数值，避免每秒创建 60 条重复冗余记录！
         const topRx = this.state.recentReactions.length > 0 ? this.state.recentReactions[0] : null;
         if (topRx && topRx.id === rx.id) {
           topRx.phenomenon = rx.phenomenon;
@@ -1966,9 +1966,9 @@ export class ChemistryEngine {
         }
       }
     } else {
-      // No new chemical reaction occurred in this transfer frame.
-      // Only record generic physical mixing if there is NO reaction in recent history,
-      // and do NOT duplicate or flood 'mix_solutions'.
+      // 本传输帧内未产生新化学反应。
+      // 仅在近期未发生化学反应时记录常规物理混合事件，
+      // 避免频繁产生大量重复的 mix_solutions 日志。
       const hasAnyReaction = this.state.recentReactions.length > 0;
       if (!hasAnyReaction) {
         this.state.recentReactions.unshift({
@@ -1988,7 +1988,7 @@ export class ChemistryEngine {
       this.state.recentReactions.length = 8;
     }
 
-    // Recompute macroscopic physicochemical properties on both beakers
+    // 重新计算两只烧杯的宏观物化性质参数
     this.updatepH();
     this.updateLiquidColor();
     source.updatepH();
@@ -2000,7 +2000,7 @@ export class ChemistryEngine {
     return occurredReactions;
   }
 
-  /** Pour an analyzed everyday substance. Reactive ions use the existing reaction table. */
+  /** 注入解析后的日常物质。活性离子复用已有化学反应动力学体系。 */
   public pourAnalyzedMixture(mixture: AnalyzedMixture): ChemicalReaction | null {
     const pristine = this.isPristineWater();
     const capacity = pristine ? this.state.maxVolume : this.state.maxVolume - this.state.volume;
@@ -2292,7 +2292,7 @@ export class ChemistryEngine {
     }
 
     if (mode === 'ion') {
-      // 1. Solvated Ions
+      // 1. 溶解离子组分
       for (const [ionName, moles] of this.state.ions) {
         const visibleMoles = moles - (coveredIons.get(ionName) || 0);
         if (visibleMoles > 1e-6) {
@@ -2324,8 +2324,8 @@ export class ChemistryEngine {
         }
       }
     } else {
-      // SUBSTANCE MODE
-      // 1. Gases produced from reactions
+      // 物质解析模式
+      // 1. 反应产生的气体产物
       const hasMixtureFizz = this.state.mixtureParts.some((p) => p.formula.includes('CO') || p.id === 'CO2');
       for (const [key, g] of this.state.gases) {
         if (key === 'CO2' && hasMixtureFizz) continue;
@@ -2352,7 +2352,7 @@ export class ChemistryEngine {
         }
       }
 
-      // 2. Molecular Solutes (H2O2, Br2, I2)
+      // 2. 分子态溶质（H2O2、Br2、I2）
       for (const molKey of ['H2O2', 'Br2', 'I2']) {
         const curM = (this.state.ions.get(molKey) || 0) - (coveredIons.get(molKey) || 0);
         if (curM > 1e-6) {
@@ -2380,7 +2380,7 @@ export class ChemistryEngine {
         }
       }
 
-      // 3. Electrolyte Speciation (Pair cations and anions into compounds)
+      // 3. 电解质形态分析（将阳离子与阴离子配对组装为中性化合物分子）
       const cationPool = new Map<string, number>();
       const anionPool = new Map<string, number>();
 
@@ -2453,13 +2453,13 @@ export class ChemistryEngine {
         // Ag+
         { cation: 'Ag+', anion: 'NO3-', formula: 'AgNO₃', name: '硝酸银', cationCount: 1, anionCount: 1, molarMass: 169.87, color: '#cfd8dc', categoryLabel: '可溶性盐' },
 
-        // Acids (H+)
+        // 酸类（H+）
         { cation: 'H+', anion: 'Cl-', formula: 'HCl', name: '稀盐酸', cationCount: 1, anionCount: 1, molarMass: 36.46, color: '#ff9f0a', categoryLabel: '强酸' },
         { cation: 'H+', anion: 'SO4_2-', formula: 'H₂SO₄', name: '稀硫酸', cationCount: 2, anionCount: 1, molarMass: 98.08, color: '#ffd60a', categoryLabel: '强酸' },
         { cation: 'H+', anion: 'NO3-', formula: 'HNO₃', name: '稀硝酸', cationCount: 1, anionCount: 1, molarMass: 63.01, color: '#ff9f0a', categoryLabel: '强酸' },
         { cation: 'H+', anion: 'I-', formula: 'HI', name: '氢碘酸', cationCount: 1, anionCount: 1, molarMass: 127.91, color: '#f2f2f7', categoryLabel: '酸' },
 
-        // Alkali metals (Na+, K+)
+        // 碱金属盐（Na+、K+）
         // Na+
         { cation: 'Na+', anion: 'Cl-', formula: 'NaCl', name: '氯化钠', cationCount: 1, anionCount: 1, molarMass: 58.44, color: '#64d2ff', categoryLabel: '可溶性盐' },
         { cation: 'Na+', anion: 'SO4_2-', formula: 'Na₂SO₄', name: '硫酸钠', cationCount: 2, anionCount: 1, molarMass: 142.04, color: '#ffd60a', categoryLabel: '可溶性盐' },
@@ -2508,7 +2508,7 @@ export class ChemistryEngine {
         }
       }
 
-      // Any residual ions that could not be paired
+      // 无法配对的剩余离子组分
       for (const [ionName, moles] of cationPool) {
         if (moles > 1e-5) {
           const meta = ION_META[ionName] || { formula: ionName, name: `${ionName}离子`, molarMass: 50.0, color: '#0a84ff' };
@@ -2549,7 +2549,7 @@ export class ChemistryEngine {
       }
     }
 
-    // 2. Precipitates
+    // 2. 沉淀固形物
     for (const [key, p] of this.state.precipitates) {
       if (p.moles > 1e-6) {
         const meta = PRECIP_META[key] || {
@@ -2575,7 +2575,7 @@ export class ChemistryEngine {
       }
     }
 
-    // 3. Solid Metals
+    // 3. 固态金属块
     for (const [key, s] of this.state.solids) {
       if (coveredSolids.has(key)) continue;
       if (s.moles > 1e-6) {
@@ -2602,7 +2602,7 @@ export class ChemistryEngine {
       }
     }
 
-    // Calculate totals and percentages normalized strictly to 100%
+    // 计算总质量并严格归一化为 100% 百分比
     let totalSoluteMoles = 0;
     let totalSoluteMassGrams = 0;
     for (const c of components) {
@@ -2615,10 +2615,10 @@ export class ChemistryEngine {
         c.percentage = (c.moles / totalSoluteMoles) * 100;
       }
 
-      // Sort descending (从大到小)
+      // 按含量从大到小降序排列
       components.sort((a, b) => b.percentage - a.percentage);
 
-      // Clean rounding to 1 decimal place with exact 100.0% sum guarantee
+      // 保留一位小数舍入，并确保百分比累计总和严格为 100.0%
       let sumPct = 0;
       for (const c of components) {
         c.percentage = Math.round(c.percentage * 10) / 10;

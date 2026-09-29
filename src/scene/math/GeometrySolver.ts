@@ -28,9 +28,9 @@ export interface KeyPoint {
 export interface PolygonFace {
   id: string;
   label: string;
-  vertexIndices: number[]; // Indices into model vertices
+  vertexIndices: number[]; // 模型顶点索引列表
   normal: THREE.Vector3;
-  hingeEdge?: [number, number]; // Edge around which to unfold
+  hingeEdge?: [number, number]; // 展开旋转所围绕的铰链棱
   unfoldAxis?: THREE.Vector3;
   unfoldAngle?: number;
 }
@@ -43,17 +43,17 @@ export interface PolyhedronModelDef {
   vertices: THREE.Vector3[];
   vertexLabels: string[];
   faces: PolygonFace[];
-  edges: [number, number][]; // pairs of vertex indices
+  edges: [number, number][]; // 顶点索引对组成的棱列表
   keyPoints: KeyPoint[];
-  auxEdges?: AuxEdge[]; // construction lines (midpoint joins, etc.), keyed by keypoint id
+  auxEdges?: AuxEdge[]; // 辅助作图线（如中点连线等），由关键点 id 标识
   defaultParams: Record<string, number>;
   boundingRadius: number;
 }
 
 export interface CrossSectionResult {
   plane: THREE.Plane;
-  polygon: THREE.Vector3[]; // Ordered vertices of cross section
-  polygonType: string;      // e.g. "等边三角形", "等腰梯形", "正六边形"
+  polygon: THREE.Vector3[]; // 截面多边形的有序顶点列表
+  polygonType: string;      // 例如："等边三角形"、"等腰梯形"、"正六边形"
   perimeter: number;
   area: number;
   areaRatioToBase: number;
@@ -93,12 +93,12 @@ export interface SphereAnalysisResult {
   inArea: number;
   inVolume: number;
   radiusRatio: number;     // R / r
-  embeddingCuboidSize?: THREE.Vector3; // For corner pyramid & tetrahedron
+  embeddingCuboidSize?: THREE.Vector3; // 墙角模型与正四面体的外接长方体尺寸
 }
 
 export class GeometrySolver {
   /**
-   * Generate 6 high-school models with parametric dimensions.
+   * 生成带参数化尺寸的高中 6 大经典几何模型。
    */
   public static createModel(
     type: HighSchoolModelType,
@@ -131,7 +131,7 @@ export class GeometrySolver {
   }
 
   /**
-   * Generates edge midpoints (1/2), and trisection points (1/3, 2/3) for all edges of a model.
+   * 为模型所有棱生成中点 (1/2) 与三等分点 (1/3, 2/3)。
    */
   public static populateEdgeSpecialPoints(
     vertices: THREE.Vector3[],
@@ -145,7 +145,7 @@ export class GeometrySolver {
       const l1 = vertexLabels[i1] || `V${i1}`;
       const l2 = vertexLabels[i2] || `V${i2}`;
 
-      // 1. Midpoint (1/2)
+      // 1. 棱中点 (1/2)
       const midPos = new THREE.Vector3().addVectors(v1, v2).multiplyScalar(0.5);
       keyPoints.push({
         id: `mid_${i1}_${i2}`,
@@ -157,7 +157,7 @@ export class GeometrySolver {
         edgeVertices: [l1, l2],
       });
 
-      // 2. Trisection point closer to v1 (1/3)
+      // 2. 靠近 v1 的三等分点 (1/3)
       const tri1Pos = new THREE.Vector3().lerpVectors(v1, v2, 1 / 3);
       keyPoints.push({
         id: `tri1_${i1}_${i2}`,
@@ -169,7 +169,7 @@ export class GeometrySolver {
         edgeVertices: [l1, l2],
       });
 
-      // 3. Trisection point closer to v2 (2/3)
+      // 3. 靠近 v2 的三等分点 (2/3)
       const tri2Pos = new THREE.Vector3().lerpVectors(v1, v2, 2 / 3);
       keyPoints.push({
         id: `tri2_${i1}_${i2}`,
@@ -184,8 +184,8 @@ export class GeometrySolver {
   }
 
   /**
-   * Find closest snap target to a ray:
-   * Checks direct keypoint ray distance, and edge-guided projection with snap to 0, 1/3, 1/2, 2/3, 1.0.
+   * 查找离射线最近的磁吸目标：
+   * 检查与关键点的直接射线距离，以及棱向投影并吸附到 0, 1/3, 1/2, 2/3, 1.0。
    */
   public static findClosestSnapPoint(
     ray: THREE.Ray,
@@ -197,7 +197,7 @@ export class GeometrySolver {
     let minDistance = threshold;
     const worldPos = new THREE.Vector3();
 
-    // 1. Direct keypoint proximity
+    // 1. 关键点直接距离判定
     for (const kp of model.keyPoints) {
       worldPos.copy(kp.position).applyMatrix4(modelMatrixWorld);
       const dist = ray.distanceToPoint(worldPos);
@@ -211,7 +211,7 @@ export class GeometrySolver {
       }
     }
 
-    // 2. Edge-guided magnetic snap
+    // 2. 棱向引导磁吸
     const edgeThreshold = threshold * 1.25;
     const vA = new THREE.Vector3();
     const vB = new THREE.Vector3();
@@ -238,7 +238,7 @@ export class GeometrySolver {
         t = THREE.MathUtils.clamp(e / c, 0, 1);
       } else {
         s = (b * e - c * d) / denom;
-        if (s < 0) continue; // Behind camera
+        if (s < 0) continue; // 位于相机后方
         t = THREE.MathUtils.clamp((e - b * d) / denom, 0, 1);
       }
 
@@ -247,7 +247,7 @@ export class GeometrySolver {
       const dist = ptOnEdge.distanceTo(ptOnRay);
 
       if (dist < edgeThreshold && dist < minDistance) {
-        // Snap parameter t to 0 (vA), 1/3 (tri1), 1/2 (mid), 2/3 (tri2), 1.0 (vB)
+        // 将参数 t 吸附到 0 (vA), 1/3 (tri1), 1/2 (mid), 2/3 (tri2), 1.0 (vB)
         let targetId = '';
         if (t < 0.16) {
           targetId = `v_${i1}`;
@@ -294,16 +294,16 @@ export class GeometrySolver {
   }
 
   // -------------------------------------------------------------
-  // 1. 正方体 / 长方体 (Cube / Cuboid)
+  // 1. 正方体 / 长方体
   // -------------------------------------------------------------
   private static createCubeModel(a: number, b: number, c: number): PolyhedronModelDef {
     const x2 = a / 2;
     const y2 = c / 2;
     const z2 = b / 2;
 
-    // Bottom vertices: ABCD (y = -y2), Top: A1B1C1D1 (y = +y2)
-    // Standard high school orientation:
-    // D is back-left-bottom (0,0,0) or centered
+    // 底面顶点：ABCD (y = -y2)，顶面顶点：A1B1C1D1 (y = +y2)
+    // 高中课本标准直观图方位：
+    // D 点位于左后下方 (0,0,0) 或居中
     const vertices: THREE.Vector3[] = [
       new THREE.Vector3(x2, -y2, z2),   // 0: A
       new THREE.Vector3(x2, -y2, -z2),  // 1: B
@@ -317,14 +317,14 @@ export class GeometrySolver {
 
     const vertexLabels = ['A', 'B', 'C', 'D', 'A₁', 'B₁', 'C₁', 'D₁'];
 
-    // 12 edges
+    // 12 条棱
     const edges: [number, number][] = [
-      [0, 1], [1, 2], [2, 3], [3, 0], // Bottom: AB, BC, CD, DA
-      [4, 5], [5, 6], [6, 7], [7, 4], // Top: A1B1, B1C1, C1D1, D1A1
-      [0, 4], [1, 5], [2, 6], [3, 7], // Vertical: AA1, BB1, CC1, DD1
+      [0, 1], [1, 2], [2, 3], [3, 0], // 底面：AB, BC, CD, DA
+      [4, 5], [5, 6], [6, 7], [7, 4], // 顶面：A1B1, B1C1, C1D1, D1A1
+      [0, 4], [1, 5], [2, 6], [3, 7], // 侧棱：AA1, BB1, CC1, DD1
     ];
 
-    // 6 faces (counter-clockwise outward winding)
+    // 6 个面（逆时针朝外环绕）
     const faces: PolygonFace[] = [
       { id: 'bottom', label: '底面 ABCD', vertexIndices: [0, 3, 2, 1], normal: new THREE.Vector3(0, -1, 0) },
       { id: 'top', label: '顶面 A₁B₁C₁D₁', vertexIndices: [4, 5, 6, 7], normal: new THREE.Vector3(0, 1, 0) },
@@ -344,10 +344,10 @@ export class GeometrySolver {
       });
     });
 
-    // Edge Special Points: 12 Midpoints (1/2) and 24 Trisection points (1/3, 2/3)
+    // 棱特殊点：12 个中点 (1/2) 与 24 个三等分点 (1/3, 2/3)
     this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
-    // Face Centers (面心)
+    // 面心
     faces.forEach((f) => {
       const center = new THREE.Vector3();
       f.vertexIndices.forEach((vi) => center.add(vertices[vi]));
@@ -360,7 +360,7 @@ export class GeometrySolver {
       });
     });
 
-    // Body Center (体心 / 对角线交点)
+    // 体心（对角线交点）
     keyPoints.push({
       id: 'body_center',
       label: 'O (体心)',
@@ -387,9 +387,9 @@ export class GeometrySolver {
   // 2. 墙角模型 / 直角三棱锥 (PA ⊥ PB ⊥ PC)
   // -------------------------------------------------------------
   private static createCornerPyramidModel(a: number, b: number, c: number): PolyhedronModelDef {
-    // Vertex P is origin (0, 0, 0).
-    // PA along X axis, PB along Z axis, PC along Y axis (三条侧棱两两垂直)
-    // Offset center of gravity to origin for natural rotation
+    // 顶点 P 为原点 (0, 0, 0)
+    // PA 沿 X 轴，PB 沿 Z 轴，PC 沿 Y 轴（三条侧棱两两垂直）
+    // 将质心平移至原点以实现自然旋转
     const cx = a / 4;
     const cy = c / 4;
     const cz = b / 4;
@@ -425,7 +425,7 @@ export class GeometrySolver {
       });
     });
 
-    // Edge Special Points: 6 Midpoints (1/2) and 12 Trisection points (1/3, 2/3)
+    // 棱特殊点：6 个中点 (1/2) 与 12 个三等分点 (1/3, 2/3)
     this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
     // 底面中心 (ABC重心)
@@ -458,19 +458,19 @@ export class GeometrySolver {
   // 3. 正四面体 / 正三棱锥 (Regular Tetrahedron)
   // -------------------------------------------------------------
   private static createRegularTetrahedronModel(L: number): PolyhedronModelDef {
-    // Standard upright regular tetrahedron:
-    // Bottom face BCD is horizontal (parallel to XZ plane) resting flat, apex A points straight up along Y-axis.
-    const h = (Math.sqrt(6) / 3) * L;            // Total height of tetrahedron
-    const yBase = -h / 4;                        // -sqrt(6)/12 * L (centroid at origin (0,0,0))
+    // 标准正立正四面体：
+    // 底面 BCD 水平（平行于 XZ 平面）平放，顶点 A 沿 Y 轴正方向直立向上。
+    const h = (Math.sqrt(6) / 3) * L;            // 正四面体总高
+    const yBase = -h / 4;                        // -sqrt(6)/12 * L（质心位于原点 (0,0,0)）
     const yApex = (3 * h) / 4;                   // +sqrt(6)/4 * L
-    const rCircum = (Math.sqrt(3) / 3) * L;      // R_base = L / sqrt(3)
-    const rIn = (Math.sqrt(3) / 6) * L;          // r_base = L / (2 * sqrt(3))
+    const rCircum = (Math.sqrt(3) / 3) * L;      // 底面外接圆半径 R_base = L / sqrt(3)
+    const rIn = (Math.sqrt(3) / 6) * L;          // 底面内切圆半径 r_base = L / (2 * sqrt(3))
 
-    // Front edge BC is parallel to X-axis, back vertex D is on negative Z-axis:
-    // 0: A (Apex on vertical Y axis)
-    // 1: B (Front-left base vertex)
-    // 2: C (Front-right base vertex)
-    // 3: D (Back-center base vertex)
+    // 前棱 BC 平行于 X 轴，后顶点 D 位于 Z 轴负半轴：
+    // 0: A (顶角)
+    // 1: B (底面前左)
+    // 2: C (底面前右)
+    // 3: D (底面后)
     const vertices: THREE.Vector3[] = [
       new THREE.Vector3(0, yApex, 0),        // 0: A (顶角)
       new THREE.Vector3(-L / 2, yBase, rIn), // 1: B (底面前左)
@@ -480,10 +480,10 @@ export class GeometrySolver {
 
     const vertexLabels = ['A', 'B', 'C', 'D'];
 
-    // 6 edges: all pairs
+    // 6 条棱：所有顶点对
     const edges: [number, number][] = [
-      [0, 1], [0, 2], [0, 3], // Lateral edges: AB, AC, AD
-      [1, 2], [2, 3], [3, 1], // Base edges: BC, CD, DB
+      [0, 1], [0, 2], [0, 3], // 侧棱：AB, AC, AD
+      [1, 2], [2, 3], [3, 1], // 底棱：BC, CD, DB
     ];
 
     const faces: PolygonFace[] = [
@@ -503,10 +503,10 @@ export class GeometrySolver {
       });
     });
 
-    // Edge Special Points: 6 Midpoints (1/2) and 12 Trisection points (1/3, 2/3)
+    // 棱特殊点：6 个中点 (1/2) 与 12 个三等分点 (1/3, 2/3)
     this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
-    // Face Centers
+    // 各面中心
     faces.forEach((f) => {
       const fc = new THREE.Vector3();
       f.vertexIndices.forEach((vi) => fc.add(vertices[vi]));
@@ -519,7 +519,7 @@ export class GeometrySolver {
       });
     });
 
-    // Body Center O (0,0,0) - also circumcenter and incenter
+    // 体心 O (0,0,0)，同时也是外心与内心
     keyPoints.push({
       id: 'body_center',
       label: 'O (外心/内心)',
@@ -547,7 +547,7 @@ export class GeometrySolver {
   // -------------------------------------------------------------
   private static createSquarePyramidModel(a: number, h: number): PolyhedronModelDef {
     const a2 = a / 2;
-    const yBase = -h / 3; // Center of mass offset
+    const yBase = -h / 3; // 质心偏移
     const yApex = h * 2 / 3;
 
     const vertices: THREE.Vector3[] = [
@@ -561,8 +561,8 @@ export class GeometrySolver {
     const vertexLabels = ['P', 'A', 'B', 'C', 'D'];
 
     const edges: [number, number][] = [
-      [1, 2], [2, 3], [3, 4], [4, 1], // Base edges
-      [0, 1], [0, 2], [0, 3], [0, 4], // Lateral edges
+      [1, 2], [2, 3], [3, 4], [4, 1], // 底棱
+      [0, 1], [0, 2], [0, 3], [0, 4], // 侧棱
     ];
 
     const faces: PolygonFace[] = [
@@ -583,7 +583,7 @@ export class GeometrySolver {
       });
     });
 
-    // Edge Special Points: 8 Midpoints (1/2) and 16 Trisection points (1/3, 2/3)
+    // 棱特殊点：8 个中点 (1/2) 与 16 个三等分点 (1/3, 2/3)
     this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
     // 底面中心 O (顶点 P 在底面的垂足)
@@ -613,14 +613,14 @@ export class GeometrySolver {
   // 5. 直三棱柱 (Right Triangular Prism)
   // -------------------------------------------------------------
   private static createTriangularPrismModel(a: number, h: number): PolyhedronModelDef {
-    // Equilateral triangle base side a, height of base = a * sqrt(3) / 2
+    // 正三角形底面边长 a，底面高 = a * sqrt(3) / 2
     const hBase = (a * Math.sqrt(3)) / 2;
     const rCircum = a / Math.sqrt(3);
     const rIn = hBase / 3;
     const y2 = h / 2;
 
-    // Bottom triangle: ABC (y = -y2)
-    // Top triangle: A1B1C1 (y = y2)
+    // 底面三角形：ABC (y = -y2)
+    // 顶面三角形：A1B1C1 (y = y2)
     const vertices: THREE.Vector3[] = [
       new THREE.Vector3(0, -y2, rCircum),                         // 0: A
       new THREE.Vector3(a / 2, -y2, rCircum - hBase),             // 1: B
@@ -633,9 +633,9 @@ export class GeometrySolver {
     const vertexLabels = ['A', 'B', 'C', 'A₁', 'B₁', 'C₁'];
 
     const edges: [number, number][] = [
-      [0, 1], [1, 2], [2, 0], // Bottom: AB, BC, CA
-      [3, 4], [4, 5], [5, 3], // Top: A1B1, B1C1, C1A1
-      [0, 3], [1, 4], [2, 5], // Vertical edges: AA1, BB1, CC1
+      [0, 1], [1, 2], [2, 0], // 底面：AB, BC, CA
+      [3, 4], [4, 5], [5, 3], // 顶面：A1B1, B1C1, C1A1
+      [0, 3], [1, 4], [2, 5], // 侧棱：AA1, BB1, CC1
     ];
 
     const faces: PolygonFace[] = [
@@ -656,10 +656,10 @@ export class GeometrySolver {
       });
     });
 
-    // Edge Special Points: 9 Midpoints (1/2) and 18 Trisection points (1/3, 2/3)
+    // 棱特殊点：9 个中点 (1/2) 与 18 个三等分点 (1/3, 2/3)
     this.populateEdgeSpecialPoints(vertices, vertexLabels, edges, keyPoints);
 
-    // Bottom and top circumcenters
+    // 上下底面外心
     keyPoints.push({
       id: 'center_bottom',
       label: 'O_底 (ABC外心)',
@@ -673,7 +673,7 @@ export class GeometrySolver {
       position: new THREE.Vector3(0, y2, 0),
     });
 
-    // Circumcenter of prism
+    // 三棱柱外接球心
     keyPoints.push({
       id: 'body_center',
       label: 'O (外接球心)',
@@ -700,7 +700,7 @@ export class GeometrySolver {
   // 6. 圆柱与圆锥 (Cylinder & Cone)
   // -------------------------------------------------------------
   private static createCylinderConeModel(r: number, h: number): PolyhedronModelDef {
-    // 12-gon approximation for geometric keypoint snapping
+    // 12 边形逼近用于几何关键点吸附
     const segments = 12;
     const y2 = h / 2;
     const vertices: THREE.Vector3[] = [
@@ -708,7 +708,7 @@ export class GeometrySolver {
     ];
     const vertexLabels: string[] = ['S'];
 
-    // Bottom circle vertices 1..12
+    // 底面圆周顶点 1..12
     for (let i = 0; i < segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
       const x = r * Math.cos(angle);
@@ -720,8 +720,8 @@ export class GeometrySolver {
     const edges: [number, number][] = [];
     for (let i = 1; i <= segments; i++) {
       const next = i === segments ? 1 : i + 1;
-      edges.push([i, next]); // Bottom circle edge
-      edges.push([0, i]);    // Cone generatrix
+      edges.push([i, next]); // 底圆周棱
+      edges.push([0, i]);    // 圆锥母线
     }
 
     const faces: PolygonFace[] = [
@@ -733,7 +733,7 @@ export class GeometrySolver {
       },
     ];
 
-    // Lateral cone faces connecting apex S (0) with circle points
+    // 连接锥顶 S (0) 与圆周各点的圆锥侧面
     for (let i = 1; i <= segments; i++) {
       const next = i === segments ? 1 : i + 1;
       const p1 = vertices[i];
@@ -764,7 +764,7 @@ export class GeometrySolver {
       position: new THREE.Vector3(0, -y2, 0),
     });
 
-    // 4 cardinal points on bottom circle (A, B, C, D)
+    // 底面圆周 4 个基准点 (A, B, C, D)
     const cardinals = [
       { idx: 1, label: 'A' },
       { idx: Math.floor(segments * 0.25) + 1, label: 'B' },
@@ -780,7 +780,7 @@ export class GeometrySolver {
       });
     });
 
-    // Special points along key generatrices (S to A, B, C, D)
+    // 沿关键母线（S 到 A, B, C, D）的特殊点
     const cardinalEdges: [number, number][] = cardinals.map(({ idx }) => [0, idx]);
     this.populateEdgeSpecialPoints(vertices, vertexLabels, cardinalEdges, keyPoints);
 
@@ -804,7 +804,7 @@ export class GeometrySolver {
   // -------------------------------------------------------------
 
   /**
-   * Solve plane equation Ax + By + Cz + D = 0 from 3 points.
+   * 由三点求解平面方程 Ax + By + Cz + D = 0。
    */
   public static solvePlaneFrom3Points(
     p1: THREE.Vector3,
@@ -815,14 +815,14 @@ export class GeometrySolver {
     const v13 = new THREE.Vector3().subVectors(p3, p1);
     const normal = new THREE.Vector3().crossVectors(v12, v13).normalize();
     if (normal.lengthSq() < 1e-6) {
-      // Degenerate points (collinear)
+      // 退化点（三点共线）
       return new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     }
     return new THREE.Plane().setFromNormalAndCoplanarPoint(normal, p1);
   }
 
   /**
-   * Angle between two spatial lines and skew distance.
+   * 计算两条空间直线夹角与异面直线公垂线距离。
    */
   public static computeSkewLineMetrics(
     p1: THREE.Vector3,
@@ -849,18 +849,18 @@ export class GeometrySolver {
     const uNorm = u.clone().normalize();
     const vNorm = v.clone().normalize();
 
-    // Cosine of angle in [0, 90 deg]: |u . v| / (|u| |v|)
+    // 夹角余弦在 [0, 90°] 内：|u . v| / (|u| |v|)
     const dot = Math.abs(uNorm.dot(vNorm));
     const clampedDot = Math.min(1.0, Math.max(0.0, dot));
     const angleRad = Math.acos(clampedDot);
     const angleDeg = (angleRad * 180) / Math.PI;
 
-    // Cross product to check parallel vs skew
+    // 叉乘判定平行还是异面
     const cross = new THREE.Vector3().crossVectors(uNorm, vNorm);
     const crossLen = cross.length();
 
     if (crossLen < 1e-5) {
-      // Lines are parallel
+      // 两直线平行
       const p1q1 = new THREE.Vector3().subVectors(q1, p1);
       const perpDist = new THREE.Vector3().crossVectors(p1q1, uNorm).length();
       return {
@@ -873,8 +873,8 @@ export class GeometrySolver {
       };
     }
 
-    // Skew lines or intersecting in 3D:
-    // Distance = |(q1 - p1) . (u x v)| / |u x v|
+    // 空间异面直线或相交直线：
+    // 距离 = |(q1 - p1) . (u x v)| / |u x v|
     const p1q1 = new THREE.Vector3().subVectors(q1, p1);
     const dist = Math.abs(p1q1.dot(cross)) / crossLen;
 
@@ -889,7 +889,7 @@ export class GeometrySolver {
   }
 
   /**
-   * Line-Plane angle: sin(phi) = |u . n| / (|u| |n|), phi in [0, 90 deg].
+   * 线面角计算：sin(phi) = |u . n| / (|u| |n|)，phi 范围 [0, 90°]。
    */
   public static computeLinePlaneAngle(
     lineP1: THREE.Vector3,
@@ -907,7 +907,7 @@ export class GeometrySolver {
   }
 
   /**
-   * Dihedral angle: cos(theta) = |n1 . n2| / (|n1| |n2|), theta in [0, 180 deg].
+   * 二面角计算：cos(theta) = |n1 . n2| / (|n1| |n2|)，theta 范围 [0, 180°]。
    */
   public static computeDihedralAngle(
     planeA: THREE.Plane,
@@ -930,7 +930,7 @@ export class GeometrySolver {
   // -------------------------------------------------------------
 
   /**
-   * Slice a polyhedron by a plane and extract the closed planar cross-section polygon.
+   * 使用平面剖切多面体并提取闭合平面截面多边形。
    */
   public static computePolyhedronCrossSection(
     model: PolyhedronModelDef,
@@ -938,7 +938,7 @@ export class GeometrySolver {
   ): CrossSectionResult | null {
     const intersectionSegments: [THREE.Vector3, THREE.Vector3][] = [];
 
-    // For every polygonal face of the polyhedron, clip its edges against the plane
+    // 对多面体的每个多边形面，将其各棱与剖切平面求交
     for (const face of model.faces) {
       const faceVerts = face.vertexIndices.map((idx) => model.vertices[idx]);
       const seg = this.intersectFaceWithPlane(faceVerts, plane);
@@ -951,19 +951,19 @@ export class GeometrySolver {
       return null;
     }
 
-    // Connect segments into an ordered polygon loop
+    // 将交线段拼接为有序多边形环
     const polygon = this.orderIntersectionSegments(intersectionSegments);
     if (polygon.length < 3) {
       return null;
     }
 
-    // Area and Perimeter
+    // 面积与周长
     let area = 0;
     let perimeter = 0;
     const n = polygon.length;
     const edgeLengths: number[] = [];
 
-    // Planar 3D polygon area using cross product accumulation
+    // 利用叉乘累加计算空间平面多边形面积
     const normalAcc = new THREE.Vector3();
     for (let i = 0; i < n; i++) {
       const p1 = polygon[i];
@@ -976,14 +976,14 @@ export class GeometrySolver {
     area = normalAcc.dot(plane.normal.clone().normalize()) * 0.5;
     area = Math.abs(area);
 
-    // Classify polygon
+    // 多边形分类判定
     const polygonType = this.classifyPolygon(polygon, edgeLengths);
 
-    // Base area approximation
+    // 底面积近似值
     const baseArea = (model.defaultParams.a ?? 1) * (model.defaultParams.b ?? model.defaultParams.a ?? 1);
     const areaRatioToBase = baseArea > 1e-4 ? area / baseArea : 1.0;
 
-    // Dihedral angle with horizontal base plane (0, 1, 0)
+    // 与水平底面 (0, 1, 0) 所成二面角
     const basePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const dihedral = this.computeDihedralAngle(plane, basePlane);
 
@@ -1012,7 +1012,7 @@ export class GeometrySolver {
       const d1 = plane.distanceToPoint(p1);
       const d2 = plane.distanceToPoint(p2);
 
-      // Check if edge crosses plane
+      // 检查边是否穿过平面
       if (Math.abs(d1) < 1e-6) {
         if (!hits.some((h) => h.distanceTo(p1) < 1e-4)) {
           hits.push(p1.clone());
@@ -1064,7 +1064,7 @@ export class GeometrySolver {
       if (!foundNext) break;
     }
 
-    // Remove duplicate closing point if present
+    // 若首尾重合则移除闭合重复点
     if (ordered.length > 3 && ordered[0].distanceTo(ordered[ordered.length - 1]) < 1e-4) {
       ordered.pop();
     }
@@ -1132,7 +1132,7 @@ export class GeometrySolver {
 
     switch (modelType) {
       case 'cube': {
-        // Cuboid: 2R = sqrt(a² + b² + c²)
+        // 长方体：2R = sqrt(a² + b² + c²)
         circumRadius = 0.5 * Math.hypot(a, b, c);
         circumCenter.set(0, 0, 0);
         inRadius = Math.min(a, b, c) / 2;
@@ -1142,15 +1142,15 @@ export class GeometrySolver {
       }
 
       case 'corner-pyramid': {
-        // Corner pyramid PA ⊥ PB ⊥ PC:
-        // Embed into cuboid a x c x b
+        // 墙角模型 PA ⊥ PB ⊥ PC：
+        // 补形为 a x c x b 长方体
         // 2R = sqrt(a² + b² + c²)
         circumRadius = 0.5 * Math.hypot(a, b, c);
-        // Center relative to offset (-a/4, -c/4, -b/4)
+        // 球心相对于偏移 (-a/4, -c/4, -b/4) 的位置
         circumCenter.set(a / 4, c / 4, b / 4);
         embeddingCuboid = new THREE.Vector3(a, c, b);
 
-        // Inscribed sphere: r = 3V / S_total
+        // 内切球：r = 3V / S_total
         const v = (1 / 6) * a * b * c;
         const sPAB = 0.5 * a * b;
         const sPBC = 0.5 * b * c;
@@ -1163,8 +1163,8 @@ export class GeometrySolver {
       }
 
       case 'tetrahedron': {
-        // Regular tetrahedron of edge L = a
-        // Embedded into cube of edge L / sqrt(2)
+        // 棱长 L = a 的正四面体
+        // 嵌入棱长为 L / sqrt(2) 的正方体
         // R = sqrt(6)/4 * L, r = sqrt(6)/12 * L, R/r = 3:1
         circumRadius = (Math.sqrt(6) / 4) * a;
         circumCenter.set(0, 0, 0);
@@ -1176,13 +1176,13 @@ export class GeometrySolver {
       }
 
       case 'square-pyramid': {
-        // Regular square pyramid: base side a, height h
+        // 正四棱锥：底边长 a，高 h
         // R = (a² + 2h²) / (4h)
         circumRadius = (a * a + 2 * h * h) / (4 * h);
         const yBase = -h / 3;
         circumCenter.set(0, yBase + h - circumRadius, 0);
 
-        // Inradius: r = 3V / S_total
+        // 内切球半径：r = 3V / S_total
         const slantHeight = Math.hypot(h, a / 2);
         const sBase = a * a;
         const sLateral = 2 * a * slantHeight;
@@ -1193,7 +1193,7 @@ export class GeometrySolver {
       }
 
       case 'triangular-prism': {
-        // Right regular triangular prism: base side a, height h
+        // 正三棱柱：底边长 a，高 h
         // R² = r_base² + (h/2)², r_base = a / sqrt(3)
         const rBaseCircum = a / Math.sqrt(3);
         circumRadius = Math.hypot(rBaseCircum, h / 2);
@@ -1204,7 +1204,7 @@ export class GeometrySolver {
       }
 
       case 'cylinder-cone': {
-        // Cone: apex to base center
+        // 圆锥：锥顶到底面中心
         const l = Math.hypot(r, h);
         circumRadius = (l * l) / (2 * h);
         circumCenter.set(0, h / 2 - circumRadius, 0);
@@ -1240,8 +1240,8 @@ export class GeometrySolver {
   }
 
   /**
-   * Circumsphere when every vertex lies on one sphere, and inradius for a tetrahedron.
-   * Used by photo-recognized figures, whose size is not one of the preset formulas.
+   * 当所有顶点共球时计算外接球，以及四面体的内切球半径。
+   * 用于拍照识别出的立体几何图形（其尺寸不属于预设公式）。
    */
   public static analyzeRecognizedModel(model: PolyhedronModelDef): SphereAnalysisResult {
     const verts = model.vertices;

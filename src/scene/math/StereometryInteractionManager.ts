@@ -30,13 +30,13 @@ export class StereometryInteractionManager {
   private callbacks: StereometryInteractionCallbacks;
   private currentMode: InteractionMode = 'direct';
 
-  // Interaction State Machine
+  // 交互状态机
   private pendingStartPoint: KeyPoint | null = null;
   private currentHoveredKp: KeyPoint | null = null;
   private currentSnapLabel = '';
   private selectedCutPoints: KeyPoint[] = [];
 
-  // Pointer & Multi-Touch dragging state
+  // 指针与多指拖拽状态
   private isPointerDown = false;
   private isOrbitDragging = false;
   private isConnectingDrag = false;
@@ -48,7 +48,7 @@ export class StereometryInteractionManager {
   private lastPointerY = 0;
   private rotationVelocity = new THREE.Vector2(0, 0);
 
-  // Multi-Touch Pinch-to-Zoom State (iPad & Touch Devices)
+  // 双指捏合缩放状态（iPad 与触控设备）
   private activePointers = new Map<number, { x: number; y: number }>();
   private isPinching = false;
   private initialPinchDist = 0;
@@ -109,7 +109,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Find the closest KeyPoint with magnetic snapping (vertex, 1/2 midpoint, 1/3, 2/3, center).
+   * 查找离射线最近的关键点，支持磁吸（顶点、1/2 中点、1/3 与 2/3 三等分点、面心）。
    */
   public findKeyPointNearRay(raycaster: THREE.Raycaster, threshold = 0.055): KeyPoint | null {
     const res = this.mesh.findClosestSnapPoint(raycaster.ray, threshold);
@@ -117,7 +117,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Pointer Down Hook called by Engine.
+   * 引擎调用的指针按下事件钩子。
    */
   public onPointerDown(
     event: PointerEvent,
@@ -126,11 +126,11 @@ export class StereometryInteractionManager {
   ): boolean {
     if (event.button !== 0) return false;
 
-    // Track pointer for multi-touch pinch-to-zoom (iPad & touch devices)
+    // 记录多指触控指针（用于 iPad 及触控设备双指缩放）
     this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (this.activePointers.size >= 2) {
-      // 2 fingers detected -> switch immediately to pinch-to-zoom mode
+      // 检测到双指：立即切换为捏合缩放模式
       const pts = Array.from(this.activePointers.values());
       this.isPinching = true;
       this.isOrbitDragging = false;
@@ -161,7 +161,7 @@ export class StereometryInteractionManager {
       );
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouseNDC, context.camera);
-      // Adaptive magnetic snap radius: fingers on iPad get larger snapping margin
+      // 自适应磁吸半径：iPad 触摸触控拥有更大的吸附容差
       const isTouchPointer = event.pointerType === 'touch';
       const snapThreshold = this.currentHoveredKp
         ? (isTouchPointer ? 0.095 : 0.075)
@@ -174,7 +174,7 @@ export class StereometryInteractionManager {
     }
 
     if (snapKp) {
-      // Pressed on a magnetic snap point: initiate potential line connection
+      // 按在磁吸关键点上：开始准备连线
       this.isConnectingDrag = true;
       this.isOrbitDragging = false;
       this.dragStartKp = snapKp;
@@ -182,7 +182,7 @@ export class StereometryInteractionManager {
       this.currentSnapLabel = snapLabel;
       this.mesh.setHoveredKeyPoint(snapKp.id, snapLabel);
     } else {
-      // Pressed on empty space / model background: initiate orbit drag
+      // 按在空白区域/模型背景上：开始视角旋转拖拽
       this.isConnectingDrag = false;
       this.isOrbitDragging = true;
       this.dragStartKp = null;
@@ -192,19 +192,19 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Pointer Move Hook called by Engine.
+   * 引擎调用的指针移动事件钩子。
    */
   public onPointerMove(
     event: PointerEvent,
     _hit: THREE.Intersection | null,
     context: ExperimentContext
   ): void {
-    // Keep active pointer coordinates updated
+    // 持续更新活跃指针坐标
     if (this.activePointers.has(event.pointerId)) {
       this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     }
 
-    // 1. Two-finger Pinch Scaling
+    // 1. 双指捏合缩放
     if (this.isPinching && this.activePointers.size >= 2) {
       const pts = Array.from(this.activePointers.values());
       const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
@@ -228,7 +228,7 @@ export class StereometryInteractionManager {
       this.mesh.modelContainer.rotation.y += dx * rotSpeed;
       this.mesh.modelContainer.rotation.x += dy * rotSpeed;
 
-      // Clamp vertical tilt to prevent tumbling upside down
+      // 限制垂直仰俯角，防止模型翻转颠倒
       this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
         this.mesh.modelContainer.rotation.x,
         -Math.PI * 0.40,
@@ -239,7 +239,7 @@ export class StereometryInteractionManager {
       return;
     }
 
-    // Raycast check with magnetic snapping
+    // 带磁吸判定的射线投射检测
     let hoveredKp: KeyPoint | null = null;
     let hoveredLabel = '';
     const mouseNDC = new THREE.Vector2(
@@ -260,11 +260,11 @@ export class StereometryInteractionManager {
         hoveredLabel = snapRes.snapLabel;
       }
 
-      // Live rubberband preview wire update
+      // 实时橡皮筋动态预览连线更新
       const activeStart = this.isConnectingDrag ? this.dragStartKp : this.pendingStartPoint;
       if (activeStart) {
         if (hoveredKp && hoveredKp.id !== activeStart.id) {
-          // Snapped to target point
+          // 吸附到目标点
           const len = activeStart.position.distanceTo(hoveredKp.position);
           let targetName = hoveredKp.label;
           if (hoveredKp.subLabel === '1/2') {
@@ -285,7 +285,7 @@ export class StereometryInteractionManager {
             snapColor
           );
         } else {
-          // Project cursor onto plane parallel to camera through start point
+          // 将光标投影至过起点且平行于相机平面的空间平面上
           const normal = new THREE.Vector3();
           context.camera.getWorldDirection(normal).negate();
           const startWorld = activeStart.position.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld);
@@ -322,7 +322,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Resets any active hover state, preview wire, and dragging when modal opens or view blurs.
+   * 当模态弹窗开启或视图失去焦点时，重置所有悬停状态、预览连线与拖拽状态。
    */
   public clearHover(): void {
     this.currentHoveredKp = null;
@@ -343,12 +343,12 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Pointer Up Hook - Resolves drag-to-connect vs clean clicks.
+   * 指针抬起事件钩子：区分拖拽连线与单击交互。
    */
   public onPointerUp(event: PointerEvent, context: ExperimentContext): void {
     this.activePointers.delete(event.pointerId);
 
-    // Multi-touch pinch release handling
+    // 双指捏合释放处理
     if (this.isPinching) {
       if (this.activePointers.size < 2) {
         this.isPinching = false;
@@ -376,7 +376,7 @@ export class StereometryInteractionManager {
 
     if (this.isOrbitDragging) {
       this.isOrbitDragging = false;
-      // If user did a quick clean click on empty space: cancel pending line
+      // 若用户仅在空白处轻点：取消正在进行的连线等待
       if (dist < 5 && this.pendingStartPoint) {
         this.resetSelection();
       }
@@ -394,21 +394,21 @@ export class StereometryInteractionManager {
       const targetKp = snapRes?.keyPoint ?? null;
 
       if (dist > 8 && this.dragStartKp) {
-        // Drag-to-connect: released on target point
+        // 拖拽接线：在目标关键点上释放
         if (targetKp && targetKp.id !== this.dragStartKp.id) {
           this.connectTwoPoints(this.dragStartKp, targetKp);
           this.resetSelection();
         } else {
-          // Released in open space during drag: keep dragStartKp as pending start point
+          // 在空中空白区域释放：将拖拽起点保留为连线待确认起点
           this.pendingStartPoint = this.dragStartKp;
           this.mesh.setSelectedKeyPoints([this.dragStartKp.id]);
         }
       } else {
-        // Clean Click interaction
+        // 单击点选交互
         if (targetKp) {
           this.handleClickOnPoint(targetKp);
         } else {
-          // Clicked empty space: clear pending selection
+          // 点击空白区域：清空待连线选择
           this.resetSelection();
         }
       }
@@ -419,11 +419,11 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Handle clean click on a keypoint.
+   * 处理关键点的点击事件。
    */
   private handleClickOnPoint(kp: KeyPoint): void {
     if (this.currentMode === 'three-point-cut') {
-      // Cross-section cut plane selection mode
+      // 截面剖切定面模式
       const idx = this.selectedCutPoints.findIndex((p) => p.id === kp.id);
       if (idx !== -1) {
         this.selectedCutPoints.splice(idx, 1);
@@ -453,19 +453,19 @@ export class StereometryInteractionManager {
       return;
     }
 
-    // Default & 'connect-line' mode: Two-Point Line Connection
+    // 默认及两点连线模式：两点连线
     if (!this.pendingStartPoint) {
-      // 1st Click: select start point
+      // 第一次点击：选择连线起点
       this.pendingStartPoint = kp;
       this.mesh.setSelectedKeyPoints([kp.id]);
       this.callbacks.onGuidanceChange?.(`已选起点 ${kp.label} · 移动至目标点完成接线 (按 Esc 取消)`, 'info');
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
     } else if (this.pendingStartPoint.id === kp.id) {
-      // Clicked same point: deselect
+      // 再次点击相同点：取消选择
       this.resetSelection();
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
     } else {
-      // 2nd Click: connect line!
+      // 第二次点击：完成连线
       const start = this.pendingStartPoint;
       this.connectTwoPoints(start, kp);
       this.resetSelection();
@@ -474,7 +474,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Create line segment between two keypoints.
+   * 在两个关键点之间创建空间线段。
    */
   private connectTwoPoints(p1: KeyPoint, p2: KeyPoint): void {
     const prevFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
@@ -504,7 +504,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Mouse Wheel Zoom Handler.
+   * 滚轮缩放事件处理器。
    */
   public onWheel(event: WheelEvent): void {
     const factor = event.deltaY < 0 ? 1.08 : 0.92;
@@ -513,7 +513,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Keyboard shortcuts for Zooming and Shortcuts.
+   * 键盘快捷键（缩放与操作撤销）。
    */
   public onKeyDown(event: KeyboardEvent): boolean {
     if ((event.code === 'KeyZ' && (event.metaKey || event.ctrlKey)) || event.code === 'Backspace') {
@@ -580,7 +580,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Real-Time User Interaction Hint for Status Card.
+   * 状态栏实时交互引导文案。
    */
   public getInteractionHint(): string {
     if (this.currentMode === 'three-point-cut') {
@@ -606,7 +606,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Continuous animation update (inertial damping).
+   * 每帧持续动画更新（惯性阻尼）。
    */
   public update(delta: number): void {
     if (!this.isOrbitDragging && !this.isConnectingDrag && (Math.abs(this.rotationVelocity.x) > 1e-4 || Math.abs(this.rotationVelocity.y) > 1e-4)) {
@@ -618,14 +618,14 @@ export class StereometryInteractionManager {
         Math.PI * 0.40
       );
 
-      // Inertial damping
+      // 惯性阻尼衰减
       const damping = Math.max(0, 1 - delta * 4.5);
       this.rotationVelocity.multiplyScalar(damping);
     }
   }
 
   /**
-   * Reset rotation to canonical textbook oblique view (horizontal base, vertical edges).
+   * 重置旋转至课本标准直观图斜二测视角（底面水平、侧棱竖直）。
    */
   public resetToIsometricView(): void {
     this.mesh.modelContainer.rotation.set(0.12, 0.42, 0);
@@ -648,7 +648,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Pointer Cancel Hook.
+   * 指针取消事件钩子。
    */
   public onPointerCancel(event: PointerEvent): void {
     this.activePointers.delete(event.pointerId);
@@ -664,7 +664,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Native Touch Event Handlers for iPad & Touch Screens.
+   * iPad 与触控屏幕的原生 Touch 触摸事件处理器。
    */
   public onTouchStart(event: TouchEvent, _context?: ExperimentContext): boolean {
     if (event.touches.length >= 2) {
@@ -732,7 +732,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Safari WebKit Gesture Handlers (iPadOS).
+   * Safari WebKit 手势处理器 (iPadOS)。
    */
   public onGestureStart(event: any): void {
     this.isPinching = true;
@@ -765,7 +765,7 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * Direct Programmatic / Touch UI Zoom Methods.
+   * 编程式与触控 UI 缩放方法。
    */
   public zoomIn(factor = 1.10): number {
     const newScale = this.mesh.zoom(factor);

@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 
-// Read screenshot and extract a base64 Data URL
+// 读取截图并提取 Base64 Data URL
 const screenshotBase64 = fs.readFileSync('/Users/senor/.gemini/antigravity/brain/8930e95c-c0d5-44a3-a6ba-5536147448fb/.user_uploaded/media_1790655698899.png').toString('base64');
 const dataUrl = `data:image/png;base64,${screenshotBase64}`;
 
@@ -31,20 +31,20 @@ async function run() {
     const send = (method, params = {}) => ws.send(JSON.stringify({ id: id++, method, params }));
     send('Runtime.enable');
 
-    // Load image and test worker with real hand image!
+    // 加载图像并在 Worker 中使用真实手部图像进行测试
     const testCode = `
       (async () => {
         const img = new Image();
         img.src = "${dataUrl}";
         await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
 
-        // Crop the camera preview area from screenshot (roughly x: 770 to 1010, y: 150 to 300)
-        // In the screenshot: 1024x559, preview modal is at right side
+        // 从截图中裁剪摄像头预览区域（大致范围 x: 770 至 1010，y: 150 至 300）
+        // 截图分辨率为 1024x559，预览弹窗位于右侧
         const handCanvas = document.createElement('canvas');
         handCanvas.width = 320;
         handCanvas.height = 240;
         const ctx = handCanvas.getContext('2d');
-        // The camera view in screenshot is at top-right
+        // 截图中的摄像头画面位于右上角
         ctx.drawImage(img, 775, 145, 230, 160, 0, 0, 320, 240);
 
         async function testWorker(delegateName, numHands = 2, w = 320, h = 240) {
@@ -66,14 +66,14 @@ async function run() {
             });
           });
 
-          // Draw to sized canvas
+          // 绘制到目标尺寸的 Canvas
           const sizedCanvas = document.createElement('canvas');
           sizedCanvas.width = w;
           sizedCanvas.height = h;
           const sCtx = sizedCanvas.getContext('2d');
           sCtx.drawImage(handCanvas, 0, 0, w, h);
 
-          // Warmup 2 frames
+          // 预热 2 帧
           for (let i = 0; i < 2; i++) {
             const bmp = await createImageBitmap(sizedCanvas);
             await new Promise(r => {
@@ -82,7 +82,7 @@ async function run() {
             });
           }
 
-          // Measure 10 frames
+          // 测量 10 帧处理耗时
           const times = [];
           let detectedCount = 0;
           for (let i = 0; i < 10; i++) {

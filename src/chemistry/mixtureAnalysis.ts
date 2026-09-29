@@ -1,4 +1,4 @@
-/** Everyday substance → beaker mixture. Only known ions are allowed to react. */
+/** 日常物质解析为烧杯混合物体系。仅允许已知离子参与化学反应。 */
 
 export type MixtureMetal = 'Mg' | 'Zn' | 'Fe' | 'Al' | 'Cu' | 'Na';
 

@@ -5,8 +5,8 @@ export class PistonCylinderMesh {
   public pistonGroup: THREE.Group;
   public handleMesh: THREE.Mesh;
   public readonly radius = 0.08;
-  public readonly minHeight = 0.06;  // corresponding to 1.0 L
-  public readonly maxHeight = 0.30;  // corresponding to 5.0 L
+  public readonly minHeight = 0.06;  // 对应容积 1.0 L
+  public readonly maxHeight = 0.30;  // 对应容积 5.0 L
   public readonly minVolume = 1.0;
   public readonly maxVolume = 5.0;
 
@@ -21,7 +21,7 @@ export class PistonCylinderMesh {
   }
 
   private build(): void {
-    // 1. High-precision satin clear-anodized mounting base flange (y = 0 to 0.010)
+    // 1. 高精度缎面阳极氧化铝安装底座法兰 (y = 0 至 0.010)
     const flangeGeo = new THREE.CylinderGeometry(0.095, 0.098, 0.010, 36);
     const flangeMat = new THREE.MeshStandardMaterial({
       color: 0xdfe6ed,
@@ -34,7 +34,7 @@ export class PistonCylinderMesh {
     flangeMesh.position.y = 0.005;
     this.group.add(flangeMesh);
 
-    // Polished stainless steel compression clamp ring (y = 0.010 to 0.015)
+    // 抛光不锈钢压紧卡箍环 (y = 0.010 至 0.015)
     const clampGeo = new THREE.CylinderGeometry(0.092, 0.095, 0.005, 36);
     const stainlessMat = new THREE.MeshStandardMaterial({
       color: 0xf1f5f9,
@@ -46,8 +46,8 @@ export class PistonCylinderMesh {
     clampMesh.position.y = 0.0125;
     this.group.add(clampMesh);
 
-    // 2. High-grade Optical Quartz Cylinder Shell (y = 0.023 to 0.363)
-    // Total cylinder height: 0.34m, inner radius: 0.08m
+    // 2. 优质光学石英玻璃气缸筒 (y = 0.023 至 0.363)
+    // 气缸总高度：0.34m，内半径：0.08m
     const cylinderTotalHeight = 0.34;
     const cylinderGeo = new THREE.CylinderGeometry(this.radius, this.radius, cylinderTotalHeight, 48, 1, true);
     const cylinderMat = new THREE.MeshStandardMaterial({
@@ -69,7 +69,7 @@ export class PistonCylinderMesh {
     cylinderMesh.renderOrder = 10;
     this.group.add(cylinderMesh);
 
-    // Quartz bottom seal plate (titanium/stainless alloy, y = 0.015 to 0.023)
+    // 石英缸底密封底板（钛/不锈钢合金，y = 0.015 至 0.023）
     const bottomGeo = new THREE.CylinderGeometry(this.radius, this.radius, 0.008, 48);
     const bottomMat = new THREE.MeshStandardMaterial({
       color: 0xc4cfdc,
@@ -81,10 +81,10 @@ export class PistonCylinderMesh {
     bottomMesh.position.y = 0.019;
     this.group.add(bottomMesh);
 
-    // 3. Volumetric graduation ticks and labels (1.0 L to 5.0 L)
+    // 3. 容积刻度线与读数标签 (1.0 L 至 5.0 L)
     this.buildGraduations();
 
-    // Cylinder Top Crown Collar with central spider rod guide (y = 0.363 to 0.375)
+    // 气缸顶部皇冠套环及中心导向支架 (y = 0.363 至 0.375)
     const crownGeo = new THREE.CylinderGeometry(0.088, 0.084, 0.012, 48);
     this.disposables.push(crownGeo);
     const crownMesh = new THREE.Mesh(crownGeo, flangeMat);
@@ -92,7 +92,7 @@ export class PistonCylinderMesh {
     crownMesh.castShadow = true;
     this.group.add(crownMesh);
 
-    // 4 Stainless Steel Compression Tie-Rods with chrome acorn nuts
+    // 4 根带镀铬盖形螺母的不锈钢紧固拉杆
     const tieRodGeo = new THREE.CylinderGeometry(0.0025, 0.0025, 0.360, 16);
     this.disposables.push(tieRodGeo);
     const nutGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.008, 12);
@@ -117,12 +117,12 @@ export class PistonCylinderMesh {
       this.group.add(botNut);
     }
 
-    // 4. Movable Piston Assembly
+    // 4. 可移动活塞组件
     this.pistonGroup = new THREE.Group();
     this.pistonGroup.name = 'PistonAssembly';
     this.group.add(this.pistonGroup);
 
-    // Piston Head (precision satin clear-anodized aluminum disc)
+    // 活塞头（精密缎面阳极氧化铝圆盘）
     const headGeo = new THREE.CylinderGeometry(this.radius - 0.001, this.radius - 0.001, 0.018, 48);
     const headMat = new THREE.MeshStandardMaterial({
       color: 0xdfe6ed,
@@ -132,11 +132,11 @@ export class PistonCylinderMesh {
     this.disposables.push(headGeo, headMat);
 
     const headMesh = new THREE.Mesh(headGeo, headMat);
-    headMesh.position.y = 0.009; // bottom of head at y=0 relative to pistonGroup
+    headMesh.position.y = 0.009; // 活塞头底部相对于 pistonGroup 位于 y = 0
     headMesh.castShadow = true;
     this.pistonGroup.add(headMesh);
 
-    // Sealing O-Ring (Fluororubber Viton)
+    // 密封 O 型圈（氟橡胶 Viton）
     const ringGeo = new THREE.TorusGeometry(this.radius - 0.0005, 0.003, 16, 48);
     const ringMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
@@ -148,7 +148,7 @@ export class PistonCylinderMesh {
     ringMesh.position.y = 0.009;
     this.pistonGroup.add(ringMesh);
 
-    // Chrome connecting rod
+    // 镀铬连杆
     const rodHeight = 0.16;
     const rodGeo = new THREE.CylinderGeometry(0.008, 0.008, rodHeight, 24);
     const rodMat = new THREE.MeshStandardMaterial({
@@ -163,7 +163,7 @@ export class PistonCylinderMesh {
     rodMesh.castShadow = true;
     this.pistonGroup.add(rodMesh);
 
-    // Grab Handle (Apple blue anodized T-Bar handle)
+    // 抓取手柄（苹果蓝阳极氧化 T 型拉手）
     const handleGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.09, 24);
     const handleMat = new THREE.MeshStandardMaterial({
       color: 0x0a84ff,
@@ -191,7 +191,7 @@ export class PistonCylinderMesh {
 
     ctx.clearRect(0, 0, 512, 1024);
 
-    // Draw vertical metric ruler strip
+    // 绘制垂直公制标尺线
     ctx.strokeStyle = 'rgba(100, 200, 255, 0.85)';
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -201,7 +201,7 @@ export class PistonCylinderMesh {
 
     for (let i = 0; i <= 20; i++) {
       const vol = 1.0 + (i / 20) * 4.0;
-      // y on canvas (inverted: 1.0L is bottom at 940, 5.0L is top at 100)
+      // Canvas 上的 y 坐标（上下反转：1.0L 在底部 y=940，5.0L 在顶部 y=100）
       const y = 940 - (i / 20) * 840;
 
       const isMajor = i % 5 === 0;
@@ -248,7 +248,7 @@ export class PistonCylinderMesh {
     const t = (this.currentVolume - this.minVolume) / (this.maxVolume - this.minVolume);
     this.currentHeight = this.minHeight + t * (this.maxHeight - this.minHeight);
 
-    // The bottom of the piston head sits exactly at y = 0.015 + currentHeight
+    // 活塞头底部恰好位于 y = 0.015 + currentHeight
     this.pistonGroup.position.y = 0.015 + this.currentHeight;
   }
 

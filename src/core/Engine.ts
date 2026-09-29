@@ -108,7 +108,7 @@ export class Engine {
     this.reactionEffectsLeft = re;
   }
 
-  // Inter-beaker pouring & fluid dynamics
+  // 烧杯间倾倒与流体动力学
   private pourStreamMesh: THREE.Mesh | null = null;
   private pourStreamMat: THREE.MeshPhysicalMaterial | null = null;
   private pourVolumeBadgeEl: HTMLElement | null = null;
@@ -189,9 +189,9 @@ export class Engine {
       alpha: false,
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    // Limit pixel ratio to 1.5 on high-DPI displays to eliminate fillrate starvation
+    // 在高分屏上将像素比限制为 1.5，避免 GPU 填充率耗尽
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-    // Downscale transmission render target by 50% (75% less GPU fillrate/mipmaps)
+    // 将透射渲染目标降采样 50%（减少 75% 的 GPU 填充率与 Mipmap 占用）
     (this.renderer as any).transmissionResolutionScale = 0.5;
 
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -232,7 +232,7 @@ export class Engine {
   }
 
   private initCamera(): void {
-    // 60° FOV gives natural, distortion-free cinematic perspective matching Image 1
+    // 60° 视场角（FOV）提供自然无畸变的电影级视角
     this.camera = new THREE.PerspectiveCamera(
       60,
       window.innerWidth / window.innerHeight,
@@ -241,7 +241,7 @@ export class Engine {
     );
   }
 
-  // Use clean, crisp native WebGL pipeline with hardware MSAA to prevent overexposed bloom fog
+  // 使用硬件 MSAA 的原生 WebGL 管线，清晰锐利，防止辉光过度曝光雾化
   public isPostProcessingActive = false;
 
   private initPostProcessing(): void {
@@ -252,7 +252,7 @@ export class Engine {
     const renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(renderPass);
 
-    // High threshold (1.15) ensures ONLY ultra-bright emissives bloom, never white architecture
+    // 提高阈值（1.15）确保仅超高亮自发光泛光，避免白色建筑过曝
     const bloomSize = new THREE.Vector2(Math.max(256, Math.floor(width * 0.5)), Math.max(256, Math.floor(height * 0.5)));
     this.bloomPass = new UnrealBloomPass(bloomSize, 0.16, 0.22, 1.15);
     this.composer.addPass(this.bloomPass);
@@ -271,13 +271,13 @@ export class Engine {
   }
 
   /**
-   * Balanced image-based reflection environment matching the circular chamber architecture.
-   * Generates photorealistic specular reflections of the oculus, cove light, and neon lines onto the glossy epoxy floor.
+   * 匹配圆形实验室结构的平衡反射贴图环境。
+   * 在环氧树脂地坪上生成天顶天窗、暗槽灯与霓虹线条的真实镜面反射。
    */
   private initImageBasedLighting(): void {
     const envScene = new THREE.Scene();
 
-    // 1. Surrounding cylindrical white room shell
+    // 1. 周围圆柱形白色室体外壳
     const shell = new THREE.Mesh(
       new THREE.CylinderGeometry(8.2, 8.2, 5.0, 32, 1, true),
       new THREE.MeshBasicMaterial({ color: 0xd9e2e8, side: THREE.BackSide }),
@@ -285,7 +285,7 @@ export class Engine {
     shell.position.y = 2.2;
     envScene.add(shell);
 
-    // 2. Radiant circular oculus skylight disc at ceiling
+    // 2. 天花板圆形发光天窗
     const oculus = new THREE.Mesh(
       new THREE.CircleGeometry(2.4, 32),
       new THREE.MeshBasicMaterial({ color: 0xffffff }),
@@ -294,7 +294,7 @@ export class Engine {
     oculus.rotation.x = Math.PI / 2;
     envScene.add(oculus);
 
-    // 3. Recessed circular cove halo ring
+    // 3. 顶部嵌入式环形灯槽
     const coveRing = new THREE.Mesh(
       new THREE.RingGeometry(2.8, 3.3, 32),
       new THREE.MeshBasicMaterial({ color: 0xfff2e0, side: THREE.DoubleSide }),
@@ -303,7 +303,7 @@ export class Engine {
     coveRing.rotation.x = Math.PI / 2;
     envScene.add(coveRing);
 
-    // 4. Vertical cyan light strips on walls
+    // 4. 墙面垂直青色灯带
     for (const phi of [0.66, -0.66, 1.20, -1.22]) {
       const strip = new THREE.Mesh(
         new THREE.PlaneGeometry(0.08, 3.2),
@@ -314,7 +314,7 @@ export class Engine {
       envScene.add(strip);
     }
 
-    // 5. Warm wall niche glow pads
+    // 5. 墙壁壁龛暖色发光板
     for (const phi of [0.92, -0.92]) {
       const pad = new THREE.Mesh(
         new THREE.PlaneGeometry(2.0, 1.2),
@@ -325,7 +325,7 @@ export class Engine {
       envScene.add(pad);
     }
 
-    // 6. Central glowing cyan table disc
+    // 6. 中央全息台青色发光圆盘
     const tableDisc = new THREE.Mesh(
       new THREE.CircleGeometry(1.2, 32),
       new THREE.MeshBasicMaterial({ color: 0x40d5ff, side: THREE.DoubleSide }),
@@ -334,7 +334,7 @@ export class Engine {
     tableDisc.rotation.x = -Math.PI / 2;
     envScene.add(tableDisc);
 
-    // 7. Balanced soft environmental fill
+    // 7. 平衡柔和的环境补光
     envScene.add(new THREE.HemisphereLight(0xffffff, 0xc5d2dc, 0.45));
     const downKey = new THREE.DirectionalLight(0xffffff, 0.85);
     downKey.position.set(0, 7.0, 0.2);
@@ -369,7 +369,7 @@ export class Engine {
     this.holoStage = new HologramStage();
     this.scene.add(this.holoStage.group);
 
-    // Mount two chemistry beakers symmetrically on sides of table (avoiding table center!)
+    // 在实验台两侧对称放置两只化学烧杯（避开实验台中心）
     this.chemistryEngineLeft = new ChemistryEngine();
     this.chemistryEngineLeft.setComputeBridge(this.computeBridge);
     this.chemistryEngineRight = new ChemistryEngine();
@@ -390,7 +390,7 @@ export class Engine {
       this.beakerRight.restingPosition
     );
 
-    // Keep visibility in sync when setVisible is called
+    // 调用 setVisible 时保持可见性同步
     this.beakerLeft.onVisibilityChange = (visible, animate) => {
       this.beakerRight.setVisible(visible, animate);
     };
@@ -651,7 +651,7 @@ export class Engine {
     const targetY = this.spatialWindowTargetPos.y;
     const targetZ = this.spatialWindowTargetPos.z;
 
-    // Dynamically face the user around the Y axis if situated at table center
+    // 位于实验台中心时，沿 Y 轴动态朝向用户视角
     let targetRotY = this.spatialWindowTargetRotY;
     if (Math.hypot(targetX, targetZ) < 1e-3) {
       const dx = this.camera.position.x - targetX;
@@ -662,7 +662,7 @@ export class Engine {
       }
     }
 
-    // Keep window strictly upright (pitch = 0, roll = 0) facing the user around the Y axis
+    // 保持视窗严格直立（俯仰角与翻滚角均为 0），仅沿 Y 轴朝向用户
     if (snap) {
       this.spatialWindowObject.position.set(targetX, targetY, targetZ);
       this.spatialWindowObject.rotation.set(0, targetRotY, 0);
@@ -677,7 +677,7 @@ export class Engine {
         pos.z = THREE.MathUtils.lerp(pos.z, targetZ, lerpSpeed);
       }
 
-      // Handle angular wrap-around for smooth rotation
+      // 处理角度循环跨越（Wrap-around），确保平滑旋转
       let diffY = targetRotY - rot.y;
       while (diffY < -Math.PI) diffY += Math.PI * 2;
       while (diffY > Math.PI) diffY -= Math.PI * 2;
@@ -690,8 +690,8 @@ export class Engine {
   }
 
   /**
-   * Positions the floating spatial window at its default location: suspended in the center
-   * of the holographic table (x = 0, y = 2.20, z = 0) facing the camera.
+   * 将空间浮动视窗置于默认位置：悬浮于全息实验台中央
+   * （x = 0, y = 2.20, z = 0）并正对摄像机。
    */
   public positionWindowAtTableCenter(snap = true): void {
     const cam = this.camera;
@@ -726,20 +726,20 @@ export class Engine {
     const dir = new THREE.Vector3();
     cam.getWorldDirection(dir);
 
-    // Compute horizontal forward direction vector to keep the window perfectly upright
+    // 计算水平前向矢量以保持视窗完全直立
     const forwardX = dir.x;
     const forwardZ = dir.z;
     const horizontalLen = Math.hypot(forwardX, forwardZ) || 1e-4;
     const normForwardX = forwardX / horizontalLen;
     const normForwardZ = forwardZ / horizontalLen;
 
-    // Position window 2.2m directly in front of the camera gaze at eye level
+    // 将视窗置于摄像机视线正前方 2.2 米且与视线等高处
     const distance = 2.2;
     const targetX = cam.position.x + normForwardX * distance;
     const targetZ = cam.position.z + normForwardZ * distance;
     const targetY = Math.max(0.95, Math.min(2.6, cam.position.y + dir.y * 1.0));
 
-    // Angle around Y axis so the front side (+Z) of the CSS3DObject points toward the camera
+    // 调整 Y 轴朝向，使 CSS3DObject 正面（+Z）指向摄像机
     const angleY = Math.atan2(cam.position.x - targetX, cam.position.z - targetZ);
 
     this.spatialWindowTargetPos.set(targetX, targetY, targetZ);
@@ -876,7 +876,7 @@ export class Engine {
           exp.applyPreset(preset);
         }
       },
-      // Thermo Conduction
+      // 热学热传导
       onCondTempHChange: (tempK: number) => {
         if (this.currentExperimentId === 'thermo-conduction') {
           const val = Math.round(tempK);
@@ -932,7 +932,7 @@ export class Engine {
           }
         }
       },
-      // Thermo Phase Transition
+      // 热学相变
       onPhasePowerChange: (powerW: number) => {
         if (this.currentExperimentId === 'thermo-phase') {
           const val = Math.round(powerW);
@@ -978,7 +978,7 @@ export class Engine {
           }
         }
       },
-      // Electromagnetism Hall Effect Callbacks
+      // 电磁学霍尔效应回调
       onHallMagFieldChange: (bTesla: number) => {
         if (this.currentExperimentId === 'em-hall') {
           this.currentContext.setParameter('magField', bTesla);
@@ -1141,7 +1141,7 @@ export class Engine {
         else if (cmd.type === 'setDensity') exp.setDensity?.(cmd.density);
         else if (cmd.type === 'reset') exp.resetGolden?.();
       },
-      // Stereometry Math Callbacks
+      // 立体几何数学回调
       onMathModelChange: (type) => {
         if (this.currentExperimentId === 'math-stereometry') {
           const exp = this.holoStage?.activeExperiment as any;
@@ -1273,7 +1273,7 @@ export class Engine {
 
     this.visionModal.setEngines(this.chemistryEngineLeft, this.chemistryEngineRight, 'left');
 
-    // Mount 3D spatial window directly inside the Three.js 3D scene
+    // 将 3D 空间视窗直接挂载至 Three.js 3D 场景中
     this.spatialWindowObject = new CSS3DObject(this.visionModal.element);
     this.spatialWindowObject.rotation.order = 'YXZ';
     this.spatialWindowObject.scale.set(0.0028, 0.0028, 0.0028);
@@ -1307,7 +1307,7 @@ export class Engine {
     const requestId = ++this.currentSwitchRequestId;
     this.hud.showTransition(true, '全息粒子解聚与参数重构...');
 
-    // Guarantee holographic stage is active and clean table surface for 3D hardware
+    // 确保全息舞台处于活动状态，并为 3D 设备清理实验台表面
     this.holoStage.setStageVisible(true);
     this.holoTable.hideHologram(true);
     this.beakerLeft.setVisible(false, true);
@@ -1319,12 +1319,12 @@ export class Engine {
       const registry = ExperimentRegistry.getInstance();
       const experiment = await registry.loadExperiment(id);
 
-      // Guard against race condition: newer request initiated during load
+      // 防竞态守卫：加载过程中若发起新请求则中止
       if (requestId !== this.currentSwitchRequestId) {
         return;
       }
 
-      // Pre-calculate target parameters in a staging map (do not alter engine state yet)
+      // 在暂存 Map 中预计算目标参数（暂不修改引擎当前状态）
       const targetParams = new Map<string, any>();
       if (experiment.metadata.parameters) {
         for (const p of experiment.metadata.parameters) {
@@ -1332,7 +1332,7 @@ export class Engine {
         }
       }
 
-      // Transition holographic stage with token guard
+      // 带有令牌保护的全息舞台过渡切换
       const mounted = await this.holoStage.switchExperiment(
         experiment,
         this.currentContext,
@@ -1343,12 +1343,12 @@ export class Engine {
         }
       );
 
-      // Guard against race condition: superseded during stage transition
+      // 防竞态守卫：舞台过渡期间已被后续请求取代则中止
       if (!mounted || requestId !== this.currentSwitchRequestId) {
         return;
       }
 
-      // Atomically commit parameters only when stage successfully mounts this experiment
+      // 仅在舞台成功挂载此实验后，原子性提交参数
       this.experimentParams.clear();
       for (const [key, value] of targetParams) {
         this.experimentParams.set(key, value);
@@ -1415,15 +1415,15 @@ export class Engine {
         (window as any).__REGISTRY_COUNT__ = all.length;
         (window as any).__REGISTRY_ALL__ = all.map(e => e.id);
       }
-      // Per user requirement: 进入实验室后，没选择实验，桌上就不要有实验器材
-      // Keep holographic stage and beakers hidden, table remains clean in standby mode.
+      // 用户要求：进入实验室后，未选择实验时桌上不放置实验器材
+      // 待机模式下隐藏全息舞台与烧杯，保持桌面整洁。
       this.holoStage.setStageVisible(false);
       this.holoTable.hideHologram(true);
       this.beakerLeft.setVisible(false, false);
       this.beakerRight.setVisible(false, false);
       this.currentExperimentId = null;
 
-      // Pre-warm and compile beaker shaders and textures at startup to eliminate frame hitch on initial chemistry click
+      // 启动时预热并编译烧杯着色器与纹理，避免首次点击化学实验时掉帧卡顿
       if (this.renderer && this.scene && this.camera && this.beakerLeft && this.beakerRight) {
         this.beakerLeft.setVisible(true, false);
         this.beakerRight.setVisible(true, false);
@@ -1484,7 +1484,7 @@ export class Engine {
     if (beaker === 'left') return 'beaker-left';
     if (beaker === 'right') return 'beaker-right';
 
-    // When no experiment is mounted and beakers are hidden/non-interactive, the standby holographic table is interactive
+    // 未挂载实验且烧杯隐藏/不可交互时，待机全息实验台支持交互
     if (!this.currentExperimentId && (!this.beakerLeft || !this.beakerLeft.isInteractive())) {
       if (this.holoTable && this.holoTable.isHologramVisible()) {
         const hits = this.raycaster.intersectObjects(this.holoTable.getInteractiveMeshes(), true);
@@ -1517,7 +1517,7 @@ export class Engine {
       this.handTrackingHUD.setVisible(false);
     }
 
-    // Synchronize hand gestures with Vision Pro cursor and crosshair visibility
+    // 将手势追踪与 Vision Pro 光标及准星可见性同步
     this.handGestureService.onFrame((frame) => {
       this.visionProCursor?.update(frame);
 
@@ -1543,7 +1543,7 @@ export class Engine {
       }
     });
 
-    // Left Hand Quick Pinch: Open/Toggle Floating Spatial Window (VisionModal)
+    // 左手快速捏合：打开/切换悬浮空间视窗（VisionModal）
     this.handGestureService.onQuickPinchMenu(() => {
       if (this.visionModal) {
         if (this.visionModal.visible) {
@@ -1556,18 +1556,18 @@ export class Engine {
       }
     });
 
-    // Left Hand Long Pinch: Control Camera Perspective / View Orientation
+    // 左手长捏合：控制摄像机视角与观察朝向
     this.handGestureService.onCameraRotate((dx: number, dy: number) => {
       if (this.inputManager?.player && !this.labEntryActive) {
         this.inputManager.player.rotate(dx, dy, 0.0035);
       }
     });
 
-    // Dual Hand Pinch: Zoom Floating Window (if open) or 3D Stereometry Model
+    // 双手捏合：缩放悬浮视窗（若已打开）或 3D 立体几何模型
     let initialDualPinchStereometryScale = 1.0;
     let initialDualPinchSpatialWindowScale = 1.0;
     this.handGestureService.onDualPinchZoom((event) => {
-      // 1. If floating spatial window is open, dual-hand pinch scales the floating window
+      // 1. 若悬浮空间视窗处于打开状态，双手捏合缩放悬浮视窗
       if (this.visionModal && this.visionModal.visible) {
         if (event.state === 'start') {
           initialDualPinchSpatialWindowScale = this.visionModal.scale;
@@ -1582,7 +1582,7 @@ export class Engine {
         return;
       }
 
-      // 2. Otherwise (when floating window is closed), zoom 3D Stereometry Model
+      // 2. 否则（悬浮视窗关闭时），双手捏合缩放 3D 立体几何模型
       if (this.currentExperimentId === 'math-stereometry') {
         const exp = this.holoStage?.activeExperiment as any;
         if (exp) {
@@ -1639,11 +1639,11 @@ export class Engine {
   private initEvents(): void {
     window.addEventListener('resize', () => this.onResize());
 
-    // WebGL Context Lost & Restored Protection (safeguards iPadOS/iOS/macOS backgrounding & screen-off)
+    // WebGL 上下文丢失与恢复保护（保护 iPadOS/iOS/macOS 后台切换与息屏恢复）
     const canvas = this.renderer.domElement;
 
     canvas.addEventListener('webglcontextlost', (e: Event) => {
-      e.preventDefault(); // REQUIRED by WebGL spec to allow context restore
+      e.preventDefault(); // WebGL 规范要求阻止默认行为以允许上下文恢复
       console.warn('[Engine] WebGL Context Lost! Pausing render loop to avoid GPU crash.');
       this.isContextLost = true;
       this.hud?.showTransition(true, 'GPU 渲染上下文休眠中...');
@@ -1660,7 +1660,7 @@ export class Engine {
       this.hud?.showTransition(false);
     });
 
-    // 3D Model Zooming via Mouse Wheel (scroll wheel)
+    // 通过鼠标滚轮缩放 3D 模型
     window.addEventListener(
       'wheel',
       (e: WheelEvent) => {
@@ -1679,7 +1679,7 @@ export class Engine {
       { passive: false }
     );
 
-    // Keyboard Shortcuts for 3D Model Zoom (+ / -) and Actions
+    // 3D 模型缩放（+ / -）及操作的键盘快捷键
     window.addEventListener('keydown', (e: KeyboardEvent) => {
       if (this.labEntryActive) return;
       if (this.visionModal && this.visionModal.visible) return;
@@ -1701,7 +1701,7 @@ export class Engine {
       }
     });
 
-    // 3D Pointer interactions (Single-click Reagent Select & Long-press Drag & Pour)
+    // 3D 指针交互（单击选择试剂，长按拖拽倾倒）
     canvas.addEventListener('pointerdown', (e: PointerEvent) => {
       blurActiveInput(true);
       if (this.labEntryActive) return;
@@ -1743,7 +1743,7 @@ export class Engine {
         return;
       }
 
-      // If no experiment or beaker is active, clicking the holographic table opens VisionModal
+      // 若无活动实验或烧杯，点击全息实验台打开 VisionModal
       if (!this.currentExperimentId && (!this.beakerLeft || !this.beakerLeft.isInteractive())) {
         if (this.holoTable && this.holoTable.isHologramVisible()) {
           this.raycaster.setFromCamera(mouseNDC, this.camera);
@@ -1756,7 +1756,7 @@ export class Engine {
         }
       }
 
-      // Forward 3D interaction to active experiment on hologram stage
+      // 将 3D 交互事件转发至全息舞台上的活动实验
       if (this.holoStage.activeExperiment?.onPointerDown) {
         this.raycaster.setFromCamera(mouseNDC, this.camera);
         const hits = this.raycaster.intersectObjects(this.holoStage.activeExperiment.rootGroup.children, true);
@@ -1811,7 +1811,7 @@ export class Engine {
       const dist = Math.hypot(e.clientX - this.beakerDragState.downClientX, e.clientY - this.beakerDragState.downClientY);
       const elapsed = performance.now() - this.beakerDragState.downTime;
 
-      // Initiate dragging if moved > 8px or held > 160ms and moved > 2px
+      // 移动距离 > 8px 或按住 > 160ms 且移动 > 2px 时启动拖拽
       if (!this.beakerDragState.isDragging && (dist > 8 || (elapsed > 160 && dist > 2))) {
         this.beakerDragState.isDragging = true;
         this.crosshair?.setVisible(false);
@@ -1832,12 +1832,12 @@ export class Engine {
           const distToTarget = Math.hypot(hitX - targetBase.x, hitZ - targetBase.z);
 
           if (distToTarget < 0.38) {
-            // Tip about the lip; the animate loop pins that lip over the receiving mouth.
+            // 倾角围绕杯嘴旋转；动画循环将杯嘴对准接收烧杯口
             this.beakerDragState.isPouring = true;
             const isLeftToRight = this.beakerDragState.sourceId === 'left';
             this.beakerDragState.targetTilt = isLeftToRight ? -POUR_TILT : POUR_TILT;
           } else {
-            // Moving in air
+            // 在空中平移
             this.beakerDragState.isPouring = false;
             this.beakerDragState.lipAim = null;
             this.beakerDragState.targetPosition.set(hitX, 1.08, hitZ);
@@ -1876,7 +1876,7 @@ export class Engine {
       }
     });
 
-    // Native Touch Event Support on Canvas for iPad & Mobile Touch Screens
+    // iPad 及移动端触摸屏上的原生画布触摸事件支持
     canvas.addEventListener(
       'touchstart',
       (e: TouchEvent) => {
@@ -1940,7 +1940,7 @@ export class Engine {
       }
     });
 
-    // Safari WebKit Gesture Event Support (iPadOS gesturestart, gesturechange, gestureend)
+    // Safari WebKit 手势事件支持（iPadOS gesturestart, gesturechange, gestureend）
     canvas.addEventListener('gesturestart', (e: any) => {
       if (this.currentExperimentId === 'math-stereometry') {
         const exp = this.holoStage?.activeExperiment as any;
@@ -1974,20 +1974,20 @@ export class Engine {
       }
 
       if (!state.isDragging) {
-        // Single click: open Periodic Table for clicked beaker!
-        // "打开化学板块默认给左边的杯子选试剂，单击烧杯打开元素周期表页面自由选择"
+        // 单击：打开被点击烧杯的元素周期表选择试剂
+        // “打开化学板块默认给左边的杯子选试剂，单击烧杯打开元素周期表页面自由选择”
         this.activeBeakerId = state.sourceId;
         this.visionModal.open('chemistry', state.sourceId);
         return;
       }
 
-      // Drag released: restore source beaker
+      // 拖拽释放：复位源烧杯
       state.sourceMesh.setTilt(0);
       this.hidePourStream();
       this.hidePourVolumeBadge();
 
-      // If liquid was transferred, trigger composition analysis view for target beaker!
-      // "视窗呈现：混合反应发生后，中央全息主视窗自动切换至该烧杯的成分分析面板进行大屏展示。"
+      // 若发生了液体转移，自动触发目标烧杯的成分分析视窗
+      // “视窗呈现：混合反应发生后，中央全息主视窗自动切换至该烧杯的成分分析面板进行大屏展示。”
       if (state.lastPouredVolume > 0.01) {
         this.activeBeakerId = state.targetId;
         this.visionModal.open('beaker', state.targetId);
@@ -2033,7 +2033,7 @@ export class Engine {
       return;
     }
 
-    // Throttle raycasting to every 50ms (~20Hz) to prevent main-thread scene traversal spikes
+    // 将光线投射节流至每 50ms 一次（约 20Hz），避免主线程场景遍历卡顿
     if (now - this.lastCrosshairCheck < 50) {
       return;
     }
@@ -2042,7 +2042,7 @@ export class Engine {
     const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
     let targetType = this.getInteractiveTargetAt(this.centerScreen);
 
-    // If not pointer locked and center crosshair didn't hit, also check free mouse pointer position
+    // 若未锁定指针且屏幕中心准星未命中，检查自由鼠标指针位置
     if (!targetType && !isPointerLocked && this.lastPointerPos) {
       targetType = this.getInteractiveTargetAt(this.lastPointerPos);
     }
@@ -2060,7 +2060,7 @@ export class Engine {
       label = '全息实验台 · 单击选择实验';
     }
 
-    // If not hovering a beaker, query active experiment for hoverable equipment
+    // 若未悬停于烧杯，查询当前实验中可悬停的器材
     if (!hovered && this.holoStage.activeExperiment?.getHoverTarget) {
       const screenPos = (!isPointerLocked && this.lastPointerPos) ? this.lastPointerPos : this.centerScreen;
       this.raycaster.setFromCamera(screenPos, this.camera);
@@ -2078,7 +2078,7 @@ export class Engine {
     this.currentHoveredTarget = targetType;
     this.crosshair.setHovered(hovered, label);
 
-    // 3D Interactive feedback: highlight beaker body & halo ring
+    // 3D 交互反馈：高亮烧杯主体与光环
     if (this.beakerLeft) {
       this.beakerLeft.setHovered(targetType === 'beaker-left');
     }
@@ -2089,15 +2089,15 @@ export class Engine {
       this.holoTable.setHovered(targetType === 'holo-table');
     }
 
-    // Cursor feedback for interactive targets
+    // 交互目标的光标反馈
     if (this.renderer?.domElement) {
       this.renderer.domElement.style.cursor = hovered && !isPointerLocked ? 'pointer' : 'default';
     }
   }
 
-  public isWhiteboardMode = false; // Default engine mode is laboratory (3D scene active)
+  public isWhiteboardMode = false; // 默认引擎模式为实验室（3D 场景激活）
 
-  /** True while entering or leaving: the scripted camera owns the view. */
+  /** 进入或离开实验室动画过程中为 true：运镜脚本接管视角控制。 */
   public labEntryActive = false;
   public onLabEntryFrame: ((frame: LabEntryFrame) => void) | null = null;
   private labEntryClock: LabEntryClock | null = null;
@@ -2129,7 +2129,7 @@ export class Engine {
     }
   }
 
-  /** Stop a running dolly and leave the camera where it is. */
+  /** 停止运行中的运镜并保留摄像机在当前位置。 */
   public suspendLabMotion(): void {
     this.labEntryActive = false;
     this.labEntryClock = null;
@@ -2255,9 +2255,9 @@ export class Engine {
     this.lastFrameTime = now;
     const elapsed = (now - this.startTime) / 1000;
 
-    // When whiteboard is in focus, the 3D scene is completely hidden beneath the whiteboard layer.
-    // Skip 3D scene updates, physics, raycasting, and WebGL render calls to eliminate GPU/CPU waste.
-    // Only update HUD / perf overlay so user sees 60+ FPS with 0% GPU waste!
+    // 当聚焦于白板时，3D 场景完全隐藏在白板层下方。
+    // 跳过 3D 场景更新、物理模拟、光线投射及 WebGL 渲染调用，消除 GPU/CPU 资源浪费。
+    // 仅更新 HUD / 性能监控覆盖层，确保 60+ FPS 且无多余 GPU 开销。
     if (this.isWhiteboardMode) {
       if (this.hud) {
         this.hud.update(delta);
@@ -2265,7 +2265,7 @@ export class Engine {
       return;
     }
 
-    // The dolly owns the camera until it settles. Player integration would walk it off the path.
+    // 运镜平息前由其接管摄像机，避免玩家控制器积分使其偏离路径。
     if (this.labEntryActive) {
       this.tickLabEntry(delta);
     } else if (this.inputManager) {
@@ -2348,8 +2348,7 @@ export class Engine {
       this.chemistryEngineRight.update(delta);
     }
 
-    // Beaker drag. The pour itself runs after the meshes update, so the stream
-    // uses the tilt and the horizontal free surface from this frame.
+    // 烧杯拖拽：倾倒计算在网格更新后运行，使倾倒流使用当前帧的倾角与水平自由表面。
     if (this.beakerDragState && this.beakerDragState.isDragging) {
       const { sourceMesh, targetPosition, targetTilt, isPouring } = this.beakerDragState;
       sourceMesh.setTilt(targetTilt);
@@ -2403,7 +2402,7 @@ export class Engine {
       this.checkCrosshairIntersection(now);
     }
 
-    // Render using ultra-fast native pipeline (100+ FPS) or optional downsampled bloom composer
+    // 使用高速原生管线（100+ FPS）或可选的降采样泛光合成器进行渲染
     const tRenderStart = performance.now();
     if (this.isPostProcessingActive && this.composer) {
       this.composer.render();
@@ -2416,7 +2415,7 @@ export class Engine {
       this.hud.update(delta, renderDuration);
     }
 
-    // Only render CSS3D scene when spatial window is open/visible and transforms are dirty
+    // 仅在空间视窗打开/可见且变换发生改变时渲染 CSS3D 场景
     const isCss3dVisible = Boolean(this.css3dRenderer && this.css3dScene && isModalOpen && this.spatialWindowObject?.visible);
     if (isCss3dVisible) {
       const cam = this.camera;

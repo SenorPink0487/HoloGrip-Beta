@@ -7,16 +7,16 @@ export class HologramStage {
   private transitionGroup = new THREE.Group();
   private isTransitioning = false;
   private transitionTime = 0;
-  private transitionDuration = 0.65; // Seconds for holographic switch
+  private transitionDuration = 0.65; // 全息切换过渡时长（秒）
 
-  // Holographic projection beam effects
+  // 全息投影光束特效
   private emitterRing: THREE.Mesh;
   private hologramApertureLight: THREE.PointLight;
   private transitionParticles: THREE.Points;
 
   constructor() {
     this.group.name = 'HologramStage';
-    this.group.position.set(0, 0.908, 0); // Directly resting atop table circular aperture plate
+    this.group.position.set(0, 0.908, 0); // 直接位于实验台圆形孔径托盘上方
     this.group.add(this.transitionGroup);
 
     this.initTransitionEffects();
@@ -24,7 +24,7 @@ export class HologramStage {
   }
 
   private initTransitionEffects(): void {
-    // Hologram projection ring resting just over table aperture
+    // 位于实验台孔径正上方的全息投影光环
     const ringGeo = new THREE.RingGeometry(0.35, 0.48, 64);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x00f7ff,
@@ -38,12 +38,12 @@ export class HologramStage {
     this.emitterRing.position.y = 0.003;
     this.group.add(this.emitterRing);
 
-    // Dynamic stage light
+    // 动态全息舞台灯光
     this.hologramApertureLight = new THREE.PointLight(0x00e5ff, 0.8, 3.5, 2.0);
     this.hologramApertureLight.position.set(0, 0.35, 0);
     this.group.add(this.hologramApertureLight);
 
-    // Transition quantum particles
+    // 过渡量子粒子特效
     const count = 120;
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(count * 3);
@@ -83,8 +83,8 @@ export class HologramStage {
   }
 
   /**
-   * Seamlessly switch to a new experiment with animated holographic transition and async GPU shader pre-compilation.
-   * Reinforced with token-based async sequence guard to safely handle rapid consecutive switching.
+   * 平滑切换至新实验，包含全息动画过渡与 GPU 着色器异步预编译。
+   * 采用基于令牌（Token）的异步时序守卫，安全处理快速连续切换请求。
    */
   public async switchExperiment(
     newExperiment: IExperiment,
@@ -97,7 +97,7 @@ export class HologramStage {
 
     onProgress?.('Initializing experiment...');
 
-    // 1. Preload assets of new experiment
+    // 1. 预加载新实验资产
     if (newExperiment.preload) {
       await newExperiment.preload(context, (percent) => {
         if (this.currentSwitchToken === token) {
@@ -110,14 +110,14 @@ export class HologramStage {
       return false;
     }
 
-    // 2. Initialize new experiment geometry / structures
+    // 2. 初始化新实验几何体与结构
     await newExperiment.init(context);
     if (this.currentSwitchToken !== token) {
       newExperiment.dispose(context);
       return false;
     }
 
-    // 3. Pre-compile shaders on the GPU before showing (avoids first-render jank)
+    // 3. 在展示前于 GPU 上预编译着色器（避免首帧卡顿）
     if (this.currentSwitchToken === token) {
       onProgress?.('Compiling GPU shaders...');
     }
@@ -144,7 +144,7 @@ export class HologramStage {
       return false;
     }
 
-    // 4. Animate Holographic Out-Transition of old experiment
+    // 4. 执行旧实验的全息退场过渡
     const oldExperiment = this.currentExperiment;
     if (oldExperiment) {
       oldExperiment.unmount(context);
@@ -152,7 +152,7 @@ export class HologramStage {
       oldExperiment.dispose(context);
     }
 
-    // 5. Mount and fade in new experiment
+    // 5. 挂载并淡入新实验
     this.currentExperiment = newExperiment;
     newExperiment.mount(context);
     newExperiment.rootGroup.scale.set(0.01, 0.01, 0.01);
@@ -165,7 +165,7 @@ export class HologramStage {
 
     this.setStageVisible(true);
 
-    // 6. Complete transition
+    // 6. 完成过渡
     if (this.currentSwitchToken === token) {
       onProgress?.('Complete');
       this.isTransitioning = false;
@@ -178,7 +178,7 @@ export class HologramStage {
     if (visible && this.currentExperiment) {
       const targetScale = (this.currentExperiment as any).targetScale ?? 1.0;
       if (this.currentExperiment.rootGroup.scale.x < 0.1 * targetScale) {
-        // Prompt immediate scale-up if previously suppressed
+        // 若此前被抑制，立即触发放大展示
         const initScale = 0.2 * targetScale;
         this.currentExperiment.rootGroup.scale.set(initScale, initScale, initScale);
       }
@@ -202,7 +202,7 @@ export class HologramStage {
   public update(delta: number, elapsed: number, context: ExperimentContext): void {
     if (!this.group.visible) return;
 
-    // Animate stage emitter
+    // 驱动全息发射器动画
     if (this.emitterRing.visible) {
       this.emitterRing.rotation.z += delta * 0.5;
     }
@@ -210,7 +210,7 @@ export class HologramStage {
       this.hologramApertureLight.intensity = 0.8 + Math.sin(elapsed * 4.0) * 0.12;
     }
 
-    // Transition scaling animation
+    // 过渡缩放动画
     if (this.currentExperiment) {
       const targetScale = (this.currentExperiment as any).targetScale ?? 1.0;
       const currentScale = this.currentExperiment.rootGroup.scale.x;
@@ -220,7 +220,7 @@ export class HologramStage {
       }
     }
 
-    // Update active experiment
+    // 更新当前活动实验
     if (this.currentExperiment) {
       this.currentExperiment.update(delta, elapsed, context);
     }

@@ -10,9 +10,9 @@ import type { ExperimentContext } from '../../../core/types.ts';
 export interface HallMaterialProfile {
   name: string;
   carrierType: CarrierType;
-  carrierConcentration: number; // m^-3
-  carrierCharge: number;        // C
-  mobilityCm2Vs: number;        // cm^2 / (V·s)
+  carrierConcentration: number; // 载流子浓度，单位：m^-3
+  carrierCharge: number;        // 载流子电荷量，单位：C
+  mobilityCm2Vs: number;        // 迁移率，单位：cm^2 / (V·s)
 }
 
 export const MATERIAL_PROFILES: Record<string, HallMaterialProfile> = {
@@ -44,33 +44,33 @@ export default class EmHallExperiment extends BaseExperiment {
   public override targetScale = 3.8;
   public override hideCenterEmitter = true;
 
-  // 3D Assemblies
+  // 3D 装配组件
   private bench: HallBenchMesh;
   private interactionManager: HallInteractionManager;
 
-  // Core Physical Variables
-  private magFieldTesla = 0.5; // T
-  private currentMa = 10.0;     // mA
-  private waferThicknessMm = 0.5; // mm (0.0005 m)
-  private readonly waferWidthMm = 4.0; // mm (0.004 m)
-  private readonly waferLengthMm = 8.0; // mm (0.008 m)
+  // 核心物理变量
+  private magFieldTesla = 0.5; // 磁感应强度，单位：T
+  private currentMa = 10.0;     // 工作电流，单位：mA
+  private waferThicknessMm = 0.5; // 晶片厚度，单位：mm (0.0005 m)
+  private readonly waferWidthMm = 4.0; // 晶片宽度，单位：mm (0.004 m)
+  private readonly waferLengthMm = 8.0; // 晶片长度，单位：mm (0.008 m)
 
-  // Material & Carrier State
+  // 材料与载流子状态
   private materialKey = 'n-gaas';
   private materialName = 'n型砷化镓晶片 (n-GaAs)';
   private carrierType: CarrierType = 'electron';
-  private carrierConcentration = 1.25e21; // m^-3
-  private carrierCharge = -1.602176634e-19; // C
-  private mobilityCm2Vs = 8500; // cm^2 / (V·s)
+  private carrierConcentration = 1.25e21; // 载流子浓度，单位：m^-3
+  private carrierCharge = -1.602176634e-19; // 载流子电荷量，单位：C
+  private mobilityCm2Vs = 8500; // 迁移率，单位：cm^2 / (V·s)
 
-  // Visual toggles
+  // 视觉显示开关
   private showVectors = true;
   private showParticles = true;
 
-  // Cached telemetry snapshot
+  // 缓存的遥测数据快照
   private cachedTelemetry: HallTelemetryData | null = null;
 
-  // Telemetry listener for UI binding
+  // UI 绑定的遥测监听器
   private telemetryCallback: ((data: HallTelemetryData) => void) | null = null;
 
   constructor() {
@@ -78,17 +78,17 @@ export default class EmHallExperiment extends BaseExperiment {
   }
 
   public init(_context: ExperimentContext): void {
-    // Position experiment prominently in front workbench interaction zone
+    // 将实验主体放置于前方工作台交互区域
     this.rootGroup.position.set(0, 0.16, 1.60);
 
-    // 1. High-precision 3D Hall Bench
+    // 1. 高精度 3D 霍尔效应实验台
     this.bench = this.track(new HallBenchMesh({
       computeBridge: _context?.computeBridge,
     }));
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
 
-    // 2. Interaction Manager for 3D direct click / hover feedback
+    // 2. 交互管理器，提供 3D 直接点击与悬停反馈
     this.interactionManager = new HallInteractionManager({
       bench: this.bench,
       onCycleMaterial: () => this.cycleMaterial(),
@@ -112,7 +112,7 @@ export default class EmHallExperiment extends BaseExperiment {
     this.bench.update(delta);
   }
 
-  // ================= Physics Solver & Calculations =================
+  // ================= 物理求解器与数值计算 =================
   private recomputePhysicsAndSync(): void {
     const q = this.carrierCharge;
     const n = this.carrierConcentration;
@@ -121,31 +121,31 @@ export default class EmHallExperiment extends BaseExperiment {
     const currentAmps = this.currentMa * 1e-3;
     const bTesla = this.magFieldTesla;
 
-    // 1. Hall Coefficient R_H = 1 / (n * q)  [m^3 / C]
+    // 1. 霍尔系数 R_H = 1 / (n * q)  [m^3 / C]
     const rh = 1.0 / (n * q);
 
-    // 2. Hall Voltage V_H = R_H * (I * B) / d  [Volts]
-    // Converted to millivolts
+    // 2. 霍尔电压 V_H = R_H * (I * B) / d  [V]
+    // 转换为毫伏 (mV)
     const vhVolts = rh * (currentAmps * bTesla) / dMeters;
     const vhMv = vhVolts * 1000.0;
 
-    // 3. Hall Sensitivity K_H = |R_H| / d  [V / (A·T) or mV / (mA·T)]
+    // 3. 霍尔灵敏度 K_H = |R_H| / d  [V / (A·T) 或 mV / (mA·T)]
     const kh = Math.abs(rh) / dMeters;
 
-    // 4. Hall Transverse Electric Field E_H = V_H / w  [V / m]
+    // 4. 霍尔横向电场 E_H = V_H / w  [V / m]
     const eh = vhVolts / wMeters;
 
-    // 5. Drift Velocity v_d = I / (n * q * w * d)  [m / s]
+    // 5. 漂移速度 v_d = I / (n * q * w * d)  [m / s]
     const vd = currentAmps / (n * Math.abs(q) * wMeters * dMeters);
 
-    // 6. Lorentz Force F_L = q * v_d * B  [N]
+    // 6. 洛伦兹力 F_L = q * v_d * B  [N]
     const fl = Math.abs(q) * vd * Math.abs(bTesla);
 
-    // 7. Conductivity sigma = n * |q| * mu  [S / m]
+    // 7. 电导率 sigma = n * |q| * mu  [S / m]
     const muM2Vs = this.mobilityCm2Vs * 1e-4;
     const conductivity = n * Math.abs(q) * muM2Vs;
 
-    // Update 3D Bench, Top Parameter HUD & OLED display
+    // 更新 3D 实验台、顶部参数 HUD 及 OLED 屏显示
     this.bench.updateTelemetry(
       this.magFieldTesla,
       this.currentMa,
@@ -156,7 +156,7 @@ export default class EmHallExperiment extends BaseExperiment {
       this.waferThicknessMm
     );
 
-    // Broadcast to UI Telemetry Card if connected
+    // 若已连接，向 UI 遥测卡片广播最新数据
     this.cachedTelemetry = {
       magFieldTesla: this.magFieldTesla,
       currentMa: this.currentMa,
@@ -183,7 +183,7 @@ export default class EmHallExperiment extends BaseExperiment {
     this.telemetryCallback?.(this.cachedTelemetry);
   }
 
-  // ================= Public API & Parameter Setters =================
+  // ================= 公共 API 与参数设置器 =================
   public setMagField(bTesla: number): void {
     this.magFieldTesla = bTesla;
     this.recomputePhysicsAndSync();

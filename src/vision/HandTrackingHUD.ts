@@ -25,12 +25,12 @@ export class HandTrackingHUD {
   public isLogPanelOpen = true;
   private lastFrame: HandGestureFrame | null = null;
 
-  // Pinch duration history log
+  // 捏合持续时长历史记录日志
   private pinchLogs: PinchLogEntry[] = [];
   private maxPinchLogs = 60;
   private logIdCounter = 0;
 
-  // Cached DOM elements
+  // 缓存的 DOM 节点集合
   private logSectionEl!: HTMLElement;
   private logListEl!: HTMLElement;
   private logCountBadge!: HTMLElement;
@@ -42,7 +42,7 @@ export class HandTrackingHUD {
   private leftDurationVal!: HTMLElement;
   private rightDurationVal!: HTMLElement;
 
-  // DOM state cache to eliminate forced layout reflows
+  // DOM 状态缓存，彻底杜绝强制同步重排
   private cachedLeftTxt = '';
   private cachedLeftClass = '';
   private cachedLeftBadge = '';
@@ -66,7 +66,7 @@ export class HandTrackingHUD {
     this.container = document.createElement('div');
     this.container.id = 'vision-pro-tracking-hud';
 
-    // 1. Top-right Floating Pill
+    // 1. 右上角悬浮状态胶囊
     this.pillEl = document.createElement('div');
     this.pillEl.className = 'vp-hud-pill';
     this.pillEl.innerHTML = `
@@ -89,7 +89,7 @@ export class HandTrackingHUD {
       <button class="vp-pill-btn vp-pill-toggle-btn" title="开启/关闭手势识别">开启</button>
     `;
 
-    // 2. Camera Preview Modal (PiP)
+    // 2. 画中画摄像头预览浮窗
     this.previewModalEl = document.createElement('div');
     this.previewModalEl.className = 'vp-hud-preview-modal hidden';
     this.previewModalEl.innerHTML = `
@@ -178,7 +178,7 @@ export class HandTrackingHUD {
     this.previewCanvas = this.previewModalEl.querySelector('.vp-modal-canvas') as HTMLCanvasElement;
     this.previewCtx = this.previewCanvas.getContext('2d')!;
 
-    // Cache elements for high performance
+    // 预先缓存 DOM 节点以保证极致性能
     this.logSectionEl = this.previewModalEl.querySelector('.vp-pinch-log-section') as HTMLElement;
     this.logListEl = this.previewModalEl.querySelector('.vp-pinch-log-list') as HTMLElement;
     this.logCountBadge = this.previewModalEl.querySelector('.vp-log-badge') as HTMLElement;
@@ -208,7 +208,7 @@ export class HandTrackingHUD {
         transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
       }
 
-      /* Auto-hide Hand Tracking HUD when in Whiteboard mode or returning to whiteboard */
+      /* 处于白板模式或正在返回白板时，自动隐藏手部追踪 HUD */
       #vision-pro-tracking-hud.hidden,
       #vision-pro-tracking-hud.hidden-by-env,
       body:not(.lab-active) #vision-pro-tracking-hud,
@@ -307,7 +307,7 @@ export class HandTrackingHUD {
         border-color: rgba(10, 132, 255, 0.5);
       }
 
-      /* Camera Preview Modal (PiP) */
+      /* 画中画摄像头预览浮窗样式 */
       .vp-hud-preview-modal {
         position: absolute;
         top: calc(100% + 10px);
@@ -539,7 +539,7 @@ export class HandTrackingHUD {
         font-weight: 700;
       }
 
-      /* Pinch Duration History Log Section */
+      /* 捏合持续时长历史记录列表区域 */
       .vp-pinch-log-section {
         display: flex;
         flex-direction: column;
@@ -739,7 +739,7 @@ export class HandTrackingHUD {
       }
 
       /* ========================================================== */
-      /* Fullscreen Camera Modal Styles                             */
+      /* 全屏摄像头视窗样式 */
       /* ========================================================== */
       .vp-hud-preview-modal.fullscreen {
         position: fixed !important;
@@ -935,7 +935,7 @@ export class HandTrackingHUD {
       this.toggleFullscreen();
     });
 
-    // Double-click header toggles fullscreen (macOS window style)
+    // 双击窗口标题栏切换全屏显示（类 macOS 原生窗口行为）
     headerEl.addEventListener('dblclick', (e) => {
       if ((e.target as HTMLElement).closest('button')) return;
       this.toggleFullscreen();
@@ -1071,8 +1071,8 @@ export class HandTrackingHUD {
       targetW = maxH * aspect;
     }
 
-    // The camera supplies only vw × vh pixels. A huge HiDPI backing canvas
-    // repeatedly upscales the same pixels and stalls the tracking pipeline.
+    // 摄像头原生仅提供 vw × vh 物理像素。若强制使用超大 HiDPI 画布渲染，
+    // 反复放大相同像素不仅无画质收益，反而会阻滞手部追踪渲染管线。
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const backingScale = Math.min(dpr, (vw * 1.5) / targetW);
     this.previewCanvas.width = Math.round(targetW * backingScale);
@@ -1125,7 +1125,7 @@ export class HandTrackingHUD {
     this.service.onFrame((frame: HandGestureFrame) => {
       this.lastFrame = frame;
 
-      // Update Left Hand status
+      // 更新左手交互状态
       if (frame.leftHand) {
         const dur = Math.round(frame.leftHand.pinchDuration);
         if (frame.leftHand.isPinching) {
@@ -1173,7 +1173,7 @@ export class HandTrackingHUD {
           }
         }
 
-        // Left Pinch Ended -> Log it!
+        // 左手捏合结束 -> 写入记录日志
         if (frame.leftHand.justPinchEnded && frame.leftHand.pinchDuration > 0) {
           const finishedDur = Math.round(frame.leftHand.pinchDuration);
           const isQuick = frame.leftHandQuickPinch;
@@ -1196,7 +1196,7 @@ export class HandTrackingHUD {
         this.leftLiveBadge.classList.add('hidden');
       }
 
-      // Update Right Hand status
+      // 更新右手交互状态
       if (frame.rightHand) {
         const ratioTxt = `${Math.round(frame.rightHand.pinchStrength * 100)}%`;
         if (this.cachedRatioTxt !== ratioTxt) {
@@ -1250,7 +1250,7 @@ export class HandTrackingHUD {
           }
         }
 
-        // Right Pinch Ended -> Log it!
+        // 右手捏合结束 -> 写入记录日志
         if (frame.rightHand.justPinchEnded && frame.rightHand.pinchDuration > 0) {
           const finishedDur = Math.round(frame.rightHand.pinchDuration);
           const isDrag = finishedDur >= 350;
@@ -1284,9 +1284,9 @@ export class HandTrackingHUD {
   }
 
   /**
-   * Renders mirrored camera feed with two-hand skeleton and pinch indicators.
-   * Employs forward velocity extrapolation to synchronize landmarks with the live video feed,
-   * and batches Canvas2D draw calls to maximize framerate.
+   * 渲染水平镜像的摄像头画面，并叠加绘制双手骨骼拓扑结构与捏合指示器。
+   * 结合前向速度外推算法，使骨骼关键点与实时视频流完美对齐同步，
+   * 并通过批量批处理 Canvas2D 绘制调用以实现极致高帧率。
    */
   private renderPreviewCanvas(frame: HandGestureFrame): void {
     const video = this.service.getVideoElement();
@@ -1367,7 +1367,7 @@ export class HandTrackingHUD {
       const prev = this.prevHandLandmarks.get(hand.handKey);
       let lms = rawLms;
 
-      // Visual latency forward-extrapolation: compensates for pipeline delay relative to live video
+      // 视觉延迟前向外推补偿：消除关键点相对于实时视频流的管线处理延迟
       if (prev && frame.timestamp > prev.timestamp) {
         const dt = Math.max(frame.timestamp - prev.timestamp, 1);
         const factor = Math.min(latencyCompensationMs / dt, 1.2);
@@ -1384,7 +1384,7 @@ export class HandTrackingHUD {
       }
       this.prevHandLandmarks.set(hand.handKey, { lms: rawLms, timestamp: frame.timestamp });
 
-      // 1. Draw skeleton bones in a single batched path
+      // 1. 在单一批量路径中绘制手部骨骼连线
       ctx.lineWidth = Math.round(2 * scale);
       ctx.strokeStyle = hand.boneColor;
       ctx.beginPath();
@@ -1397,7 +1397,7 @@ export class HandTrackingHUD {
       }
       ctx.stroke();
 
-      // 2. Draw pinch line between thumb (4) and index (8)
+      // 2. 绘制拇指 (4) 与食指 (8) 之间的捏合指示虚线
       const thumb = lms[4];
       const index = lms[8];
       const tx = (1.0 - thumb.x) * w;
@@ -1412,7 +1412,7 @@ export class HandTrackingHUD {
       ctx.lineTo(ix, iy);
       ctx.stroke();
 
-      // 3. Batched joints drawing: standard joints (white)
+      // 3. 批量绘制标准关节点（白色外环）
       ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
       ctx.beginPath();
       const rJoint = 2.5 * scale;
@@ -1426,7 +1426,7 @@ export class HandTrackingHUD {
       }
       ctx.fill();
 
-      // 4. Batched fingertip joints (thumb & index)
+      // 4. 批量绘制关键指尖节点（大拇指与食指）
       ctx.fillStyle = hand.data.isPinching ? '#30d158' : hand.jointColor;
       ctx.beginPath();
       const rTip = 4.5 * scale;
@@ -1441,7 +1441,7 @@ export class HandTrackingHUD {
       ctx.arc(ipx, ipy, rTip, 0, 2 * Math.PI);
       ctx.fill();
 
-      // 5. Midpoint indicator with label
+      // 5. 绘制中点标记与状态文本标签
       const mx = (1.0 - (thumb.x + index.x) * 0.5) * w;
       const my = (thumb.y + index.y) * 0.5 * h;
 
@@ -1453,7 +1453,7 @@ export class HandTrackingHUD {
       ctx.strokeStyle = hand.jointColor;
       ctx.stroke();
 
-      // 6. Hand label above wrist
+      // 6. 在手腕上方绘制手势左右手标识
       const wristX = (1.0 - lms[0].x) * w;
       const wristY = lms[0].y * h;
       ctx.fillStyle = hand.jointColor;
@@ -1620,7 +1620,7 @@ export class HandTrackingHUD {
       ? !wbRoot.classList.contains('hidden-view')
       : false;
 
-    // When whiteboard app is present in DOM, automatically hide HUD if whiteboard is visible or lab is inactive/returning
+    // 当页面包含白板应用时，若白板可见或处于返回中状态，自动隐藏手部追踪 HUD
     if (wbRoot && (isWbVisible || !isLabActive || isLabReturning)) {
       this.container.classList.add('hidden-by-env');
     } else {

@@ -3,7 +3,7 @@ import { getUser, subscribe } from '../account/session.ts';
 import { BoardState, durable, type BoardCommand, type BoardMessage } from './collaboration.ts';
 import type { WhiteboardCanvas } from './WhiteboardCanvas.ts';
 
-/** One connection per signed-in user/class, with bounded, session-persistent retries. */
+/** 每个已登录用户/班级维护一条连接，具备有界、会话持久化的重试机制。 */
 export class WhiteboardConnection {
   private canvas: WhiteboardCanvas;
   private status: HTMLElement;
@@ -60,7 +60,7 @@ export class WhiteboardConnection {
     try {
       const saved = JSON.parse(sessionStorage.getItem(this.storageKey()) || '[]');
       if (Array.isArray(saved) && saved.length <= 100) this.pending = saved.filter(c => c && typeof c.opId === 'string' && typeof c.pageId === 'string' && durable(c));
-    } catch { /* Storage is optional; retries still work for this open app. */ }
+    } catch { /* 存储为可选功能；内存重试机制在当前运行的应用中仍生效。 */ }
     this.attempts = 0;
     void this.connect(this.generation);
   }
@@ -133,7 +133,7 @@ export class WhiteboardConnection {
       this.state.snapshot(message);
       this.ready = true; this.synced = true; this.attempts = 0;
       clearTimeout(this.connectTimer);
-      // Keep IDs until ack. Resending a previously saved clear is safe on the server.
+      // 在收到服务端 ACK 前保留 ID。在服务端重复重发已保存的清屏操作是幂等安全的。
       for (const command of this.pending) this.write(command);
       this.render(); this.canvas.resumeStream(); this.watchAcks(); this.setStatus(); return;
     }
@@ -150,7 +150,7 @@ export class WhiteboardConnection {
     if (message.type === 'ack') { this.ack(message.opId); this.render(); this.setStatus(); return; }
     if (!this.state.apply(message)) { this.sync(); return; }
     if (message.opId) this.ack(message.opId);
-    // Invalidate local drawing immediately, before another pointer event can send stale points.
+    // 立即作废本地绘制，防止后续指针事件发送过期点数据。
     if (message.type === 'canvas_clear' || message.type === 'page_delete') this.render();
     else this.scheduleRender();
     this.setStatus();

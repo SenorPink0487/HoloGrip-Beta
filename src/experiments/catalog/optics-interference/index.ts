@@ -35,7 +35,7 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
   private slitWidth = 0.04;
   private showWavefronts = true;
 
-  // Multi-Core Worker Buffer
+  // 多核 Worker 缓冲区
   private workerIntensityBuffer: Float32Array = new Float32Array(512);
   private displayIntensityBuffer: Float32Array = new Float32Array(512);
   private isWorkerBusy = false;
@@ -43,11 +43,11 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
   private lastStateHash = '';
 
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    // 橡胶防震脚垫平稳贴合桌面 (Y=0.063)，沿桌面横向向前平移至交互工作区 (Z=0.96)
     this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
-    // 1. Rail & Saddles
+    // 1. 光学导轨与滑块座
     this.rail = this.track(new OpticalBenchRail());
     this.rootGroup.add(this.rail.group);
     this.addDisposable(() => this.rail.dispose());
@@ -61,27 +61,27 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
     this.screenSaddle = this.rail.createCarrierSaddle('ScreenSaddle');
     this.screenSaddle.position.z = 0.48;
 
-    // 2. Laser Emitter
+    // 2. 激光发射器
     this.laser = this.track(new LaserEmitterMesh(this.wavelength));
     this.laserSaddle.add(this.laser.group);
     this.addDisposable(() => this.laser.dispose());
 
-    // 3. Double Slit Fixture
+    // 3. 双缝光阑组件
     this.slitFixture = this.track(new SlitApertureMesh('double'));
     this.slitSaddle.add(this.slitFixture.group);
     this.addDisposable(() => this.slitFixture.dispose());
 
-    // 4. Observation Screen & Meter
+    // 4. 观测屏与探测仪
     this.detectorScreen = this.track(new DetectorScreenMesh());
     this.screenSaddle.add(this.detectorScreen.group);
     this.addDisposable(() => this.detectorScreen.dispose());
 
-    // 5. Beams
+    // 5. 光束系统
     this.beamSystem = this.track(new OpticalBeamSystem(this.wavelength));
     this.rootGroup.add(this.beamSystem.group);
     this.addDisposable(() => this.beamSystem.dispose());
 
-    // 6. Interaction Manager
+    // 6. 交互管理器
     this.interactionManager = new OpticsInteractionManager({
       rootGroup: this.rootGroup,
       rail: this.rail,
@@ -135,10 +135,10 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
     }
 
     this.beamSystem.setIntensity(1.0);
-    // 1. Incoming laser beam terminates at the double slit plate (does not penetrate)
+    // 1. 入射激光束终止于双缝板（不穿透挡光部分）
     this.beamSystem.updateSegmentedBeam([{ start: _START_POS, end: _SLIT_POS, intensity: 1.0 }]);
 
-    // 2. Coherent interference wave ripples & spreading diffracted light from slits to screen
+    // 2. 从双缝至光屏的相干干涉波前波纹与衍射发散光束
     if (this.showWavefronts) {
       this.beamSystem.updateDoubleSlitWavefronts(
         this.slitSaddle.position.z,
@@ -162,7 +162,7 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
       screenDistM
     );
 
-    // Multi-Core Worker physics computation
+    // 多核 Worker 物理计算
     const stateHash = `${this.wavelength}_${this.slitDistance.toFixed(3)}_${this.slitWidth.toFixed(3)}_${screenDistM.toFixed(3)}`;
     const hasWorker = Boolean(
       context.computeBridge || (context.workerPool && context.workerPool.size > 0)

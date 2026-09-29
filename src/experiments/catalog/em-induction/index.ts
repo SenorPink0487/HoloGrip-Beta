@@ -112,7 +112,7 @@ export default class EmInductionExperiment extends BaseExperiment {
           this.isWorkerBusy = false;
           if (this.isDisposed || !res) return;
 
-          // Discard results if user modified the state while worker computation was in flight
+          // 若 Worker 计算期间用户修改了状态，则丢弃过期的计算结果
           if (currentVersion !== this.stateVersion) {
             return;
           }

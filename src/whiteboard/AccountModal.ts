@@ -70,7 +70,7 @@ export class AccountModal {
     try {
       this.element.querySelectorAll('input, textarea').forEach((el) => (el as HTMLElement).blur?.());
     } catch {
-      // Ignore
+      // 忽略错误
     }
     this.isOpen = false;
     this.element.classList.remove('open');

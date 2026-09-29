@@ -16,7 +16,7 @@ export interface ConductionTelemetryData {
   totalHeatFlowW: number;    // W
   timeElapsed: number;       // s
   isSteadyState: boolean;
-  tempProfile: number[];     // e.g. 33 grid points along rod
+  tempProfile: number[];     // 例如：沿金属棒分布的 33 个网格点
 }
 
 export interface ConductionStatusCardCallbacks {
@@ -54,7 +54,7 @@ export class ConductionStatusCard {
     tempProfile: new Array(33).fill(372.5),
   };
 
-  // Cached DOM elements
+  // 缓存的 DOM 节点集合
   private valTempHEl: HTMLElement | null = null;
   private valTempCEl: HTMLElement | null = null;
   private valFluxEl: HTMLElement | null = null;
@@ -347,7 +347,7 @@ export class ConductionStatusCard {
     const mapX = (normX: number) => padL + normX * chartW;
     const mapY = (tK: number) => padT + chartH - ((tK - tMin) / (tMax - tMin)) * chartH;
 
-    // Grid lines
+    // 图表网格参考线
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     for (let t = 300; t <= 600; t += 100) {
@@ -385,7 +385,7 @@ export class ConductionStatusCard {
     ctx.lineTo(w - padR, padT + chartH);
     ctx.stroke();
 
-    // 1. Theoretical Steady-State Reference Path
+    // 1. 理论稳态温度参考曲线
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([4, 3]);
@@ -409,7 +409,7 @@ export class ConductionStatusCard {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 2. Live Dynamic Transient Temperature Curve T(x)
+    // 2. 实时动态瞬态温度分布曲线 T(x)
     const pts = d.tempProfile;
     if (pts && pts.length > 1) {
       ctx.strokeStyle = '#38bdf8';
@@ -424,7 +424,7 @@ export class ConductionStatusCard {
       ctx.stroke();
     }
 
-    // 3. Mark Probe Position
+    // 3. 标记测温探头所在空间位置
     const probeX = mapX(d.probePositionNorm);
     const probeY = mapY(d.probeTempK);
 
@@ -439,13 +439,13 @@ export class ConductionStatusCard {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Glowing halo
+    // 探头位置高亮发光光晕
     ctx.fillStyle = 'rgba(0, 245, 255, 0.35)';
     ctx.beginPath();
     ctx.arc(probeX, probeY, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    // Center dot
+    // 探头中心定位点
     ctx.fillStyle = '#00f5ff';
     ctx.beginPath();
     ctx.arc(probeX, probeY, 4, 0, Math.PI * 2);
@@ -474,13 +474,13 @@ export class ConductionStatusCard {
 
     const d = this.currentData;
 
-    // 1. FLIR False-Color Thermal Spectrum Bar
+    // 1. 绘制 FLIR 伪彩色红外热谱色带
     const grad = ctx.createLinearGradient(padL, 0, padL + barW, 0);
     grad.addColorStop(0.0, '#ffffff'); // Hottest
     grad.addColorStop(0.2, '#ef4444'); // Red
     grad.addColorStop(0.5, '#eab308'); // Yellow
     grad.addColorStop(0.75, '#06b6d4'); // Cyan
-    grad.addColorStop(1.0, '#1e1b4b'); // Deep Blue (Coldest)
+    grad.addColorStop(1.0, '#1e1b4b'); // 深蓝（最低温）
 
     ctx.fillStyle = grad;
     ctx.beginPath();
@@ -490,7 +490,7 @@ export class ConductionStatusCard {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Labels for Hot and Cold Ends
+    // 冷热两端温度标注
     ctx.fillStyle = '#ef4444';
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'left';
@@ -500,7 +500,7 @@ export class ConductionStatusCard {
     ctx.textAlign = 'right';
     ctx.fillText(`冷端 T_C: ${Math.round(d.coldSourceTemp)}K`, padL + barW, barY - 8);
 
-    // Heat Flux Vector Arrows (--> --> -->)
+    // 热流通量方向箭头矢量 (--> --> -->)
     const arrowCount = 7;
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#ffffff';
@@ -519,13 +519,13 @@ export class ConductionStatusCard {
       ctx.stroke();
     }
 
-    // 2. Direction Indicator & Heat Flux Values
+    // 2. 方向指示器与热流密度数值标注
     ctx.fillStyle = '#cbd5e1';
     ctx.font = '11px -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`导热方向: 热端 -> 冷端 (q = -k dT/dx = ${(d.localHeatFlux / 1000).toFixed(1)} kW/m²)`, w * 0.5, barY + barH + 24);
 
-    // Composite Bar Junction Indicator
+    // 复合导热棒中心结合界面标记
     if (d.material === 'composite') {
       const jx = padL + barW * 0.5;
       ctx.strokeStyle = '#ffffff';
@@ -543,7 +543,7 @@ export class ConductionStatusCard {
       ctx.fillText('铜-钢过渡交界面', jx, barY + barH + 40);
     }
 
-    // Probe position arrow on FLIR bar
+    // 热谱色带上的探头位置指示箭头
     const px = padL + d.probePositionNorm * barW;
     ctx.fillStyle = '#00f5ff';
     ctx.beginPath();

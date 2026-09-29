@@ -107,14 +107,14 @@ export class PolarizerMesh {
       roughness: 0.25,
     });
 
-    // 1. Post (Ø12mm)
+    // 1. 安装立柱（直径 12mm）
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.14, 24), postMat);
     post.position.y = 0.07;
     post.castShadow = true;
     post.userData = { isPolarizer: true, polarizer: this };
     this.group.add(post);
 
-    // 2. Annular Stator Bracket (Outer ring Ø92mm, inner aperture Ø76mm)
+    // 2. 环形定子支架（外圆直径 92mm，内通光孔径 76mm）
     const statorShape = new THREE.Shape();
     statorShape.absarc(0, 0, 0.046, 0, Math.PI * 2, false);
     const holePath = new THREE.Path();
@@ -132,12 +132,12 @@ export class PolarizerMesh {
     stator.userData = { isPolarizerRotor: true, polarizer: this };
     this.group.add(stator);
 
-    // 3. Stator top lock screw
+    // 3. 定子顶部锁紧螺钉
     const lockScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.012, 16), knurledMat);
     lockScrew.position.set(0, 0.235, 0);
     this.group.add(lockScrew);
 
-    // 4. Zero degree vernier reading index pointer
+    // 4. 0 度游标读数指标线
     const ptrGeo = new THREE.BoxGeometry(0.003, 0.014, 0.002);
     const ptrMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
     const pointer = new THREE.Mesh(ptrGeo, ptrMat);
@@ -154,13 +154,13 @@ export class PolarizerMesh {
 
     this.rotatableRing.position.set(0, 0.186, 0);
 
-    // 1. Rotor ring with knurled finger rim
+    // 1. 带滚花指拨外圈的转子环
     const rotorGeo = new THREE.TorusGeometry(0.036, 0.004, 16, 48);
     const rotor = new THREE.Mesh(rotorGeo, ringMat);
     rotor.userData = { isPolarizerRotor: true, polarizer: this };
     this.rotatableRing.add(rotor);
 
-    // 2. Dial face plate with 360 degree scale
+    // 2. 带有 360 度分度盘的刻度盘面板
     const dialTex = this.createDialCanvas();
     const dialMat = new THREE.MeshBasicMaterial({
       map: dialTex,
@@ -173,7 +173,7 @@ export class PolarizerMesh {
     dialPlane.userData = { isPolarizerRotor: true, polarizer: this };
     this.rotatableRing.add(dialPlane);
 
-    // 3. Polarizing film disc (PVA dichroic crystal sheet)
+    // 3. 偏振片圆片（PVA 二向色性晶体薄膜）
     this.filmMat = new THREE.MeshPhysicalMaterial({
       color: 0x3d4b59,
       roughness: 0.08,
@@ -191,14 +191,14 @@ export class PolarizerMesh {
     filmDisc.userData = { isPolarizerRotor: true, polarizer: this };
     this.rotatableRing.add(filmDisc);
 
-    // 4. Transmission polarization axis indicator needle
+    // 4. 透光偏振轴指示针
     const axisGeo = new THREE.BoxGeometry(0.0015, 0.052, 0.001);
     const axisMat = new THREE.MeshBasicMaterial({ color: 0x00f7ff });
     const axisNeedle = new THREE.Mesh(axisGeo, axisMat);
     axisNeedle.position.z = 0.002;
     this.rotatableRing.add(axisNeedle);
 
-    // Arrows on both ends of the axis needle
+    // 轴向指示针两端的箭头
     const arrowTop = new THREE.Mesh(new THREE.ConeGeometry(0.003, 0.006, 12), axisMat);
     arrowTop.position.set(0, 0.025, 0.002);
     this.rotatableRing.add(arrowTop);

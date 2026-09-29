@@ -16,7 +16,7 @@ export interface RayRefractionResult {
 
 export class OpticalPhysics {
   /**
-   * Approximate CIE RGB conversion from wavelength (380nm - 750nm)
+   * 根据波长（380nm - 750nm）近似计算 CIE RGB 颜色
    */
   public static wavelengthToColor(wavelengthNm: number): THREE.Color {
     let r = 0;
@@ -50,7 +50,7 @@ export class OpticalPhysics {
       b = 0.0;
     }
 
-    // Intensity falloff near vision limits
+    // 靠近人眼视觉极限处的光强衰减
     let factor = 0.0;
     if (w >= 380 && w < 420) {
       factor = 0.3 + 0.7 * (w - 380) / (420 - 380);
@@ -68,19 +68,19 @@ export class OpticalPhysics {
   }
 
   /**
-   * Cauchy's equation for refractive index dispersion in glass:
-   * n(lambda) = A + B / lambda^2 (lambda in micrometers)
+   * 玻璃色散折射率的柯西公式：
+   * n(lambda) = A + B / lambda^2（lambda 单位为微米）
    */
   public static getCauchyIndex(wavelengthNm: number, baseIndex = 1.52, dispersionStrength = 0.005): number {
     const lambdaUm = wavelengthNm / 1000;
-    // Standard reference wavelength is 589.3nm (Sodium D line)
+    // 标准参考波长为 589.3nm（钠黄光 D 双线）
     const refUm = 0.5893;
     const delta = dispersionStrength * (1 / (lambdaUm * lambdaUm) - 1 / (refUm * refUm));
     return Math.max(1.0, baseIndex + delta);
   }
 
   /**
-   * Vector Snell's Law refraction. Returns true if refraction occurs, or false on Total Internal Reflection (TIR).
+   * 矢量形式斯涅尔定律折射计算。发生折射返回 true，发生全反射（TIR）返回 false。
    */
   public static refractRay(
     incidentDir: THREE.Vector3,
@@ -94,14 +94,14 @@ export class OpticalPhysics {
 
     let c1 = -v.dot(n);
     if (c1 < 0) {
-      // Ray is travelling from inside to outside
+      // 光线正从介质内部穿向外部
       n.negate();
       c1 = -v.dot(n);
     }
 
     const c2Squared = 1.0 - eta * eta * (1.0 - c1 * c1);
     if (c2Squared < 0) {
-      // Total internal reflection (TIR)
+      // 发生全反射（TIR）
       const reflected = v.clone().reflect(n);
       return {
         refracted: false,
@@ -121,7 +121,7 @@ export class OpticalPhysics {
   }
 
   /**
-   * Malus's Law calculation for transmitted light intensity through an analyzer:
+   * 马吕斯定律计算透射光强（经检偏器后）：
    * I = I_0 * cos^2(theta2 - theta1)
    */
   public static calculateMalusIntensity(polarizerAngleDeg: number, analyzerAngleDeg: number, initialIntensity = 1.0): number {
@@ -131,7 +131,7 @@ export class OpticalPhysics {
   }
 
   /**
-   * Double-slit fringe spacing calculation:
+   * 双缝干涉条纹间距计算：
    * Delta y = (lambda * L) / d
    */
   public static calculateDoubleSlitFringeSpacing(wavelengthNm: number, slitDistanceMm: number, screenDistanceM: number): number {
@@ -139,11 +139,11 @@ export class OpticalPhysics {
     const d = slitDistanceMm * 1e-3;
     const L = screenDistanceM;
     if (d <= 0) return 0;
-    return (lambda * L) / d; // In meters
+    return (lambda * L) / d; // 单位：米
   }
 
   /**
-   * Single-slit first minimum angular half-width:
+   * 单缝衍射第一极小角半角宽度：
    * theta_1 = arcsin(lambda / a)
    */
   public static calculateSingleSlitAiryWidth(wavelengthNm: number, slitWidthMm: number, screenDistanceM: number): number {
@@ -151,11 +151,11 @@ export class OpticalPhysics {
     const a = slitWidthMm * 1e-3;
     if (a <= 0) return 0;
     const sinTheta = Math.min(1.0, lambda / a);
-    return 2.0 * screenDistanceM * Math.tan(Math.asin(sinTheta)); // Full width of central maximum
+    return 2.0 * screenDistanceM * Math.tan(Math.asin(sinTheta)); // 中央明纹总宽度
   }
 
   /**
-   * Multi-spectral dispersion through equilateral 60-degree prism
+   * 60 度等边三棱镜的多光谱色散计算
    */
   public static calculatePrismDispersionRays(
     apexPos: THREE.Vector3,
@@ -181,28 +181,28 @@ export class OpticalPhysics {
     const cosT = Math.cos(theta);
     const sinT = Math.sin(theta);
 
-    // Rotated apex A and base corners B, C in XZ plane relative to apexPos
-    // Local: A = (0, -h*0.5), B = (-side*0.5, h*0.5), C = (side*0.5, h*0.5)
+    // 相对 apexPos 在 XZ 平面旋转后的顶角 A 及底角 B、C
+    // 局部坐标：A = (0, -h*0.5), B = (-side*0.5, h*0.5), C = (side*0.5, h*0.5)
     const Ax = apexPos.x + (-h * 0.5) * sinT;
     const Az = apexPos.z + (-h * 0.5) * cosT;
     const Bx = apexPos.x + (-side * 0.5) * cosT + (h * 0.5) * sinT;
     const Bz = apexPos.z - (-side * 0.5) * sinT + (h * 0.5) * cosT;
 
-    // Face 1 (AB) outward normal pointing into air
+    // 界面 1（AB）指向空气的外法向量
     const N1 = new THREE.Vector3(
       -0.866025 * cosT - 0.5 * sinT,
       0,
       0.866025 * sinT - 0.5 * cosT
     ).normalize();
 
-    // Face 2 (AC) outward normal pointing into air
+    // 界面 2（AC）指向空气的外法向量
     const N2 = new THREE.Vector3(
       0.866025 * cosT - 0.5 * sinT,
       0,
       -0.866025 * sinT - 0.5 * cosT
     ).normalize();
 
-    // Ray incident point on Face 1 (AB)
+    // 光线在界面 1（AB）上的入射点
     let u = (incomingPos.x - Ax) / (Bx - Ax || 1e-5);
     if (u < 0.1 || u > 0.9) {
       u = 0.45;
@@ -217,15 +217,15 @@ export class OpticalPhysics {
     if (inDir.lengthSq() < 1e-4) inDir.set(0, 0, 1);
 
     for (const spec of spectrumWavelengths) {
-      // Enhanced visual dispersion coefficient (0.016) for crisp, clear spectral separation
+      // 增强视觉色散系数（0.016），呈现清晰分明的各色光谱分离
       const n = OpticalPhysics.getCauchyIndex(spec.wl, baseIndex, 0.016);
       const color = OpticalPhysics.wavelengthToColor(spec.wl);
 
-      // 1. Refract into glass at Face 1
+      // 1. 在界面 1 折射进入玻璃
       const r1 = OpticalPhysics.refractRay(inDir, N1, 1.0, n);
       const dirInside = r1.outDirection;
 
-      // 2. Intersect Face 2 plane (passing through A with normal N2)
+      // 2. 与界面 2 所在平面求交（过点 A，法向量为 N2）
       const denom = dirInside.dot(N2);
       const tExit = Math.abs(denom) > 1e-5
         ? (new THREE.Vector3(Ax - pEnter.x, 0, Az - pEnter.z).dot(N2)) / denom
@@ -234,11 +234,11 @@ export class OpticalPhysics {
       const pExit = pEnter.clone().add(dirInside.clone().multiplyScalar(Math.max(0.01, tExit)));
       pExit.y = apexPos.y;
 
-      // 3. Refract out of glass into air at Face 2
+      // 3. 在界面 2 从玻璃折射出射至空气
       const r2 = OpticalPhysics.refractRay(dirInside, N2, n, 1.0);
       const dirOut = r2.totalInternalReflection ? dirInside : r2.outDirection;
 
-      // 4. Intersect Detector Screen at screenZ
+      // 4. 与位于 screenZ 处的观测屏求交
       const distZ = screenZ - pExit.z;
       const tScreen = dirOut.z > 1e-4 ? distZ / dirOut.z : 0.45;
       const pScreen = pExit.clone().add(dirOut.clone().multiplyScalar(Math.max(0.05, tScreen)));

@@ -61,27 +61,27 @@ export class PeriodicTableModal {
     { number: 30, symbol: 'Zn', name: '锌', enName: 'Zinc', mass: 65.38, period: 4, group: 12, category: 'transition-metal', electronConfig: '[Ar] 3d¹⁰ 4s²', oxidationStates: '+2', reagentIds: ['Zn'] },
     { number: 35, symbol: 'Br', name: '溴', enName: 'Bromine', mass: 79.904, period: 4, group: 17, category: 'reactive-nonmetal', electronConfig: '[Ar] 3d¹⁰ 4s² 4p⁵', oxidationStates: '+5, +1, -1', reagentIds: ['Br2'] },
 
-    // Period 5 & 6 (Common Lab Elements aligned vertically with their chemical family)
+    // 第 5 与第 6 周期（常用实验室元素垂直对其所属化学族）
     { number: 47, symbol: 'Ag', name: '银', enName: 'Silver', mass: 107.87, period: 5, group: 11, category: 'transition-metal', electronConfig: '[Kr] 4d¹⁰ 5s¹', oxidationStates: '+1', reagentIds: ['AgNO3'] },
     { number: 53, symbol: 'I', name: '碘', enName: 'Iodine', mass: 126.90, period: 5, group: 17, category: 'reactive-nonmetal', electronConfig: '[Kr] 4d¹⁰ 5s² 5p⁵', oxidationStates: '+7, +5, -1', reagentIds: ['KI', 'I2'] },
     { number: 56, symbol: 'Ba', name: '钡', enName: 'Barium', mass: 137.33, period: 6, group: 2, category: 'alkaline-earth', electronConfig: '[Xe] 6s²', oxidationStates: '+2', reagentIds: ['BaCl2'] },
   ];
 
   /**
-   * Layout configuration mapping atomic numbers of common elements to their 18-column x 5-row periodic positions.
-   * Maintains exact chemical group (column) and periodic group alignment:
-   * - Col 1: Alkali Metals (H, Li, Na, K)
-   * - Col 2: Alkaline Earth Metals (Be, Mg, Ca, Ba)
-   * - Col 7: Mn
-   * - Col 8: Fe
-   * - Col 11: Coinage Metals (Cu, Ag)
-   * - Col 12: Zn
-   * - Col 13: Boron & Aluminium (B, Al)
-   * - Col 14: Carbon Group (C, Si)
-   * - Col 15: Nitrogen Group (N, P)
-   * - Col 16: Chalcogens (O, S)
-   * - Col 17: Halogens (F, Cl, Br, I)
-   * - Col 18: Noble Gases (He, Ne, Ar)
+   * 元素周期表布局映射：将常用化学元素精准映射至 18 列 x 5 行的周期表网格位置。
+   * 严格保持化学族（列）与周期（行）的对应关系：
+   * - 第 1 列：碱金属（H、Li、Na、K）
+   * - 第 2 列：碱土金属（Be、Mg、Ca、Ba）
+   * - 第 7 列：锰（Mn）
+   * - 第 8 列：铁（Fe）
+   * - 第 11 列：铜族金属（Cu、Ag）
+   * - 第 12 列：锌（Zn）
+   * - 第 13 列：硼与铝（B、Al）
+   * - 第 14 列：碳族元素（C、Si）
+   * - 第 15 列：氮族元素（N、P）
+   * - 第 16 列：氧族元素（O、S）
+   * - 第 17 列：卤族元素（F、Cl、Br、I）
+   * - 第 18 列：稀有气体（He、Ne、Ar）
    */
   public static readonly COMMON_ELEMENT_LAYOUT: Record<number, { row: number; col: number }> = {
     // Period 1
@@ -117,9 +117,9 @@ export class PeriodicTableModal {
     30: { row: 4, col: 12 },  // Zn
     35: { row: 4, col: 17 },  // Br
 
-    // Period 5 & 6 (Common Lab Elements aligned vertically with their chemical family)
-    56: { row: 5, col: 2 },   // Ba (Alkaline Earth: Be -> Mg -> Ca -> Ba)
-    47: { row: 5, col: 11 },  // Ag (Coinage Metals: Cu -> Ag)
+    // 第 5 与第 6 周期（常用实验室元素垂直对其所属化学族）
+    56: { row: 5, col: 2 },   // 钡 Ba（碱土金属：Be -> Mg -> Ca -> Ba）
+    47: { row: 5, col: 11 },  // 银 Ag（铜族金属：Cu -> Ag）
     53: { row: 5, col: 17 },  // I  (Halogens: F -> Cl -> Br -> I)
   };
 
@@ -264,7 +264,7 @@ export class PeriodicTableModal {
 
     mainGrid.innerHTML = '';
 
-    // Render 28 common elements with exact periodic group and period alignment
+    // 渲染 28 种常用元素，严格对应其族与周期位置
     for (const [numStr, pos] of Object.entries(PeriodicTableModal.COMMON_ELEMENT_LAYOUT)) {
       const num = parseInt(numStr, 10);
       const elem = PeriodicTableModal.ELEMENTS.find((e) => e.number === num);
@@ -301,7 +301,7 @@ export class PeriodicTableModal {
       return list;
     }
 
-    // Auto-generate standard elemental reagent if no specific compounds are configured
+    // 若未配置特定化合物试剂，则自动生成标准单质试剂
     const id = elem.symbol;
     if (!ChemistryEngine.REAGENTS[id]) {
       const isMetal = [
@@ -335,7 +335,7 @@ export class PeriodicTableModal {
     const card = this.element.querySelector('#element-popover-card') as HTMLElement;
     if (!overlay || !card) return;
 
-    // Highlight selected cell
+    // 高亮当前选中的元素单元格
     this.element.querySelectorAll('.element-cell').forEach((c) => {
       const isSelected = (c as HTMLElement).dataset.num === elem.number.toString();
       c.classList.toggle('selected', isSelected);
@@ -391,7 +391,7 @@ export class PeriodicTableModal {
       </div>
     `;
 
-    // Bind reagent buttons
+    // 绑定试剂选择按钮事件
     reagents.forEach((r) => {
       const btn = card.querySelector(`.popover-reagent-row[data-reagent-id="${r.id}"]`);
       btn?.addEventListener('click', (e) => {
@@ -420,13 +420,13 @@ export class PeriodicTableModal {
       });
     });
 
-    // Close button
+    // 关闭按钮事件
     card.querySelector('#btn-popover-close')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.closeElementPopover();
     });
 
-    // Prevent card clicks from bubbling to backdrop dismiss
+    // 阻止卡片内部点击事件冒泡导致弹窗关闭
     card.addEventListener('click', (e) => {
       e.stopPropagation();
     });
@@ -498,7 +498,7 @@ export class PeriodicTableModal {
   }
 
   private bindEvents(): void {
-    // Beaker tabs in header
+    // 顶部导航栏中的烧杯切换标签
     this.element.querySelector('#btn-periodic-beaker-left')?.addEventListener('click', () => {
       this.setActiveBeaker('left');
       this.onSelectBeaker?.('left');
@@ -509,7 +509,7 @@ export class PeriodicTableModal {
       this.onSelectBeaker?.('right');
     });
 
-    // View analysis button
+    // 查看成分分析详情按钮
     this.element.querySelector('#btn-periodic-view-analysis')?.addEventListener('click', () => {
       this.onViewBeaker?.();
     });
@@ -524,7 +524,7 @@ export class PeriodicTableModal {
       onPoured: () => this.onViewBeaker?.(),
     });
 
-    // Overlay backdrop click dismisses popover
+    // 点击半透明遮罩背景关闭弹层
     const overlay = this.element.querySelector('#element-popover-overlay');
     overlay?.addEventListener('click', (e) => {
       if (e.target === overlay) {
@@ -532,7 +532,7 @@ export class PeriodicTableModal {
       }
     });
 
-    // Global escape key to dismiss popover
+    // 全局 ESC 键关闭弹层
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', (e) => {
         if (e.code === 'Escape' && this.isPopoverOpen()) {

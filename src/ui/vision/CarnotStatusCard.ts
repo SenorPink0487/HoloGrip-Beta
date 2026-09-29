@@ -1,21 +1,21 @@
 import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
 
 export interface CarnotTelemetryData {
-  tempHigh: number;      // K
-  tempLow: number;       // K
-  currentTemp: number;   // K
-  currentVol: number;    // L
-  currentPress: number;  // kPa
-  currentEntropy: number;// J/K
-  efficiency: number;    // %
-  qHigh: number;         // J
-  qLow: number;          // J
-  netWork: number;       // J
-  mechPower: number;     // W
-  flywheelRpm: number;   // RPM
+  tempHigh: number;      // 开尔文 (K)
+  tempLow: number;       // 开尔文 (K)
+  currentTemp: number;   // 开尔文 (K)
+  currentVol: number;    // 升 (L)
+  currentPress: number;  // 千帕 (kPa)
+  currentEntropy: number;// 焦耳/开尔文 (J/K)
+  efficiency: number;    // 百分比 (%)
+  qHigh: number;         // 焦耳 (J)
+  qLow: number;          // 焦耳 (J)
+  netWork: number;       // 焦耳 (J)
+  mechPower: number;     // 瓦特 (W)
+  flywheelRpm: number;   // 转速 (RPM)
   currentStage: 1 | 2 | 3 | 4;
   stageName: string;
-  stageProgress: number; // 0..1
+  stageProgress: number; // 阶段进度 (0..1)
   isReversed: boolean;
   isRunning: boolean;
   v1: number;
@@ -76,7 +76,7 @@ export class CarnotStatusCard {
     s2: 1.66,
   };
 
-  // Cached DOM elements
+  // 缓存的 DOM 元素
   private valTempHEl: HTMLElement | null = null;
   private valTempCEl: HTMLElement | null = null;
   private valEffEl: HTMLElement | null = null;
@@ -332,7 +332,7 @@ export class CarnotStatusCard {
   }
 
   /**
-   * High-DPI Canvas Rendering for P-V and T-S Curves
+   * P-V 与 T-S 曲线的高清 Canvas 渲染
    */
   private renderCharts(): void {
     this.renderPVChart();
@@ -349,19 +349,19 @@ export class CarnotStatusCard {
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // Coordinate margin
+    // 坐标边距
     const padL = 44, padR = 16, padT = 16, padB = 30;
     const chartW = w - padL - padR;
     const chartH = h - padT - padB;
 
-    // Grid bounds: V from 1.0 to 7.0 L, P from 0 to 450 kPa
+    // 网格边界：V 为 1.0 至 7.0 L，P 为 0 至 450 kPa
     const vMin = 0.8, vMax = 6.8;
     const pMin = 0, pMax = 440;
 
     const mapX = (v: number) => padL + ((v - vMin) / (vMax - vMin)) * chartW;
     const mapY = (p: number) => padT + chartH - ((p - pMin) / (pMax - pMin)) * chartH;
 
-    // Draw background grid lines
+    // 绘制背景网格线
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     for (let p = 100; p <= 400; p += 100) {
@@ -390,7 +390,7 @@ export class CarnotStatusCard {
       ctx.fillText(`${v}L`, x, h - 12);
     }
 
-    // Axes
+    // 坐标轴
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -404,35 +404,35 @@ export class CarnotStatusCard {
     const n = 0.10;
     const gamma = 1.40;
 
-    // Helper functions for curves
-    // 1 -> 2: Isotherm at Th
+    // 曲线方程辅助函数
+    // 1 -> 2：高温 Th 等温线
     const pIsoH = (v: number) => (n * R_GAS * d.tempHigh) / v;
-    // 3 -> 4: Isotherm at Tc
+    // 3 -> 4：低温 Tc 等温线
     const pIsoC = (v: number) => (n * R_GAS * d.tempLow) / v;
-    // 2 -> 3: Adiabatic exp: P = P2 * (V2/V)^gamma
+    // 2 -> 3：绝热膨胀：P = P2 * (V2/V)^gamma
     const pAdiExp = (v: number) => d.p2 * Math.pow(d.v2 / v, gamma);
-    // 4 -> 1: Adiabatic comp: P = P4 * (V4/V)^gamma
+    // 4 -> 1：绝热压缩：P = P4 * (V4/V)^gamma
     const pAdiComp = (v: number) => d.p4 * Math.pow(d.v4 / v, gamma);
 
-    // 1. Fill Closed Work Area (W_net = \oint P dV)
+    // 1. 填充闭合净功区域 (W_net = ∮ P dV)
     ctx.beginPath();
-    // Segment 1 -> 2
+    // 冲程 1 -> 2
     for (let i = 0; i <= 20; i++) {
       const v = d.v1 + (d.v2 - d.v1) * (i / 20);
       const x = mapX(v), y = mapY(pIsoH(v));
       if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
-    // Segment 2 -> 3
+    // 冲程 2 -> 3
     for (let i = 0; i <= 20; i++) {
       const v = d.v2 + (d.v3 - d.v2) * (i / 20);
       ctx.lineTo(mapX(v), mapY(pAdiExp(v)));
     }
-    // Segment 3 -> 4
+    // 冲程 3 -> 4
     for (let i = 0; i <= 20; i++) {
       const v = d.v3 - (d.v3 - d.v4) * (i / 20);
       ctx.lineTo(mapX(v), mapY(pIsoC(v)));
     }
-    // Segment 4 -> 1
+    // 冲程 4 -> 1
     for (let i = 0; i <= 20; i++) {
       const v = d.v4 - (d.v4 - d.v1) * (i / 20);
       ctx.lineTo(mapX(v), mapY(pAdiComp(v)));
@@ -441,8 +441,8 @@ export class CarnotStatusCard {
     ctx.fillStyle = 'rgba(245, 158, 11, 0.16)';
     ctx.fill();
 
-    // 2. Draw 4 distinct stroke paths
-    // Path 1 -> 2: Isothermal expansion (Red)
+    // 2. 绘制 4 段不同路径
+    // 路径 1 -> 2：等温膨胀（红色）
     ctx.strokeStyle = '#ef4444';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
@@ -453,7 +453,7 @@ export class CarnotStatusCard {
     }
     ctx.stroke();
 
-    // Path 2 -> 3: Adiabatic expansion (Yellow)
+    // 路径 2 -> 3：绝热膨胀（黄色）
     ctx.strokeStyle = '#eab308';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
@@ -464,7 +464,7 @@ export class CarnotStatusCard {
     }
     ctx.stroke();
 
-    // Path 3 -> 4: Isothermal compression (Blue)
+    // 路径 3 -> 4：等温压缩（蓝色）
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
@@ -475,7 +475,7 @@ export class CarnotStatusCard {
     }
     ctx.stroke();
 
-    // Path 4 -> 1: Adiabatic compression (Purple)
+    // 路径 4 -> 1：绝热压缩（紫色）
     ctx.strokeStyle = '#a855f7';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
@@ -486,7 +486,7 @@ export class CarnotStatusCard {
     }
     ctx.stroke();
 
-    // Draw 4 state vertex circles (1, 2, 3, 4)
+    // 绘制 4 个状态顶点圆圈 (1, 2, 3, 4)
     const pts = [
       { v: d.v1, p: d.p1, label: '1 (Th)' },
       { v: d.v2, p: d.p2, label: '2' },
@@ -505,17 +505,17 @@ export class CarnotStatusCard {
       ctx.fillText(pt.label, px + 5, py - 4);
     });
 
-    // 3. Current Live State Point
+    // 3. 实时当前状态点
     const liveX = mapX(d.currentVol);
     const liveY = mapY(d.currentPress);
 
-    // Glowing halo
+    // 发光光晕
     ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
     ctx.beginPath();
     ctx.arc(liveX, liveY, 9, 0, Math.PI * 2);
     ctx.fill();
 
-    // Dot center
+    // 中心圆点
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
     ctx.arc(liveX, liveY, 4.5, 0, Math.PI * 2);
@@ -589,12 +589,12 @@ export class CarnotStatusCard {
     const yH = mapY(d.tempHigh);
     const yC = mapY(d.tempLow);
 
-    // 1. Fill Carnot Rectangle Area
+    // 1. 填充卡诺循环 T-S 矩形区域
     ctx.fillStyle = 'rgba(34, 197, 94, 0.18)';
     ctx.fillRect(x1, yH, x2 - x1, yC - yH);
 
-    // 2. Stroke Carnot Rectangle Edges
-    // Top: Th (Isothermal expansion)
+    // 2. 绘制卡诺循环四条边
+    // 顶边：Th（等温膨胀过程）
     ctx.strokeStyle = '#ef4444';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
@@ -602,28 +602,28 @@ export class CarnotStatusCard {
     ctx.lineTo(x2, yH);
     ctx.stroke();
 
-    // Right: S2 (Isentropic / Adiabatic expansion)
+    // 右边：S2（等熵/绝热膨胀过程）
     ctx.strokeStyle = '#eab308';
     ctx.beginPath();
     ctx.moveTo(x2, yH);
     ctx.lineTo(x2, yC);
     ctx.stroke();
 
-    // Bottom: Tc (Isothermal compression)
+    // 底边：Tc（等温压缩过程）
     ctx.strokeStyle = '#38bdf8';
     ctx.beginPath();
     ctx.moveTo(x2, yC);
     ctx.lineTo(x1, yC);
     ctx.stroke();
 
-    // Left: S1 (Isentropic / Adiabatic compression)
+    // 左边：S1（等熵/绝热压缩过程）
     ctx.strokeStyle = '#a855f7';
     ctx.beginPath();
     ctx.moveTo(x1, yC);
     ctx.lineTo(x1, yH);
     ctx.stroke();
 
-    // Labels for Th and Tc
+    // Th 与 Tc 温度标注文本
     ctx.fillStyle = '#ef4444';
     ctx.font = 'bold 10px monospace';
     ctx.textAlign = 'left';
@@ -632,13 +632,13 @@ export class CarnotStatusCard {
     ctx.fillStyle = '#38bdf8';
     ctx.fillText(`T_C = ${Math.round(d.tempLow)}K`, x2 + 6, yC + 4);
 
-    // Center equation
+    // 中央理论效率公式
     ctx.fillStyle = '#22c55e';
     ctx.font = '11px -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`ΔS = ${(d.s2 - d.s1).toFixed(2)} J/K`, (x1 + x2) * 0.5, (yH + yC) * 0.5);
 
-    // 3. Current Live Point on TS
+    // 3. 当前实时工作点在 T-S 图上的位置
     const liveX = mapX(d.currentEntropy);
     const liveY = mapY(d.currentTemp);
 

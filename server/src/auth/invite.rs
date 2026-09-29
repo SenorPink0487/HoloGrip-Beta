@@ -11,8 +11,7 @@ pub fn generate_invite_code() -> String {
         .collect()
 }
 
-/// Empty input is "not provided". Any other input must be 5 letters or digits,
-/// ignoring hyphens and whitespace.
+/// 空输入表示“未提供”。其他输入在忽略连字符和空白字符后，必须为 5 位字母或数字。
 pub fn normalize_invite_code(raw: &str) -> Result<Option<String>, ()> {
     if raw.trim().is_empty() {
         return Ok(None);

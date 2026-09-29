@@ -1,34 +1,34 @@
 /**
- * Vision Pro & Touch Interactive Slider Gesture Helper
+ * Vision Pro 与触控交互滑块手势辅助工具
  * 
- * Provides unified, buttery-smooth continuous pinch gesture dragging,
- * 44px hit-zone enlargement, global window tracking to absorb 3D vertical drift,
- * telemetry overwrite protection, and Apple visionOS-grade visual feedback (.is-pinching).
+ * 提供统一顺滑的连续捏合手势拖拽、44px 触控热区扩展、
+ * 吸收 3D 垂直漂移的全局窗口跟踪、防止遥测覆盖的锁定机制，
+ * 以及 Apple visionOS 级别的视觉反馈（.is-pinching）。
  */
 
 export interface VisionSliderOptions {
   /**
-   * Called whenever the value changes (via drag, touch, air pinch, or keyboard/input)
+   * 数值变更回调（通过拖拽、触控、隔空捏合或键盘/输入触发）
    */
   onChange?: (val: number) => void;
 
   /**
-   * Active slider ID tracking set (to prevent 60 FPS background telemetry loops from overwriting user drags)
+   * 活跃滑块 ID 追踪集合（防止 60 FPS 后台遥测循环覆盖用户拖拽）
    */
   activeSet?: Set<string>;
 
   /**
-   * Live scrub callback with ratio and clientX (for HUD bubbles, gauges, or real-time labels)
+   * 实时滑动回调，附带比例与 clientX（用于 HUD 气泡、量表或实时标签）
    */
   onScrub?: (val: number, ratio: number, clientX: number) => void;
 
   /**
-   * Called when drag / pinch begins
+   * 拖拽 / 捏合开始时调用
    */
   onDragStart?: (clientX: number) => void;
 
   /**
-   * Called when drag / pinch ends
+   * 拖拽 / 捏合结束时调用
    */
   onDragEnd?: () => void;
 }
@@ -202,14 +202,14 @@ export function bindVisionSlider(
     }
   };
 
-  // 1. Standard HTML input event (keyboard, accessibility, test runners)
+  // 1. 标准 HTML input 事件（键盘、无障碍、测试运行器）
   const onInput = (e: any) => {
     const val = parseFloat((e.target as HTMLInputElement).value);
     onChange?.(val);
   };
   slider.addEventListener('input', onInput);
 
-  // 2. High-precision Pointer Events (iOS 13+, iPadOS, VisionProCursor hand pinch, Chrome, Edge)
+  // 2. 高精度 Pointer 事件（iOS 13+、iPadOS、VisionProCursor 手势捏合、Chrome、Edge）
   const onPointerDown = (e: any) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     startDrag(e.clientX, e.pointerId);
@@ -228,7 +228,7 @@ export function bindVisionSlider(
   slider.addEventListener('pointerup', onPointerUp);
   slider.addEventListener('pointercancel', onPointerUp);
 
-  // 3. Mouse Events fallback (when pointer events are not polyfilled or desktop mouse drag)
+  // 3. 鼠标事件回退（未支持 Pointer 事件或桌面鼠标拖拽）
   const onMouseDown = (e: any) => {
     if (e.button !== 0) return;
     if (!isDragging) startDrag(e.clientX);
@@ -245,7 +245,7 @@ export function bindVisionSlider(
   const onMouseUp = () => stopDrag();
   slider.addEventListener('mouseup', onMouseUp);
 
-  // 4. Robust touch listeners
+  // 4. 触控事件监听
   const onTouchStart = (e: any) => {
     const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : 0;
     startDrag(clientX);
@@ -263,7 +263,7 @@ export function bindVisionSlider(
   slider.addEventListener('touchend', onTouchEnd, { passive: true });
   slider.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
-  // 5. Wrap Events (if wrap is separate hit zone)
+  // 5. 外层容器事件（若容器作为独立点击区域）
   if (wrap && wrap !== slider && typeof wrap.addEventListener === 'function') {
     wrap.addEventListener('pointerdown', onPointerDown);
     wrap.addEventListener('pointermove', onPointerMove);

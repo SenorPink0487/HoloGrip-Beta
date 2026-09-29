@@ -29,7 +29,7 @@ export default class EmFieldExperiment extends BaseExperiment {
   private charges: PointCharge[] = [];
   private selectedChargeId: string | null = null;
 
-  // Test Charge (Probe q0)
+  // 检验电荷（探针 q0）
   private testChargePos = { x: 0.0, y: 0.16, z: DEFAULT_CHARGE_ELEVATION };
   private testChargeState: TestChargeState | null = null;
 
@@ -43,8 +43,8 @@ export default class EmFieldExperiment extends BaseExperiment {
   private chargeCounter = 1;
 
   public init(_context: ExperimentContext): void {
-    // Elevate experiment root into the air above HoloTable (HologramStage Y=0.908, HoloTable top Y=0.990)
-    // At rootGroup Y=0.56, the charges float ~48cm suspended in mid-air in front of the camera
+    // 将实验根节点抬升至全息实验台上方空中（HologramStage Y=0.908，HoloTable 顶部 Y=0.990）
+    // rootGroup 位于 Y=0.56 时，电荷悬浮于相机前方约 48cm 空中
     this.rootGroup.position.set(0, 0.56, 1.00);
     this.bench = new FieldBenchMesh();
     this.rootGroup.add(this.bench.group);
@@ -204,8 +204,8 @@ export default class EmFieldExperiment extends BaseExperiment {
   }
 
   private recompute(): void {
-    // 1. Calculate physical field lines using RK4 across expanded stage
-    // HoloTable top is at local Y ≈ -0.526, so minY: -0.50 allows field lines to expand and arch naturally without penetrating table
+    // 1. 在扩展空间中使用 RK4 算法计算物理电力线
+    // HoloTable 顶面局部坐标 Y ≈ -0.526，设置 minY: -0.50 使电力线自然弯曲展开且不穿透桌面
     this.fieldLines = traceFieldLines(this.charges, {
       linesPerUnitCharge: this.lineDensity,
       bounds: 0.85,
@@ -213,13 +213,13 @@ export default class EmFieldExperiment extends BaseExperiment {
       maxSteps: 400,
     });
 
-    // 2. Evaluate test charge probe metrics
+    // 2. 计算检验电荷探针物理量
     this.testChargeState = evaluateTestCharge(this.testChargePos, this.charges);
 
-    // 3. Update telemetry metrics
+    // 3. 更新遥测数据指标
     this.updateTelemetryMetrics();
 
-    // 4. Update bench 3D visuals
+    // 4. 更新实验台 3D 视觉元素
     this.syncVisualsOnly();
   }
 

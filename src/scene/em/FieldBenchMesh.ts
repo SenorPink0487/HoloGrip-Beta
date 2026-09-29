@@ -15,10 +15,10 @@ import {
 const INITIAL_MAX_SEGMENTS = 65536;
 const DEFAULT_MAX_CONES = 1200;
 
-// Exact colors matching charges
-export const CHARGE_POS_COLOR = { r: 1.0, g: 0.133, b: 0.267 }; // #ff2244 (luminous coral red)
-export const CHARGE_NEG_COLOR = { r: 0.0, g: 0.533, b: 1.0 };   // #0088ff (luminous electric blue)
-export const PROBE_COLOR = { r: 0.984, g: 0.749, b: 0.141 };     // #fbbf24 (golden amber test charge)
+// 与电荷精确匹配的基准颜色
+export const CHARGE_POS_COLOR = { r: 1.0, g: 0.133, b: 0.267 }; // #ff2244 (发光珊瑚红)
+export const CHARGE_NEG_COLOR = { r: 0.0, g: 0.533, b: 1.0 };   // #0088ff (发光科技蓝)
+export const PROBE_COLOR = { r: 0.984, g: 0.749, b: 0.141 };     // #fbbf24 (金黄色试探电荷)
 
 export interface FieldBenchVisualState {
   charges: PointCharge[];
@@ -37,10 +37,10 @@ export class FieldBenchMesh {
   public readonly linesGroup = new THREE.Group();
   public readonly selectionRing: THREE.Mesh;
 
-  // Active charges map (publicly accessible for high-speed hit detection)
+  // 活跃电荷映射表（公开以供高速拾取检测）
   public readonly chargeMeshes = new Map<string, THREE.Group>();
 
-  // Movable test charge (probe q0) group
+  // 可移动试探电荷探针（q₀）组
   public readonly testChargeGroup = new THREE.Group();
   private readonly probeCoreMat: THREE.MeshStandardMaterial;
   private readonly probeHaloMat: THREE.MeshBasicMaterial;
@@ -48,18 +48,18 @@ export class FieldBenchMesh {
   private readonly probeArrowShaft: THREE.Mesh;
   private readonly probeArrowTip: THREE.Mesh;
 
-  // Charge materials
+  // 电荷材质
   private readonly posCoreMat: THREE.MeshStandardMaterial;
   private readonly negCoreMat: THREE.MeshStandardMaterial;
   private readonly posHaloMat: THREE.MeshBasicMaterial;
   private readonly negHaloMat: THREE.MeshBasicMaterial;
 
-  // Directional arrow cones
+  // 方向箭头圆锥
   private readonly arrowConeGeo: THREE.ConeGeometry;
   private readonly arrowConeMat: THREE.MeshBasicMaterial;
   private arrowConesMesh: THREE.InstancedMesh;
 
-  // Thick, high-visibility field lines (LineSegments2 screen-space ribbon)
+  // 高可见度宽电场线（LineSegments2 屏幕空间光带）
   private readonly lineGeo = new LineSegmentsGeometry();
   private readonly lineMat: LineMaterial;
   private readonly linesMesh: LineSegments2;
@@ -69,7 +69,7 @@ export class FieldBenchMesh {
   constructor() {
     this.group.name = 'FieldBench';
 
-    // Base high-contrast luminous materials (no diffuse dullness)
+    // 高对比度自发光基础材质（消除漫反射暗沉感）
     this.posCoreMat = labGlow(0xff2244, 1.4);
     this.negCoreMat = labGlow(0x0088ff, 1.4);
     this.posHaloMat = new THREE.MeshBasicMaterial({
@@ -89,7 +89,7 @@ export class FieldBenchMesh {
       blending: THREE.AdditiveBlending,
     });
 
-    // Arrow cones (self-luminous, sharp museum styling)
+    // 箭头圆锥体（自发光、锐利展陈风格）
     this.arrowConeGeo = new THREE.ConeGeometry(0.006, 0.020, 12);
     this.arrowConeGeo.rotateX(Math.PI / 2);
     this.arrowConeMat = new THREE.MeshBasicMaterial({
@@ -99,7 +99,7 @@ export class FieldBenchMesh {
     this.arrowConesMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.arrowConesMesh.count = 0;
 
-    // 1. Transparent interactive field plane for background clicking (expansive wide exploration zone)
+    // 1. 用于背景交互点击的透明电场平面（开阔的探索区域）
     const platMat = new THREE.MeshBasicMaterial({
       transparent: true,
       opacity: 0,
@@ -109,7 +109,7 @@ export class FieldBenchMesh {
     this.platform.name = 'FieldPlatform';
     this.group.add(this.platform);
 
-    // 2. Selection ring (subtle glowing halo around active charge)
+    // 2. 选中指示环（围绕当前选中电荷的柔和发光光晕）
     const ringGeo = new THREE.RingGeometry(0.038, 0.046, 32);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xfacc15,
@@ -122,7 +122,7 @@ export class FieldBenchMesh {
     this.selectionRing.position.z = 0.002;
     this.group.add(this.selectionRing);
 
-    // 3. Thick High-Visibility Field Lines (LineSegments2 ribbon, 3.2px screen width)
+    // 3. 高可见度宽电场线（LineSegments2 光带，屏幕宽度 3.2px）
     const width = typeof window !== 'undefined' ? window.innerWidth : 800;
     const height = typeof window !== 'undefined' ? window.innerHeight : 800;
     this.lineMat = new LineMaterial({
@@ -138,10 +138,10 @@ export class FieldBenchMesh {
     this.linesGroup.add(this.arrowConesMesh);
     this.group.add(this.linesGroup);
 
-    // 4. Source charges container
+    // 4. 源电荷容器组
     this.group.add(this.chargesGroup);
 
-    // 5. Test Charge (Probe q0) Assembly
+    // 5. 试探电荷探针（q₀）组件
     this.testChargeGroup.name = 'TestChargeProbe';
     this.probeCoreMat = labGlow(0xfbbf24, 1.5);
     this.probeHaloMat = new THREE.MeshBasicMaterial({
@@ -172,14 +172,14 @@ export class FieldBenchMesh {
     probeRing.name = 'ProbeRing';
     this.testChargeGroup.add(probeRing);
 
-    // Hit target for easy dragging
+    // 便于拖拽的无形拾取目标
     const probeHitGeo = new THREE.SphereGeometry(0.045, 12, 12);
     const probeHitMat = new THREE.MeshBasicMaterial({ visible: false });
     const probeHit = new THREE.Mesh(probeHitGeo, probeHitMat);
     probeHit.name = 'ProbeHitTarget';
     this.testChargeGroup.add(probeHit);
 
-    // 3D Vector Arrow for Electric Field E
+    // 电场强度 E 的 3D 矢量指示箭头
     this.probeArrowGroup.name = 'ProbeArrowGroup';
     const arrowMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24, toneMapped: false });
     const shaftGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 1, 12);
@@ -199,13 +199,13 @@ export class FieldBenchMesh {
   }
 
   /**
-   * Synchronize visual representation with current simulation state
+   * 将可视化图元与当前物理仿真状态同步
    */
   public sync(state: FieldBenchVisualState): void {
-    // 1. Sync source charges meshes
+    // 1. 同步源电荷网格
     this.syncCharges(state.charges, state.selectedChargeId);
 
-    // 2. Selection ring position
+    // 2. 更新选中指示环位置
     if (state.selectedChargeId) {
       const selected = state.charges.find((c) => c.id === state.selectedChargeId);
       if (selected) {
@@ -220,19 +220,19 @@ export class FieldBenchMesh {
       this.selectionRing.visible = false;
     }
 
-    // 3. Sync field lines and directional arrow cones
+    // 3. 同步电场线与方向箭头圆锥
     this.linesGroup.visible = state.showLines;
     this.arrowConesMesh.visible = state.showLines;
     if (state.showLines) {
       this.syncFieldLines(state.lines);
     }
 
-    // 4. Sync test charge (probe)
+    // 4. 同步试探电荷探针
     this.syncTestCharge(state.testCharge ?? null);
   }
 
   /**
-   * Synchronize test charge probe position, electric field vector arrow, and HUD badge
+   * 同步试探电荷探针位置、电场强度矢量箭头与 HUD 徽标
    */
   public syncTestCharge(probe: TestChargeState | null): void {
     if (!probe || !probe.visible) {
@@ -243,7 +243,7 @@ export class FieldBenchMesh {
     this.testChargeGroup.visible = true;
     this.testChargeGroup.position.set(probe.x, probe.y, probe.z ?? DEFAULT_CHARGE_ELEVATION);
 
-    // Update 3D vector arrow pointing along E
+    // 更新沿 E 方向指向的 3D 矢量箭头
     const E = probe.fieldMagnitude;
     if (E > 1e-3) {
       const uX = probe.fieldVector.x / E;
@@ -264,7 +264,7 @@ export class FieldBenchMesh {
   }
 
   /**
-   * Advance gentle floating levitation breathing on charge heads (no particles)
+   * 推进电荷头部的轻柔悬浮呼吸动效（非粒子系统）
    */
   public updateFlow(_dt?: number, _lines?: readonly FieldLine[], elapsed = 0): void {
     this.update(elapsed);
@@ -300,7 +300,7 @@ export class FieldBenchMesh {
         group.name = `Charge_${c.id}`;
         group.userData = { chargeId: c.id, baseZ, radius };
 
-        // 1. Clean Floating Head (Core + Halo, NO letters or signs)
+        // 1. 简洁的悬浮头部（内核 + 光晕，无字母或符号）
         const head = new THREE.Group();
         head.name = 'Head';
         head.position.set(0, 0, baseZ);
@@ -313,7 +313,7 @@ export class FieldBenchMesh {
         halo.name = 'Halo';
         head.add(halo);
 
-        // Invisible expanded hit target for smooth mouse/touch interaction
+        // 便于鼠标与触控交互的扩展无形拾取目标
         const hitGeo = new THREE.SphereGeometry(1.6, 12, 12);
         const hitMat = new THREE.MeshBasicMaterial({ visible: false });
         const hitTarget = new THREE.Mesh(hitGeo, hitMat);
@@ -325,12 +325,12 @@ export class FieldBenchMesh {
         this.chargeMeshes.set(c.id, group);
       }
 
-      // Update position on bench plane
+      // 更新实验台平面上的位置
       group.position.set(c.x, c.y, 0);
       group.userData.baseZ = baseZ;
       group.userData.radius = radius;
 
-      // Update Head
+      // 更新电荷头部
       const head = group.getObjectByName('Head') as THREE.Group;
       if (head) {
         head.position.set(0, 0, baseZ);
@@ -343,7 +343,7 @@ export class FieldBenchMesh {
       }
     }
 
-    // Remove deleted charges
+    // 移除已删除的电荷
     for (const [id, mesh] of this.chargeMeshes.entries()) {
       if (!activeIds.has(id)) {
         this.chargesGroup.remove(mesh);
@@ -379,7 +379,7 @@ export class FieldBenchMesh {
       this.lineMat.resolution.set(window.innerWidth, window.innerHeight);
     }
 
-    // 1. Calculate total segments needed across all valid lines
+    // 1. 计算所有有效电场线所需的总线段数
     let totalSegments = 0;
     for (let l = 0; l < lines.length; l++) {
       const len = lines[l].points.length;
@@ -388,7 +388,7 @@ export class FieldBenchMesh {
       }
     }
 
-    // 2. Ensure dynamic buffer capacity so NO field lines are ever truncated
+    // 2. 确保动态缓冲区容量充足，防止电场线被意外截断
     this.ensureLineCapacity(totalSegments);
 
     let segCount = 0;
@@ -419,7 +419,7 @@ export class FieldBenchMesh {
         pos[idx + 4] = p1.y;
         pos[idx + 5] = p1.z;
 
-        // Line color strictly matches charge color!
+        // 电场线颜色与源/汇电荷颜色严格对应
         const t0 = i / (len - 1);
         const t1 = (i + 1) / (len - 1);
 
@@ -440,8 +440,8 @@ export class FieldBenchMesh {
       this.linesMesh.visible = false;
     }
 
-    // Update Directional Arrow Cones (Museum-grade disciplined placement)
-    // ONLY place arrow cones on lines that were actually rendered!
+    // 更新方向箭头圆锥（严格按照展陈级间距排布）
+    // 仅在实际渲染出的电场线上放置箭头圆锥
     const maxNeededCones = renderedLineIndices.length * 2;
     this.ensureConeCapacity(maxNeededCones);
 
@@ -457,7 +457,7 @@ export class FieldBenchMesh {
       const line = lines[l];
       const pts = line.points;
       const len = pts.length;
-      if (len < 12) continue; // Skip very short line fragments near charge cores
+      if (len < 12) continue; // 跳过靠近电荷内核极短的线段片段
 
       const isBridging = Boolean(line.sourceChargeId && line.targetChargeId);
       const isPosOnly = Boolean(line.sourceChargeId && !line.targetChargeId);
@@ -472,7 +472,7 @@ export class FieldBenchMesh {
           sampleIndices.push(Math.floor(len * 0.68));
         }
       } else {
-        // Line going to or coming from infinity: exactly ONE clean arrowhead mid-flight
+        // 延伸至无穷远或来自无穷远的电场线：在飞行中段放置单个清晰箭头
         sampleIndices.push(Math.floor(len * 0.48));
       }
 
@@ -495,7 +495,7 @@ export class FieldBenchMesh {
 
         this.arrowConesMesh.setMatrixAt(coneCount, dummy.matrix);
 
-        // Arrow cone color strictly matches the streamline color
+        // 箭头圆锥颜色与流线该处颜色严格一致
         const t = idx / (len - 1);
         this.getSampleColor(t, isBridging, isPosOnly, isNegOnly, coneColor);
         this.arrowConesMesh.setColorAt(coneCount, coneColor);

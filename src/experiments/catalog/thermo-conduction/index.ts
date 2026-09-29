@@ -11,23 +11,23 @@ export default class ThermoConductionExperiment extends BaseExperiment {
   public override targetScale = 1.95;
   public override hideCenterEmitter = true;
 
-  // 3D Assemblies
+  // 3D 装配组件
   private bench: ConductionBenchMesh;
   private interactionManager: ConductionInteractionManager;
 
-  // Thermodynamic & Specimen Parameters
-  private heatSourceTemp = 450; // K
-  private coldSourceTemp = 295; // K
+  // 热力学与试件参数
+  private heatSourceTemp = 450; // 热源温度，单位：K
+  private coldSourceTemp = 295; // 冷源温度，单位：K
   private material = 'copper';
   private lateralInsulation = true;
   private probePositionNorm = 0.5;
 
-  // 1D Discretization & Solver
+  // 一维网格离散化与求解器
   private readonly numPoints = 33;
   private tempGrid: Float32Array;
   private tempGridNext: Float32Array;
-  private readonly rodLength = 0.32; // meters
-  private readonly rodRadius = 0.012; // meters
+  private readonly rodLength = 0.32; // 导热杆长度，单位：m
+  private readonly rodRadius = 0.012; // 导热杆截面半径，单位：m
   private readonly rodArea: number;
 
   private timeElapsed = 0;
@@ -43,7 +43,7 @@ export default class ThermoConductionExperiment extends BaseExperiment {
   }
 
   private resetTemperatureGrid(): void {
-    // Initial linear gradient
+    // 初始线性温度梯度分布
     for (let i = 0; i < this.numPoints; i++) {
       const u = i / (this.numPoints - 1);
       this.tempGrid[i] = THREE.MathUtils.lerp(this.heatSourceTemp, this.coldSourceTemp, u);
@@ -54,10 +54,10 @@ export default class ThermoConductionExperiment extends BaseExperiment {
   }
 
   public init(_context: ExperimentContext): void {
-    // Rest experiment directly on table surface in interaction zone
+    // 将实验主体直接放置于交互工作区台面上
     this.rootGroup.position.set(0, -0.056, 0.92);
 
-    // 1. High-precision 3D Conduction Bench
+    // 1. 高精度 3D 热传导实验台
     this.bench = this.track(new ConductionBenchMesh({
       rodLength: this.rodLength,
       rodRadius: this.rodRadius,
@@ -65,7 +65,7 @@ export default class ThermoConductionExperiment extends BaseExperiment {
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
 
-    // 2. Interaction Manager for probe sliding & material cycling
+    // 2. 交互管理器（用于探针滑动与材料切换）
     this.interactionManager = new ConductionInteractionManager({
       bench: this.bench,
       onProbeDrag: (normX) => this.setProbePosition(normX),
@@ -81,11 +81,11 @@ export default class ThermoConductionExperiment extends BaseExperiment {
     const dt = Math.min(delta, 0.033);
     this.timeElapsed += dt;
 
-    // 1. Solve 1D Heat Diffusion PDE
+    // 1. 求解一维热扩散偏微分方程 (PDE)
     this.stepHeatDiffusion(dt);
 
-    // 2. Update 3D FLIR false color thermal gradient on the specimen rod
-    // Only upload texture when not in steady state (throttled to ~15-20 FPS) or periodically
+    // 2. 更新试件导热杆上的 3D FLIR 伪彩色温度梯度
+    // 仅在非稳态时上传纹理（节流至 ~15-20 FPS）或周期性刷新
     const now = performance.now();
     if (!this.isSteadyState || now - this.lastThermalGradSync > 1000) {
       if (now - this.lastThermalGradSync >= 60) {
@@ -98,7 +98,7 @@ export default class ThermoConductionExperiment extends BaseExperiment {
       }
     }
 
-    // 3. Update probe digital display with live physical gradient and heat flux
+    // 3. 更新探针数字仪表盘的实时物理温度梯度与热通量
     const probeT = this.getProbeTemp();
     const props = this.getMaterialPropsAt(this.probePositionNorm);
     const dx = this.rodLength / (this.numPoints - 1);
@@ -111,22 +111,22 @@ export default class ThermoConductionExperiment extends BaseExperiment {
   }
 
   /**
-   * 1D Transient Heat Diffusion Finite Difference Solver
+   * 一维瞬态热扩散有限差分求解器
    * \rho c_p \frac{\partial T}{\partial t} = k \frac{\partial^2 T}{\partial x^2} - convective_loss
    */
   private stepHeatDiffusion(dt: number): void {
     const dx = this.rodLength / (this.numPoints - 1);
     const dx2 = dx * dx;
 
-    // Boundary conditions
+    // 边界条件
     this.tempGrid[0] = this.heatSourceTemp;
     this.tempGrid[this.numPoints - 1] = this.coldSourceTemp;
 
-    // Convective cooling factor when insulation is OFF
-    const convLossCoeff = this.lateralInsulation ? 0.0 : 0.085; // convective loss
+    // 未保温绝热时的对流散热因子
+    const convLossCoeff = this.lateralInsulation ? 0.0 : 0.085; // 对流热损失
     const ambientT = 295.0;
 
-    // Multi-substep integration for numerical stability
+    // 多子步时间积分以保障数值计算稳定性
     const subSteps = 6;
     const subDt = (dt * 1.5) / subSteps;
 
@@ -137,7 +137,7 @@ export default class ThermoConductionExperiment extends BaseExperiment {
         const u = i / (this.numPoints - 1);
         const { alpha } = this.getMaterialPropsAt(u);
 
-        // Effective numerical diffusivity with stability capping
+        // 有效数值扩散率及稳定性截断
         const r = (alpha * subDt) / dx2;
         const boundedR = Math.min(0.45, r);
 
@@ -167,7 +167,7 @@ export default class ThermoConductionExperiment extends BaseExperiment {
     } else if (this.material === 'steel') {
       return { k: 16, alpha: 4.05e-6, name: '304不锈钢 (k = 16 W/m·K)' };
     } else {
-      // Composite: Left half copper, Right half stainless steel
+      // 复合棒：左半段为铜，右半段为不锈钢
       if (normX <= 0.5) {
         return { k: 390, alpha: 1.13e-4, name: '铜-钢复合棒 (铜区 k = 390)' };
       } else {
@@ -185,20 +185,20 @@ export default class ThermoConductionExperiment extends BaseExperiment {
   }
 
   // =========================================================================
-  // Telemetry Provider for UI Status Card
+  // UI 状态卡片遥测数据提供器
   // =========================================================================
   public getConductionTelemetry(): ConductionTelemetryData {
     const props = this.getMaterialPropsAt(this.probePositionNorm);
     const probeT = this.getProbeTemp();
 
-    // Local gradient dT/dx (K/m)
+    // 局部温度梯度 dT/dx (K/m)
     const dx = this.rodLength / (this.numPoints - 1);
     const idxExact = this.probePositionNorm * (this.numPoints - 1);
     const i0 = Math.max(0, Math.min(this.numPoints - 2, Math.floor(idxExact)));
     const grad = (this.tempGrid[i0 + 1] - this.tempGrid[i0]) / dx;
 
-    // Fourier: q = -k * grad
-    const localFlux = -props.k * grad; // W/m^2
+    // 傅里叶导热定律: q = -k * grad
+    const localFlux = -props.k * grad; // 热通量单位：W/m^2
     const totalPower = Math.abs(localFlux) * this.rodArea;
 
     return {
@@ -226,7 +226,7 @@ export default class ThermoConductionExperiment extends BaseExperiment {
   }
 
   // =========================================================================
-  // Interactive Handlers
+  // 交互控制处理函数
   // =========================================================================
   public setHeatSourceTemp(tempK: number): void {
     this.heatSourceTemp = Math.max(320, Math.min(650, tempK));
@@ -269,7 +269,7 @@ export default class ThermoConductionExperiment extends BaseExperiment {
   }
 
   public resetTransient(): void {
-    // Perturb rod back to room temperature to watch transient thermal wave propagate
+    // 将试件杆扰动恢复至室温，以观察瞬态热波扩散过程
     for (let i = 1; i < this.numPoints - 1; i++) {
       this.tempGrid[i] = 295.0;
     }
@@ -292,7 +292,7 @@ export default class ThermoConductionExperiment extends BaseExperiment {
     }
   }
 
-  // Pointer delegation
+  // 指针事件委托
   public override getHoverTarget(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null {
     return this.interactionManager?.getHoverTarget(raycaster) ?? null;
   }

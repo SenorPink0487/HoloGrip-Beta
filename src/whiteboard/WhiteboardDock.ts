@@ -23,7 +23,7 @@ export class WhiteboardDock {
     this.element.className = 'apple-dock-container';
     this.element.id = 'whiteboard-bottom-dock';
 
-    // 1. Enter Laboratory Button (Pure Icon, NO TEXT)
+    // 1. 进入 3D 实验室按钮（纯图标设计）
     this.labBtn = document.createElement('button');
     this.labBtn.className = 'apple-dock-icon-btn btn-lab-enter';
     this.labBtn.id = 'dock-btn-lab-toggle';
@@ -37,11 +37,11 @@ export class WhiteboardDock {
       }
     });
 
-    // Hairline divider
+    // 细分隔线
     const divider = document.createElement('div');
     divider.className = 'apple-dock-divider';
 
-    // 2. Open Account Page Button (Pure Icon, NO TEXT)
+    // 2. 打开账户面板按钮（纯图标设计）
     this.accountBtn = document.createElement('button');
     this.accountBtn.className = 'apple-dock-icon-btn btn-account';
     this.accountBtn.id = 'dock-btn-account-open';

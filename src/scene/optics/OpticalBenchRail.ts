@@ -3,7 +3,7 @@ import * as THREE from 'three';
 export class OpticalBenchRail {
   public readonly group = new THREE.Group();
 
-  // Rail dimensions (in meters)
+  // 导轨几何尺寸（单位：米）
   public readonly railLength = 1.28;
   public readonly railWidth = 0.088;
   public readonly railHeight = 0.052;
@@ -24,16 +24,16 @@ export class OpticalBenchRail {
     canvas.height = 128;
     const ctx = canvas.getContext('2d')!;
 
-    // Scientific precision satin silver/aluminum scale background
+    // 科研级哑光银/铝制标尺背景
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Beveled accent border & baseline rail line
+    // 斜角装饰边框与基准导轨线
     ctx.strokeStyle = '#94a3b8';
     ctx.lineWidth = 2;
     ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
 
-    // Longitudinal alignment baseline
+    // 纵向对准基准线
     ctx.beginPath();
     ctx.moveTo(30, 64);
     ctx.lineTo(canvas.width - 30, 64);
@@ -41,7 +41,7 @@ export class OpticalBenchRail {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Graduation lines and metric numbers (0 to 120 cm) in high-contrast deep black
+    // 高对比度纯黑刻度线与公制数字（0 至 120 cm）
     ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = '#0f172a';
     ctx.textAlign = 'center';
@@ -55,7 +55,7 @@ export class OpticalBenchRail {
       const x = paddingX + (mm / totalMm) * usableW;
 
       if (mm % 100 === 0) {
-        // 10 cm major mark
+        // 10 cm 主刻度标记
         ctx.lineWidth = 3.6;
         ctx.beginPath();
         ctx.moveTo(x, 8);
@@ -65,21 +65,21 @@ export class OpticalBenchRail {
         const cm = mm / 10;
         ctx.fillText(`${cm}`, x, 98);
       } else if (mm % 50 === 0) {
-        // 5 cm medium mark
+        // 5 cm 中刻度标记
         ctx.lineWidth = 2.6;
         ctx.beginPath();
         ctx.moveTo(x, 16);
         ctx.lineTo(x, 64);
         ctx.stroke();
       } else if (mm % 10 === 0) {
-        // 1 cm mark
+        // 1 cm 刻度标记
         ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.moveTo(x, 26);
         ctx.lineTo(x, 64);
         ctx.stroke();
       } else {
-        // 2 mm minor mark
+        // 2 mm 次刻度标记
         ctx.lineWidth = 1.0;
         ctx.beginPath();
         ctx.moveTo(x, 38);
@@ -88,7 +88,7 @@ export class OpticalBenchRail {
       }
     }
 
-    // Unit indicator
+    // 单位标注
     ctx.font = 'bold 16px monospace';
     ctx.fillStyle = '#475569';
     ctx.fillText('cm', paddingX + 22, 118);
@@ -103,21 +103,21 @@ export class OpticalBenchRail {
   }
 
   private createRailStructure(): void {
-    // Extruded cross-section shape for authentic precision optical dovetail rail
+    // 真实精密光学燕尾导轨拉伸截面轮廓
     const shape = new THREE.Shape();
     const w = this.railWidth * 0.5;
     const h = this.railHeight;
 
     shape.moveTo(-w, 0);
     shape.lineTo(-w, h * 0.45);
-    shape.lineTo(-w + 0.008, h * 0.55); // Dovetail inward chamfer
+    shape.lineTo(-w + 0.008, h * 0.55); // 燕尾内凹倒角
     shape.lineTo(-w + 0.006, h);
-    shape.lineTo(-0.012, h); // Central T-slot groove
+    shape.lineTo(-0.012, h); // 中心 T 型槽
     shape.lineTo(-0.012, h - 0.016);
     shape.lineTo(0.012, h - 0.016);
     shape.lineTo(0.012, h);
     shape.lineTo(w - 0.006, h);
-    shape.lineTo(w - 0.008, h * 0.55); // Dovetail opposite
+    shape.lineTo(w - 0.008, h * 0.55); // 燕尾对侧倒角
     shape.lineTo(w, h * 0.45);
     shape.lineTo(w, 0);
     shape.closePath();
@@ -134,7 +134,7 @@ export class OpticalBenchRail {
     const railGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
     railGeo.center();
 
-    // High quality scientific satin clear-anodized natural aluminum rail
+    // 高品质科研级本色阳极氧化缎面喷砂铝导轨
     const railMat = new THREE.MeshStandardMaterial({
       color: 0xdfe6ed,
       metalness: 0.72,
@@ -147,7 +147,7 @@ export class OpticalBenchRail {
     this.railMesh.receiveShadow = true;
     this.group.add(this.railMesh);
 
-    // Precision laser-etched metric rulers on both sides
+    // 两侧精密激光雕刻公制标尺
     const rulerTex = this.createRulerCanvas();
     const rulerMat = new THREE.MeshBasicMaterial({
       map: rulerTex,
@@ -156,19 +156,19 @@ export class OpticalBenchRail {
 
     const rulerGeo = new THREE.PlaneGeometry(this.railLength * 0.94, this.railHeight * 0.45);
 
-    // Right side ruler
+    // 右侧标尺
     const rulerRight = new THREE.Mesh(rulerGeo, rulerMat);
     rulerRight.position.set(w + 0.001, 0, 0);
     rulerRight.rotation.y = Math.PI * 0.5;
     this.group.add(rulerRight);
 
-    // Left side ruler
+    // 左侧标尺
     const rulerLeft = new THREE.Mesh(rulerGeo, rulerMat);
     rulerLeft.position.set(-w - 0.001, 0, 0);
     rulerLeft.rotation.y = -Math.PI * 0.5;
     this.group.add(rulerLeft);
 
-    // Center metallic groove runner (polished chrome / stainless steel)
+    // 中心金属导槽滑轨（镜面镀铬 / 不锈钢）
     const runnerGeo = new THREE.BoxGeometry(0.018, 0.004, this.railLength);
     const runnerMat = new THREE.MeshStandardMaterial({
       color: 0xf1f5f9,
@@ -179,7 +179,7 @@ export class OpticalBenchRail {
     runner.position.set(0, h * 0.5 - 0.015, 0);
     this.group.add(runner);
 
-    // Dual upper dovetail polished guide rail strips
+    // 顶部双侧燕尾抛光导向滑条
     const guideGeo = new THREE.BoxGeometry(0.005, 0.003, this.railLength);
     const guideLeft = new THREE.Mesh(guideGeo, runnerMat);
     guideLeft.position.set(-w + 0.006, h * 0.5 - 0.001, 0);
@@ -215,22 +215,22 @@ export class OpticalBenchRail {
       const pedGroup = new THREE.Group();
       pedGroup.position.set(0, -this.railHeight * 0.5, z);
 
-      // Solid satin silver bridge cross-beam under rail
+      // 导轨下方的实心缎面银桥接横梁
       const crossBeamGeo = new THREE.BoxGeometry(this.railWidth * 1.6, 0.024, 0.07);
       const crossBeam = new THREE.Mesh(crossBeamGeo, pedestalMat);
       crossBeam.position.y = -0.012;
       pedGroup.add(crossBeam);
 
-      // Leveling feet on left and right
+      // 左右水平调节地脚
       const feetX = [-this.railWidth * 0.65, this.railWidth * 0.65];
       for (const x of feetX) {
-        // Knurled leveling screw dial
+        // 滚花水平调节螺母旋钮
         const dialGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.012, 24);
         const dial = new THREE.Mesh(dialGeo, levelDialMat);
         dial.position.set(x, -0.022, 0);
         pedGroup.add(dial);
 
-        // Vibration dampening rubber pad
+        // 防震橡胶脚垫
         const padGeo = new THREE.CylinderGeometry(0.022, 0.024, 0.01, 24);
         const pad = new THREE.Mesh(padGeo, rubberMat);
         pad.position.set(x, -0.032, 0);
@@ -242,34 +242,34 @@ export class OpticalBenchRail {
   }
 
   /**
-   * Factory method to create a sliding carrier saddle (光学滑块) to mount instruments
+   * 工厂方法：创建用于安装仪器的光学滑块鞍座
    */
   public createCarrierSaddle(name = 'CarrierSaddle'): THREE.Group {
     const saddleGroup = new THREE.Group();
     saddleGroup.name = name;
 
-    // High-grade satin clear-anodized aluminum
+    // 高级本色阳极氧化缎面铝合金
     const saddleMat = new THREE.MeshStandardMaterial({
       color: 0xdce4ed,
       metalness: 0.70,
       roughness: 0.28,
     });
 
-    // Precision dark titanium / gunmetal thumbscrew for elegant mechanical contrast
+    // 精密深钛灰/枪色手拧螺母，呈现典雅机械质感对比
     const knobMat = new THREE.MeshStandardMaterial({
       color: 0x475569,
       metalness: 0.75,
       roughness: 0.25,
     });
 
-    // Polished stainless steel receptacle
+    // 抛光不锈钢立杆插孔套筒
     const steelMat = new THREE.MeshStandardMaterial({
       color: 0xf0f4f9,
       metalness: 0.88,
       roughness: 0.18,
     });
 
-    // 1. Saddle base clamp wrapping around rail dovetail
+    // 1. 抱合导轨燕尾槽的滑块底座夹具
     const saddleLength = 0.082;
     const saddleW = this.railWidth + 0.016;
     const baseGeo = new THREE.BoxGeometry(saddleW, 0.022, saddleLength);
@@ -279,7 +279,7 @@ export class OpticalBenchRail {
     base.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(base);
 
-    // 2. Stainless steel optical post holder receptacle (立杆套筒)
+    // 2. 不锈钢光学立杆插孔套筒
     const socketGeo = new THREE.CylinderGeometry(0.015, 0.016, 0.048, 24);
     const socket = new THREE.Mesh(socketGeo, steelMat);
     socket.position.set(0, this.railHeight * 0.5 + 0.038, 0);
@@ -287,7 +287,7 @@ export class OpticalBenchRail {
     socket.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(socket);
 
-    // 3. Knurled industrial thumbscrew for locking post
+    // 3. 锁紧立杆的工业级滚花手拧螺钉
     const thumbKnobGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.014, 20);
     const thumbKnob = new THREE.Mesh(thumbKnobGeo, knobMat);
     thumbKnob.rotation.z = Math.PI * 0.5;
@@ -295,7 +295,7 @@ export class OpticalBenchRail {
     thumbKnob.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(thumbKnob);
 
-    // 4. Rail lock screw with knurled grip on side
+    // 4. 侧边带滚花手柄的导轨锁紧螺钉
     const railLockGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.016, 20);
     const railLock = new THREE.Mesh(railLockGeo, knobMat);
     railLock.rotation.z = Math.PI * 0.5;
@@ -303,7 +303,7 @@ export class OpticalBenchRail {
     railLock.userData = { isSaddle: true, saddleName: name, saddleGroup };
     saddleGroup.add(railLock);
 
-    // 5. Red vernier indicator with clean white background reading window
+    // 5. 纯白底色读数窗内的红色游标指标线
     const backingGeo = new THREE.BoxGeometry(0.008, 0.018, 0.004);
     const backingMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const backing = new THREE.Mesh(backingGeo, backingMat);

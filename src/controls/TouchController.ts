@@ -126,7 +126,7 @@ export class TouchController {
 
     document.body.classList.add('has-touch-controls');
 
-    // Create Virtual Joystick & Vision Launcher DOM elements
+    // 创建虚拟摇杆与全息视窗启动器 DOM 元素
     const wrapper = document.createElement('div');
     wrapper.id = 'touch-controls-layer';
     wrapper.innerHTML = `
@@ -174,7 +174,7 @@ export class TouchController {
       </button>
     `;
 
-    // Apple VisionOS liquid glass styling for joystick and floating window launcher
+    // 虚拟摇杆与悬浮视窗启动器的 Apple VisionOS 流体玻璃风格样式
     const style = document.createElement('style');
     style.id = 'touch-controls-style';
     style.textContent = `
@@ -189,7 +189,7 @@ export class TouchController {
         -webkit-user-select: none;
       }
 
-      /* ==================== 1. Virtual Joystick (Bottom-Left) ==================== */
+      /* ==================== 1. 虚拟摇杆（左下角） ==================== */
       #virtual-joystick-base {
         position: absolute;
         bottom: calc(32px + env(safe-area-inset-bottom, 0px));
@@ -334,7 +334,7 @@ export class TouchController {
         box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
       }
 
-      /* ==================== 2. Elevation Up/Down Capsule (Bottom-Right, Above Launcher) ==================== */
+      /* ==================== 2. 升降上下控制胶囊（右下角，启动器上方） ==================== */
       #touch-elevation-controls {
         position: absolute;
         bottom: calc(88px + env(safe-area-inset-bottom, 0px));
@@ -411,7 +411,7 @@ export class TouchController {
         transform: scale(1.12);
       }
 
-      /* ==================== 3. Floating Window Button (Bottom-Right) ==================== */
+      /* ==================== 3. 悬浮视窗切换按钮（右下角） ==================== */
       #touch-vision-launcher {
         position: absolute;
         bottom: calc(32px + env(safe-area-inset-bottom, 0px));
@@ -491,7 +491,7 @@ export class TouchController {
         white-space: nowrap;
       }
 
-      /* ==================== 4. iPad / Large Screen Responsive Scale ==================== */
+      /* ==================== 4. iPad / 大屏幕响应式缩放适配 ==================== */
       @media (pointer: coarse) and (min-width: 768px) {
         #virtual-joystick-base {
           bottom: calc(40px + env(safe-area-inset-bottom, 0px));
@@ -555,7 +555,7 @@ export class TouchController {
         }
       }
 
-      /* ==================== 5. Hand Gesture Recognition Active: Elegant Hide Animation ==================== */
+      /* ==================== 5. 手势识别激活状态：平滑优雅隐藏动画 ==================== */
       #touch-controls-layer.hand-tracking-active #virtual-joystick-base,
       body.hand-tracking-active #virtual-joystick-base {
         opacity: 0 !important;
@@ -610,7 +610,7 @@ export class TouchController {
   private bindEvents(): void {
     if (!this.joystickBase) return;
 
-    // Joystick Touch events
+    // 摇杆触摸事件
     this.joystickBase.addEventListener('touchstart', (e: TouchEvent) => {
       blurActiveInput(true);
       const touch = e.changedTouches[0];
@@ -634,13 +634,13 @@ export class TouchController {
         for (let i = 0; i < e.changedTouches.length; i++) {
           const touch = e.changedTouches[i];
 
-          // 1. Move Joystick
+          // 1. 移动摇杆
           if (this.isDraggingJoystick && touch.identifier === this.joystickTouchId) {
             if (e.cancelable) e.preventDefault();
             this.updateJoystick(touch.clientX, touch.clientY);
           }
 
-          // 2. Camera Look drag on iPad & touch screen
+          // 2. iPad 与触摸屏上的视角拖拽
           if (
             touch.identifier === this.lookTouchId &&
             this.player.enabled &&
@@ -700,7 +700,7 @@ export class TouchController {
       this.stopElevateDown();
     });
 
-    // Screen touch look listener on right side / viewport
+    // 右侧屏幕/视口区域的触摸视角监听器
     window.addEventListener(
       'touchstart',
       (e: TouchEvent) => {
@@ -709,18 +709,18 @@ export class TouchController {
         const target = e.target instanceof Element ? e.target : null;
         if (!target) return;
 
-        // Let controls, launcher button, elevation buttons, and text fields receive taps without also starting a camera drag.
+        // 允许控件、启动按钮、升降按钮和文本框接收点击，而不触发相机拖拽
         if (target.closest('.hud-interactive, button, a, input, textarea, select, [contenteditable="true"]')) {
           return;
         }
 
-        // In math stereometry, full screen touch manipulation belongs to 3D geometry
+        // 在立体几何实验中，全屏触摸操作归属于 3D 几何图形交互
         if (typeof window !== 'undefined' && (window as any).__ENGINE__?.currentExperimentId === 'math-stereometry') {
           return;
         }
 
-        // Multi-touch gestures in look area (e.g. 2-finger pinch on iPad) should not trigger camera look.
-        // Filter out the joystick touch and UI touches so moving or elevating with one hand while looking works seamlessly!
+        // 视角区域的多指手势（如 iPad 上的双指捏合）不应触发相机旋转。
+        // 过滤掉摇杆和 UI 触摸点，使单手移动/升降与单手转动视角无缝协同
         const nonJoystickTouches = Array.from(e.touches || []).filter(
           (t) => t.identifier !== this.joystickTouchId && !this.uiTouchIds.has(t.identifier)
         );
@@ -733,7 +733,7 @@ export class TouchController {
           const touch = e.changedTouches[i];
           if (touch.identifier === this.joystickTouchId || this.uiTouchIds.has(touch.identifier)) continue;
 
-          // Reserve bottom-left area for joystick movement; allow camera look outside the joystick area
+          // 左下角区域预留给摇杆移动；摇杆区域外允许拖拽调整视角
           const isJoystickArea =
             touch.clientX < 220 && touch.clientY > window.innerHeight - 240;
 
@@ -746,7 +746,7 @@ export class TouchController {
       { passive: false }
     );
 
-    // Elevation Up Button (Bottom-Right, Above Launcher)
+    // 视角升高按钮（右下角，位于启动按钮上方）
     if (this.elevateUpBtn) {
       this.elevateUpBtn.addEventListener(
         'touchstart',
@@ -795,7 +795,7 @@ export class TouchController {
       });
     }
 
-    // Elevation Down Button (Bottom-Right, Above Launcher)
+    // 视角降低按钮（右下角，位于启动按钮上方）
     if (this.elevateDownBtn) {
       this.elevateDownBtn.addEventListener(
         'touchstart',
@@ -844,7 +844,7 @@ export class TouchController {
       });
     }
 
-    // Vision Spatial Window Launcher Button (Bottom-Right)
+    // 全息空间视窗启动按钮（右下角）
     if (this.visionLauncherBtn) {
       let lastTapTime = 0;
       const triggerLauncher = (e: Event) => {
@@ -915,7 +915,7 @@ export class TouchController {
     this.player.keys.right = isRight;
     this.player.keys.sprint = dist > this.maxRadius * 0.85;
 
-    // Visual cardinal feedback
+    // 四向方位视觉反馈
     if (this.joystickBase) {
       this.joystickBase.classList.toggle('dir-up', isForward);
       this.joystickBase.classList.toggle('dir-down', isBackward);

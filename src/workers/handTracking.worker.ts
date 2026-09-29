@@ -13,19 +13,19 @@ let consecutiveSingleHandFrames = 0;
 
 const ctx: DedicatedWorkerGlobalScope = self as any;
 
-// Polyfill window in worker to enable MediaPipe GPU/WebGL routines without crashing
+// 在 Worker 中垫片 window 对象，确保 MediaPipe GPU/WebGL 逻辑正常运行
 if (typeof (self as any).window === 'undefined') {
   (self as any).window = self;
 }
 
-// Polyfill importScripts in ES module worker to prevent MediaPipe $h from attempting document.createElement
+// 在 ES Module Worker 中垫片 importScripts，避免 MediaPipe 内部尝试调用 document.createElement
 if (typeof (self as any).importScripts !== 'function') {
   (self as any).importScripts = () => {
     throw new TypeError('Module worker does not support importScripts');
   };
 }
 
-// Instantiate shared worker OffscreenCanvas for WebGL GPU context initialization
+// 实例化 Worker 共享的 OffscreenCanvas，用于初始化 WebGL GPU 上下文
 const defaultWorkerCanvas =
   typeof OffscreenCanvas !== 'undefined'
     ? (new OffscreenCanvas(256, 192) as any)
@@ -53,20 +53,20 @@ if (defaultWorkerCanvas) {
   defaultWorkerCanvas.removeEventListener = () => {};
   defaultWorkerCanvas.dispatchEvent = () => true;
 
-  // Bypass Emscripten Safari getContext wrap check in workers
+  // 绕过 Worker 中 Emscripten Safari getContext 包装检查
   if (typeof defaultWorkerCanvas.getContext === 'function') {
     defaultWorkerCanvas.getContextSafariWebGL2Fixed = defaultWorkerCanvas.getContext.bind(defaultWorkerCanvas);
   }
 }
 
-// Bypass Emscripten Safari getContext wrap check across all OffscreenCanvas instances in workers
+// 绕过 Worker 中所有 OffscreenCanvas 实例的 Emscripten Safari getContext 包装检查
 if (typeof OffscreenCanvas !== 'undefined' && OffscreenCanvas.prototype) {
   if (typeof (OffscreenCanvas.prototype as any).getContextSafariWebGL2Fixed === 'undefined') {
     (OffscreenCanvas.prototype as any).getContextSafariWebGL2Fixed = OffscreenCanvas.prototype.getContext;
   }
 }
 
-// Preserve ModuleFactory across re-initialization if MediaPipe attempts to clear it
+// 保持 ModuleFactory 引用，防止 MediaPipe 重新初始化时将其清空
 let _preservedModuleFactory: any = undefined;
 Object.defineProperty(self, 'ModuleFactory', {
   get: () => _preservedModuleFactory,
@@ -79,19 +79,19 @@ Object.defineProperty(self, 'ModuleFactory', {
   enumerable: true,
 });
 
-// Polyfill HTMLCanvasElement and WebGLRenderingContext in worker global scope
+// 在 Worker 全局作用域中垫片 HTMLCanvasElement 与 WebGLRenderingContext
 if (typeof (self as any).HTMLCanvasElement === 'undefined' && typeof OffscreenCanvas !== 'undefined') {
   (self as any).HTMLCanvasElement = OffscreenCanvas;
 }
 
 if (typeof (self as any).WebGLRenderingContext === 'undefined') {
-  // Use a distinct dummy class so `gl instanceof WebGLRenderingContext` evaluates to false
-  // for WebGL2RenderingContext instances in Emscripten's fixedGetContext check:
+  // 使用独立的虚拟类，使 Emscripten 的 fixedGetContext 校验中：
   // ((ver == "webgl") == (gl instanceof WebGLRenderingContext)) ? gl : null
+  // 对 WebGL2RenderingContext 实例计算为 false
   (self as any).WebGLRenderingContext = class WebGLRenderingContext {};
 }
 
-// Initialize Emscripten Module object with pre-bound worker canvas
+// 使用预绑定的 Worker Canvas 初始化 Emscripten Module 对象
 if (typeof (self as any).Module === 'undefined') {
   (self as any).Module = {};
 }
@@ -100,7 +100,7 @@ if (defaultWorkerCanvas) {
   (self as any).Module.canvasWebGpu = defaultWorkerCanvas;
 }
 
-// Polyfill document and element selectors for Emscripten target resolution
+// 为 Emscripten 目标解析垫片 document 及元素选择器
 if (typeof (self as any).document === 'undefined' || !(self as any).document.getElementById) {
   (self as any).document = {
     createElement: (tag: string) => {
@@ -141,7 +141,7 @@ ctx.onmessage = async (e: MessageEvent) => {
 
     try {
       console.log('[HandTrackingWorker] Loading local MediaPipe Vision WASM from:', wasmBasePath);
-      // Explicitly pass useModule: true so MediaPipe loads ES module vision_wasm_module_internal.js
+      // 显式传入 useModule: true，使 MediaPipe 正确加载 ES Module 版本的 vision_wasm_module_internal.js
       const vision = await FilesetResolver.forVisionTasks(wasmBasePath, true);
 
       console.log('[HandTrackingWorker] Initializing HandLandmarker model from:', modelAssetPath);
@@ -161,7 +161,7 @@ ctx.onmessage = async (e: MessageEvent) => {
         activeDelegate = 'CPU';
         console.log(`[HandTrackingWorker] HandLandmarker initialized with CPU delegate (numHands: ${numHands})`);
       } else {
-        // Attempt GPU delegate with explicit canvas binding first, fallback to CPU delegate
+        // 优先尝试绑定明确 Canvas 的 GPU 代理，失败后回退至 CPU 代理
         try {
           const gpuOptions: any = {
             baseOptions: {
@@ -230,13 +230,11 @@ ctx.onmessage = async (e: MessageEvent) => {
     const tStart = performance.now();
 
     try {
-      // Dynamic Adaptive Hand Scheduling:
-      // When 1 hand is continuously tracked, running full BlazePalm SSD palm detection
-      // every frame searching for a non-existent 2nd hand wastes ~40-150ms per frame.
-      // By dynamically alternating numHands: 1 (fast landmark tracking: ~5ms) and
-      // numHands: 2 (periodic 2nd hand scan: ~30ms every 4th frame, ~80ms cadence),
-      // single hand tracking achieves 60-120+ FPS with zero perceptible latency
-      // when introducing a second hand.
+      // 动态自适应手势调度（Adaptive Hand Scheduling）：
+      // 当持续追踪单手时，每帧运行完整 BlazePalm SSD 手掌检测寻找不存在的第二只手会消耗 40-150ms；
+      // 通过动态交替调度 numHands: 1（极速关键点追踪：~5ms）与
+      // numHands: 2（周期性第二只手扫描：每 25 帧触发一次），
+      // 单手追踪可达到 60-120+ FPS，并在伸出第二只手时保持无感知延迟。
       if (baseNumHands >= 2 && handLandmarker) {
         let desiredNumHands = baseNumHands;
         if (trackedHandsCount === 1) {
@@ -261,7 +259,7 @@ ctx.onmessage = async (e: MessageEvent) => {
         }
       }
 
-      // Enforce strictly monotonic timestamp to adhere to MediaPipe VIDEO mode invariants
+      // 严格强制单调递增的时间戳，以满足 MediaPipe VIDEO 模式的不变量要求
       const safeTimestamp = Math.max(lastTimestamp + 1, Math.round(timestamp));
       lastTimestamp = safeTimestamp;
       const results = handLandmarker.detectForVideo(imageBitmap, safeTimestamp);

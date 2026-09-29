@@ -2,13 +2,13 @@ import type { HandGestureFrame, SingleHandData } from './types.ts';
 import { blurActiveInput, isElementVisibleAndActive, isTextInputElement } from '../core/focus.ts';
 
 export class VisionProCursor {
-  // Right Hand Cursor (Mouse Emulation)
+  // 右手光标（模拟鼠标交互）
   private rightContainer: HTMLElement;
   private rightRing: HTMLElement;
   private rightCore: HTMLElement;
   private rightPulseRing: HTMLElement;
 
-  // Left Hand Reticle (Menu Toggle & Camera Navigation)
+  // 左手准星指示器（视窗开关与视角漫游控制）
   private leftContainer: HTMLElement;
   private leftRing: HTMLElement;
   private leftCore: HTMLElement;
@@ -25,7 +25,7 @@ export class VisionProCursor {
   private currentLeftX = 0;
   private currentLeftY = 0;
 
-  // High-refresh rate smooth gliding interpolation targets & rendered positions
+  // 高刷新率平滑插值目标与实际渲染位置
   private targetRightX = -100;
   private targetRightY = -100;
   private targetLeftX = -100;
@@ -37,14 +37,14 @@ export class VisionProCursor {
   private animFrameId: number | null = null;
   private isDestroyed = false;
 
-  // Mouse emulation state (driven exclusively by Right Hand)
+  // 鼠标模拟状态机（专属由右手驱动）
   private lastHoverTarget: Element | null = null;
   private dragTarget: Element | null = null;
   private dragStartX = 0;
   private dragStartY = 0;
   private dragStartTime = 0;
 
-  // Cached hit test & event throttling (prevents DOM layout thrashing & reflow spikes)
+  // 命中测试缓存与事件节流（避免频繁触发 DOM 布局重排抖动）
   private lastHitElement: Element | null = null;
   private lastHitX = -9999;
   private lastHitY = -9999;
@@ -57,7 +57,7 @@ export class VisionProCursor {
   constructor(parent: HTMLElement = document.body) {
     this.injectStyles();
 
-    // 1. Right Hand Cursor DOM
+    // 1. 右手光标 DOM 节点
     this.rightContainer = document.createElement('div');
     this.rightContainer.id = 'vision-pro-hand-cursor';
     this.rightContainer.innerHTML = `
@@ -70,7 +70,7 @@ export class VisionProCursor {
     this.rightCore = this.rightContainer.querySelector('.vp-reticle-core') as HTMLElement;
     this.rightPulseRing = this.rightContainer.querySelector('.vp-pulse-ring') as HTMLElement;
 
-    // 2. Left Hand Reticle DOM (White Vision Pro Reticle matching Right Hand)
+    // 2. 左手准星 DOM 节点（与右手风格对称一致的纯白 Vision Pro 视盘准星）
     this.leftContainer = document.createElement('div');
     this.leftContainer.id = 'vision-pro-left-reticle';
     this.leftContainer.innerHTML = `
@@ -103,7 +103,7 @@ export class VisionProCursor {
     style.id = 'vision-pro-cursor-style';
     style.textContent = `
       /* ========================================================== */
-      /* Symmetrical Vision Pro White Reticle Cursors (Left & Right)*/
+      /* 对称式 Vision Pro 纯白视盘准星光标（左手与右手） */
       /* ========================================================== */
       #vision-pro-hand-cursor,
       #vision-pro-left-reticle {
@@ -212,7 +212,7 @@ export class VisionProCursor {
         box-shadow: 0 0 12px #ffffff;
       }
 
-      /* Dual-Hand Pinch Mode (Simultaneous pinch zoom on 3D geometry) */
+      /* 双手协同捏合模式（两手同时捏合连续缩放 3D 几何实体） */
       #vision-pro-hand-cursor.dual-pinching .vp-reticle-ring,
       #vision-pro-left-reticle.dual-pinching .vp-reticle-ring,
       #vision-pro-left-reticle.dual-pinching .vp-left-ring {
@@ -333,7 +333,7 @@ export class VisionProCursor {
 
   private renderTick(): void {
     if (this.isRightVisible) {
-      // High-refresh rate smooth gliding interpolation (60Hz / 120Hz)
+      // 高刷新率平滑滑动插值渲染（60Hz / 120Hz）
       const factor = 0.42;
       this.renderRightX += (this.targetRightX - this.renderRightX) * factor;
       this.renderRightY += (this.targetRightY - this.renderRightY) * factor;
@@ -357,7 +357,7 @@ export class VisionProCursor {
   }
 
   /**
-   * Main update function called on each hand tracking frame.
+   * 每帧手部追踪计算回调的主更新函数。
    */
   public update(frame: HandGestureFrame): void {
     this.isDualPinching = Boolean(frame.isDualPinching);
@@ -373,7 +373,7 @@ export class VisionProCursor {
       this.leftContainer.classList.remove('dual-pinching');
     }
 
-    // 1. Process Right Hand (or primary hand for mouse emulation)
+    // 1. 处理右手手势（或用于模拟鼠标的主交互手）
     const rightHand = frame.rightHand || (frame.hasHand && !frame.leftHand ? frame : null);
     if (rightHand && rightHand.screenX > 0 && rightHand.screenY > 0) {
       this.updateRightHand(rightHand);
@@ -383,7 +383,7 @@ export class VisionProCursor {
       }
     }
 
-    // 2. Process Left Hand (Menu Toggle & Camera Perspective)
+    // 2. 处理左手手势（控制浮窗开合与相机视角转动）
     if (frame.leftHand) {
       this.updateLeftHand(frame.leftHand, frame.leftHandQuickPinch);
     } else {
@@ -412,7 +412,7 @@ export class VisionProCursor {
       this.rightContainer.style.transform = `translate3d(${hand.screenX}px, ${hand.screenY}px, 0)`;
     }
 
-    // Throttled hit-testing: avoids repeated synchronous document.elementFromPoint layout reflows
+    // 节流命中测试：避免同步高频调用 document.elementFromPoint 导致页面重排
     let element: Element | null = this.dragTarget;
     if (!element) {
       const now = performance.now();
@@ -539,7 +539,7 @@ export class VisionProCursor {
   }
 
   /**
-   * Translates Right Hand pinch state transitions into standard Pointer & Mouse Events.
+   * 将右手捏合状态机转换映射为标准 Pointer 与 Mouse 事件流。
    */
   private processMouseEmulation(
     hand: SingleHandData | HandGestureFrame,
@@ -569,7 +569,7 @@ export class VisionProCursor {
       this.lastHoverTarget = currentElement;
     }
 
-    // Pinch Down (Mouse Down)
+    // 捏合按下（对应鼠标左键按下）
     if (hand.justPinchStarted) {
       this.isRightPinching = true;
       this.rightContainer.classList.add('pinching');
@@ -593,7 +593,7 @@ export class VisionProCursor {
       }
     }
 
-    // Pinch Dragging
+    // 捏合拖拽移动
     if (hand.isPinching && !hand.justPinchStarted) {
       const target = this.dragTarget || currentElement;
       this.dispatchPointerEvent('pointermove', target, x, y, 0, 1);
@@ -601,7 +601,7 @@ export class VisionProCursor {
       this.lastDispatchedX = x;
       this.lastDispatchedY = y;
     } else if (!hand.isPinching) {
-      // Throttle micro-jitter (< 0.5px) when hovering
+      // 悬停时过滤低于 0.5px 的微小抖动
       if (Math.hypot(x - this.lastDispatchedX, y - this.lastDispatchedY) >= 0.5) {
         this.dispatchPointerEvent('pointermove', currentElement, x, y, 0, 0);
         this.dispatchMouseEvent('mousemove', currentElement, x, y, 0, 0);
@@ -610,7 +610,7 @@ export class VisionProCursor {
       }
     }
 
-    // Pinch Up (Mouse Up & Click)
+    // 捏合松开（对应鼠标左键抬起与点击）
     if (hand.justPinchEnded) {
       this.releasePinch(x, y, currentElement);
     }
@@ -683,7 +683,7 @@ export class VisionProCursor {
       });
       target.dispatchEvent(event);
     } catch (e) {
-      // Ignore
+      // 忽略错误
     }
   }
 
@@ -709,7 +709,7 @@ export class VisionProCursor {
       });
       target.dispatchEvent(event);
     } catch (e) {
-      // Ignore
+      // 忽略错误
     }
   }
 

@@ -30,7 +30,7 @@ export class StereometryStatusCard {
   private callbacks: StereometryStatusCardCallbacks;
   private isVisible = false;
 
-  // Cached DOM Elements
+  // 缓存的 DOM 元素
   private scanBarEl: HTMLElement | null = null;
   private scanStatusEl: HTMLElement | null = null;
   private uploadBtn: HTMLButtonElement | null = null;
@@ -159,7 +159,7 @@ export class StereometryStatusCard {
   }
 
   private bindEvents(): void {
-    // 1. Model Cards selection across the 4 tiles
+    // 1. 4 种模型的卡片选择切换
     this.element.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('.math-model-card') as HTMLElement;
       if (!btn) return;
@@ -199,7 +199,7 @@ export class StereometryStatusCard {
       void this.openCamera(cameraInput);
     });
 
-    // Drag and drop onto card or upload button
+    // 拖拽文件至卡片或上传按钮
     this.element.addEventListener('dragover', (e) => {
       e.preventDefault();
       this.uploadBtn?.classList.add('is-dragover');
@@ -298,8 +298,8 @@ export class StereometryStatusCard {
   }
 
   /**
-   * Synchronize telemetry state into the Apple VisionOS card.
-   * Keeps active model card highlighting synchronized with current model.
+   * 将遥测状态同步至 Apple VisionOS 卡片。
+   * 保持当前高亮选中的模型卡片与底层模型同步。
    */
   public updateTelemetry(data: StereometryTelemetryData): void {
     if (!this.isVisible) return;

@@ -1,14 +1,14 @@
 /**
- * 2D Projectile Motion & Mechanical Energy Conservation
+ * 二维平抛运动与机械能守恒定律动力学
  */
 
 import { STANDARD_GRAVITY } from './constants.ts';
 
 export interface ProjectileConfig {
-  releaseHeightM: number; // H (m) on ramp
-  ballMassKg: number;      // m (kg)
-  targetYM: number;        // Vertical drop y (m)
-  gravity?: number;        // g (m/s^2)
+  releaseHeightM: number; // 斜槽释放高度 H (m)
+  ballMassKg: number;      // 小球质量 m (kg)
+  targetYM: number;        // 下落竖直高度 y (m)
+  gravity?: number;        // 重力加速度 g (m/s^2)
 }
 
 export interface TrajectoryPoint {
@@ -23,15 +23,15 @@ export interface TrajectoryPoint {
 export interface ProjectileTelemetry {
   releaseHeightM: number;
   ballMassKg: number;
-  v0: number; // Horizontal launch speed (m/s)
+  v0: number; // 水平初速度 (m/s)
   targetYM: number;
   targetXM: number;
   flightTimeS: number;
   finalVy: number;
   finalV: number;
-  deltaEp: number; // m g y (J)
-  deltaEk: number; // 0.5 m (v^2 - v0^2) (J)
-  energyDiscrepancy: number; // |deltaEp - deltaEk| (J)
+  deltaEp: number; // 重力势能减少量 m * g * y (J)
+  deltaEk: number; // 动能增加量 0.5 * m * (v^2 - v0^2) (J)
+  energyDiscrepancy: number; // 能量偏差绝对值 |deltaEp - deltaEk| (J)
   gravity: number;
   points: TrajectoryPoint[];
 }
@@ -42,10 +42,10 @@ export function solveProjectileDynamics(config: ProjectileConfig): ProjectileTel
   const m = Math.max(0.001, config.ballMassKg);
   const yTarget = Math.max(0.01, config.targetYM);
 
-  // Horizontal exit speed from ramp (v0 = sqrt(2 g H))
+  // 小球从斜槽末端滑出时的水平初速度 (v0 = sqrt(2 * g * H))
   const v0 = Math.sqrt(2 * g * H);
 
-  // Time to reach vertical drop yTarget: y = 0.5 * g * t^2 => t = sqrt(2 y / g)
+  // 下落竖直高度 yTarget 所需时间: y = 0.5 * g * t^2 => t = sqrt(2 * y / g)
   const flightTimeS = Math.sqrt((2 * yTarget) / g);
   const targetXM = v0 * flightTimeS;
   const finalVy = g * flightTimeS;
@@ -55,7 +55,7 @@ export function solveProjectileDynamics(config: ProjectileConfig): ProjectileTel
   const deltaEk = 0.5 * m * (finalV * finalV - v0 * v0);
   const energyDiscrepancy = Math.abs(deltaEp - deltaEk);
 
-  // Sample points for 3D trajectory curve & strobe dots
+  // 对 3D 轨迹曲线及频闪观测点进行采样
   const points: TrajectoryPoint[] = [];
   const numSteps = 40;
   for (let i = 0; i <= numSteps; i++) {

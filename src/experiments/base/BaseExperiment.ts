@@ -14,14 +14,14 @@ export abstract class BaseExperiment implements IExperiment {
   }
 
   /**
-   * Helper to automatically track geometry, material, texture or mesh for zero-leak cleanup.
+   * 自动追踪几何体、材质、纹理或网格，以实现无泄漏的安全释放。
    */
   protected track<T>(resource: T): T {
     return this.tracker.track(resource);
   }
 
   /**
-   * Helper to register cleanup callbacks (timers, worker streams).
+   * 注册清理回调函数（如定时器、Worker 数据流等）。
    */
   protected addDisposable(fn: () => void): void {
     this.tracker.addDisposable(fn);
@@ -32,26 +32,26 @@ export abstract class BaseExperiment implements IExperiment {
   public abstract init(context: ExperimentContext): Promise<void> | void;
 
   public mount(context: ExperimentContext): void {
-    // Override in subclass if mounting logic needed
+    // 若子类需要挂载逻辑可在此重写
   }
 
   public abstract update(delta: number, elapsed: number, context: ExperimentContext): void;
 
   public unmount(context: ExperimentContext): void {
-    // Override in subclass if unmounting logic needed
+    // 若子类需要卸载逻辑可在此重写
   }
 
   /**
-   * Deep disposal of all GPU geometries, materials, textures and callbacks.
+   * 深度释放所有 GPU 几何体、材质、纹理以及清理回调。
    */
   public dispose(context: ExperimentContext): void {
-    // Remove all children from rootGroup
+    // 从 rootGroup 中移除所有子节点
     while (this.rootGroup.children.length > 0) {
       const child = this.rootGroup.children[0];
       this.rootGroup.remove(child);
     }
 
-    // Perform deep GPU resource disposal
+    // 执行 GPU 资源的深度销毁
     this.tracker.dispose();
   }
 

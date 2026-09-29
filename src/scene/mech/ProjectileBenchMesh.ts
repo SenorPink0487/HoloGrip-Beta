@@ -1,6 +1,6 @@
 /**
- * 3D Bench Mesh: Projectile Motion & Mechanical Energy Conservation
- * Curved launch chute, coordinate grid board, plumb bob, photogate, and landing plate.
+ * 3D 实验台模型：平抛运动与机械能守恒实验仪
+ * 包含弧形发射斜槽、坐标网格背板、铅垂线重锤、光电门及承接落点底盘。
  */
 
 import * as THREE from 'three';
@@ -21,7 +21,7 @@ export class ProjectileBenchMesh {
   constructor() {
     this.group.name = 'ProjectileBenchMesh';
 
-    // 1. Backboard with Coordinate Grid
+    // 1. 带坐标网格的背板
     const boardGeom = new THREE.PlaneGeometry(1.2, 0.8);
     const boardMat = new THREE.MeshStandardMaterial({
       color: 0xf8fafc,
@@ -33,23 +33,23 @@ export class ProjectileBenchMesh {
     board.position.set(0.4, 0.3, -0.06);
     this.group.add(board);
 
-    // Frame for backboard
+    // 背板边框
     const frameGeom = new THREE.BoxGeometry(1.24, 0.84, 0.02);
     const frame = new THREE.Mesh(frameGeom, mechIron(0x334155));
     frame.position.set(0.4, 0.3, -0.075);
     this.group.add(frame);
 
-    // Plumb line (Heavy bob & silk thread indicating vertical)
+    // 铅垂线（重锤与悬线指示垂直基准）
     const plumbThreadGeom = new THREE.CylinderGeometry(0.001, 0.001, 0.7, 4);
     const plumbThread = new THREE.Mesh(plumbThreadGeom, mechIron(0x0f172a));
     plumbThread.position.set(-0.15, 0.35, -0.04);
     const plumbBobGeom = new THREE.ConeGeometry(0.012, 0.03, 12);
     plumbBobGeom.rotateX(Math.PI);
-    const plumbBob = new THREE.Mesh(plumbBobGeom, mechMetal(0xeab308)); // Brass plumb bob
+    const plumbBob = new THREE.Mesh(plumbBobGeom, mechMetal(0xeab308)); // 黄铜铅锤
     plumbBob.position.set(-0.15, -0.015, -0.04);
     this.group.add(plumbThread, plumbBob);
 
-    // 2. Curved Chute (Smooth ramp to horizontal exit)
+    // 2. 弧形轨道斜槽（平滑过渡至水平出口）
     const curve = new THREE.QuadraticBezierCurve3(
       new THREE.Vector3(-0.35, this.LAUNCH_Y + 0.3, 0),
       new THREE.Vector3(-0.15, this.LAUNCH_Y, 0),
@@ -60,28 +60,28 @@ export class ProjectileBenchMesh {
     const chuteMesh = new THREE.Mesh(chuteGeom, chuteMat);
     this.chuteGroup.add(chuteMesh);
 
-    // Launch Mouth Photogate
+    // 出口发射光电门
     const gateGeom = new THREE.BoxGeometry(0.02, 0.05, 0.04);
     const gate = new THREE.Mesh(gateGeom, mechIron(0x1e293b));
     gate.position.set(this.LAUNCH_X, this.LAUNCH_Y, 0);
     this.chuteGroup.add(gate);
     this.group.add(this.chuteGroup);
 
-    // 3. Mobile Landing / Impact Plate
+    // 3. 移动式承接板 / 落点撞击板
     const plateGeom = new THREE.BoxGeometry(0.2, 0.015, 0.15);
     const plateMat = mechIron(0x475569);
     this.landingPlate = new THREE.Mesh(plateGeom, plateMat);
     this.landingPlate.position.set(0.5, 0.1, 0);
     this.group.add(this.landingPlate);
 
-    // 4. Projectile Ball (Chrome finish)
+    // 4. 平抛金属小球（镀铬镜面）
     const ballGeom = new THREE.SphereGeometry(0.014, 24, 24);
     const ballMat = mechMetal(0xffffff, 0.98, 0.05);
     this.ballMesh = new THREE.Mesh(ballGeom, ballMat);
     this.ballMesh.position.set(this.LAUNCH_X, this.LAUNCH_Y, 0);
     this.group.add(this.ballMesh);
 
-    // 5. Dynamic Trajectory Line
+    // 5. 动态轨迹虚线
     this.trajectoryGeom = new THREE.BufferGeometry();
     const maxPoints = 50;
     const positions = new Float32Array(maxPoints * 3);

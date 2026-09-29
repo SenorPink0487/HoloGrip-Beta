@@ -1,11 +1,11 @@
 import { MU0 } from './constants.ts';
 
 /**
- * Axial coordinate is the coil axis. On the bench that axis is +Y:
- * positive axial places the magnet above the coil.
- * Positive poleSign means the magnetic moment points +Y (N on top).
- * Positive current produces B along +Y. At the near rim (+Z) that
- * current flows toward +X — the cross product ω × r with ω = +Y, r = +Z.
+ * 轴向坐标即为线圈中心轴。在实验台上该轴为 +Y 方向：
+ * 正轴向位置表示磁铁在线圈上方。
+ * 磁极符号 poleSign 为正表示磁矩朝向 +Y（N 极在上方）。
+ * 正电流产生沿 +Y 方向的磁场 B。在线圈近边缘处（+Z），
+ * 该电流流向 +X 方向——即矢量积 ω × r（其中 ω 沿 +Y，r 沿 +Z）。
  */
 export interface InductionInput {
   axial: number;
@@ -28,7 +28,7 @@ export interface InductionReading {
   fluxLinkageWb: number;
   emfVolt: number;
   currentAmp: number;
-  /** +1 when the near-rim current flows toward +X. */
+  /** 当线圈近边缘电流流向 +X 时取 +1。 */
   frontFlowX: number;
 }
 
@@ -50,7 +50,7 @@ export function gaussian(x: number, sigma: number): number {
   return Math.exp(-(x * x) / s2);
 }
 
-/** Magnet's axial field at a station `axialStation` along the coil axis. */
+/** 磁铁在线圈轴上某位置 `axialStation` 处产生的轴向磁场。 */
 export function magnetFieldAt(input: InductionInput, axialStation: number): number {
   return input.poleSign * input.bPeakTesla * gaussian(axialStation - input.axial, input.sigmaM);
 }

@@ -35,12 +35,12 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
   private refractiveIndex = 1.54;
   private multiSpectrum = true;
 
-  // Multi-Core Worker State
+  // 多核 Worker 状态
   private isWorkerBusy = false;
   private workerRays: WorkerDispersionRayData[] = [];
   private lastDispersionStateHash = '';
 
-  // Cached scratch vectors for per-frame beam rendering
+  // 用于逐帧光束渲染的缓存暂存向量
   private readonly startPos = new THREE.Vector3();
   private readonly prismPos = new THREE.Vector3();
   private readonly endPos = new THREE.Vector3();
@@ -48,11 +48,11 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
   private readonly faceNormal = new THREE.Vector3();
 
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    // 橡胶防震脚垫平稳贴合桌面 (Y=0.063)，沿桌面横向向前平移至交互工作区 (Z=0.96)
     this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
-    // 1. Rail & Saddles
+    // 1. 光学导轨与滑块座
     this.rail = this.track(new OpticalBenchRail());
     this.rootGroup.add(this.rail.group);
     this.addDisposable(() => this.rail.dispose());
@@ -66,12 +66,12 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
     this.screenSaddle = this.rail.createCarrierSaddle('ScreenSaddle');
     this.screenSaddle.position.z = 0.48;
 
-    // 2. Laser Emitter
+    // 2. 激光发射器
     this.laser = this.track(new LaserEmitterMesh(this.wavelength));
     this.laserSaddle.add(this.laser.group);
     this.addDisposable(() => this.laser.dispose());
 
-    // 3. Rotary Stage & Prism
+    // 3. 旋转台与棱镜
     this.rotaryStage = this.track(new RotaryStageMesh());
     this.prismSaddle.add(this.rotaryStage.group);
     this.addDisposable(() => this.rotaryStage.dispose());
@@ -80,12 +80,12 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
     this.rotaryStage.rotorGroup.add(this.prism.group);
     this.addDisposable(() => this.prism.dispose());
 
-    // 4. Observation Screen & Radiometer
+    // 4. 观测屏与辐射计
     this.detectorScreen = this.track(new DetectorScreenMesh());
     this.screenSaddle.add(this.detectorScreen.group);
     this.addDisposable(() => this.detectorScreen.dispose());
 
-    // 5. Beams
+    // 5. 光束系统
     this.beamSystem = this.track(new OpticalBeamSystem(this.wavelength));
     this.rootGroup.add(this.beamSystem.group);
     this.addDisposable(() => this.beamSystem.dispose());
@@ -195,7 +195,7 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
       this.beamSystem.clearDispersionRays();
       this.lastDispersionStateHash = '';
 
-      // Single monochromatic ray refraction & TIR reflection
+      // 单色光线折射与全内反射 (TIR)
       const rad = THREE.MathUtils.degToRad(this.prismAngle);
       this.faceNormal.set(-Math.sin(rad), 0, Math.cos(rad));
       const res = OpticalPhysics.refractRay(this.inDir, this.faceNormal, 1.0, this.refractiveIndex);
@@ -253,7 +253,7 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
           this.beamSystem.updateDispersionRaysFromWorker(this.workerRays);
         }
       } else {
-        // Fallback when workerPool is empty (e.g., node test)
+        // 当 workerPool 为空时的后备方案（例如 Node 测试）
         const rays = OpticalPhysics.calculatePrismDispersionRays(
           new THREE.Vector3(apexPos[0], apexPos[1], apexPos[2]),
           THREE.MathUtils.degToRad(this.prismAngle),
@@ -264,7 +264,7 @@ export default class OpticsPropagationExperiment extends BaseExperiment {
         this.beamSystem.updateDispersionRays(rays);
       }
     } catch {
-      // Fallback silently if worker thread is terminating
+      // 若 Worker 线程正在终止则静默降级
     } finally {
       this.isWorkerBusy = false;
     }

@@ -1,6 +1,6 @@
 /**
- * Centralized focus and input-state management to prevent unwanted typing input
- * (IME composition, virtual keyboard, or text cursor) in non-input states.
+ * 集中焦点与输入状态管理，防止在非输入状态下触发意外输入
+ * （如输入法合成、虚拟键盘或文本光标闪烁）。
  */
 
 export function isTextInputElement(el: Element | null): boolean {
@@ -31,22 +31,22 @@ export function isTextInputElement(el: Element | null): boolean {
 export function isElementVisibleAndActive(el: HTMLElement | null): boolean {
   if (!el) return false;
 
-  // Check if disabled or readonly
+  // 检查是否禁用或只读
   if ((el as HTMLInputElement).disabled || (el as HTMLInputElement).readOnly) {
     return false;
   }
 
-  // Check if attached to DOM
+  // 检查是否挂载至 DOM
   if (typeof el.isConnected === 'boolean' && !el.isConnected) {
     return false;
   }
 
-  // Check inert (HTML attribute or property)
+  // 检查 inert 属性或其祖先元素
   if ((el as any).inert || (typeof el.closest === 'function' && el.closest('[inert]'))) {
     return false;
   }
 
-  // Check aria-hidden
+  // 检查 aria-hidden 状态
   if (
     el.getAttribute?.('aria-hidden') === 'true' ||
     (typeof el.closest === 'function' && el.closest('[aria-hidden="true"]'))
@@ -54,7 +54,7 @@ export function isElementVisibleAndActive(el: HTMLElement | null): boolean {
     return false;
   }
 
-  // Check known application containers
+  // 检查已知的应用容器可见性
   if (typeof el.closest === 'function') {
     const drawer = el.closest('#experiment-drawer');
     if (drawer && !drawer.classList.contains('open')) {
@@ -72,7 +72,7 @@ export function isElementVisibleAndActive(el: HTMLElement | null): boolean {
     }
   }
 
-  // Check standard CSS display/visibility/opacity/pointer-events if in browser environment
+  // 浏览器环境下检查标准 CSS 属性（display/visibility/opacity/pointer-events）
   if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
     try {
       const style = window.getComputedStyle(el);
@@ -86,10 +86,10 @@ export function isElementVisibleAndActive(el: HTMLElement | null): boolean {
         return false;
       }
 
-      // Check ancestor computed styles (display/visibility/opacity)
+      // 检查祖先元素的计算样式（display/visibility/opacity）
       let parent = el.parentElement;
       while (parent && parent !== document.body) {
-        // If parent is a known application container, its visibility has already been checked above
+        // 若父级为已知应用容器，其可见性已在上方检查过
         if (
           parent.id === 'vision-spatial-window' ||
           parent.id === 'experiment-drawer' ||
@@ -110,13 +110,13 @@ export function isElementVisibleAndActive(el: HTMLElement | null): boolean {
         parent = parent.parentElement;
       }
     } catch {
-      // Ignore errors in mock or headless environments
+      // 忽略模拟或无头环境中的异常
     }
   }
 
-  // Check offsetParent (null means hidden unless fixed position in standard DOM)
+  // 检查 offsetParent（非 fixed 定位下为 null 表示隐藏）
   if (el.offsetParent === null && el.style?.position !== 'fixed') {
-    // If it's not fixed position and has null offsetParent, it's hidden
+    // 若非 fixed 定位且 offsetParent 为 null，则判定为隐藏
     if (typeof el.getBoundingClientRect === 'function') {
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 && rect.height === 0) {
@@ -129,9 +129,8 @@ export function isElementVisibleAndActive(el: HTMLElement | null): boolean {
 }
 
 /**
- * Returns true only if the user is genuinely, actively focused on an interactive text input
- * within an open, visible dialog or container.
- * If focus is on a stale, hidden, or non-text element, it automatically blurs it and returns false.
+ * 仅当用户在已打开的可见对话框或容器内主动聚焦于可交互文本输入框时返回 true。
+ * 若焦点停留在陈旧、隐藏或非文本元素上，会自动使其失焦并返回 false。
  */
 export function isTextInputActive(): boolean {
   if (typeof document === 'undefined') return false;
@@ -143,11 +142,11 @@ export function isTextInputActive(): boolean {
   }
 
   if (!isElementVisibleAndActive(active)) {
-    // Stale or hidden focus leaked into non-input state -> blur immediately
+    // 焦点泄漏至陈旧或隐藏元素 -> 立即强制失焦
     try {
       active.blur?.();
     } catch {
-      // Ignore
+      // 忽略异常
     }
     return false;
   }
@@ -156,7 +155,7 @@ export function isTextInputActive(): boolean {
 }
 
 /**
- * Explicitly blur any currently focused text input or modal element.
+ * 显式使当前聚焦的文本输入框或弹窗元素失焦。
  */
 export function blurActiveInput(force = false): void {
   if (typeof document === 'undefined') return;
@@ -167,13 +166,13 @@ export function blurActiveInput(force = false): void {
     try {
       active.blur?.();
     } catch {
-      // Ignore
+      // 忽略异常
     }
   }
 }
 
 /**
- * Traps Tab key navigation inside the given active modal container.
+ * 将 Tab 键导航焦点限制在指定的活动弹窗容器内。
  */
 function trapFocusInsideModal(modal: HTMLElement, event: KeyboardEvent): void {
   const focusable = modal.querySelectorAll<HTMLElement>(
@@ -221,17 +220,17 @@ function trapFocusInsideModal(modal: HTMLElement, event: KeyboardEvent): void {
 let guardsInitialized = false;
 
 /**
- * Initialize automatic global focus guards:
- * 1. Global focusin guard: Immediately blurs any inactive/hidden text inputs if targeted by browser autofill, Tab, or script.
- * 2. Global pointerdown guard: Blurs active text inputs when clicking outside them.
- * 3. Tab navigation guard: Prevents Tab key from leaking focus into closed modals or hidden inputs.
+ * 初始化全局自动焦点守卫：
+ * 1. 全局 focusin 守卫：拦截浏览器自动填充、Tab 键或脚本触发的隐藏/非活动输入框焦点并使其失焦。
+ * 2. 全局 pointerdown 守卫：点击输入框区域外部时自动解除输入框焦点。
+ * 3. Tab 导航守卫：防止 Tab 键将焦点移入已关闭弹窗或隐藏输入框。
  */
 export function initGlobalFocusGuards(): void {
   if (guardsInitialized) return;
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
   guardsInitialized = true;
 
-  // 1. Immediately intercept unwanted focus on inactive/hidden elements (e.g., from browser autofill or Tab)
+  // 1. 立即拦截非活动/隐藏元素上的意外焦点（如浏览器自动填充或 Tab 键切换）
   document.addEventListener(
     'focusin',
     (e) => {
@@ -249,7 +248,7 @@ export function initGlobalFocusGuards(): void {
     true
   );
 
-  // 2. Dismiss active text inputs when clicking/touching outside their form/container
+  // 2. 点击/触摸表单或容器外部时解除活动输入框的焦点
   window.addEventListener(
     'pointerdown',
     (e) => {
@@ -259,7 +258,7 @@ export function initGlobalFocusGuards(): void {
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
-      // Keep focus if clicking within the input itself or its interactive row/form
+      // 若点击输入框自身或其交互行/表单内，保持焦点
       if (active.contains(target) || target === active) return;
       if (active.closest('.mixture-ai-row')?.contains(target)) return;
       if (active.closest('.search-input-wrapper')?.contains(target)) return;
@@ -267,7 +266,7 @@ export function initGlobalFocusGuards(): void {
       const targetForm = target.closest?.('form');
       if (activeForm && targetForm && activeForm === targetForm) return;
 
-      // If clicking directly on 3D canvas, webgl container, or outside the interactive parent
+      // 若直接点击 3D 画布、WebGL 容器或交互父容器外部，立即失焦
       if (
         target.tagName === 'CANVAS' ||
         target.id === 'webgl-container' ||
@@ -280,7 +279,7 @@ export function initGlobalFocusGuards(): void {
     true
   );
 
-  // 3. Tab key focus confinement
+  // 3. Tab 键焦点限制
   window.addEventListener(
     'keydown',
     (e) => {
@@ -304,7 +303,7 @@ export function initGlobalFocusGuards(): void {
           return;
         }
 
-        // Pure 3D scene without open modals: prevent Tab from focusing hidden inputs or background elements
+        // 纯 3D 场景且无弹窗打开：阻止 Tab 聚焦隐藏输入框或背景元素
         e.preventDefault();
         blurActiveInput(true);
       }
@@ -313,7 +312,7 @@ export function initGlobalFocusGuards(): void {
   );
 }
 
-// Auto-initialize when running in browser environment
+// 在浏览器环境中自动初始化
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   initGlobalFocusGuards();
 }

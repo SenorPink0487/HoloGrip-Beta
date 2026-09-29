@@ -1,6 +1,6 @@
 /**
- * One Euro Filter for low-latency, jitter-free signal smoothing.
- * Casiez, G., Roussel, N. and Vogel, D. (2012).
+ * 1€ (One Euro) 滤波器：兼顾超低延迟与消除抖动的自适应信号平滑算法。
+ * 参考：Casiez, G., Roussel, N. and Vogel, D. (2012).
  * 1 € Filter: A Simple Speed-based Low-pass Filter for Noisy Input in HCI.
  */
 
@@ -38,9 +38,9 @@ export class OneEuroFilter {
   private lastTime: number | null = null;
 
   /**
-   * @param minCutoff Minimum cutoff frequency in Hz (smaller = more jitter reduction when stationary).
-   * @param beta Speed coefficient (larger = less lag when moving quickly).
-   * @param dCutoff Cutoff frequency for derivative filtering in Hz.
+   * @param minCutoff 最小截止频率（Hz），数值越小在静止状态下的防抖效果越强。
+   * @param beta 速度系数，数值越大在快速运动时的跟踪延迟越低。
+   * @param dCutoff 导数滤波器的截止频率（Hz）。
    */
   constructor(minCutoff = 1.2, beta = 0.008, dCutoff = 1.0) {
     this.minCutoff = minCutoff;

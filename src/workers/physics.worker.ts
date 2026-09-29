@@ -48,7 +48,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       const n = masses.length;
       const epsSq = softening * softening;
 
-      // N-Body Gravitational Physics calculation
+      // N 体引力物理模拟计算
       for (let i = 0; i < n; i++) {
         const i3 = i * 3;
         const px = positions[i3];
@@ -102,7 +102,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       const { id, heightMap, velocityMap, width, height, c, damping, dt } = req;
       const cSq = c * c;
 
-      // 2D Wave PDE finite-difference solver
+      // 2D 波动偏微分方程（PDE）有限差分求解器
       for (let y = 1; y < height - 1; y++) {
         const yUp = (y - 1) * width;
         const yMid = y * width;
@@ -149,7 +149,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const y = positions[i3 + 1];
         const z = positions[i3 + 2];
 
-        // RK2 / Euler step
+        // RK2 / 欧拉步进
         const dx = sigma * (y - x);
         const dy = x * (rho - z) - y;
         const dz = x * y - beta * z;
@@ -194,11 +194,11 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       const span = screenSpanMm * 1e-3;
 
       for (let i = 0; i < n; i++) {
-        // Position y from -span/2 to +span/2
+        // 屏幕位置 y 从 -span/2 变化至 +span/2
         const y = ((i / (n - 1)) - 0.5) * span;
         const sinTheta = y / Math.sqrt(y * y + L * L);
 
-        // Diffraction envelope beta
+        // 单缝衍射包络 beta
         const beta = (Math.PI * a * sinTheta) / lambda;
         const sinc = Math.abs(beta) < 1e-7 ? 1.0 : Math.sin(beta) / beta;
         const diffEnvelope = sinc * sinc;
@@ -206,12 +206,12 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         let intensity = diffEnvelope;
 
         if (slitCount === 2) {
-          // Double slit interference term: cos^2(alpha)
+          // 双缝干涉项：cos^2(alpha)
           const alpha = (Math.PI * d * sinTheta) / lambda;
           const interference = Math.cos(alpha) * Math.cos(alpha);
           intensity = diffEnvelope * interference;
         } else if (slitCount > 2) {
-          // Grating / Multi-slit interference term
+          // 光栅 / 多缝干涉项
           const N = Math.min(16, slitCount);
           const alpha = (Math.PI * d * sinTheta) / lambda;
           const sinAlpha = Math.sin(alpha);
@@ -258,9 +258,9 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       } = req;
 
       const dz = (endZ - startZ) / numSamples;
-      const k = (2 * Math.PI) / 0.14; // Spatial wavelength in 3D ~ 14cm
+      const k = (2 * Math.PI) / 0.14; // 3D 空间波长约 14cm
       const omega = 4.0;
-      const beamY = 0.186; // Optical axis height
+      const beamY = 0.186; // 光轴高度
 
       const polAngleRad = (polarizerAngleDeg * Math.PI) / 180;
       const anaAngleRad = (analyzerAngleDeg * Math.PI) / 180;
@@ -280,7 +280,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
 
         let ampX = 0;
         let ampY = 0;
-        const ampMag = 0.024; // 24mm amplitude
+        const ampMag = 0.024; // 振幅 24mm
 
         if (z < polarizerZ) {
           ampX = ampMag * Math.cos(polAngleRad) * Math.cos(phase);
@@ -299,12 +299,12 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
           ampY = transAmp * Math.sin(anaAngleRad) * Math.cos(phase);
         }
 
-        // Origin on beam axis
+        // 光轴原点
         positions[vIdx++] = 0;
         positions[vIdx++] = beamY;
         positions[vIdx++] = z;
 
-        // Vector tip
+        // 矢量末端
         positions[vIdx++] = ampX;
         positions[vIdx++] = beamY + ampY;
         positions[vIdx++] = z;
@@ -389,10 +389,10 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const n = Math.max(1.0, baseIndex + delta);
         const rgb = wavelengthToRgb(spec.wl);
 
-        // 1. Refract into glass at Face 1
+        // 1. 在入射面 1 折射进入玻璃
         const r1 = refractRay3D(inDirX, inDirY, inDirZ, face1Nx, face1Ny, face1Nz, 1.0, n);
 
-        // 2. Intersect Face 2 plane (passing through A with normal N2)
+        // 2. 与出射面 2 所在平面求交（过点 A 且法向量为 N2）
         const denom = r1.outX * face2Nx + r1.outZ * face2Nz;
         const tExit = Math.abs(denom) > 1e-5
           ? ((Ax - pEnterX) * face2Nx + (Az - pEnterZ) * face2Nz) / denom
@@ -402,13 +402,13 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const pExitY = apexPos[1];
         const pExitZ = pEnterZ + r1.outZ * validTExit;
 
-        // 3. Refract out of glass at Face 2
+        // 3. 在出射面 2 折射离开玻璃
         const r2 = refractRay3D(r1.outX, r1.outY, r1.outZ, face2Nx, face2Ny, face2Nz, n, 1.0);
         const outX = r2.refracted ? r2.outX : r1.outX;
         const outY = r2.refracted ? r2.outY : r1.outY;
         const outZ = r2.refracted ? r2.outZ : r1.outZ;
 
-        // 4. Intersect detector screen at screenZ
+        // 4. 与探测屏（screenZ）求交
         const distZ = screenZ - pExitZ;
         const tScreen = outZ > 1e-4 ? distZ / outZ : 0.45;
         const validTScreen = Math.max(0.05, tScreen);
@@ -448,7 +448,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
     case 'CHEMISTRY_STEP': {
       const { id, temperature, activeGasRate, ambientTemp = 20.0, dt } = req;
 
-      // Newton's law of cooling towards ambient room temp
+      // 牛顿冷却定律：逐渐趋向环境室温
       const coolingRate = 0.04;
       const newTemp = temperature > ambientTemp
         ? Math.max(ambientTemp, temperature - (temperature - ambientTemp) * coolingRate * dt)
@@ -456,7 +456,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         ? Math.min(ambientTemp, temperature + (ambientTemp - temperature) * coolingRate * dt)
         : temperature;
 
-      // Gas evolution decay
+      // 产气速率衰减
       const newGasRate = Math.max(0, activeGasRate - dt * 0.15);
 
       const computeTimeMs = performance.now() - startTime;
@@ -496,7 +496,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         dt,
       } = req;
 
-      // 1. Gas Bubbles
+      // 1. 气体气泡
       if (gasRate > 0.05) {
         const bubbleCount = bubbleVelocities.length;
         const rMax = liquidRadius * 0.85;
@@ -519,7 +519,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         }
       }
 
-      // 2. Precipitate
+      // 2. 沉淀生成
       if (isPrecipitating) {
         const precipCount = precipSpeeds.length;
         for (let i = 0; i < precipCount; i++) {
@@ -534,7 +534,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         }
       }
 
-      // 3. Splash
+      // 3. 倾倒飞溅
       const splashCount = splashLifespans.length;
       if (isPouring) {
         for (let i = 0; i < splashCount; i++) {
@@ -567,7 +567,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         }
       }
 
-      // 4. Sodium Sparks & Ball Position
+      // 4. 金属钠火花与钠球位置
       let ballX = 0;
       let ballY = liquidSurfaceLocalY + 0.006;
       let ballZ = 0;
@@ -649,12 +649,12 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const t = i / tubularSegments;
         const omt = 1 - t;
 
-        // Quadratic Bezier interpolation
+        // 二次贝塞尔插值
         const cx = omt * omt * p0[0] + 2 * omt * t * p1[0] + t * t * p2[0];
         const cy = omt * omt * p0[1] + 2 * omt * t * p1[1] + t * t * p2[1];
         const cz = omt * omt * p0[2] + 2 * omt * t * p1[2] + t * t * p2[2];
 
-        // Tangent
+        // 切线向量
         const tx = 2 * omt * (p1[0] - p0[0]) + 2 * t * (p2[0] - p1[0]);
         const ty = 2 * omt * (p1[1] - p0[1]) + 2 * t * (p2[1] - p1[1]);
         const tz = 2 * omt * (p1[2] - p0[2]) + 2 * t * (p2[2] - p1[2]);
@@ -663,7 +663,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const normTy = ty / tLen;
         const normTz = tz / tLen;
 
-        // Frenet-Serret normal
+        // Frenet-Serret 主法线向量
         let nx = prevNormal[0];
         let ny = prevNormal[1];
         let nz = prevNormal[2];
@@ -687,7 +687,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         nz /= nLen;
         prevNormal = [nx, ny, nz];
 
-        // Binormal
+        // 副法线向量
         const bx = normTy * nz - normTz * ny;
         const by = normTz * nx - normTx * nz;
         const bz = normTx * ny - normTy * nx;
@@ -784,11 +784,11 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       for (let i = 0; i < particleCount; i++) {
         const idx = i * 3;
 
-        // 1. Continuous longitudinal drift along X (only when current flows)
+        // 1. 沿 X 轴的连续纵向漂移（仅在有电流时流动）
         if (speed > 0) {
           positions[idx] += driftDirection * speed * delta;
 
-          // Continuous modular wrap-around without positional loss or sudden Y jumps
+          // 连续取模循环位移，避免位置丢失或 Y 轴突跳
           if (positions[idx] > halfL) {
             positions[idx] -= curveL;
           } else if (positions[idx] < -halfL) {
@@ -796,12 +796,12 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
           }
         }
 
-        // 2. Physical Hall equilibrium transverse distribution ("中间平两边弯" Streamline Curvature)
+        // 2. 物理霍尔平衡横向分布（流线弯曲：“中间平两边弯”）
         const absU = Math.abs(positions[idx] / halfL);
         let curvFactor = 1.0;
         if (absU > 0.38) {
           const t = Math.min(1.0, (absU - 0.38) / 0.62);
-          // Smooth Hermite C1-continuous transition: 1.0 at center down to 0.12 at electrodes
+          // 平滑 Hermite C1 连续过渡：中心为 1.0，电极处降至 0.12
           curvFactor = 1.0 - 0.88 * t * t * (3.0 - 2.0 * t);
         }
 
@@ -810,7 +810,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const u0 = Math.max(-1.0, Math.min(1.0, baseOffsetsY[i] / halfH));
         const p = (u0 + 1.0) * 0.5;
 
-        // Nonlinear Boltzmann-Hall carrier accumulation & depletion layer dynamics with raised upper limit
+        // 非线性玻尔兹曼-霍尔载流子积累与耗尽层动力学
         let uSkew: number;
         const gamma = 1.0 + 2.2 * Math.min(1.5, localAlpha);
         if (flSign < 0) {
@@ -829,7 +829,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const currentY = positions[idx + 1];
         const nextY = currentY + (clampedTargetY - currentY) * relaxFactor;
 
-        // 3. Gentle organic quantum Brownian fluctuation
+        // 3. 微弱的量子布朗热涨落
         const p1 = thermalPhases[i] + timeNow * 2.2;
         const p2 = thermalPhases[i] * 1.732 + timeNow * 3.7;
         const thermalY = (Math.sin(p1) * 0.65 + Math.sin(p2) * 0.35) * halfH * 0.022;
@@ -1200,7 +1200,7 @@ function refractRay3D(
 
   const c2Sq = 1.0 - eta * eta * (1.0 - c1 * c1);
   if (c2Sq < 0) {
-    // Total internal reflection: v - 2 * (v . n) * n
+    // 全反射：v - 2 * (v . n) * n
     const dot = vx * nx + vy * ny + vz * nz;
     return {
       refracted: false,
@@ -1385,7 +1385,7 @@ function solveCompositionWorker(
   const components: any[] = [];
   const volLiters = Math.max(0.001, volume / 1000.0);
 
-  // 1. Solvated Ions
+  // 1. 溶解离子
   for (const [ionName, moles] of ions) {
     if (moles > 1e-6) {
       if ((ionName === 'H+' || ionName === 'OH-') && Math.abs(pH - 7.0) < 0.1 && moles < 5e-6) {
@@ -1414,7 +1414,7 @@ function solveCompositionWorker(
     }
   }
 
-  // 2. Precipitates
+  // 2. 沉淀物
   for (const [key, p] of precipitates) {
     if (p.moles > 1e-6) {
       const meta = WORKER_PRECIP_META[key] || {
@@ -1439,7 +1439,7 @@ function solveCompositionWorker(
     }
   }
 
-  // 3. Solid Metals
+  // 3. 固体金属
   for (const [key, s] of solids) {
     if (s.moles > 1e-6) {
       const meta = WORKER_SOLID_META[key] || {

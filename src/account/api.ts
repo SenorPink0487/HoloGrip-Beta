@@ -152,7 +152,7 @@ export async function logout(refreshToken: string | null): Promise<void> {
       body: JSON.stringify({ refreshToken }),
     });
   } catch {
-    // Local sign-out still proceeds when the account service is unreachable.
+    // 账户服务不可达时，本地仍继续执行退出登录
   }
 }
 

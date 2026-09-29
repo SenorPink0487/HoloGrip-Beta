@@ -29,7 +29,7 @@ pub fn get_system_info() -> SystemHardwareInfo {
     }
 }
 
-/// N-Body gravitational step computed in parallel using Rayon across all CPU cores.
+/// 使用 Rayon 跨所有 CPU 核心并行计算 N 体引力模拟步。
 #[tauri::command]
 pub fn simulate_nbody_step(
     mut positions: Vec<f32>,
@@ -46,7 +46,7 @@ pub fn simulate_nbody_step(
 
     let eps_sq = softening * softening;
 
-    // Parallel acceleration calculation using Rayon
+    // 使用 Rayon 并行计算加速度
     let accelerations: Vec<[f32; 3]> = (0..n)
         .into_par_iter()
         .map(|i| {
@@ -97,7 +97,7 @@ pub fn simulate_nbody_step(
     }
 }
 
-/// 2D Quantum wave packet finite-difference step
+/// 二维量子波包有限差分模拟步
 #[tauri::command]
 pub fn simulate_wave_step(
     mut height_map: Vec<f32>,

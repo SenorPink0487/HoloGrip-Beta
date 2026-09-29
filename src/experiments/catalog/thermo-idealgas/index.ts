@@ -14,49 +14,49 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
   public override targetScale = 1.95;
   public override hideCenterEmitter = true;
 
-  // 3D Scene Components
+  // 3D 场景组件
   private heater: ThermostatHeaterMesh;
   private cylinder: PistonCylinderMesh;
   private pressureGauge: PressureGaugeMesh;
   private molecularGas: MolecularGasSystem;
   private interactionManager: ThermoInteractionManager;
 
-  // Connecting Pipe Line Mesh
+  // 连接导气铜管网格
   private connectPipe: THREE.Mesh;
 
-  // Thermodynamic State Variables
-  private temperature = 300;     // Kelvin
-  private volume = 2.5;          // Liters
-  private moles = 0.10;          // mol
+  // 热力学状态变量
+  private temperature = 300;     // 温度，单位：开尔文 (K)
+  private volume = 2.5;          // 体积，单位：升 (L)
+  private moles = 0.10;          // 摩尔数，单位：mol
   private gasType = 'nitrogen';
-  private molarMassKg = 0.028;   // kg/mol
+  private molarMassKg = 0.028;   // 摩尔质量，单位：kg/mol
   private showParticles = true;
-  private pressureKpa = 99.77;   // kPa
+  private pressureKpa = 99.77;   // 压强，单位：kPa
 
   public init(context: ExperimentContext): void {
-    // Rest experiment apparatus directly on dark circular tabletop surface (Y=0.852, HologramStage offset Y=-0.056)
-    // Positioned in front workbench interaction zone (Z=0.92)
+    // 将实验仪器直接放置于黑色圆形台面上（Y=0.852，HologramStage 偏移 Y=-0.056）
+    // 位于前方工作台交互区域（Z=0.92）
     this.rootGroup.position.set(0, -0.056, 0.92);
 
-    // 1. Thermostatic Electric Heater Base (placed directly on tabletop at x = 0.04, z = 0, y = 0)
+    // 1. 恒温电加热底座（直接置于台面 x = 0.04, z = 0, y = 0）
     this.heater = this.track(new ThermostatHeaterMesh());
     this.heater.group.position.set(0.04, 0, 0);
     this.rootGroup.add(this.heater.group);
     this.addDisposable(() => this.heater.dispose());
 
-    // 2. Quartz Glass Cylinder & Movable Piston (mounted directly on top of heater plate, y = 0.062)
+    // 2. 石英玻璃气缸与可移动活塞（直接安装于加热盘上方，y = 0.062）
     this.cylinder = this.track(new PistonCylinderMesh());
     this.cylinder.group.position.set(0.04, 0.0621, 0);
     this.rootGroup.add(this.cylinder.group);
     this.addDisposable(() => this.cylinder.dispose());
 
-    // 3. Bourdon-Tube Analog Pressure Gauge (placed directly on tabletop to the left, x = -0.14, z = 0, y = 0)
+    // 3. 波登管指针式气压表（置于左侧台面 x = -0.14, z = 0, y = 0）
     this.pressureGauge = this.track(new PressureGaugeMesh());
     this.pressureGauge.group.position.set(-0.14, 0, 0);
     this.rootGroup.add(this.pressureGauge.group);
     this.addDisposable(() => this.pressureGauge.dispose());
 
-    // 4. Precision Connecting Brass Pressure Line (from cylinder base into gauge stem)
+    // 4. 精密黄铜连接导压管（从气缸底座连入气压表接口）
     const pipeGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.08, 16);
     const pipeMat = new THREE.MeshStandardMaterial({
       color: 0xd97706,
@@ -71,7 +71,7 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
     this.connectPipe.castShadow = true;
     this.rootGroup.add(this.connectPipe);
 
-    // Polished stainless steel union collar at heater/cylinder junction
+    // 加热底座/气缸连接处的抛光不锈钢接头轴套
     const collarGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.008, 6);
     const collarMat = new THREE.MeshStandardMaterial({
       color: 0xf1f5f9,
@@ -86,13 +86,13 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
     heaterCollar.castShadow = true;
     this.rootGroup.add(heaterCollar);
 
-    // 5. Microscopic Molecular Kinetics System (inside cylinder)
+    // 5. 微观分子动力学系统（气缸内部）
     this.molecularGas = this.track(new MolecularGasSystem());
     this.molecularGas.group.position.copy(this.cylinder.group.position);
     this.rootGroup.add(this.molecularGas.group);
     this.addDisposable(() => this.molecularGas.dispose());
 
-    // 7. 3D Interaction Manager
+    // 7. 3D 交互管理器
     this.interactionManager = new ThermoInteractionManager({
       piston: this.cylinder,
       heater: this.heater,
@@ -110,7 +110,7 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
       },
     });
 
-    // Sync initial state
+    // 同步初始状态
     this.updateMolarMass();
     this.cylinder.setPistonVolume(this.volume);
     this.heater.setTemperature(this.temperature);
@@ -141,8 +141,8 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
   }
 
   private recalculatePressure(): void {
-    // Ideal Gas Law: P = nRT / V (kPa)
-    // with R = 8.314 J/(mol*K), V in Liters
+    // 理想气体状态方程: P = nRT / V (kPa)
+    // 其中 R = 8.314 J/(mol*K)，V 单位为升 (L)
     this.pressureKpa = (this.moles * 8.314 * this.temperature) / this.volume;
     this.pressureGauge.setPressure(this.pressureKpa);
     this.molecularGas.updateThermodynamicState(
@@ -218,7 +218,7 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
   }
 
   public update(delta: number, _elapsed: number, _context: ExperimentContext): void {
-    // High-performance molecular kinetics update
+    // 高性能分子热运动动力学更新
     if (this.showParticles) {
       this.molecularGas.update(delta, this.cylinder.getPistonHeight());
     }

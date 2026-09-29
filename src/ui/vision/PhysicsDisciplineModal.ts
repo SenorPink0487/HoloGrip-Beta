@@ -366,7 +366,7 @@ export class PhysicsDisciplineModal {
   }
 
   /**
-   * Render Level 1: Physics Sub-discipline Branches Grid
+   * 渲染一级界面：物理二级学科分支选择网格
    */
   public showLevel1(): void {
     this.currentLevel = 1;
@@ -450,7 +450,7 @@ export class PhysicsDisciplineModal {
   }
 
   /**
-   * Render Level 2: Experiment Catalog (Optics, Mechanics, Thermodynamics, or Electromagnetism)
+   * 渲染二级界面：实验目录列表（光学、力学、热学或电磁学）
    */
   public showLevel2(discipline: 'optics' | 'thermo' | 'em' | 'mechanics' = 'optics'): void {
     this.currentLevel = 2;
@@ -522,12 +522,12 @@ export class PhysicsDisciplineModal {
   }
 
   private bindLevel1Events(): void {
-    // Back button -> Disciplines selector
+    // 返回按钮 -> 返回大学科选择界面
     this.element.querySelector('#btn-crumb-disciplines')?.addEventListener('click', () => {
       this.callbacks.onBackToDisciplines();
     });
 
-    // Optics tile -> navigate to Level 2 (Optics)
+    // 光学卡片 -> 进入二级界面（光学实验目录）
     const opticsTile = this.element.querySelector('#branch-tile-optics');
     opticsTile?.addEventListener('click', () => {
       this.showLevel2('optics');
@@ -538,7 +538,7 @@ export class PhysicsDisciplineModal {
       }
     });
 
-    // Thermo tile -> navigate to Level 2 (Thermodynamics)
+    // 热学卡片 -> 进入二级界面（热学实验目录）
     const thermoTile = this.element.querySelector('#branch-tile-thermo');
     thermoTile?.addEventListener('click', () => {
       this.showLevel2('thermo');
@@ -549,7 +549,7 @@ export class PhysicsDisciplineModal {
       }
     });
 
-    // Electromagnetism tile -> navigate to Level 2 (Electromagnetism)
+    // 电磁学卡片 -> 进入二级界面（电磁学实验目录）
     const emTile = this.element.querySelector('#branch-tile-em');
     emTile?.addEventListener('click', () => {
       this.showLevel2('em');
@@ -560,7 +560,7 @@ export class PhysicsDisciplineModal {
       }
     });
 
-    // Mechanics tile -> navigate to Level 2 (Mechanics)
+    // 力学卡片 -> 进入二级界面（力学实验目录）
     const mechTile = this.element.querySelector('#branch-tile-mechanics');
     mechTile?.addEventListener('click', () => {
       this.showLevel2('mechanics');
@@ -571,16 +571,16 @@ export class PhysicsDisciplineModal {
       }
     });
 
-    // Planned tiles -> Apple visionOS toast (none currently for physics branches)
+    // 规划中分支卡片 -> 弹出提示（目前四大物理分支均已上线）
   }
 
   private bindLevel2Events(): void {
-    // Back button -> Level 1 Physics branches
+    // 返回按钮 -> 返回一级物理分支网格
     this.element.querySelector('#btn-back-to-physics')?.addEventListener('click', () => {
       this.showLevel1();
     });
 
-    // Experiment cards click
+    // 实验卡片点击加载对应实验
     this.element.querySelectorAll('.optics-card').forEach((card) => {
       const expId = (card as HTMLElement).getAttribute('data-exp-id');
       const isPlanned = (card as HTMLElement).getAttribute('data-planned') === 'true';

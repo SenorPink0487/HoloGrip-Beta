@@ -41,7 +41,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
   private lastStateHash = '';
 
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    // 橡胶防震脚垫平稳贴合桌面 (Y=0.063)，沿桌面横向向前平移至交互工作区 (Z=0.96)
     this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
@@ -136,7 +136,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
     }
 
     this.beamSystem.setIntensity(1.0);
-    // 1. Incoming beam terminates at front of aperture holder
+    // 1. 入射光束终止于光阑夹具前方
     this.beamSystem.updateSegmentedBeam([{ start: _START_POS, end: _SLIT_POS, intensity: 1.0 }]);
 
     const isGrating = this.diffractionType === 'grating';
@@ -163,7 +163,7 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
       );
     }
 
-    // Multi-Core Worker physics computation
+    // 多核 Worker 物理计算
     const stateHash = `${this.diffractionType}_${this.wavelength}_${this.slitWidth.toFixed(3)}_${this.gratingLinesPerMm}_${screenDistM.toFixed(3)}`;
     const hasWorker = Boolean(
       context.computeBridge || (context.workerPool && context.workerPool.size > 0)

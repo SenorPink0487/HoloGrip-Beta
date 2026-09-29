@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
 export interface CarnotEngineKinematics {
-  theta: number;        // Crankshaft / Flywheel angle in radians [0, 2pi)
-  pistonHeight: number; // Normalized / absolute piston elevation
-  beamAngle: number;    // Rocker beam inclination angle
+  theta: number;        // 曲轴/飞轮弧度角 [0, 2pi)
+  pistonHeight: number; // 活塞位移高度（归一化/绝对值）
+  beamAngle: number;    // 摇臂梁倾角
 }
 
 export class CarnotEngineMesh {
@@ -14,7 +14,7 @@ export class CarnotEngineMesh {
   public dirSwitchMesh: THREE.Mesh;
   public pistonGroup: THREE.Group;
 
-  // Geometry dimensions
+  // 几何尺寸常量
   public readonly cylinderCenter = new THREE.Vector3(-0.14, 0, 0);
   public readonly beamCenter = new THREE.Vector3(0, 0.235, 0);
   public readonly crankCenter = new THREE.Vector3(0.14, 0.08, 0);
@@ -24,7 +24,7 @@ export class CarnotEngineMesh {
   public readonly pistonMinY = 0.055;
   public readonly pistonMaxY = 0.155;
 
-  // 3D Assemblies
+  // 3D 装配组件
   private beamGroup: THREE.Group;
   private crankArmMesh: THREE.Mesh;
   private pitmanRodMesh: THREE.Mesh;
@@ -36,7 +36,7 @@ export class CarnotEngineMesh {
   private heatFluxParticles: THREE.Points;
   private heatFluxPosAttr: THREE.BufferAttribute;
 
-  // Dynamic Materials & Lights
+  // 动态材质与光源
   private hotMat: THREE.MeshStandardMaterial;
   private coldMat: THREE.MeshStandardMaterial;
   private insulatorMat: THREE.MeshStandardMaterial;
@@ -44,7 +44,7 @@ export class CarnotEngineMesh {
   private coldLight: THREE.PointLight;
   private fluxMat: THREE.PointsMaterial;
 
-  // State
+  // 状态
   private isRunning = true;
   private isReversed = false;
   private currentStage = 1;
@@ -57,8 +57,8 @@ export class CarnotEngineMesh {
   }
 
   /**
-   * Generates a high-contrast scientific laboratory nameplate & calibration scale
-   * matching the precision optical bench rail ruler aesthetic.
+   * 生成高对比度科研实验铭牌与校准刻度标尺，
+   * 契合精密光学导轨标尺的美学风格。
    */
   private createNameplateTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
@@ -66,7 +66,7 @@ export class CarnotEngineMesh {
     canvas.height = 128;
     const ctx = canvas.getContext('2d')!;
 
-    // Satin clear-anodized aluminum base with clean subtle gradient
+    // 缎面阳极氧化铝基底微渐变
     const grad = ctx.createLinearGradient(0, 0, 0, 128);
     grad.addColorStop(0, '#f8fafc');
     grad.addColorStop(0.5, '#edf2f7');
@@ -74,12 +74,12 @@ export class CarnotEngineMesh {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Beveled frame line
+    // 斜角边框线
     ctx.strokeStyle = '#94a3b8';
     ctx.lineWidth = 3;
     ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
 
-    // Baseline rail line
+    // 基准导轨线
     ctx.strokeStyle = '#475569';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -87,7 +87,7 @@ export class CarnotEngineMesh {
     ctx.lineTo(canvas.width - 30, 72);
     ctx.stroke();
 
-    // Lab title & model designation in crisp dark slate
+    // 实验仪器标题与型号标识（深岩灰）
     ctx.fillStyle = '#0f172a';
     ctx.textAlign = 'left';
     ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", monospace';
@@ -98,7 +98,7 @@ export class CarnotEngineMesh {
     ctx.textAlign = 'right';
     ctx.fillText('THERMODYNAMIC BENCH · η = 1 - Tc/Th', canvas.width - 36, 44);
 
-    // Metric millimeter graduation ticks along the front baseline
+    // 前侧基准线公制毫米刻度线
     const totalDivs = 80;
     const startX = 40;
     const endX = canvas.width - 40;
@@ -140,7 +140,7 @@ export class CarnotEngineMesh {
   }
 
   /**
-   * Generates a vertical transparent quartz cylinder graduation scale (1.0L - 5.0L)
+   * 生成垂直透明石英气缸容积刻度标尺（1.0L - 5.0L）
    */
   private createCylinderScaleTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
@@ -150,7 +150,7 @@ export class CarnotEngineMesh {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Vertical alignment guide bar
+    // 垂直对齐引导线
     ctx.strokeStyle = 'rgba(15, 23, 42, 0.45)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -158,7 +158,7 @@ export class CarnotEngineMesh {
     ctx.lineTo(32, 492);
     ctx.stroke();
 
-    // Volume calibrations from 1.0L (bottom) to 5.0L (top)
+    // 容积标定刻度（底部 1.0L 至顶部 5.0L）
     const marks = [
       { vol: 1.0, y: 460 },
       { vol: 2.0, y: 370 },
@@ -168,7 +168,7 @@ export class CarnotEngineMesh {
     ];
 
     marks.forEach((m) => {
-      // Major mark
+      // 主刻度
       ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -176,14 +176,14 @@ export class CarnotEngineMesh {
       ctx.lineTo(48, m.y);
       ctx.stroke();
 
-      // Label
+      // 刻度标签
       ctx.fillStyle = '#0f172a';
       ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, monospace';
       ctx.textAlign = 'left';
       ctx.fillText(`${m.vol.toFixed(1)}L`, 54, m.y + 8);
     });
 
-    // Sub-divisions
+    // 次级分度线
     ctx.strokeStyle = 'rgba(15, 23, 42, 0.65)';
     ctx.lineWidth = 1.5;
     for (let i = 0; i < marks.length - 1; i++) {
@@ -204,11 +204,11 @@ export class CarnotEngineMesh {
 
   private buildApparatus(): void {
     // =========================================================================
-    // Core Material Palette (Aligned with Laboratory Optical Apparatus)
+    // 核心材质调色板（与实验室光学器材风格统一）
     // =========================================================================
 
-    // 1. Scientific Satin Clear-Anodized Natural Aluminum (银白喷砂航空铝)
-    // Matches OpticalBenchRail & RotaryStageMesh - high contrast against dark table!
+    // 1. 缎面银白喷砂航空铝材质
+    // 与光学导轨及旋转台风格保持一致，与暗色实验台形成鲜明对比
     const satinAluminumMat = new THREE.MeshStandardMaterial({
       color: 0xe2eaf2,
       metalness: 0.76,
@@ -217,7 +217,7 @@ export class CarnotEngineMesh {
     });
     this.disposables.push(satinAluminumMat);
 
-    // 2. Mirror-Polished Stainless Steel / Chrome (高光拉丝镜面不锈钢)
+    // 2. 高光拉丝镜面不锈钢 / 镀铬材质
     const stainlessMat = new THREE.MeshStandardMaterial({
       color: 0xf8fafc,
       metalness: 0.94,
@@ -226,7 +226,7 @@ export class CarnotEngineMesh {
     });
     this.disposables.push(stainlessMat);
 
-    // 3. Precision Knurled Titanium Accent (质感轻钛灰滚花)
+    // 3. 精密钛灰滚花细节材质
     const titaniumMat = new THREE.MeshStandardMaterial({
       color: 0xc4cfdc,
       metalness: 0.82,
@@ -234,7 +234,7 @@ export class CarnotEngineMesh {
     });
     this.disposables.push(titaniumMat);
 
-    // 4. Contrasting Precision Charcoal Fastener Accent (深钛灰沉孔螺栓)
+    // 4. 深钛灰高精沉孔螺栓紧固件材质
     const darkAccentMat = new THREE.MeshStandardMaterial({
       color: 0x334155,
       metalness: 0.72,
@@ -242,7 +242,7 @@ export class CarnotEngineMesh {
     });
     this.disposables.push(darkAccentMat);
 
-    // 5. Heavy Polished Mechanical Brass (高抛光六辐条重型黄铜)
+    // 5. 高抛光重型机械黄铜材质
     const brassMat = new THREE.MeshStandardMaterial({
       color: 0xf59e0b,
       metalness: 0.95,
@@ -251,7 +251,7 @@ export class CarnotEngineMesh {
     });
     this.disposables.push(brassMat);
 
-    // 6. Polished Bronze Bushing Alloy (青铜耐磨轴承轴套)
+    // 6. 青铜耐磨轴承衬套合金材质
     const bronzeMat = new THREE.MeshStandardMaterial({
       color: 0xd97706,
       metalness: 0.90,
@@ -260,7 +260,7 @@ export class CarnotEngineMesh {
     this.disposables.push(bronzeMat);
 
     // =========================================================================
-    // 1. Vibration-Isolation Foot Pads (4 只防震支撑脚垫，与桌面形成悬空切分)
+    // 1. 防震支撑脚垫（4 只减震脚垫，与实验台面形成悬空隔离）
     // =========================================================================
     const footGeo = new THREE.CylinderGeometry(0.018, 0.020, 0.008, 24);
     const footMat = new THREE.MeshStandardMaterial({
@@ -288,9 +288,9 @@ export class CarnotEngineMesh {
     this.group.add(footpadGroup);
 
     // =========================================================================
-    // 2. Heavy Laboratory Stand Plinth (光学器材同级 缎面银白氧化铝双阶基座)
+    // 2. 重型仪器基座底板（光学级缎面银白氧化铝双阶基座）
     // =========================================================================
-    // Main lower plinth block (elevated slightly above table to cast contact shadow)
+    // 主下层底座块（略高于台面以投射真实接触阴影）
     const plinthGeo = new THREE.BoxGeometry(0.56, 0.016, 0.22);
     this.disposables.push(plinthGeo);
     const plinthMesh = new THREE.Mesh(plinthGeo, satinAluminumMat);
@@ -299,7 +299,7 @@ export class CarnotEngineMesh {
     plinthMesh.receiveShadow = true;
     this.group.add(plinthMesh);
 
-    // Polished stainless steel beveled accent chamfer rim
+    // 高光镜面不锈钢斜角边框饰条
     const chamferGeo = new THREE.BoxGeometry(0.564, 0.003, 0.224);
     this.disposables.push(chamferGeo);
     const chamferMesh = new THREE.Mesh(chamferGeo, stainlessMat);
@@ -307,7 +307,7 @@ export class CarnotEngineMesh {
     chamferMesh.castShadow = true;
     this.group.add(chamferMesh);
 
-    // Beveled upper deck plate with precision dovetail runner groove
+    // 带有精密燕尾导轨凹槽的上层斜面台面板
     const deckGeo = new THREE.BoxGeometry(0.52, 0.006, 0.19);
     this.disposables.push(deckGeo);
     const deckMesh = new THREE.Mesh(deckGeo, titaniumMat);
@@ -316,14 +316,14 @@ export class CarnotEngineMesh {
     deckMesh.receiveShadow = true;
     this.group.add(deckMesh);
 
-    // Central stainless steel longitudinal T-slot runner (matching OpticalBenchRail dovetail)
+    // 中央不锈钢纵向 T 型导轨滑槽（匹配光学导轨燕尾结构）
     const runnerGeo = new THREE.BoxGeometry(0.48, 0.003, 0.016);
     this.disposables.push(runnerGeo);
     const runnerMesh = new THREE.Mesh(runnerGeo, stainlessMat);
     runnerMesh.position.set(0, 0.0305, 0);
     this.group.add(runnerMesh);
 
-    // Front Laboratory Calibration Nameplate Plaque (激光蚀刻光学级铭牌)
+    // 前置实验校准铭牌（激光蚀刻光学级金属标牌）
     const nameplateTex = this.createNameplateTexture();
     const nameplateMat = new THREE.MeshBasicMaterial({ map: nameplateTex });
     this.disposables.push(nameplateMat);
@@ -334,7 +334,7 @@ export class CarnotEngineMesh {
     nameplateMesh.position.set(0, 0.016, 0.111);
     this.group.add(nameplateMesh);
 
-    // Corner decorative countersunk stainless hex bolts (四角精密内六角沉孔螺钉)
+    // 四角精密内六角不锈钢沉孔紧固螺栓
     const boltGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.002, 6);
     this.disposables.push(boltGeo);
     const boltCoords = [
@@ -348,10 +348,10 @@ export class CarnotEngineMesh {
     });
 
     // =========================================================================
-    // 3. Central Fulcrum Columns (中央双支撑高抛光镀铬立柱)
+    // 3. 中央双支撑支点立柱（高抛光镀铬立柱组件）
     // =========================================================================
     [-0.032, 0.032].forEach((zOffset) => {
-      // Precision turned stainless steel vertical pillar
+      // 精密车削不锈钢垂直立柱
       const colGeo = new THREE.CylinderGeometry(0.009, 0.013, 0.20, 24);
       this.disposables.push(colGeo);
       const colMesh = new THREE.Mesh(colGeo, stainlessMat);
@@ -359,7 +359,7 @@ export class CarnotEngineMesh {
       colMesh.castShadow = true;
       this.group.add(colMesh);
 
-      // Knurled titanium base pedestal collar
+      // 滚花钛合金基座定位轴套
       const collarGeo = new THREE.CylinderGeometry(0.018, 0.022, 0.016, 24);
       this.disposables.push(collarGeo);
       const collarMesh = new THREE.Mesh(collarGeo, satinAluminumMat);
@@ -367,14 +367,14 @@ export class CarnotEngineMesh {
       collarMesh.castShadow = true;
       this.group.add(collarMesh);
 
-      // Top bearing cap with brass bushing
+      // 带有黄铜衬套的顶部轴承盖
       const capGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.014, 20);
       this.disposables.push(capGeo);
       const capMesh = new THREE.Mesh(capGeo, satinAluminumMat);
       capMesh.position.set(0, 0.231, zOffset);
       this.group.add(capMesh);
 
-      // Brass oil lubrication cup on each column top
+      // 立柱顶部的黄铜润滑注油杯
       const oilerGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.008, 16);
       this.disposables.push(oilerGeo);
       const oiler = new THREE.Mesh(oilerGeo, bronzeMat);
@@ -382,7 +382,7 @@ export class CarnotEngineMesh {
       this.group.add(oiler);
     });
 
-    // Horizontal arched cross-tie brace between the two central pillars
+    // 两中央立柱间的水平拱形加强横梁
     const tieGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.064, 16);
     this.disposables.push(tieGeo);
     const tieMesh = new THREE.Mesh(tieGeo, satinAluminumMat);
@@ -390,7 +390,7 @@ export class CarnotEngineMesh {
     tieMesh.position.set(0, 0.140, 0);
     this.group.add(tieMesh);
 
-    // Fulcrum horizontal bearing pin (mirror stainless)
+    // 摇臂水平旋转支点销轴（镜面不锈钢）
     const fulcrumPinGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.084, 16);
     this.disposables.push(fulcrumPinGeo);
     const fulcrumPin = new THREE.Mesh(fulcrumPinGeo, stainlessMat);
@@ -399,13 +399,13 @@ export class CarnotEngineMesh {
     this.group.add(fulcrumPin);
 
     // =========================================================================
-    // 4. Iconic Walking Rocker Beam (瓦特/卡诺经典桁架摇臂梁 - 航空银白喷砂铝合金)
+    // 4. 经典瓦特/卡诺桁架摇臂梁（航空级银白喷砂铝合金）
     // =========================================================================
     this.beamGroup = new THREE.Group();
     this.beamGroup.position.copy(this.beamCenter);
 
     const beamShape = new THREE.Shape();
-    // Diamond-flanged aerodynamic beam profile
+    // 菱形加强筋流线型横梁轮廓
     beamShape.moveTo(-this.beamHalfLength, -0.006);
     beamShape.lineTo(-0.02, -0.018);
     beamShape.lineTo(0, -0.022);
@@ -429,12 +429,12 @@ export class CarnotEngineMesh {
     beamGeo.center();
     this.disposables.push(beamGeo);
 
-    // Upgraded to satin clear-anodized natural aluminum
+    // 升级为缎面本色阳极氧化航空铝材质
     const beamMesh = new THREE.Mesh(beamGeo, satinAluminumMat);
     beamMesh.castShadow = true;
     this.beamGroup.add(beamMesh);
 
-    // Polished bronze end bosses & wristpin collars
+    // 抛光青铜端部凸台与活塞销轴套
     const bossGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.024, 16);
     this.disposables.push(bossGeo);
     const leftBoss = new THREE.Mesh(bossGeo, bronzeMat);
@@ -450,12 +450,12 @@ export class CarnotEngineMesh {
     this.group.add(this.beamGroup);
 
     // =========================================================================
-    // 5. Optical Quartz Cylinder & Tri-Zone Thermal Reservoir Base (左侧气缸)
+    // 5. 光学石英玻璃气缸与三温区热源底座（左侧组件）
     // =========================================================================
     const cylGroup = new THREE.Group();
     cylGroup.position.copy(this.cylinderCenter);
 
-    // Cylinder mounting base flange (satin aluminum with stainless clamp ring)
+    // 气缸安装底座法兰（缎面铝合金配合不锈钢卡箍环）
     const flangeGeo = new THREE.CylinderGeometry(0.068, 0.072, 0.012, 32);
     this.disposables.push(flangeGeo);
     const flangeMesh = new THREE.Mesh(flangeGeo, satinAluminumMat);
@@ -463,7 +463,7 @@ export class CarnotEngineMesh {
     flangeMesh.castShadow = true;
     cylGroup.add(flangeMesh);
 
-    // Tri-Zone Thermal Reservoirs (高温热源、低温冷源、绝热垫)
+    // 三态热力学基座（高温热源、低温冷源、绝热垫板）
     this.hotMat = new THREE.MeshStandardMaterial({
       color: 0xef4444,
       emissive: 0xff3b30,
@@ -493,7 +493,7 @@ export class CarnotEngineMesh {
     this.hotBaseMesh.position.y = 0.044;
     cylGroup.add(this.hotBaseMesh);
 
-    // Dynamic Thermal Glow Lights
+    // 动态热力学辐射光晕光源
     this.heatLight = new THREE.PointLight(0xff4500, 2.2, 0.28);
     this.heatLight.position.set(0, 0.052, 0);
     cylGroup.add(this.heatLight);
@@ -502,7 +502,7 @@ export class CarnotEngineMesh {
     this.coldLight.position.set(0, 0.052, 0);
     cylGroup.add(this.coldLight);
 
-    // Transparent Quartz Cylinder (inner radius 0.052, height 0.165)
+    // 透明石英玻璃气缸主体（内径 0.052，高度 0.165）
     const quartzGeo = new THREE.CylinderGeometry(0.054, 0.054, 0.165, 36, 1, true);
     const quartzMat = new THREE.MeshStandardMaterial({
       color: 0xe0f2fe,
@@ -518,7 +518,7 @@ export class CarnotEngineMesh {
     this.quartzCylinderMesh.position.y = 0.132;
     cylGroup.add(this.quartzCylinderMesh);
 
-    // Vertical volume graduation calibration scale strip on cylinder side
+    // 气缸侧壁垂直容积刻度标尺刻度线
     const cylScaleTex = this.createCylinderScaleTexture();
     const cylScaleMat = new THREE.MeshBasicMaterial({
       map: cylScaleTex,
@@ -533,7 +533,7 @@ export class CarnotEngineMesh {
     cylScaleMesh.position.set(0, 0.132, 0.055);
     cylGroup.add(cylScaleMesh);
 
-    // Cylinder top crown collar & guide ring in satin aluminum
+    // 气缸顶部缎面铝合金顶盖与导向法兰环
     const crownGeo = new THREE.CylinderGeometry(0.060, 0.056, 0.010, 32);
     this.disposables.push(crownGeo);
     const crownMesh = new THREE.Mesh(crownGeo, satinAluminumMat);
@@ -541,7 +541,7 @@ export class CarnotEngineMesh {
     crownMesh.castShadow = true;
     cylGroup.add(crownMesh);
 
-    // 4 Stainless Steel Compression Tie-Rods with chrome acorn nuts
+    // 4 根带有镀铬盖形螺母的不锈钢拉杆螺栓
     const tieRodGeo = new THREE.CylinderGeometry(0.002, 0.002, 0.180, 16);
     this.disposables.push(tieRodGeo);
     const acornNutGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.006, 12);
@@ -569,12 +569,12 @@ export class CarnotEngineMesh {
     this.group.add(cylGroup);
 
     // =========================================================================
-    // 6. Piston & Vertical Slider Rod (活塞与十字导杆)
+    // 6. 活塞组件与垂直导杆
     // =========================================================================
     this.pistonGroup = new THREE.Group();
     this.pistonGroup.position.set(this.cylinderCenter.x, this.pistonMinY, this.cylinderCenter.z);
 
-    // Piston Head in satin titanium with dual viton seal rings
+    // 钛合金缎面活塞头（配备双道氟橡胶密封环）
     const pistonHeadGeo = new THREE.CylinderGeometry(0.051, 0.051, 0.016, 32);
     this.disposables.push(pistonHeadGeo);
     const pistonHead = new THREE.Mesh(pistonHeadGeo, titaniumMat);
@@ -591,7 +591,7 @@ export class CarnotEngineMesh {
     seal2.position.y = -0.003;
     this.pistonGroup.add(seal1, seal2);
 
-    // Piston Center Vertical Rod in mirror stainless steel
+    // 镜面不锈钢活塞中心垂直连杆
     const rodGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.130, 16);
     this.disposables.push(rodGeo);
     this.pistonRodMesh = new THREE.Mesh(rodGeo, stainlessMat);
@@ -599,7 +599,7 @@ export class CarnotEngineMesh {
     this.pistonRodMesh.castShadow = true;
     this.pistonGroup.add(this.pistonRodMesh);
 
-    // Piston Top Fork Joint in polished bronze
+    // 抛光青铜活塞顶部叉形铰链关节
     const forkGeo = new THREE.BoxGeometry(0.014, 0.016, 0.014);
     this.disposables.push(forkGeo);
     const forkMesh = new THREE.Mesh(forkGeo, bronzeMat);
@@ -609,11 +609,11 @@ export class CarnotEngineMesh {
     this.group.add(this.pistonGroup);
 
     // =========================================================================
-    // 7. Right Side: Crankshaft, Pillow Blocks & Gleaming Flywheel (右侧动力飞轮)
+    // 7. 右侧传动系统：曲轴、轴承座与动力飞轮
     // =========================================================================
-    // Twin Split-Cap Pillow Block Bearing Pedestals in satin aluminum with brass oil cups
+    // 双分体式轴承座支架（缎面铝合金配合黄铜油杯）
     [-0.034, 0.034].forEach((zOffset) => {
-      // Lower bearing pedestal base with mounting flange
+      // 带有安装法兰的下部轴承底座
       const pedGeo = new THREE.BoxGeometry(0.026, 0.082, 0.020);
       this.disposables.push(pedGeo);
       const pedMesh = new THREE.Mesh(pedGeo, satinAluminumMat);
@@ -621,14 +621,14 @@ export class CarnotEngineMesh {
       pedMesh.castShadow = true;
       this.group.add(pedMesh);
 
-      // Flanged base feet with hold-down bolts
+      // 带有压紧固定螺栓的法兰底脚
       const footGeo = new THREE.BoxGeometry(0.038, 0.008, 0.024);
       this.disposables.push(footGeo);
       const footMesh = new THREE.Mesh(footGeo, satinAluminumMat);
       footMesh.position.set(this.crankCenter.x, 0.030, zOffset);
       this.group.add(footMesh);
 
-      // Semicircular top bearing cap with split line
+      // 带有分体装配线的半圆形上轴承盖
       const capArchGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.018, 20);
       this.disposables.push(capArchGeo);
       const capArch = new THREE.Mesh(capArchGeo, satinAluminumMat);
@@ -636,21 +636,21 @@ export class CarnotEngineMesh {
       capArch.position.set(this.crankCenter.x, this.crankCenter.y + 0.004, zOffset);
       this.group.add(capArch);
 
-      // Top brass grease / lubrication cup
+      // 顶部黄铜黄油润滑注油杯
       const cupGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.008, 16);
       this.disposables.push(cupGeo);
       const greaseCup = new THREE.Mesh(cupGeo, bronzeMat);
       greaseCup.position.set(this.crankCenter.x, this.crankCenter.y + 0.022, zOffset);
       this.group.add(greaseCup);
 
-      // Bearing bronze cap bushing
+      // 轴承青铜耐磨轴套
       const capBushing = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.004, 16), bronzeMat);
       capBushing.rotation.x = Math.PI * 0.5;
       capBushing.position.set(this.crankCenter.x, this.crankCenter.y, zOffset + (zOffset > 0 ? 0.010 : -0.010));
       this.group.add(capBushing);
     });
 
-    // Horizontal Crankshaft Axle in mirror stainless steel
+    // 镜面不锈钢水平曲轴转轴
     const axleGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.12, 16);
     this.disposables.push(axleGeo);
     const axleMesh = new THREE.Mesh(axleGeo, stainlessMat);
@@ -658,7 +658,7 @@ export class CarnotEngineMesh {
     axleMesh.position.copy(this.crankCenter);
     this.group.add(axleMesh);
 
-    // Crank Arm Assembly in polished bronze
+    // 抛光青铜曲柄摇臂总成
     this.crankArmMesh = new THREE.Mesh(
       new THREE.BoxGeometry(0.012, this.crankRadius * 1.3, 0.010),
       bronzeMat
@@ -666,7 +666,7 @@ export class CarnotEngineMesh {
     this.crankArmMesh.position.set(this.crankCenter.x, this.crankCenter.y, 0);
     this.group.add(this.crankArmMesh);
 
-    // Main Pitman Connecting Rod in mirror stainless steel
+    // 镜面不锈钢主传动连杆
     const pitmanGeo = new THREE.CylinderGeometry(0.0045, 0.0045, this.pitmanRodLength, 16);
     this.disposables.push(pitmanGeo);
     this.pitmanRodMesh = new THREE.Mesh(pitmanGeo, stainlessMat);
@@ -674,12 +674,12 @@ export class CarnotEngineMesh {
     this.group.add(this.pitmanRodMesh);
 
     // =========================================================================
-    // 8. Polished Brass Spoke Flywheel (高抛光六辐条重型黄铜飞轮)
+    // 8. 高抛光六辐条重型黄铜飞轮
     // =========================================================================
     this.flywheelGroup = new THREE.Group();
     this.flywheelGroup.position.set(this.crankCenter.x, this.crankCenter.y, 0.055);
 
-    // Flywheel Heavy Outer Rim (厚重外轮辋)
+    // 飞轮重型外圈轮辋
     const rimRadius = 0.088;
     const rimGeo = new THREE.TorusGeometry(rimRadius, 0.009, 20, 48);
     this.disposables.push(rimGeo);
@@ -687,14 +687,14 @@ export class CarnotEngineMesh {
     this.flywheelMesh.castShadow = true;
     this.flywheelGroup.add(this.flywheelMesh);
 
-    // Flywheel Central Hub (中央轮毂)
+    // 飞轮中央动力轮毂
     const hubGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.018, 24);
     this.disposables.push(hubGeo);
     const hubMesh = new THREE.Mesh(hubGeo, brassMat);
     hubMesh.rotation.x = Math.PI * 0.5;
     this.flywheelGroup.add(hubMesh);
 
-    // 6 Curved Dynamic Spokes (六根优雅弧线轮辐)
+    // 6 根优雅流线弧形飞轮轮辐
     const spokeCount = 6;
     for (let i = 0; i < spokeCount; i++) {
       const angle = (i / spokeCount) * Math.PI * 2;
@@ -710,7 +710,7 @@ export class CarnotEngineMesh {
       this.flywheelGroup.add(spokeMesh);
     }
 
-    // Counterweight crescent segment on the flywheel
+    // 飞轮上的新月形动平衡配重块
     const weightGeo = new THREE.CylinderGeometry(rimRadius * 0.85, rimRadius * 0.85, 0.010, 24, 1, false, 0, Math.PI * 0.6);
     this.disposables.push(weightGeo);
     const weightMesh = new THREE.Mesh(weightGeo, brassMat);
@@ -721,9 +721,9 @@ export class CarnotEngineMesh {
     this.group.add(this.flywheelGroup);
 
     // =========================================================================
-    // 9. Control Levers on Stand Deck (台架物理操作杆)
+    // 9. 台面物理机械控制手柄
     // =========================================================================
-    // Run / Pause Clutch Lever (启停离合手柄，位于台面右前方)
+    // 启停离合机械手柄（位于台面右前方）
     const leverStandGeo = new THREE.CylinderGeometry(0.008, 0.010, 0.014, 16);
     this.disposables.push(leverStandGeo);
     const leverStand = new THREE.Mesh(leverStandGeo, satinAluminumMat);
@@ -734,11 +734,11 @@ export class CarnotEngineMesh {
     this.disposables.push(leverHandleGeo);
     this.leverMesh = new THREE.Mesh(leverHandleGeo, bronzeMat);
     this.leverMesh.position.set(0.08, 0.048, 0.075);
-    this.leverMesh.rotation.z = -0.3; // Engaged angle
+    this.leverMesh.rotation.z = -0.3; // 离合咬合角度
     this.leverMesh.name = 'LeverRunPause';
     this.group.add(this.leverMesh);
 
-    // Direction Reverser Switch Lever (正逆向换向旋钮，位于左前方)
+    // 正逆向换向开关手柄（位于台面左前方）
     const dirStandGeo = new THREE.CylinderGeometry(0.008, 0.010, 0.014, 16);
     this.disposables.push(dirStandGeo);
     const dirStand = new THREE.Mesh(dirStandGeo, satinAluminumMat);
@@ -753,7 +753,7 @@ export class CarnotEngineMesh {
     this.group.add(this.dirSwitchMesh);
 
     // =========================================================================
-    // 10. Directed Heat Flux Photon Arrows VFX (底座吸放热定向光效)
+    // 10. 底座热流通量定向光子流动特效
     // =========================================================================
     const fluxParticleCount = 80;
     const fluxPositions = new Float32Array(fluxParticleCount * 3);
@@ -781,23 +781,23 @@ export class CarnotEngineMesh {
   }
 
   /**
-   * Updates all kinematic linkages based on crank/flywheel angle theta
+   * 根据曲轴/飞轮转角 theta 更新所有机构运动学联动姿态
    */
   public updateKinematics(theta: number): CarnotEngineKinematics {
-    // 1. Rotate Flywheel & Crank Arm
+    // 1. 旋转飞轮与曲柄摇臂
     this.flywheelGroup.rotation.z = theta;
     this.crankArmMesh.rotation.z = theta;
 
-    // Crank pin world position
+    // 曲柄销轴世界坐标
     const crankPinX = this.crankCenter.x - Math.sin(theta) * this.crankRadius;
     const crankPinY = this.crankCenter.y + Math.cos(theta) * this.crankRadius;
 
-    // 2. Solve Beam Inclination Angle alpha
+    // 2. 解算摇臂横梁倾角 alpha
     const deltaY = (crankPinY - this.crankCenter.y) / this.crankRadius;
     const beamAngle = deltaY * 0.075;
     this.beamGroup.rotation.z = beamAngle;
 
-    // 3. Connect Pitman Rod from Crankpin to Beam Right Tip
+    // 3. 连接曲柄销至摇臂右端的连杆
     const beamRightTipX = this.beamCenter.x + Math.cos(beamAngle) * this.beamHalfLength;
     const beamRightTipY = this.beamCenter.y - Math.sin(beamAngle) * this.beamHalfLength;
 
@@ -806,7 +806,7 @@ export class CarnotEngineMesh {
     this.pitmanRodMesh.position.set(rodMidX, rodMidY, 0);
     this.pitmanRodMesh.rotation.z = Math.atan2(beamRightTipX - crankPinX, beamRightTipY - crankPinY);
 
-    // 4. Update Left Tip & Piston Elevation
+    // 4. 更新摇臂左端高度与活塞升降位置
     const pistonNorm = (Math.cos(theta) + 1.0) * 0.5; // [0, 1]
     const curPistonY = THREE.MathUtils.lerp(this.pistonMinY, this.pistonMaxY, pistonNorm);
     this.pistonGroup.position.y = curPistonY;
@@ -819,7 +819,7 @@ export class CarnotEngineMesh {
   }
 
   /**
-   * Update thermodynamic stage styling: Heat Flux VFX, Base Color, Lights
+   * 更新热力学过程阶段表现：热流光效、底座色彩及动态光照
    */
   public setCycleState(
     stage: 1 | 2 | 3 | 4,
@@ -831,7 +831,7 @@ export class CarnotEngineMesh {
     this.isReversed = isReversed;
 
     if (stage === 1) {
-      // Hot reservoir active
+      // 高温热源接触吸热阶段
       this.hotBaseMesh.material = this.hotMat;
       this.hotMat.emissiveIntensity = 0.85 + Math.sin(stageProgress * Math.PI) * 0.35;
       this.heatLight.intensity = 2.2;
@@ -840,13 +840,13 @@ export class CarnotEngineMesh {
       this.fluxMat.opacity = 0.85;
       this.heatFluxParticles.visible = true;
     } else if (stage === 2) {
-      // Adiabatic expansion: base becomes insulated ceramic
+      // 绝热膨胀阶段：底座切换为绝热陶瓷材料
       this.hotBaseMesh.material = this.insulatorMat;
       this.heatLight.intensity = 0.0;
       this.coldLight.intensity = 0.0;
       this.heatFluxParticles.visible = false;
     } else if (stage === 3) {
-      // Cold reservoir active
+      // 低温冷源接触放热阶段
       this.hotBaseMesh.material = this.coldMat;
       this.coldMat.emissiveIntensity = 0.80 + Math.sin(stageProgress * Math.PI) * 0.30;
       this.heatLight.intensity = 0.0;
@@ -855,14 +855,14 @@ export class CarnotEngineMesh {
       this.fluxMat.opacity = 0.75;
       this.heatFluxParticles.visible = true;
     } else {
-      // Adiabatic compression: base insulated
+      // 绝热压缩阶段：底座处于绝热状态
       this.hotBaseMesh.material = this.insulatorMat;
       this.heatLight.intensity = 0.0;
       this.coldLight.intensity = 0.0;
       this.heatFluxParticles.visible = false;
     }
 
-    // Animate directional heat flux particles
+    // 驱动定向热流通量粒子流行动画
     if (this.heatFluxParticles.visible) {
       const pos = this.heatFluxPosAttr.array as Float32Array;
       const count = pos.length / 3;

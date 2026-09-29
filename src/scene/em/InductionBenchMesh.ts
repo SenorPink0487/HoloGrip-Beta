@@ -16,7 +16,7 @@ import {
 
 import type { ComputeBridge } from '../../core/platform/ComputeBridge.ts';
 
-/** Coil center height. Axial offset 0 puts the magnet in the middle of the coil. */
+/** 线圈中心高度。轴向偏移为 0 时磁铁位于线圈正中央。 */
 export const COIL_AXIS_Y = 0.3;
 const FULL_SCALE_AMP = 0.08;
 
@@ -144,34 +144,34 @@ export class InductionBenchMesh {
   }
 
   private build(): void {
-    // 1. Streamlined Precision Instrument Base Plinth (No rectangular wood block)
+    // 1. 流线型精密仪器底座（无笨重矩形木块）
     this.buildBasePlatform();
 
-    // 2. High-Precision Chrome Vertical Guide Tower (Full magnet travel clearance)
+    // 2. 高精度镀铬垂直导向塔（提供完整的磁铁行程净空）
     this.buildGuideTower();
 
-    // 3. Multi-layer Induction Solenoid Bobbin with Acrylic Core
+    // 3. 带有亚克力骨架的多层感应螺线管
     this.buildSolenoid();
 
-    // 4. Sintered AlNiCo Bar Magnet with Smooth Linear Guide Slider
+    // 4. 带有顺滑直线导轨滑块的烧结铝镍钴条形磁铁
     this.buildMagnet();
 
-    // 5. Axial Magnetic Field Hall Probe (Rail-mounted, NO floating in air)
+    // 5. 轴向磁场霍尔探针（导轨固定式，非空中悬浮）
     this.buildProbe();
 
-    // 6. Center-Zero Sensitive Galvanometer Directly Oriented to User View
+    // 6. 直面用户视角的零位居中高灵敏度检流计
     this.buildMeter();
 
-    // 7. Tactical Drop Release Trigger Mechanism
+    // 7. 触觉下落释放触发机构
     this.buildDrive();
 
-    // 8. Flexible Braided Jumper Cables with Molded Banana Plugs
+    // 8. 带有注塑香蕉插头的柔性编织跳线
     this.buildWiring();
 
-    // 9. Dynamic Flow Indicators & Expansive Dipole Magnetic Streamlines
+    // 9. 动态电流流向指示器与磁偶极子空间磁感线
     this.buildVisualizers();
 
-    // Initial state synchronization
+    // 初始状态同步
     this.sync({
       axial: 0.22,
       poleSign: -1,
@@ -184,7 +184,7 @@ export class InductionBenchMesh {
   }
 
   private buildBasePlatform(): void {
-    // Streamlined Rounded Plinth seamlessly sitting on the circular HoloTable
+    // 严密贴合圆形全息实验台的流线型圆角底座
     const w = 0.68;
     const d = 0.26;
     const r = 0.04;
@@ -213,7 +213,7 @@ export class InductionBenchMesh {
     const rim = outlined(plinth, 0x38bdf8, 0.35);
     this.group.add(plinth, rim);
 
-    // Four Leveling Feet with Silicone Damping Pads
+    // 四个带有硅胶减震垫的调平底脚
     const footGeo = new THREE.CylinderGeometry(0.018, 0.022, 0.010, 24);
     for (const [x, z] of [
       [-w / 2 + 0.04, -d / 2 + 0.04],
@@ -229,7 +229,7 @@ export class InductionBenchMesh {
       this.group.add(foot, collar);
     }
 
-    // Central Circular Turntable Plinth under the Solenoid Tower
+    // 螺线管塔架下方的中央圆形旋转转盘底座
     const centerPlinth = new THREE.Mesh(
       new THREE.CylinderGeometry(0.105, 0.112, 0.010, 48),
       labMetal(0x0f172a, 0.8, 0.35),
@@ -240,7 +240,7 @@ export class InductionBenchMesh {
     goldBezel.position.set(0, 0.033, 0);
     this.group.add(centerPlinth, goldBezel);
 
-    // Front Laser-Etched Nameplate Badge
+    // 前侧激光蚀刻铭牌标识
     const badge = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.010, 0.002), this.goldMat);
     badge.position.set(0, 0.015, d / 2 + 0.002);
     this.group.add(badge);
@@ -249,7 +249,7 @@ export class InductionBenchMesh {
   private buildGuideTower(): void {
     const colHeight = 0.64;
     const colGeo = new THREE.CylinderGeometry(0.0055, 0.0055, colHeight, 20);
-    const topY = 0.033 + colHeight; // ~0.673m
+    const topY = 0.033 + colHeight; // 约 0.673 米
 
     for (const x of [-0.09, 0.09]) {
       const col = new THREE.Mesh(colGeo, this.chromeMat);
@@ -264,7 +264,7 @@ export class InductionBenchMesh {
       this.group.add(col, capTop, capBot);
     }
 
-    // Top Crossbeam with jeweled suspension guide bushing
+    // 带有宝石轴承悬挂导向衬套的顶部横梁
     const crossbeam = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.012, 0.020), this.aluminumMat);
     crossbeam.position.set(0, topY, 0);
 
@@ -273,7 +273,7 @@ export class InductionBenchMesh {
 
     this.group.add(crossbeam, centralBushing);
 
-    // Precision Vertical Millimeter Scale Plate along the left column
+    // 沿左侧立柱布置的精密垂直毫米刻度尺
     const scalePlate = new THREE.Mesh(
       new THREE.BoxGeometry(0.009, colHeight - 0.08, 0.002),
       labMetal(0x020617, 0.5, 0.5),
@@ -283,7 +283,7 @@ export class InductionBenchMesh {
   }
 
   private buildSolenoid(): void {
-    // Optical quartz bore tube for clear observation of passing magnet
+    // 便于清晰观察磁铁穿行的光学石英管膛
     const tube = new THREE.Mesh(
       new THREE.CylinderGeometry(0.036, 0.036, 0.22, 32, 1, true),
       opticalQuartz(0xc9e7ff, 0.14),
@@ -295,7 +295,7 @@ export class InductionBenchMesh {
     this.coilGroup.name = 'SearchCoil';
     this.coilGroup.position.y = COIL_AXIS_Y;
 
-    // Precision Acrylic End Flanges
+    // 精密亚克力端面法兰
     for (const y of [-0.055, 0.055]) {
       const flange = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.009, 32), this.aluminumMat);
       flange.position.y = y;
@@ -305,14 +305,14 @@ export class InductionBenchMesh {
       this.coilGroup.add(flange, rim);
     }
 
-    // Inner Bobbin Core Cylinder
+    // 内部线圈骨架圆柱管芯
     const bobbinCore = new THREE.Mesh(
       new THREE.CylinderGeometry(0.040, 0.040, 0.10, 32),
       labMetal(0x0f172a, 0.6, 0.4),
     );
     this.coilGroup.add(bobbinCore);
 
-    // Multi-layer Copper Windings
+    // 多层铜线绕组
     const ringGeo = new THREE.TorusGeometry(0.048, 0.0034, 10, 32);
     for (let i = 0; i < 14; i++) {
       const ring = new THREE.Mesh(ringGeo, this.copperMat);
@@ -322,7 +322,7 @@ export class InductionBenchMesh {
       this.rings.push(ring);
     }
 
-    // Front Terminal Bracket with Gold Binding Posts (COM, 100T, 200T, 400T)
+    // 前置接线支架与镀金接线柱（COM、100匝、200匝、400匝）
     const terminalBlock = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.018, 0.018), this.chassisMat);
     terminalBlock.position.set(0, -0.050, 0.058);
     this.coilGroup.add(terminalBlock);
@@ -342,23 +342,23 @@ export class InductionBenchMesh {
   private buildMagnet(): void {
     this.magnetGroup.name = 'BarMagnet';
 
-    // Central cylindrical magnet body - MUST be children[0] for intersection test in tests/em_remaining.test.ts
+    // 中心圆柱形磁铁主体 - 必须为 children[0] 以满足 tests/em_remaining.test.ts 的拾取相交测试
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(0.013, 0.013, 0.11, 24),
       new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.90, roughness: 0.18 }),
     );
 
-    // North (Red) and South (Blue) Pole Caps
+    // 磁极帽：N 极（红）与 S 极（蓝）
     this.topCap = new THREE.Mesh(new THREE.CylinderGeometry(0.0145, 0.0145, 0.032, 24), this.redMat);
     this.bottomCap = new THREE.Mesh(new THREE.CylinderGeometry(0.0145, 0.0145, 0.032, 24), this.blueMat);
     this.topCap.position.y = 0.071;
     this.bottomCap.position.y = -0.071;
 
-    // Laser-etched N & S indicator plates
+    // 激光蚀刻 N / S 极性指示标牌
     this.nPlate.position.set(0, 0.072, 0.016);
     this.sPlate.position.set(0, -0.072, 0.016);
 
-    // Compact central suspension sleeve & rear guide slider shoe riding on the columns
+    // 紧凑的中心悬挂套环与沿立柱滑动的后置导向滑块
     const sleeve = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.0028, 8, 20), this.aluminumMat);
     sleeve.rotation.x = Math.PI / 2;
 
@@ -368,7 +368,7 @@ export class InductionBenchMesh {
     );
     sliderShoe.position.set(0, 0, -0.016);
 
-    // Top knurled suspension grip knob
+    // 顶部滚花悬挂抓握旋钮
     const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.02, 16), this.goldMat);
     knob.position.y = 0.096;
 
@@ -379,20 +379,20 @@ export class InductionBenchMesh {
   private buildProbe(): void {
     this.probeGroup.name = 'FieldProbe';
 
-    // Sampling ring encircling the quartz bore
+    // 环绕石英管膛的采样环
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.046, 0.0035, 8, 28), labGlow(0x22d3ee, 0.75));
     ring.rotation.x = -Math.PI / 2;
 
-    // Rigid connecting stem to the guide column
+    // 连接至导向立柱的刚性连接杆
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.055, 12), this.aluminumMat);
     stem.rotation.z = Math.PI / 2;
     stem.position.set(-0.065, 0, 0);
 
-    // Sliding collar riding smoothly along the left guide column
+    // 沿左侧导向立柱顺畅滑动的导向滑套
     const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.024, 16), this.chassisMat);
     collar.position.set(-0.09, 0, 0);
 
-    // Ergonomic knurled thumbscrew on the collar
+    // 滑套上的人体工学滚花指旋螺钉
     const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.010, 12), this.goldMat);
     screw.rotation.z = Math.PI / 2;
     screw.position.set(-0.098, 0, 0);
@@ -403,26 +403,49 @@ export class InductionBenchMesh {
 
   private buildMeter(): void {
     const meter = new THREE.Group();
-    // Solidly positioned on the right wing of the instrument base
+    // 稳固安装在仪器底座右翼
     meter.position.set(0.22, 0.033, 0.01);
 
-    // Wedged instrument casing with top surface sloping DOWN towards the user (NO backwards tilt!)
-    const caseGeo = new THREE.BoxGeometry(0.13, 0.065, 0.11);
-    const meterCase = new THREE.Mesh(caseGeo, this.chassisMat);
-    meterCase.position.set(0, 0.032, 0);
-    meter.add(meterCase, outlined(meterCase, 0x64748b, 0.35));
+    // 双色高精度仪器外壳（深钛色底壳 + 航空铝顶盖）
+    const caseGeo = new THREE.BoxGeometry(0.13, 0.062, 0.11);
+    const meterCase = new THREE.Mesh(caseGeo, labMetal(0x334155, 0.85, 0.25));
+    meterCase.position.set(0, 0.031, 0);
 
-    // Angled Front Face Assembly (Tilted -28° so normal points UP and directly TOWARDS user eye)
-    const dialAngle = -0.48; // Negative angle tilts face forward towards the camera!
+    const topDeck = new THREE.Mesh(new THREE.BoxGeometry(0.134, 0.006, 0.114), this.aluminumMat);
+    topDeck.position.set(0, 0.062, 0);
+
+    // 四角防震绝缘胶垫
+    const footMat = labMetal(0x0f172a, 0.3, 0.7);
+    const footGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.005, 12);
+    const footOffsets = [
+      [-0.055, -0.045],
+      [0.055, -0.045],
+      [-0.055, 0.045],
+      [0.055, 0.045],
+    ];
+    for (const [fx, fz] of footOffsets) {
+      const foot = new THREE.Mesh(footGeo, footMat);
+      foot.position.set(fx, 0.002, fz);
+      meter.add(foot);
+    }
+
+    meter.add(meterCase, topDeck, outlined(meterCase, 0x64748b, 0.35));
+
+    // 倾斜前面板组件（倾斜 -28 度使法线向上并正对用户视线）
+    const dialAngle = -0.48; // 负角度使表盘向前朝向相机倾斜
     const dialOriginY = 0.065;
     const dialOriginZ = 0.015;
 
-    // Polished Aluminum Bezel
+    // 抛光铝制边框与内嵌高光圈
     const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.048, 0.008, 36), this.aluminumMat);
     bezel.rotation.x = dialAngle;
     bezel.position.set(0, dialOriginY, dialOriginZ);
 
-    // Mirrored Center-Zero Dial Face (Crisp, fully facing user)
+    const bezelTrim = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.0016, 8, 36), this.chromeMat);
+    bezelTrim.rotation.x = dialAngle;
+    bezelTrim.position.set(0, dialOriginY + 0.004 * Math.cos(dialAngle), dialOriginZ - 0.004 * Math.sin(dialAngle));
+
+    // 零位居中的镜面防视差表盘（清晰直面用户）
     const face = new THREE.Mesh(
       new THREE.CircleGeometry(0.042, 36),
       new THREE.MeshBasicMaterial({ map: dialTexture(), toneMapped: false }),
@@ -430,14 +453,14 @@ export class InductionBenchMesh {
     face.rotation.x = dialAngle;
     face.position.set(0, dialOriginY + 0.004 * Math.cos(dialAngle), dialOriginZ - 0.004 * Math.sin(dialAngle));
 
-    // Optical Protective Crystal Cover
+    // 光学保护石英盖片
     const glass = new THREE.Mesh(new THREE.CircleGeometry(0.044, 36), opticalQuartz(0xc9e7ff, 0.18));
     glass.rotation.x = dialAngle;
     glass.position.set(0, dialOriginY + 0.007 * Math.cos(dialAngle), dialOriginZ - 0.007 * Math.sin(dialAngle));
 
-    meter.add(bezel, face, glass);
+    meter.add(bezel, bezelTrim, face, glass);
 
-    // Needle Pivot & Ruby Red Pointer Needle
+    // 指针轴心与宝石红指示表针
     this.needlePivot.position.set(
       0,
       dialOriginY + 0.005 * Math.cos(dialAngle) - 0.010 * Math.sin(dialAngle),
@@ -455,42 +478,65 @@ export class InductionBenchMesh {
     this.needlePivot.add(needle, hub);
     meter.add(this.needlePivot);
 
-    // Top Terminal Posts (+ Red, - Black)
-    const redPost = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.005, 0.014, 12), this.redMat);
-    redPost.position.set(-0.032, 0.070, -0.040);
-    const blackPost = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.005, 0.014, 12), labMetal(0x020617, 0.3, 0.7));
-    blackPost.position.set(0.032, 0.070, -0.040);
-    meter.add(redPost, blackPost);
+    // 顶部接线柱（红正 黑负）配备金色滚花锁紧螺帽
+    const redPost = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.006, 0.016, 16), this.redMat);
+    redPost.position.set(-0.032, 0.072, -0.038);
+    const redKnurl = new THREE.Mesh(new THREE.TorusGeometry(0.006, 0.0016, 8, 16), this.goldMat);
+    redKnurl.rotation.x = Math.PI / 2;
+    redKnurl.position.copy(redPost.position);
+
+    const blackPost = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.006, 0.016, 16), labMetal(0x0f172a, 0.2, 0.6));
+    blackPost.position.set(0.032, 0.072, -0.038);
+    const blackKnurl = new THREE.Mesh(new THREE.TorusGeometry(0.006, 0.0016, 8, 16), this.aluminumMat);
+    blackKnurl.rotation.x = Math.PI / 2;
+    blackKnurl.position.copy(blackPost.position);
+
+    meter.add(redPost, redKnurl, blackPost, blackKnurl);
 
     this.group.add(meter);
   }
 
   private buildDrive(): void {
     this.driveLever.name = 'DriveLever';
-    // Seated solidly on the left wing of the instrument base
+    // 稳固安装在仪器底座左翼
     this.driveLever.position.set(-0.22, 0.033, 0.01);
 
-    // Precision CNC-Machined Mounting Stanchion
-    const mountBlock = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.024, 0.065), this.chassisMat);
+    // 精密 CNC 机加工基座
+    const mountBlock = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.024, 0.068), labMetal(0x334155, 0.85, 0.25));
     mountBlock.position.y = 0.012;
 
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.024, 0.018, 20), this.aluminumMat);
-    pedestal.position.y = 0.030;
+    const baseFlange = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.028, 0.006, 24), this.aluminumMat);
+    baseFlange.position.y = 0.024;
 
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.0028, 8, 20), this.goldMat);
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.022, 0.022, 24), this.aluminumMat);
+    pedestal.position.y = 0.035;
+
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.021, 0.0028, 8, 24), this.goldMat);
     collar.rotation.x = Math.PI / 2;
-    collar.position.y = 0.035;
+    collar.position.y = 0.040;
 
-    // Spring-loaded tactile release plunger button
-    const trigger = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.015, 20), labGlow(0xf59e0b, 0.85));
-    trigger.position.y = 0.043;
+    // 释放推钮柱塞（带有精密倒角的琥珀金发光按钮）
+    const trigger = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.015, 0.016, 24), labGlow(0xf59e0b, 0.85));
+    trigger.position.y = 0.048;
 
-    this.driveLever.add(mountBlock, pedestal, collar, trigger, outlined(mountBlock, 0x64748b, 0.35));
+    // 机械释放拨片/挂钩卡榫细节（增强科技精密质感）
+    const latchPin = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.010, 0.018), this.chromeMat);
+    latchPin.position.set(0, 0.042, 0.018);
+
+    this.driveLever.add(
+      mountBlock,
+      baseFlange,
+      pedestal,
+      collar,
+      trigger,
+      latchPin,
+      outlined(mountBlock, 0x64748b, 0.35),
+    );
     this.group.add(this.driveLever);
   }
 
   private buildWiring(): void {
-    // Twin flexible laboratory jumper leads running cleanly from coil terminals to galvanometer
+    // 连接线圈端子与检流计的双柔性实验室跳线
     const redLead = createJumperLead([
       new THREE.Vector3(0.012, COIL_AXIS_Y - 0.050, 0.065),
       new THREE.Vector3(0.06, 0.15, 0.08),
@@ -525,7 +571,7 @@ export class InductionBenchMesh {
 
     this.buildFieldLines();
 
-    // Hide redundant 3D floating canvas readout (Telemetry is cleanly presented in VisionOS Card)
+    // 隐藏冗余的 3D 悬浮画布读数（遥测数据已在 VisionOS 卡片中清晰呈现）
     this.readout.mesh.visible = false;
     this.group.add(this.readout.mesh);
   }
@@ -555,7 +601,7 @@ export class InductionBenchMesh {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    // True expansive dipole field lines looping gracefully around the magnet
+    // 优雅环绕磁铁分布的真实开放式磁偶极子磁感线
     const layouts: Array<{ plane: 'xy' | 'xz'; sign: number; k: number }> = [
       { plane: 'xy', sign: -1, k: 0.12 },
       { plane: 'xy', sign: 1, k: 0.12 },

@@ -8,7 +8,7 @@ export class PressureGaugeMesh {
   private disposables: { dispose: () => void }[] = [];
 
   public readonly minPressure = 0;
-  public readonly maxPressure = 400; // kPa
+  public readonly maxPressure = 400; // 单位：千帕 (kPa)
 
   constructor() {
     this.group = new THREE.Group();
@@ -17,7 +17,7 @@ export class PressureGaugeMesh {
   }
 
   private build(): void {
-    // 1. Rubber non-slip bottom pad rim (y = 0 to 0.0015)
+    // 1. 橡胶防滑底垫边圈 (y = 0 至 0.0015)
     const rubberGeo = new THREE.CylinderGeometry(0.042, 0.042, 0.0015, 32);
     const rubberMat = new THREE.MeshStandardMaterial({
       color: 0x111317,
@@ -28,7 +28,7 @@ export class PressureGaugeMesh {
     rubberMesh.position.y = 0.00075;
     this.group.add(rubberMesh);
 
-    // 2. Polished stainless steel base bevel ring (y = 0.0015 to 0.004)
+    // 2. 抛光不锈钢底座斜角环 (y = 0.0015 至 0.004)
     const baseRimGeo = new THREE.CylinderGeometry(0.040, 0.042, 0.0025, 32);
     const stainlessMat = new THREE.MeshStandardMaterial({
       color: 0xf1f5f9,
@@ -40,7 +40,7 @@ export class PressureGaugeMesh {
     baseRimMesh.position.y = 0.00275;
     this.group.add(baseRimMesh);
 
-    // 3. High-precision satin clear-anodized aluminum plinth (y = 0.004 to 0.012)
+    // 3. 高精度缎面阳极氧化铝基座 (y = 0.004 至 0.012)
     const baseGeo = new THREE.CylinderGeometry(0.036, 0.040, 0.008, 32);
     const satinSilverMat = new THREE.MeshStandardMaterial({
       color: 0xdfe6ed,
@@ -55,7 +55,7 @@ export class PressureGaugeMesh {
     baseMesh.receiveShadow = true;
     this.group.add(baseMesh);
 
-    // 4. Polished stainless steel vertical support post (y = 0.012 to 0.062, Ø10mm)
+    // 4. 抛光不锈钢垂直支撑立柱 (y = 0.012 至 0.062, 直径 10mm)
     const postGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.050, 16);
     this.disposables.push(postGeo);
 
@@ -64,7 +64,7 @@ export class PressureGaugeMesh {
     postMesh.castShadow = true;
     this.group.add(postMesh);
 
-    // Hexagonal brass pipe fitting collar (where side pipe connects at y = 0.037)
+    // 六角黄铜管接头法兰套环（侧向管道在 y = 0.037 处连接）
     const brassMat = new THREE.MeshStandardMaterial({
       color: 0xd97706,
       metalness: 0.92,
@@ -78,7 +78,7 @@ export class PressureGaugeMesh {
     fittingMesh.position.y = 0.037;
     this.group.add(fittingMesh);
 
-    // 5. Mirror polished chrome casing (center y = 0.104)
+    // 5. 镜面抛光镀铬外壳（中心高度 y = 0.104）
     const caseGeo = new THREE.CylinderGeometry(0.042, 0.042, 0.022, 36);
     const caseMat = new THREE.MeshStandardMaterial({
       color: 0xf1f5f9,
@@ -93,7 +93,7 @@ export class PressureGaugeMesh {
     caseMesh.castShadow = true;
     this.group.add(caseMesh);
 
-    // 4. Dial Face Disc with crisp metric scale
+    // 6. 带清晰公制刻度的表盘圆盘
     this.dialCanvas = document.createElement('canvas');
     this.dialCanvas.width = 512;
     this.dialCanvas.height = 512;
@@ -113,7 +113,7 @@ export class PressureGaugeMesh {
     dialMesh.position.set(0, 0.104, 0.0115);
     this.group.add(dialMesh);
 
-    // 5. Rotating Pointer Needle
+    // 7. 旋转式指示表针
     const pointerGroup = new THREE.Group();
     pointerGroup.position.set(0, 0.104, 0.0125);
     this.group.add(pointerGroup);
@@ -123,10 +123,10 @@ export class PressureGaugeMesh {
     this.disposables.push(needleGeo, needleMat);
 
     this.pointerMesh = new THREE.Mesh(needleGeo, needleMat);
-    this.pointerMesh.position.y = 0.016; // pivot at base
+    this.pointerMesh.position.y = 0.016; // 旋转支点位于底部
     pointerGroup.add(this.pointerMesh);
 
-    // Center cap
+    // 中心轴盖
     const capGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.004, 24);
     const capMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8 });
     this.disposables.push(capGeo, capMat);
@@ -134,7 +134,7 @@ export class PressureGaugeMesh {
     capMesh.rotation.x = Math.PI * 0.5;
     pointerGroup.add(capMesh);
 
-    // Store pointerGroup reference in pointerMesh parent
+    // 在 pointerMesh 父级中保存 pointerGroup 引用并初始化指针位置
     this.setPressure(101.3);
   }
 
@@ -145,16 +145,16 @@ export class PressureGaugeMesh {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, 512, 512);
 
-    // Circular inner rim
+    // 内圆边框
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.arc(256, 256, 244, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Red warning danger zone arc (300 to 400 kPa)
-    // Angles: 0 kPa is at 225° (bottom left), 400 kPa is at -45° / 315° (bottom right)
-    // In canvas coords (0 is 3 o'clock):
+    // 红色危险警示弧段 (300 至 400 kPa)
+    // 角度分布：0 kPa 位于 225°（左下），400 kPa 位于 -45° / 315°（右下）
+    // 在 Canvas 坐标系中（0 代表 3 点钟方向）：
     // 0 kPa: 135° = 0.75 * PI
     // 300 kPa: 337.5° = 1.875 * PI
     // 400 kPa: 405° = 2.25 * PI = 0.25 * PI
@@ -164,17 +164,17 @@ export class PressureGaugeMesh {
     ctx.arc(256, 256, 218, 1.875 * Math.PI, 2.25 * Math.PI);
     ctx.stroke();
 
-    // Normal safe zone arc (0 to 300 kPa)
+    // 正常安全工作弧段 (0 至 300 kPa)
     ctx.strokeStyle = '#0284c7';
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.arc(256, 256, 218, 0.75 * Math.PI, 1.875 * Math.PI);
     ctx.stroke();
 
-    // Ticks & Labels
+    // 刻度线与读数标签
     const startAngle = 0.75 * Math.PI; // 135°
     const endAngle = 2.25 * Math.PI;   // 405°
-    const totalTicks = 40; // Every 10 kPa
+    const totalTicks = 40; // 每 10 kPa 一个刻度
 
     for (let i = 0; i <= totalTicks; i++) {
       const angle = startAngle + (i / totalTicks) * (endAngle - startAngle);
@@ -210,7 +210,7 @@ export class PressureGaugeMesh {
       }
     }
 
-    // Title / Unit
+    // 表盘标题与单位
     ctx.fillStyle = '#0284c7';
     ctx.font = 'bold 30px monospace';
     ctx.textAlign = 'center';
@@ -223,7 +223,7 @@ export class PressureGaugeMesh {
 
   public setPressure(kpa: number): void {
     const clamped = Math.max(0, Math.min(this.maxPressure, kpa));
-    // Pointer rotation: 0 kPa is +135° (or 2.356 rad), 400 kPa is -135° (-2.356 rad)
+    // 指针旋转：0 kPa 对应 +135°（2.356 rad），400 kPa 对应 -135°（-2.356 rad）
     const norm = clamped / this.maxPressure;
     const angle = 135 - norm * 270;
     if (this.pointerMesh.parent) {

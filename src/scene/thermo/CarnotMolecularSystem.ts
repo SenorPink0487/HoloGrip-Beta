@@ -6,18 +6,18 @@ export class CarnotMolecularSystem {
   private readonly particleCount = 260;
   private readonly particleRadius = 0.0028;
 
-  // Particle positions & velocities
+  // 分子粒子位置与速度数组
   private positions: Float32Array;
   private velocities: Float32Array;
   private matrixArray: Float32Array;
   private scratchColor = new THREE.Color();
 
-  // Cylindrical container boundaries
-  private readonly cylinderRadius = 0.048; // Inner radius
+  // 圆柱形容器几何边界
+  private readonly cylinderRadius = 0.048; // 内壁半径
   private readonly bottomY = 0.038;        // Floor
-  private currentPistonY = 0.100;           // Piston head lower face
+  private currentPistonY = 0.100;           // 活塞头下表面
 
-  // Thermodynamic parameters
+  // 热力学状态参数
   private currentTempK = 600;
   private targetTempK = 600;
   private lastColorTempK = -999;
@@ -77,7 +77,7 @@ export class CarnotMolecularSystem {
       this.velocities[idx + 1] = this.sampleGaussian() * sigma;
       this.velocities[idx + 2] = this.sampleGaussian() * sigma;
 
-      // Identity matrix with position
+      // 包含位置变换的单位矩阵
       this.matrixArray[mIdx + 0] = 1; this.matrixArray[mIdx + 1] = 0; this.matrixArray[mIdx + 2] = 0; this.matrixArray[mIdx + 3] = 0;
       this.matrixArray[mIdx + 4] = 0; this.matrixArray[mIdx + 5] = 1; this.matrixArray[mIdx + 6] = 0; this.matrixArray[mIdx + 7] = 0;
       this.matrixArray[mIdx + 8] = 0; this.matrixArray[mIdx + 9] = 0; this.matrixArray[mIdx + 10] = 1; this.matrixArray[mIdx + 11] = 0;
@@ -95,7 +95,7 @@ export class CarnotMolecularSystem {
     this.targetTempK = tempK;
     this.currentPistonY = Math.max(this.bottomY + 0.015, pistonY);
 
-    // Smoothly adjust temperature towards instantaneous cycle temperature
+    // 平滑调节体系温度趋近循环瞬时温度
     this.currentTempK += (this.targetTempK - this.currentTempK) * 0.15;
     if (Math.abs(this.currentTempK - this.lastColorTempK) >= 2.0) {
       this.updateColors();
@@ -106,10 +106,10 @@ export class CarnotMolecularSystem {
     if (!force && Math.abs(this.currentTempK - this.lastColorTempK) < 2.0) return;
     this.lastColorTempK = this.currentTempK;
 
-    // Temperature to color gradient:
-    // 200K -> Ice Cyan (#38bdf8)
-    // 400K -> Warm Yellow (#facc15)
-    // 700K+ -> Glowing Red/Orange (#ef4444)
+    // 温度到颜色的平滑渐变映射：
+    // 200K -> 冰晶青色 (#38bdf8)
+    // 400K -> 暖黄色 (#facc15)
+    // 700K+ -> 灼热橙红色 (#ef4444)
     const norm = THREE.MathUtils.clamp((this.currentTempK - 200) / 600, 0, 1);
 
     if (norm < 0.5) {
@@ -159,17 +159,17 @@ export class CarnotMolecularSystem {
       let py = this.positions[idx + 1] + vy * dt;
       let pz = this.positions[idx + 2] + vz * dt;
 
-      // Bottom wall collision
+      // 底部器壁弹性碰撞
       if (py < yMin) {
         py = yMin;
         vy = Math.abs(vy);
       }
-      // Top moving piston collision
+      // 顶部运动活塞碰撞反弹
       if (py > yMax) {
         py = yMax;
         vy = -Math.abs(vy);
       }
-      // Radial cylindrical wall collision
+      // 径向圆柱侧壁碰撞反弹
       const rSq = px * px + pz * pz;
       if (rSq > rMax * rMax) {
         const r = Math.sqrt(rSq);

@@ -24,7 +24,7 @@ export function materialById(id: string): FerroMaterial {
   return FERRO_MATERIALS.find((m) => m.id === id) ?? FERRO_MATERIALS[0];
 }
 
-/** Ascending branch (direction +1) crosses B = 0 at H = +Hc. Descending crosses at H = −Hc. */
+/** 上升支 (方向 +1) 在 H = +Hc 处穿过 B = 0；下降支在 H = -Hc 处穿过 B = 0。 */
 export function branchB(H: number, direction: 1 | -1, mat: FerroMaterial): number {
   const shift = direction > 0 ? -mat.hcAmpPerM : mat.hcAmpPerM;
   return mat.bsTesla * Math.tanh((H + shift) / mat.aAmpPerM);
@@ -85,7 +85,7 @@ export function searchFluxWb(materialB: number): number {
   return SEARCH_TURNS * materialB * SAMPLE_AREA_M2;
 }
 
-/** Uniform inside a long solenoid, then a short fringe. `axial` is measured from the sample center. */
+/** 长螺线管内部磁场均匀，两端有短暂边缘衰减。`axial` 为距样品中心的轴向距离。 */
 export function solenoidSampleField(axial: number, halfLength: number, materialB: number): number {
   if (Math.abs(axial) <= halfLength) return materialB;
   const fringeArg = (Math.abs(axial) - halfLength) / 0.025;

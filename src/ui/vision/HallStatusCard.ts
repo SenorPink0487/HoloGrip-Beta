@@ -2,14 +2,14 @@ import type { CarrierType } from '../../scene/em/HallCarrierParticleSystem.ts';
 import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
 
 export interface HallTelemetryData {
-  // Operational variables
+  // 实验运行可控变量
   magFieldTesla: number;        // Tesla (-1.5 to +1.5)
   currentMa: number;            // mA (-20 to +20)
   waferThicknessMm: number;     // mm (0.05 to 1.5)
   waferWidthMm: number;         // mm
   waferLengthMm: number;        // mm
 
-  // Specimen & Material properties
+  // 样品与材料物性参数
   materialKey: string;          // 'n-gaas' | 'p-silicon' | 'copper' | 'custom'
   materialName: string;
   carrierType: CarrierType;
@@ -18,7 +18,7 @@ export interface HallTelemetryData {
   mobilityCm2Vs: number;        // cm^2 / (V·s)
   conductivitySm: number;       // S/m
 
-  // Derived Physical Quantities
+  // 理论衍生物理量计算值
   hallCoefficientRh: number;    // m^3 / C
   hallSensitivityKh: number;    // V / (A·T) = mV / (mA·T)
   hallVoltageMv: number;        // mV
@@ -26,7 +26,7 @@ export interface HallTelemetryData {
   driftVelocityMs: number;      // m / s
   lorentzForceN: number;        // N
 
-  // Display toggles
+  // 视觉渲染显示开关
   showVectors: boolean;
   showParticles: boolean;
 }
@@ -50,7 +50,7 @@ export class HallStatusCard {
   private callbacks: HallStatusCardCallbacks;
   private isVisible = false;
 
-  // Active parameter selected in formula: 'b' | 'i' | 'd' | 'rh' | 'vh'
+  // 公式中当前选中的激活参数：'b' | 'i' | 'd' | 'rh' | 'vh'
   private activeParam: 'b' | 'i' | 'd' | 'rh' | 'vh' = 'b';
 
   private currentData: HallTelemetryData = {
@@ -76,7 +76,7 @@ export class HallStatusCard {
     showParticles: true,
   };
 
-  // Cached DOM elements
+  // 缓存的 DOM 节点集合
   private stageEl: HTMLElement | null = null;
   private valVhEl: HTMLElement | null = null;
   private valBEl: HTMLElement | null = null;
@@ -87,14 +87,14 @@ export class HallStatusCard {
   private subEhEl: HTMLElement | null = null;
   private subVdEl: HTMLElement | null = null;
 
-  // In-token dynamic value elements
+  // 公式符号内的动态数值展示元素
   private tokenValVh: HTMLElement | null = null;
   private tokenValRh: HTMLElement | null = null;
   private tokenValI: HTMLElement | null = null;
   private tokenValB: HTMLElement | null = null;
   private tokenValD: HTMLElement | null = null;
 
-  // Drawer values
+  // 抽屉参数读数元素
   private drawerEl: HTMLElement | null = null;
   private drawerValB: HTMLElement | null = null;
   private drawerValI: HTMLElement | null = null;
@@ -131,7 +131,7 @@ export class HallStatusCard {
   private paneRh: HTMLElement | null = null;
   private paneVh: HTMLElement | null = null;
 
-  // Prominent Floating Drag HUD
+  // 显著的悬浮拖拽数值调节 HUD 浮层
   private dragHud: HTMLElement | null = null;
   private hudValText: HTMLElement | null = null;
   private hudBarFill: HTMLElement | null = null;
@@ -468,7 +468,7 @@ export class HallStatusCard {
   private switchActiveParam(param: 'b' | 'i' | 'd' | 'rh' | 'vh'): void {
     this.activeParam = param;
 
-    // 1. Update token active states - strictly single selection (only clicked param is active/blue)
+    // 1. 更新符号激活状态（严格单选：仅当前点击的参数高亮激活）
     const tokens: Array<{ el: HTMLElement | null; key: string }> = [
       { el: this.tokenVh, key: 'vh' },
       { el: this.tokenB, key: 'b' },
@@ -482,7 +482,7 @@ export class HallStatusCard {
       el.classList.remove('dragging', 'response-active');
     });
 
-    // 2. Toggle drawer panes
+    // 2. 切换抽屉参数调节面板
     if (this.paneB) this.paneB.style.display = param === 'b' ? 'flex' : 'none';
     if (this.paneI) this.paneI.style.display = param === 'i' ? 'flex' : 'none';
     if (this.paneD) this.paneD.style.display = param === 'd' ? 'flex' : 'none';
@@ -491,14 +491,14 @@ export class HallStatusCard {
   }
 
   private bindEvents(): void {
-    // 1. Token clicks switch active parameter
+    // 1. 点击公式符号切换当前激活参数
     this.tokenVh?.addEventListener('click', () => this.switchActiveParam('vh'));
     this.tokenB?.addEventListener('click', () => this.switchActiveParam('b'));
     this.tokenI?.addEventListener('click', () => this.switchActiveParam('i'));
     this.tokenD?.addEventListener('click', () => this.switchActiveParam('d'));
     this.tokenRh?.addEventListener('click', () => this.switchActiveParam('rh'));
 
-    // 2. iPad Touch-Optimized Sliders with Pointer Capture & Active Drag Tracking
+    // 2. 针对 iPad 与触控优化的滑块手势绑定
     this.bindTouchSlider(this.sliderB, (b) => {
       this.callbacks.onMagFieldChange?.(b);
     });
@@ -511,7 +511,7 @@ export class HallStatusCard {
       this.callbacks.onThicknessChange?.(d);
     });
 
-    // 3. Polarity inversion buttons
+    // 3. 极性反转按钮事件
     this.btnRevB?.addEventListener('click', () => {
       this.callbacks.onToggleFieldPolarity?.();
     });
@@ -520,7 +520,7 @@ export class HallStatusCard {
       this.callbacks.onToggleCurrentPolarity?.();
     });
 
-    // 4. Preset Chips
+    // 4. 预设快捷选项胶囊
     this.presetChipsB?.forEach((chip) => {
       chip.addEventListener('click', () => {
         const val = parseFloat(chip.getAttribute('data-set-b') || '0');
@@ -542,7 +542,7 @@ export class HallStatusCard {
       });
     });
 
-    // 5. Specimen pills selection
+    // 5. 待测材料样品切换胶囊
     this.specimenPills?.forEach((pill) => {
       pill.addEventListener('click', () => {
         const mat = pill.getAttribute('data-material');
@@ -552,7 +552,7 @@ export class HallStatusCard {
       });
     });
 
-    // 6. Visual toggles
+    // 6. 视觉效果开关切换
     this.btnToggleVectors?.addEventListener('click', () => {
       const active = this.btnToggleVectors!.classList.toggle('active');
       this.callbacks.onToggleVectors?.(active);
@@ -563,7 +563,7 @@ export class HallStatusCard {
       this.callbacks.onToggleParticles?.(active);
     });
 
-    // 7. Reset buttons
+    // 7. 参数重置按钮
     const handleReset = () => {
       this.callbacks.onMaterialChange?.('n-gaas');
       this.callbacks.onMagFieldChange?.(0.5);
@@ -586,7 +586,7 @@ export class HallStatusCard {
     const wrap = (typeof slider.closest === 'function' ? slider.closest('.hall-slider-track-wrap') : null) || slider.parentElement;
     let isDragging = false;
 
-    // Helper to format values for HUD and immediate visual feedback
+    // 格式化输出 HUD 数值与即时视觉反馈文本的辅助函数
     const formatValue = (val: number): string => {
       if (slider.id === 'slider-hall-b') {
         return `${val >= 0 ? '+' : ''}${val.toFixed(2)} T`;
@@ -682,7 +682,7 @@ export class HallStatusCard {
 
     if (!diffB && !diffI && !diffVh && !diffD && !diffMat) return;
 
-    // 1. Format Hall Voltage String
+    // 1. 格式化霍尔电压显示文本
     if (diffVh) {
       this.lastVh = vh;
       const signVh = vh >= 0 ? '+' : '';
@@ -692,14 +692,14 @@ export class HallStatusCard {
       if (this.drawerValVh) this.drawerValVh.textContent = vhText;
       if (this.tokenValVh) this.tokenValVh.textContent = vhText;
 
-      // Response readouts across all drawer panes
+      // 同步更新所有抽屉面板中的响应读数
       if (this.respVhB) this.respVhB.textContent = vhText;
       if (this.respVhI) this.respVhI.textContent = vhText;
       if (this.respVhD) this.respVhD.textContent = vhText;
       if (this.respVhRh) this.respVhRh.textContent = vhText;
     }
 
-    // 2. Magnetic Field B
+    // 2. 磁感应强度 B 遥测数据
     if (diffB) {
       this.lastB = b;
       const signB = b >= 0 ? '+' : '';
@@ -747,7 +747,7 @@ export class HallStatusCard {
       }
     }
 
-    // 4. Wafer Thickness d
+    // 4. 晶圆厚度 d 遥测数据
     if (diffD) {
       this.lastD = d;
       const textD = `${d.toFixed(2)} mm`;
@@ -801,7 +801,7 @@ export class HallStatusCard {
       }
     }
 
-    // 6. Micro Stats
+    // 6. 微观统计物理量遥测
     if (diffVh || diffB || diffI || diffMat || diffD) {
       if (this.subEhEl) {
         this.subEhEl.textContent = `E: ${this.currentData.hallElectricFieldVm.toFixed(2)} V/m`;

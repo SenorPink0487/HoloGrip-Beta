@@ -27,11 +27,11 @@ async function run() {
     const send = (method, params = {}) => ws.send(JSON.stringify({ id: id++, method, params }));
     send('Runtime.enable');
 
-    // Run custom benchmark with different configurations
+    // 使用不同配置运行自定义基准测试
     const testCode = `
       (async () => {
         const results = [];
-        // Test in worker
+        // 在 Worker 中测试
         async function runWorkerTest(name, config) {
           const workerCode = \`
             import { FilesetResolver, HandLandmarker } from '/node_modules/@mediapipe/tasks-vision/vision_bundle.mjs';
@@ -79,7 +79,7 @@ async function run() {
             worker.postMessage({ type: 'INIT' });
           });
 
-          // Create test image with hand
+          // 创建包含手部测试区域的图像
           const testCanvas = document.createElement('canvas');
           testCanvas.width = config.width || 320;
           testCanvas.height = config.height || 240;
@@ -87,7 +87,7 @@ async function run() {
           ctx.fillStyle = '#ffdbac';
           ctx.fillRect(50, 50, 100, 120);
 
-          // Warmup
+          // 预热
           for (let i = 0; i < 3; i++) {
             const bmp = await createImageBitmap(testCanvas);
             await new Promise(res => {
@@ -96,7 +96,7 @@ async function run() {
             });
           }
 
-          // Measure 20 frames
+          // 测量 20 帧处理耗时
           const times = [];
           let handsDetected = 0;
           for (let i = 0; i < 20; i++) {

@@ -97,7 +97,7 @@ struct Action {
 pub struct Board {
     pub pages: Vec<Page>,
     pub revision: u64,
-    // Bounded fast-path cache; the SQL operation table is the durable deduplication authority.
+    // 有界快速缓存；数据库中的操作记录表为权威的持久化去重依据。
     pub applied: HashMap<String, String>,
     history: Vec<Action>,
 }
@@ -361,7 +361,7 @@ impl Board {
         if self.history.len() > 1000 {
             self.history.remove(0);
         }
-        // Discard invisible strokes once no undo/redo action can reference them.
+        // 当撤销/重做操作不再引用不可见的笔画时，将其丢弃清理。
         for page in &mut self.pages {
             page.strokes.retain(|s| {
                 s.visible

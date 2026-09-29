@@ -75,7 +75,7 @@ export class AppleColorPicker {
       </div>
     `;
 
-    // Populate swatch buttons
+    // 填充色块预设按钮
     const swatchGrid = this.element.querySelector('#popover-swatch-grid') as HTMLElement;
     this.SWATCHES.forEach((hex) => {
       const btn = document.createElement('button');
@@ -96,7 +96,7 @@ export class AppleColorPicker {
   }
 
   private bindEvents(): void {
-    // Swatch buttons
+    // 色块预设按钮事件
     this.swatchButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         const color = btn.dataset.color;
@@ -106,24 +106,24 @@ export class AppleColorPicker {
       });
     });
 
-    // Hue slider
+    // 色相滑块
     bindVisionSlider(this.hueSlider, (val) => {
       this.hue = val;
       this.updateColorFromHSL();
     });
 
-    // Lightness slider
+    // 亮度滑块
     bindVisionSlider(this.lightSlider, (val) => {
       this.lightness = val;
       this.updateColorFromHSL();
     });
 
-    // Close button
+    // 关闭按钮
     this.element.querySelector('#popover-close-btn')?.addEventListener('click', () => {
       this.close();
     });
 
-    // Click outside to close
+    // 点击外部区域自动关闭
     document.addEventListener('pointerdown', (e) => {
       if (!this.isOpen) return;
       const target = e.target as HTMLElement;
@@ -132,7 +132,7 @@ export class AppleColorPicker {
       }
     });
 
-    // ESC key
+    // ESC 键关闭
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.isOpen) {
         this.close();
@@ -161,12 +161,12 @@ export class AppleColorPicker {
     this.previewDot.style.backgroundColor = hex;
     this.hexLabel.textContent = hex.toUpperCase();
 
-    // Update swatches active ring
+    // 更新当前激活色块的外环指示器
     this.swatchButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.color?.toLowerCase() === hex.toLowerCase());
     });
 
-    // Update lightness slider background gradient
+    // 更新亮度滑块背景渐变色
     const pureHueColor = this.hslToHex(this.hue, 100, 50);
     this.lightSlider.style.setProperty('--current-hue', pureHueColor);
 

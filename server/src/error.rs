@@ -90,8 +90,8 @@ pub fn duplicate_kind(err: &sqlx::Error) -> Option<DuplicateKind> {
         return None;
     };
     let message = db.message().to_lowercase();
-    // MySQL reports duplicates as SQLSTATE 23000 / error 1062. The driver
-    // exposes the SQLSTATE through DatabaseError::code, not 1062.
+    // MySQL 将唯一键冲突报告为 SQLSTATE 23000 / 错误码 1062。驱动
+    // 通过 DatabaseError::code 暴露的是 SQLSTATE，而非 1062。
     if !message.contains("duplicate entry") {
         return None;
     }

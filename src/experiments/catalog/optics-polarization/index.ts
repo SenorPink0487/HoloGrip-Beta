@@ -35,7 +35,7 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
   private quarterWavePlate = false;
   private show3DWave = true;
 
-  // Multi-Core Worker Buffers
+  // 多核 Worker 缓冲区
   private workerPositions: Float32Array = new Float32Array(122 * 3);
   private workerColors: Float32Array = new Float32Array(122 * 3);
   private isWorkerBusy = false;
@@ -43,14 +43,14 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
   private lastMalusIntensity = 1.0;
   private lastPolStateHash = '';
 
-  // Cached scratch vectors for per-frame beam rendering
+  // 用于逐帧光束渲染的缓存暂存向量
   private readonly startPos = new THREE.Vector3();
   private readonly endPos = new THREE.Vector3();
   private readonly p1Pos = new THREE.Vector3();
   private readonly p2Pos = new THREE.Vector3();
 
   public init(context: ExperimentContext): void {
-    // Rest rubber pads firmly on table surface (Y=0.063), shifted forward to user workbench (Z=0.96), across the table
+    // 橡胶防震脚垫平稳贴合桌面 (Y=0.063)，沿桌面横向向前平移至交互工作区 (Z=0.96)
     this.rootGroup.position.set(0, 0.063, 0.96);
     this.rootGroup.rotation.y = Math.PI * 0.5;
 
@@ -152,7 +152,7 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
     }
 
     this.beamSystem.setIntensity(1.0);
-    // Multi-stage polarization: Laser -> P1 (1.0), P1 -> P2 (1.0), P2 -> Screen (Malus Law)
+    // 多阶段偏振：激光器 -> P1 (1.0), P1 -> P2 (1.0), P2 -> 光屏 (马吕斯定律)
     this.beamSystem.updateSegmentedBeam([
       { start: this.startPos, end: this.p1Pos, intensity: 1.0 },
       { start: this.p1Pos, end: this.p2Pos, intensity: 1.0 },
@@ -169,7 +169,7 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
       context.computeBridge || (context.workerPool && context.workerPool.size > 0)
     );
 
-    // Continuous 3D electric field vector wave offloaded to multi-core worker
+    // 连续 3D 电场矢量波卸载至多核 Worker 计算
     if (this.show3DWave) {
       if (hasWorker) {
         if (!this.isWorkerBusy) {
@@ -295,7 +295,7 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
           }
         }
       } else {
-        // Test fallback when workerPool is empty
+        // 当 workerPool 为空时的测试后备方案
         this.lastMalusIntensity = OpticalPhysics.calculateMalusIntensity(this.pol1Angle, this.pol2Angle, 1.0);
       }
     } catch {

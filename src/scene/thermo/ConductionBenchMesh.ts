@@ -17,7 +17,7 @@ export class ConductionBenchMesh {
   public readonly rodEndX = 0.16;
   public readonly railZ = 0.052;
 
-  // Materials & Dynamic Elements
+  // 材质与动态渲染组件
   private satinAluminumMat: THREE.MeshStandardMaterial;
   private darkAnodizedMat: THREE.MeshStandardMaterial;
   private stainlessMat: THREE.MeshStandardMaterial;
@@ -35,27 +35,27 @@ export class ConductionBenchMesh {
   private heaterCoilGlowMesh: THREE.Mesh;
   private coolerLedHalo: THREE.Mesh;
 
-  // FLIR Thermal Texture Map for the Rod
+  // 待测棒表面 FLIR 红外热成像纹理贴图
   private thermalCanvas: HTMLCanvasElement;
   private thermalCtx: CanvasRenderingContext2D;
   private thermalTexture: THREE.CanvasTexture;
   private rodMaterial: THREE.MeshStandardMaterial;
 
-  // Digital Temperature Readout on Sliding Probe
+  // 移动测温探头上的数字温度显示屏
   private displayCanvas: HTMLCanvasElement;
   private displayCtx: CanvasRenderingContext2D;
   private displayTexture: THREE.CanvasTexture;
 
-  // Laser Pointer Aiming Beam
+  // 激光测温对焦准直光束
   private laserDotMesh: THREE.Mesh;
 
-  // Composite rod junction ring
+  // 复合导热棒中心冶金接合环
   private junctionCollar: THREE.Mesh;
 
   private currentNormX = 0.5;
   private disposables: { dispose: () => void }[] = [];
 
-  // OLED Screen Update Caching & Throttling
+  // OLED 屏幕刷新缓存与节流机制
   private lastRenderTempK = -999;
   private lastRenderNormX = -999;
   private lastRenderGrad = -999999;
@@ -72,7 +72,7 @@ export class ConductionBenchMesh {
   }
 
   private initMaterials(): void {
-    // 1. Natural satin clear-anodized aluminum (航空级阳极化天然铝)
+    // 1. 缎面本色阳极氧化航空铝材质
     this.satinAluminumMat = new THREE.MeshStandardMaterial({
       color: 0xe2eaf2,
       metalness: 0.78,
@@ -80,7 +80,7 @@ export class ConductionBenchMesh {
     });
     this.disposables.push(this.satinAluminumMat);
 
-    // 2. Black hard-anodized aerospace aluminum (哑光黑阳极氧化铝)
+    // 2. 哑光黑色硬质阳极氧化铝材质
     this.darkAnodizedMat = new THREE.MeshStandardMaterial({
       color: 0x1e2430,
       metalness: 0.82,
@@ -88,7 +88,7 @@ export class ConductionBenchMesh {
     });
     this.disposables.push(this.darkAnodizedMat);
 
-    // 3. Mirror-polished 304 stainless steel (高抛光304不锈钢)
+    // 3. 高光镜面抛光 304 不锈钢材质
     this.stainlessMat = new THREE.MeshStandardMaterial({
       color: 0xf8fafc,
       metalness: 0.94,
@@ -96,7 +96,7 @@ export class ConductionBenchMesh {
     });
     this.disposables.push(this.stainlessMat);
 
-    // 4. Fine brushed stainless steel (拉丝不锈钢)
+    // 4. 精细拉丝不锈钢材质
     this.brushedSteelMat = new THREE.MeshStandardMaterial({
       color: 0xcfd8e3,
       metalness: 0.88,
@@ -104,7 +104,7 @@ export class ConductionBenchMesh {
     });
     this.disposables.push(this.brushedSteelMat);
 
-    // 5. High-conductivity pure copper (高导热紫铜)
+    // 5. 高导热高纯无氧紫铜材质
     this.copperMat = new THREE.MeshStandardMaterial({
       color: 0xdf5a1a,
       metalness: 0.92,
@@ -112,7 +112,7 @@ export class ConductionBenchMesh {
     });
     this.disposables.push(this.copperMat);
 
-    // 6. Machined optical brass (精密光学黄铜螺母/锁紧钮)
+    // 6. 精密光学车削黄铜材质（螺母与锁紧手轮）
     this.brassMat = new THREE.MeshStandardMaterial({
       color: 0xeab308,
       metalness: 0.85,
@@ -120,7 +120,7 @@ export class ConductionBenchMesh {
     });
     this.disposables.push(this.brassMat);
 
-    // 7. Alumina technical ceramic (绝缘耐热精密氧化铝陶瓷)
+    // 7. 绝缘耐高温精密氧化铝陶瓷材质
     this.ceramicMat = new THREE.MeshStandardMaterial({
       color: 0xf1f5f9,
       metalness: 0.10,
@@ -128,7 +128,7 @@ export class ConductionBenchMesh {
     });
     this.disposables.push(this.ceramicMat);
 
-    // 8. Gold mirror thermal radiation shield (镀金红外反射热屏蔽板)
+    // 8. 镀金红外全反射热屏蔽板材质
     this.goldShieldMat = new THREE.MeshStandardMaterial({
       color: 0xf59e0b,
       metalness: 0.96,
@@ -136,7 +136,7 @@ export class ConductionBenchMesh {
     });
     this.disposables.push(this.goldShieldMat);
 
-    // 9. Optical anti-reflective coated sapphire window (红外探针透镜)
+    // 9. 增透镀膜光学蓝宝石探针透镜材质
     this.opticalGlassMat = new THREE.MeshStandardMaterial({
       color: 0x93c5fd,
       transparent: true,
@@ -178,7 +178,7 @@ export class ConductionBenchMesh {
     ctx.textAlign = 'right';
     ctx.fillText('q = -k ∇T · 320mm CALIBRATED SPECIMEN', canvas.width - 36, 44);
 
-    // Metric millimeter divisions
+    // 公制毫米刻度线
     const totalDivs = 64;
     const startX = 40;
     const endX = canvas.width - 40;
@@ -277,7 +277,7 @@ export class ConductionBenchMesh {
     ctx.fillStyle = '#050811';
     ctx.fillRect(0, 0, 512, 192);
 
-    // Outer cyber bezel
+    // 仪器屏幕外围倒角边框
     ctx.strokeStyle = '#0284c7';
     ctx.lineWidth = 6;
     ctx.strokeRect(3, 3, 506, 186);
@@ -286,7 +286,7 @@ export class ConductionBenchMesh {
     ctx.lineWidth = 2;
     ctx.strokeRect(10, 10, 492, 172);
 
-    // Status banner
+    // 顶部状态横幅栏
     ctx.fillStyle = '#0ea5e9';
     ctx.font = 'bold 22px monospace';
     ctx.textAlign = 'left';
@@ -298,7 +298,7 @@ export class ConductionBenchMesh {
     ctx.textAlign = 'right';
     ctx.fillText(`x = ${xMm.toFixed(1)} mm`, 488, 40);
 
-    // Large main temperature readout
+    // 主温度高亮数字读数
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 64px monospace';
     ctx.textAlign = 'left';
@@ -310,7 +310,7 @@ export class ConductionBenchMesh {
     const tempC = tempK - 273.15;
     ctx.fillText(`${tempC >= 0 ? '+' : ''}${tempC.toFixed(1)} °C`, 488, 104);
 
-    // Divider line
+    // 水平分割线
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -318,7 +318,7 @@ export class ConductionBenchMesh {
     ctx.lineTo(488, 126);
     ctx.stroke();
 
-    // Secondary physics metrics
+    // 次级物理指标参数（热流通量与梯度）
     ctx.fillStyle = '#a5f3fc';
     ctx.font = 'bold 22px monospace';
     ctx.textAlign = 'left';
@@ -336,7 +336,7 @@ export class ConductionBenchMesh {
     this.initMaterials();
 
     // =========================================================================
-    // 1. Vibration-Isolation Footpads (4 只大型高避震橡胶脚垫，架空深色桌面 14mm)
+    // 1. 减震支撑底脚（4 只重型橡胶防震脚垫，悬空台面 14mm）
     // =========================================================================
     const footpadGroup = new THREE.Group();
     footpadGroup.name = 'BenchRubberFootpads';
@@ -361,7 +361,7 @@ export class ConductionBenchMesh {
       foot.receiveShadow = true;
       footpadGroup.add(foot);
 
-      // Knurled leveling thumb-wheel collar (不锈钢调平旋钮)
+      // 不锈钢滚花水平微调手轮轴套
       const wheelGeo = new THREE.CylinderGeometry(0.020, 0.020, 0.004, 24);
       this.disposables.push(wheelGeo);
       const wheel = new THREE.Mesh(wheelGeo, this.stainlessMat);
@@ -371,9 +371,9 @@ export class ConductionBenchMesh {
     this.group.add(footpadGroup);
 
     // =========================================================================
-    // 2. High-Grade Dual-Tier Precision Plinth (锻面银白航空铝双阶厚重基座)
+    // 2. 高精度双阶厚重仪器基座（缎面银白航空铝合金）
     // =========================================================================
-    // Tier 1: Heavy lower foundation block (y = 0.016 to 0.034)
+    // 第一阶：下层重型地基底座块
     const lowerPlinthGeo = new THREE.BoxGeometry(0.58, 0.018, 0.22);
     this.disposables.push(lowerPlinthGeo);
     const lowerPlinth = new THREE.Mesh(lowerPlinthGeo, this.satinAluminumMat);
@@ -382,14 +382,14 @@ export class ConductionBenchMesh {
     lowerPlinth.receiveShadow = true;
     this.group.add(lowerPlinth);
 
-    // Beveled perimeter transition rim
+    // 斜角过渡边缘倒角圈
     const rimGeo = new THREE.BoxGeometry(0.584, 0.004, 0.224);
     this.disposables.push(rimGeo);
     const rim = new THREE.Mesh(rimGeo, this.stainlessMat);
     rim.position.y = 0.035;
     this.group.add(rim);
 
-    // Tier 2: Machined upper deck plate (y = 0.036 to 0.046)
+    // 第二阶：精密铣削上层台面板
     const upperDeckGeo = new THREE.BoxGeometry(0.54, 0.010, 0.18);
     this.disposables.push(upperDeckGeo);
     const upperDeck = new THREE.Mesh(upperDeckGeo, this.darkAnodizedMat);
@@ -398,7 +398,7 @@ export class ConductionBenchMesh {
     upperDeck.receiveShadow = true;
     this.group.add(upperDeck);
 
-    // Front Laser-Etched Nameplate Plaque (激光蚀刻全息标定铭牌)
+    // 前置激光蚀刻仪器全息标定金属铭牌
     const nameplateTex = this.createNameplateTexture();
     const nameplateMat = new THREE.MeshBasicMaterial({ map: nameplateTex });
     this.disposables.push(nameplateMat);
@@ -410,11 +410,11 @@ export class ConductionBenchMesh {
     this.group.add(nameplateMesh);
 
     // =========================================================================
-    // 3. Genuine 45° Dovetail Optical Bench Rail (45度精密燕尾光学导轨)
+    // 3. 45° 标准精密燕尾光学导轨
     // =========================================================================
     const railShape = new THREE.Shape();
-    const rw = 0.028;  // rail width
-    const rh = 0.014;  // rail height
+    const rw = 0.028;  // 导轨宽度
+    const rh = 0.014;  // 导轨高度
     const bevel = 0.005;
     railShape.moveTo(-rw * 0.5 + bevel, 0);
     railShape.lineTo(rw * 0.5 - bevel, 0);
@@ -435,7 +435,7 @@ export class ConductionBenchMesh {
     railMesh.position.set(0, 0.052, this.railZ);
     this.group.add(railMesh);
 
-    // Center longitudinal alignment scale groove (中心精密定位刻线槽)
+    // 中心纵向精密对准定位刻线槽
     const grooveGeo = new THREE.BoxGeometry(0.46, 0.001, 0.002);
     this.disposables.push(grooveGeo);
     const groove = new THREE.Mesh(grooveGeo, this.darkAnodizedMat);
@@ -443,20 +443,20 @@ export class ConductionBenchMesh {
     this.group.add(groove);
 
     // =========================================================================
-    // 4. High-Temperature Heat Source Furnace (左端恒温电加热炉工业级组件)
+    // 4. 左端高温恒温电加热炉工业组件
     // =========================================================================
     this.heaterHousing = new THREE.Group();
     const hx = this.rodStartX - 0.038;
     this.heaterHousing.position.set(hx, 0.076, 0);
 
-    // Base saddle clamping to rail
+    // 导轨锁紧底座滑块
     const hSaddleGeo = new THREE.BoxGeometry(0.064, 0.016, 0.090);
     this.disposables.push(hSaddleGeo);
     const hSaddle = new THREE.Mesh(hSaddleGeo, this.satinAluminumMat);
     hSaddle.position.set(0, -0.026, 0);
     this.heaterHousing.add(hSaddle);
 
-    // Knurled brass locking clamp thumbscrew
+    // 滚花黄铜锁紧手拧螺栓
     const hClampKnobGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.014, 20);
     this.disposables.push(hClampKnobGeo);
     const hClampKnob = new THREE.Mesh(hClampKnobGeo, this.brassMat);
@@ -464,14 +464,14 @@ export class ConductionBenchMesh {
     hClampKnob.position.set(0, -0.026, 0.048);
     this.heaterHousing.add(hClampKnob);
 
-    // Main furnace block with horizontal CNC cooling fins
+    // 带有 CNC 水平散热鳍片的主加热炉体
     const hBlockGeo = new THREE.BoxGeometry(0.060, 0.068, 0.068);
     this.disposables.push(hBlockGeo);
     const hBlock = new THREE.Mesh(hBlockGeo, this.darkAnodizedMat);
     hBlock.castShadow = true;
     this.heaterHousing.add(hBlock);
 
-    // 6 horizontal cooling fin slats (6道水平散热槽与鳍片)
+    // 6 道水平精密散热槽与鳍片
     for (let f = -2; f <= 2; f++) {
       const finGeo = new THREE.BoxGeometry(0.064, 0.003, 0.072);
       this.disposables.push(finGeo);
@@ -480,7 +480,7 @@ export class ConductionBenchMesh {
       this.heaterHousing.add(fin);
     }
 
-    // Heavy pure copper clamping chuck (高导热紫铜卡盘，紧固待测棒)
+    // 高导热紫铜重型紧固卡盘（夹紧待测金属棒）
     const hChuckGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.024, 32);
     this.disposables.push(hChuckGeo);
     const hChuck = new THREE.Mesh(hChuckGeo, this.copperMat);
@@ -488,7 +488,7 @@ export class ConductionBenchMesh {
     hChuck.position.set(0.038, 0, 0);
     this.heaterHousing.add(hChuck);
 
-    // Chuck compression screws (4只内六角紧固螺栓)
+    // 卡盘 4 只高强度内六角压紧螺栓
     const boltGeo = new THREE.CylinderGeometry(0.0025, 0.0025, 0.004, 16);
     this.disposables.push(boltGeo);
     for (let b = 0; b < 4; b++) {
@@ -499,7 +499,7 @@ export class ConductionBenchMesh {
       this.heaterHousing.add(bolt);
     }
 
-    // Gold-plated thermal radiation baffle disc (镀金防辐射隔热挡盘)
+    // 镀金防辐射隔热反射阻挡盘
     const baffleGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.002, 32);
     this.disposables.push(baffleGeo);
     const baffle = new THREE.Mesh(baffleGeo, this.goldShieldMat);
@@ -507,7 +507,7 @@ export class ConductionBenchMesh {
     baffle.position.set(0.022, 0, 0);
     this.heaterHousing.add(baffle);
 
-    // Glowing internal heating core ring (可透视电热丝发热核心)
+    // 内部灼热透光电阻丝发热核心环
     const glowGeo = new THREE.TorusGeometry(0.016, 0.003, 16, 32);
     const glowMat = new THREE.MeshStandardMaterial({
       color: 0xef4444,
@@ -520,7 +520,7 @@ export class ConductionBenchMesh {
     this.heaterCoilGlowMesh.position.set(0.034, 0, 0);
     this.heaterHousing.add(this.heaterCoilGlowMesh);
 
-    // Rear ceramic terminal posts & braided silicone power cables
+    // 后置氧化铝陶瓷接线柱与编织硅胶电源线
     const termGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.014, 16);
     this.disposables.push(termGeo);
     [-0.014, 0.014].forEach((tz, idx) => {
@@ -533,7 +533,7 @@ export class ConductionBenchMesh {
       this.heaterHousing.add(cap);
     });
 
-    // Dynamic point light
+    // 动态高温辐射点光源
     this.heaterLight = new THREE.PointLight(0xff3b30, 2.5, 0.32);
     this.heaterLight.position.set(0.038, 0, 0);
     this.heaterHousing.add(this.heaterLight);
@@ -541,13 +541,13 @@ export class ConductionBenchMesh {
     this.group.add(this.heaterHousing);
 
     // =========================================================================
-    // 5. Thermoelectric Peltier Cold Sink Station (右端半导体制冷散热冷阱)
+    // 5. 右端帕尔帖半导体制冷散热冷阱组件
     // =========================================================================
     this.coolerHousing = new THREE.Group();
     const cx = this.rodEndX + 0.038;
     this.coolerHousing.position.set(cx, 0.076, 0);
 
-    // Base saddle on dovetail rail
+    // 燕尾导轨定位底座
     const cSaddle = new THREE.Mesh(hSaddleGeo, this.satinAluminumMat);
     cSaddle.position.set(0, -0.026, 0);
     this.coolerHousing.add(cSaddle);
@@ -557,7 +557,7 @@ export class ConductionBenchMesh {
     cClampKnob.position.set(0, -0.026, 0.048);
     this.coolerHousing.add(cClampKnob);
 
-    // Aluminum cooling fin stack (10 vertical precision cooling fins, 10道精密垂直散热鳍片)
+    // 铝制多层散热片组（10 道精密垂直散热鳍片）
     const finStackGroup = new THREE.Group();
     for (let k = 0; k < 10; k++) {
       const finX = -0.025 + k * 0.0055;
@@ -569,7 +569,7 @@ export class ConductionBenchMesh {
     }
     this.coolerHousing.add(finStackGroup);
 
-    // Outer axial cooling fan cowl (40mm 轴流静音散热风扇导风罩与叶片)
+    // 40mm 轴流静音风扇导风罩与转子叶片
     const fanCowlGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.012, 32);
     this.disposables.push(fanCowlGeo);
     const fanCowl = new THREE.Mesh(fanCowlGeo, this.darkAnodizedMat);
@@ -578,7 +578,7 @@ export class ConductionBenchMesh {
     fanCowl.castShadow = true;
     this.coolerHousing.add(fanCowl);
 
-    // Fan rotor hub & 7 pitched blades
+    // 风扇中央轮毂与 7 片倾斜风叶
     const fanHubGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.014, 20);
     this.disposables.push(fanHubGeo);
     const fanHub = new THREE.Mesh(fanHubGeo, this.stainlessMat);
@@ -586,7 +586,7 @@ export class ConductionBenchMesh {
     fanHub.position.set(0.037, 0, 0);
     this.coolerHousing.add(fanHub);
 
-    // Polished nickel-plated copper cold clamping chuck (镀镍冷端夹头)
+    // 抛光镀镍铜质冷端夹头
     const cChuckGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.024, 32);
     this.disposables.push(cChuckGeo);
     const cChuck = new THREE.Mesh(cChuckGeo, this.stainlessMat);
@@ -594,7 +594,7 @@ export class ConductionBenchMesh {
     cChuck.position.set(-0.038, 0, 0);
     this.coolerHousing.add(cChuck);
 
-    // Cold LED Halo status ring
+    // 冰蓝色 LED 环形状态指示灯环
     const coldHaloGeo = new THREE.TorusGeometry(0.024, 0.0025, 16, 32);
     const coldHaloMat = new THREE.MeshStandardMaterial({
       color: 0x0284c7,
@@ -607,14 +607,14 @@ export class ConductionBenchMesh {
     this.coolerLedHalo.position.set(-0.026, 0, 0);
     this.coolerHousing.add(this.coolerLedHalo);
 
-    // Peltier ceramic module slab (陶瓷半导体制冷片基底)
+    // 帕尔帖陶瓷半导体制冷片基板
     const peltierGeo = new THREE.BoxGeometry(0.004, 0.040, 0.040);
     this.disposables.push(peltierGeo);
     const peltier = new THREE.Mesh(peltierGeo, this.ceramicMat);
     peltier.position.set(-0.028, 0, 0);
     this.coolerHousing.add(peltier);
 
-    // Dynamic cold light
+    // 动态低温冷光点光源
     this.coolerLight = new THREE.PointLight(0x00f5ff, 2.0, 0.32);
     this.coolerLight.position.set(-0.038, 0, 0);
     this.coolerHousing.add(this.coolerLight);
@@ -622,7 +622,7 @@ export class ConductionBenchMesh {
     this.group.add(this.coolerHousing);
 
     // =========================================================================
-    // 6. Specimen Rod (待测金属导热棒与动态 FLIR 伪彩色红外热成像渐变)
+    // 6. 待测金属导热棒（映射动态 FLIR 伪彩红外热成像分布）
     // =========================================================================
     this.initThermalCanvas();
 
@@ -637,12 +637,12 @@ export class ConductionBenchMesh {
     this.disposables.push(this.rodMaterial);
 
     this.rodMesh = new THREE.Mesh(rodGeo, this.rodMaterial);
-    this.rodMesh.rotation.z = Math.PI * 0.5; // Horizontal along X
+    this.rodMesh.rotation.z = Math.PI * 0.5; // 沿 X 轴水平分布
     this.rodMesh.position.set(0, 0.076, 0);
     this.rodMesh.castShadow = true;
     this.group.add(this.rodMesh);
 
-    // Composite rod junction ring (铜-钢复合棒中心冶金结合环)
+    // 复合导热棒中心冶金接合环 (铜-钢复合棒中心冶金结合环)
     const collarGeo = new THREE.CylinderGeometry(this.rodRadius + 0.003, this.rodRadius + 0.003, 0.005, 32);
     this.disposables.push(collarGeo);
     this.junctionCollar = new THREE.Mesh(collarGeo, this.brassMat);
@@ -652,14 +652,14 @@ export class ConductionBenchMesh {
     this.group.add(this.junctionCollar);
 
     // =========================================================================
-    // 7. Precision Micrometer Pyrometer Carriage (激光对焦非接触红外测温滑鞍)
+    // 7. 激光对焦非接触红外测温滑鞍组件
     // =========================================================================
     this.initDigitalDisplay();
 
     this.probeGroup = new THREE.Group();
     this.probeGroup.position.set(0, 0, 0);
 
-    // Precision Dovetail Saddle Slider (包络燕尾导轨的精密铸造滑鞍)
+    // 包络燕尾导轨的精密铸造测温滑鞍
     const saddleShape = new THREE.Shape();
     const sw = 0.038;
     const sh = 0.018;
@@ -678,28 +678,28 @@ export class ConductionBenchMesh {
     saddleMesh.position.set(0, 0.060, this.railZ);
     this.probeGroup.add(saddleMesh);
 
-    // Large knurled brass locking clamp thumbscrew on top
+    // 顶部大型滚花黄铜锁紧手拧螺钉
     const lockKnobGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.016, 24);
     this.disposables.push(lockKnobGeo);
     const lockKnob = new THREE.Mesh(lockKnobGeo, this.brassMat);
     lockKnob.position.set(0, 0.076, this.railZ);
     this.probeGroup.add(lockKnob);
 
-    // Vertical stainless steel elevation post (不锈钢立柱)
+    // 不锈钢垂直立柱支架
     const postGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.048, 20);
     this.disposables.push(postGeo);
     const post = new THREE.Mesh(postGeo, this.stainlessMat);
     post.position.set(0, 0.092, this.railZ);
     this.probeGroup.add(post);
 
-    // Horizontal cantilever sensor arm (跨越导轨悬臂支架)
+    // 跨越导轨水平悬臂传感器支架
     const armGeo = new THREE.BoxGeometry(0.012, 0.010, this.railZ + 0.012);
     this.disposables.push(armGeo);
     const arm = new THREE.Mesh(armGeo, this.darkAnodizedMat);
     arm.position.set(0, 0.114, this.railZ * 0.5);
     this.probeGroup.add(arm);
 
-    // Cylindrical Optical IR Sensor Barrel (红外光学传感探头镜头)
+    // 柱状红外光学传感探头镜头筒
     const sensorBarrelGeo = new THREE.CylinderGeometry(0.007, 0.006, 0.026, 24);
     this.disposables.push(sensorBarrelGeo);
     this.probeMesh = new THREE.Mesh(sensorBarrelGeo, this.stainlessMat);
@@ -707,21 +707,21 @@ export class ConductionBenchMesh {
     this.probeMesh.castShadow = true;
     this.probeGroup.add(this.probeMesh);
 
-    // Knurled focus adjustment collar on sensor
+    // 探头精密滚花调焦环套
     const focusCollarGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.006, 24);
     this.disposables.push(focusCollarGeo);
     const focusCollar = new THREE.Mesh(focusCollarGeo, this.brassMat);
     focusCollar.position.set(0, 0.106, 0);
     this.probeGroup.add(focusCollar);
 
-    // Optical front lens element (AR紫膜光学透镜)
+    // 前端增透紫膜光学物镜透镜片
     const lensGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.002, 24);
     this.disposables.push(lensGeo);
     const lens = new THREE.Mesh(lensGeo, this.opticalGlassMat);
     lens.position.set(0, 0.088, 0);
     this.probeGroup.add(lens);
 
-    // Coaxial green pointer laser diode emitter (同轴绿色激光对焦指示点)
+    // 同轴绿色半导体激光指示器
     const laserDotGeo = new THREE.CylinderGeometry(0.0015, 0.0015, 0.001, 16);
     const laserDotMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
     this.disposables.push(laserDotGeo, laserDotMat);
@@ -729,12 +729,12 @@ export class ConductionBenchMesh {
     this.laserDotMesh.position.set(0, 0.076 + this.rodRadius + 0.0005, 0);
     this.probeGroup.add(this.laserDotMesh);
 
-    // Digital OLED Instrument Display Unit (斜面工控级数显表头)
+    // 工控级数显 OLED 仪器表头
     const displayBoxGroup = new THREE.Group();
     displayBoxGroup.position.set(0, 0.096, this.railZ + 0.038);
-    displayBoxGroup.rotation.x = -Math.PI * 0.22; // Angled 40 degrees upward for perfect viewing
+    displayBoxGroup.rotation.x = -Math.PI * 0.22; // 向上倾斜 40 度以获得最佳视线角度
 
-    // Box chassis with chamfered bezel
+    // 带有斜角边框的仪表壳体
     const boxGeo = new THREE.BoxGeometry(0.068, 0.036, 0.016);
     this.disposables.push(boxGeo);
     const box = new THREE.Mesh(boxGeo, this.darkAnodizedMat);
@@ -746,7 +746,7 @@ export class ConductionBenchMesh {
     bezelRim.position.z = 0.008;
     displayBoxGroup.add(bezelRim);
 
-    // High-resolution screen surface (0.3mm proud of bezel face, zero Z-fighting, no screenGlass transmission overhead)
+    // 高分辨率 OLED 屏幕显示表面
     const screenGeo = new THREE.PlaneGeometry(0.064, 0.032);
     const screenMat = new THREE.MeshBasicMaterial({
       map: this.displayTexture,
@@ -759,7 +759,7 @@ export class ConductionBenchMesh {
 
     this.probeGroup.add(displayBoxGroup);
 
-    // Spiral coiled sensor connection cable (黑色螺旋弹簧传感器引线)
+    // 黑色螺旋弹性传感器连接线缆
     const coilPts: THREE.Vector3[] = [];
     const numCoilTurns = 6;
     for (let c = 0; c <= 40; c++) {
@@ -780,7 +780,7 @@ export class ConductionBenchMesh {
   }
 
   /**
-   * Updates the FLIR Infrared False-Color Texture mapped along the specimen rod
+   * 更新映射在金属待测棒上的 FLIR 红外伪彩色动态热场贴图
    */
   public updateThermalGradient(tempPoints: ArrayLike<number>, th: number, tc: number): void {
     const ctx = this.thermalCtx;
@@ -793,7 +793,7 @@ export class ConductionBenchMesh {
     for (let i = 0; i < n; i++) {
       const pos = i / (n - 1);
       const t = tempPoints[i];
-      // Normalize to [0, 1] relative to current range
+      // 将温度归一化映射至 [0, 1] 区间
       const norm = THREE.MathUtils.clamp((t - tc) / Math.max(1, th - tc), 0, 1);
       const color = this.temperatureToFLIR(norm);
       grad.addColorStop(pos, color);
@@ -805,8 +805,8 @@ export class ConductionBenchMesh {
   }
 
   /**
-   * Classic scientific FLIR / Ironbow false color palette:
-   * 0.0 (Cold): Deep Blue/Purple -> Cyan -> Green -> Warm Yellow -> Bright Red/White (1.0 Hot)
+   * 经典科学级 FLIR / Ironbow 伪彩色调色板映射：
+   * 0.0（低温冷端）：深蓝/紫 -> 青 -> 绿 -> 暖黄 -> 亮红/纯白（1.0 高温热端）
    */
   private temperatureToFLIR(norm: number): string {
     if (norm < 0.2) {
@@ -832,7 +832,7 @@ export class ConductionBenchMesh {
     force = false
   ): void {
     this.currentNormX = THREE.MathUtils.clamp(normX, 0.0, 1.0);
-    // Interpolate world position along the rod
+    // 沿金属棒轴向插值世界坐标
     const posX = this.rodStartX + this.currentNormX * this.rodLength;
     this.probeGroup.position.x = posX;
     this.renderDisplay(tempK, this.currentNormX, gradKpm, fluxWpm2, force);

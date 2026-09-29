@@ -206,7 +206,7 @@ export class HysteresisStatusCard {
     const yOf = (B: number) => h / 2 - (B / bMax) * (h * 0.4);
     ctx.clearRect(0, 0, w, h);
     
-    // Axes
+    // 坐标轴
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.beginPath();
     ctx.moveTo(36, h / 2);
@@ -215,7 +215,7 @@ export class HysteresisStatusCard {
     ctx.lineTo(xOf(0), h - 16);
     ctx.stroke();
 
-    // B-H curve in unified Hall cyan
+    // 统一霍尔青色的 B-H 磁滞曲线
     ctx.strokeStyle = '#64d2ff';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -227,7 +227,7 @@ export class HysteresisStatusCard {
     });
     ctx.stroke();
 
-    // Active operating point in crisp white with halo
+    // 带光晕的高亮白色当前工作点
     if (typeof ctx.arc === 'function' && typeof ctx.fill === 'function') {
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();

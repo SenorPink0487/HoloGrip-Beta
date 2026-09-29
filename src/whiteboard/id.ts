@@ -1,4 +1,4 @@
-/** crypto.randomUUID requires a secure context; LAN HTTP still has getRandomValues. */
+/** crypto.randomUUID 需要安全上下文（HTTPS）；局域网 HTTP 下回退使用 getRandomValues。 */
 export function newBoardId(): string {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   const bytes = crypto.getRandomValues(new Uint8Array(16));

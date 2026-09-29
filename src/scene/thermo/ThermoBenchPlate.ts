@@ -11,7 +11,7 @@ export class ThermoBenchPlate {
   }
 
   private build(): void {
-    // 1. Aerospace anodized aluminum optical base plate (0.9m x 0.45m x 0.024m)
+    // 1. 航空级阳极氧化铝光学底板 (0.9m x 0.45m x 0.024m)
     const baseGeo = new THREE.BoxGeometry(0.9, 0.024, 0.45);
     const baseMat = new THREE.MeshStandardMaterial({
       color: 0x1e222a,
@@ -27,7 +27,7 @@ export class ThermoBenchPlate {
     baseMesh.castShadow = true;
     this.group.add(baseMesh);
 
-    // 2. Stainless steel bevel rim trim
+    // 2. 不锈钢斜边边框饰条
     const rimGeo = new THREE.BoxGeometry(0.906, 0.008, 0.456);
     const rimMat = new THREE.MeshStandardMaterial({
       color: 0x4a5568,
@@ -40,7 +40,7 @@ export class ThermoBenchPlate {
     rimMesh.position.y = 0.022;
     this.group.add(rimMesh);
 
-    // 3. Four industrial vibration-isolation rubber footings
+    // 3. 四个工业级减震橡胶脚垫
     const footGeo = new THREE.CylinderGeometry(0.025, 0.028, 0.018, 24);
     const footMat = new THREE.MeshStandardMaterial({
       color: 0x111317,
@@ -63,7 +63,7 @@ export class ThermoBenchPlate {
       this.group.add(foot);
     }
 
-    // 4. Optical precision M6 threaded grid markings on top face
+    // 4. 顶面光学精密 M6 螺纹网格标线
     const gridHelper = new THREE.GridHelper(0.84, 28, 0x3b82f6, 0x242d3d);
     gridHelper.position.set(0, 0.0245, 0);
     this.disposables.push(gridHelper.geometry, gridHelper.material as any);

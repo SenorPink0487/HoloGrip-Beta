@@ -38,7 +38,7 @@ export class FieldInteractionManager {
     for (const [id, mesh] of this.callbacks.bench.chargeMeshes.entries()) {
       mesh.getWorldPosition(this.tempVec);
       this.tempVec.project(camera);
-      // Behind camera
+      // 位于相机后方
       if (this.tempVec.z > 1.0) continue;
 
       const sx = (this.tempVec.x * 0.5 + 0.5) * width;
@@ -58,7 +58,7 @@ export class FieldInteractionManager {
   }
 
   public getHoverTarget(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null {
-    // 1. Check test charge probe hover
+    // 1. 检查试探电荷探针悬停
     if (this.callbacks.bench.testChargeGroup.visible) {
       const probeHits = raycaster.intersectObject(this.callbacks.bench.testChargeGroup, true);
       if (probeHits.length > 0) {
@@ -70,7 +70,7 @@ export class FieldInteractionManager {
       }
     }
 
-    // 2. Raycast direct mesh intersection for source charges
+    // 2. 光线投射检测源电荷网格拾取
     const chargeHits = raycaster.intersectObject(this.callbacks.bench.chargesGroup, true);
     if (chargeHits.length > 0) {
       let obj: THREE.Object3D | null = chargeHits[0].object;
@@ -91,7 +91,7 @@ export class FieldInteractionManager {
       }
     }
 
-    // 3. Check platform hover
+    // 3. 检查实验底座平台悬停
     const platHits = raycaster.intersectObject(this.callbacks.bench.platform, false);
     if (platHits.length > 0) {
       return {
@@ -111,7 +111,7 @@ export class FieldInteractionManager {
   ): boolean {
     this.hasMoved = false;
 
-    // 1. High-tolerance screen-space test charge probe picking (56px radius)
+    // 1. 高容差屏幕空间试探电荷探针拾取（半径 56px）
     if (context.camera && this.callbacks.bench.testChargeGroup.visible) {
       this.callbacks.bench.testChargeGroup.getWorldPosition(this.tempVec);
       this.tempVec.project(context.camera);
@@ -128,7 +128,7 @@ export class FieldInteractionManager {
       }
     }
 
-    // 2. High-tolerance screen-space source charge picking (52px radius)
+    // 2. 高容差屏幕空间源电荷拾取（半径 52px）
     if (context.camera) {
       const closest = this.findClosestChargeUnderPointer(event.clientX, event.clientY, context.camera);
       if (closest && closest.pixelDist < 52) {
@@ -138,7 +138,7 @@ export class FieldInteractionManager {
       }
     }
 
-    // 3. Fallback direct 3D raycast for test charge
+    // 3. 兜底方案：试探电荷直接 3D 光线投射拾取
     if (context.camera && this.callbacks.bench.testChargeGroup.visible) {
       const probeHits = this.intersect(event, context.camera, this.callbacks.bench.testChargeGroup);
       if (probeHits.length > 0) {
@@ -147,7 +147,7 @@ export class FieldInteractionManager {
       }
     }
 
-    // 4. Fallback direct 3D raycast for source charges
+    // 4. 兜底方案：源电荷直接 3D 光线投射拾取
     if (context.camera) {
       const chargeHits = this.intersect(event, context.camera, this.callbacks.bench.chargesGroup);
       if (chargeHits.length > 0) {
@@ -169,7 +169,7 @@ export class FieldInteractionManager {
       }
     }
 
-    // 5. Background click / double click
+    // 5. 背景单击 / 双击处理
     const now = performance.now();
     if (now - this.lastClickTime < 320 && context.camera && this.callbacks.onAddChargeAt) {
       const local = localPointOnBenchFace(event, context.camera, this.callbacks.bench.group);
@@ -203,7 +203,7 @@ export class FieldInteractionManager {
     );
     if (!local) return;
 
-    // Smooth movement constrained in the air above the HoloTable (min Y -0.36 stays >13cm above table surface at Y ≈ -0.526)
+    // 平滑移动并限制在实验台上方空中（最小 Y 为 -0.36，距离约 -0.526 的台面保持 13cm 以上）
     const clampedX = Math.max(-0.80, Math.min(0.80, local.x));
     const clampedY = Math.max(-0.36, Math.min(0.55, local.y));
 

@@ -70,7 +70,7 @@ export class HysteresisBenchMesh {
       roughness: 0.28,
     });
     this.copperMat = enameledCopper(0xb45309);
-    // Professional lab equipment space-gray & silver (NOT pitch black!)
+    // 专业实验室仪器深空灰与银色质感（非纯黑）
     this.instrumentChassisMat = labMetal(0x475569, 0.55, 0.35);
     this.frontBezelMat = anodizedAluminum(0x94a3b8, 0.25);
     this.aluminumMat = anodizedAluminum(0xcbd5e1, 0.22);
@@ -121,25 +121,25 @@ export class HysteresisBenchMesh {
   }
 
   private build(): void {
-    // 1. Heavy-duty Excitation Solenoid & Permeameter Assembly (Center)
+    // 1. 重型励磁螺线管与磁导计组件（居中）
     this.buildSolenoidAssembly();
 
-    // 2. Interchangeable Metallurgical Specimen with Holographic Domain Viewport
+    // 2. 可更换金相试样与全息磁畴观察窗
     this.buildSampleAssembly();
 
-    // 3. Axial Magnetic Search Coil Probe
+    // 3. 轴向磁场探测线圈探针
     this.buildProbe();
 
-    // 4. Digital Storage B-H Analyzer Oscilloscope (Right)
+    // 4. 数字存储式 B-H 分析示波器（右侧）
     this.buildScope();
 
-    // 5. Excitation Control Console with Knurled Dial & Rocker Switch (Left)
+    // 5. 带有滚花旋钮与摇臂开关的励磁控制台（左侧）
     this.buildConsole();
 
-    // 6. Shielded BNC Coaxial Signal Cables
+    // 6. 屏蔽式 BNC 同轴信号线
     this.buildCables();
 
-    // Hide redundant 3D floating canvas readout (Cleanly displayed in VisionOS card)
+    // 隐藏冗余的 3D 悬浮画布读数（已在 VisionOS 卡片中清晰呈现）
     this.readout.mesh.visible = false;
     this.group.add(this.readout.mesh);
   }
@@ -148,7 +148,7 @@ export class HysteresisBenchMesh {
     const solenoidGroup = new THREE.Group();
     solenoidGroup.position.set(0, SAMPLE_CENTER_Y, 0);
 
-    // Circular Brushed Aluminum Base Pedestal resting directly on table
+    // 直接置于台面的圆形拉丝铝质底座
     const standBase = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.095, 0.02, 32), this.instrumentChassisMat);
     standBase.position.y = -SAMPLE_CENTER_Y + 0.01;
     const rimTrim = new THREE.Mesh(new THREE.TorusGeometry(0.092, 0.003, 8, 32), this.goldMat);
@@ -156,14 +156,14 @@ export class HysteresisBenchMesh {
     rimTrim.position.y = -SAMPLE_CENTER_Y + 0.02;
     solenoidGroup.add(standBase, rimTrim, outlined(standBase, 0x64748b, 0.3));
 
-    // Two vertical support pillars
+    // 两根立式支撑立柱
     for (const x of [-0.05, 0.05]) {
       const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.23, 16), this.aluminumMat);
       pillar.position.set(x, -0.115, 0);
       solenoidGroup.add(pillar);
     }
 
-    // Machined Anodized Aluminum End Flanges
+    // 机加工阳极氧化铝端面法兰
     for (const y of [-0.095, 0.095]) {
       const cheek = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.072, 0.012, 32), this.frontBezelMat);
       cheek.rotation.x = -Math.PI / 2;
@@ -174,7 +174,7 @@ export class HysteresisBenchMesh {
       solenoidGroup.add(cheek, rim);
     }
 
-    // Central transparent quartz sleeve for inserting test specimens
+    // 用于插入测试试样的中心透明石英套管
     const quartzSleeve = new THREE.Mesh(
       new THREE.CylinderGeometry(0.025, 0.025, 0.22, 32, 1, true),
       opticalQuartz(0x8ec5fc, 0.12),
@@ -182,7 +182,7 @@ export class HysteresisBenchMesh {
     quartzSleeve.renderOrder = 2;
     solenoidGroup.add(quartzSleeve);
 
-    // Primary Excitation Windings (16 Turns of High-Purity Copper)
+    // 初级励磁绕组（16 匝高纯度铜线）
     const ringGeo = new THREE.TorusGeometry(0.055, 0.0036, 10, 32);
     for (let i = 0; i < 16; i++) {
       const ring = new THREE.Mesh(ringGeo, this.copperMat);
@@ -191,7 +191,7 @@ export class HysteresisBenchMesh {
       solenoidGroup.add(ring);
     }
 
-    // Embedded Secondary Search Coils (Gold pickup loops in the middle)
+    // 嵌入式次级探测线圈（居中的金色拾取线圈）
     const searchGeo = new THREE.TorusGeometry(0.036, 0.0035, 8, 24);
     const search1 = new THREE.Mesh(searchGeo, labGlow(0xfbbf24, 0.6));
     search1.rotation.x = -Math.PI / 2;
@@ -200,7 +200,7 @@ export class HysteresisBenchMesh {
     search2.position.y = 0.006;
     solenoidGroup.add(search1, search2);
 
-    // Terminal Junction Box with Gold Binding Posts on the front
+    // 前侧带有镀金接线柱的接线盒
     const junction = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.018, 0.022), this.instrumentChassisMat);
     junction.position.set(0, -0.075, 0.065);
     for (let i = 0; i < 3; i++) {
@@ -217,14 +217,14 @@ export class HysteresisBenchMesh {
     this.sampleGroup.name = 'FerroSample';
     this.sampleGroup.position.set(0, SAMPLE_CENTER_Y, 0);
 
-    // Central Cylindrical Test Specimen Rod (Height = 0.24, Radius = 0.015)
-    // Box3 Y-extent (0.24) is strictly larger than X-extent (0.03)
+    // 中心圆柱形测试试样棒（高度 0.24，半径 0.015）
+    // Box3 的 Y 轴范围（0.24）严格大于 X 轴范围（0.03）
     const rod = new THREE.Mesh(
       new THREE.CylinderGeometry(0.015, 0.015, SAMPLE_HALF * 2, 32),
       this.sampleMat,
     );
 
-    // Top knurled specimen extraction knob
+    // 试样顶部滚花提取旋钮
     const topCap = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.014, 24), this.aluminumMat);
     topCap.position.y = SAMPLE_HALF + 0.007;
     const knurl = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.016, 16), this.goldMat);
@@ -232,7 +232,7 @@ export class HysteresisBenchMesh {
 
     this.sampleGroup.add(rod, topCap, knurl);
 
-    // Holographic Magnetic Domain Micro-Inspection Viewport
+    // 全息磁畴微观观察视窗
     const chamberGeo = new THREE.BoxGeometry(0.022, 0.18, 0.016);
     const chamberMesh = new THREE.Mesh(chamberGeo, opticalQuartz(0x8ec5fc, 0.12));
     chamberMesh.position.set(0, 0, 0.022);
@@ -246,7 +246,7 @@ export class HysteresisBenchMesh {
 
     this.sampleGroup.add(chamberMesh, frameLines);
 
-    // 12 Microscopic Domain Dipole Meshes
+    // 12 个微观磁畴磁偶极子网格
     const coneGeo = new THREE.ConeGeometry(0.0048, 0.014, 12);
     coneGeo.translate(0, 0.002, 0);
 
@@ -285,18 +285,18 @@ export class HysteresisBenchMesh {
     const scope = new THREE.Group();
     scope.position.set(0.28, 0.12, 0.02);
 
-    // Desktop Digital Oscilloscope Chassis (Sleek Space-Gray/Silver, NOT pitch black!)
+    // 台式数字示波器外壳（优雅的深空灰/银色，非纯黑）
     const housing = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.20, 0.12), this.instrumentChassisMat);
     housing.position.z = -0.03;
-    housing.rotation.x = -Math.PI / 10; // 18-degree ergonomic tilt towards user
+    housing.rotation.x = -Math.PI / 10; // 朝向用户的人体工学 18 度倾角
     scope.add(housing, outlined(housing, 0x94a3b8, 0.35));
 
-    // Silver Display Bezel
+    // 银色显示屏边框
     const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.012), this.frontBezelMat);
     bezel.rotation.x = -Math.PI / 10;
     bezel.position.set(0, 0.008, 0.035);
 
-    // High-Resolution Phosphor CRT Screen with graticuleTexture
+    // 采用坐标标尺纹理（graticuleTexture）的高分辨率荧光 CRT 屏幕
     const screen = new THREE.Mesh(
       new THREE.PlaneGeometry(0.18, 0.14),
       new THREE.MeshBasicMaterial({ map: graticuleTexture(), toneMapped: false }),
@@ -304,7 +304,7 @@ export class HysteresisBenchMesh {
     screen.rotation.x = -Math.PI / 10;
     screen.position.set(0, 0.014, 0.042);
 
-    // Anti-reflective protective crystal glass
+    // 防眩光保护石英玻璃
     const glass = new THREE.Mesh(
       new THREE.PlaneGeometry(0.185, 0.145),
       opticalQuartz(0x86efac, 0.06),
@@ -312,7 +312,7 @@ export class HysteresisBenchMesh {
     glass.rotation.x = -Math.PI / 10;
     glass.position.set(0, 0.016, 0.045);
 
-    // Dynamic Phosphor B-H Hysteresis Curve Line
+    // 动态荧光 B-H 磁滞回线
     const loop = new THREE.Line(
       this.loopGeo,
       new THREE.LineBasicMaterial({
@@ -326,14 +326,14 @@ export class HysteresisBenchMesh {
     loop.position.set(0, 0.014, 0.043);
     loop.frustumCulled = false;
 
-    // Operating point cursor on CRT screen
+    // CRT 屏幕上的工作点光标
     this.cursor.position.set(0, 0, 0.015);
     const cursorHolder = new THREE.Group();
     cursorHolder.rotation.x = -Math.PI / 10;
     cursorHolder.position.set(0, 0.014, 0.043);
     cursorHolder.add(this.cursor);
 
-    // Dual BNC Input Sockets on the lower bezel (CH1 H-Drive, CH2 B-Sense)
+    // 下边框上的双路 BNC 输入插孔（CH1 励磁驱动 H，CH2 感应测量 B）
     for (const x of [-0.055, 0.055]) {
       const bnc = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.0075, 0.012, 16), this.goldMat);
       bnc.rotation.x = Math.PI / 2 - Math.PI / 10;
@@ -349,7 +349,7 @@ export class HysteresisBenchMesh {
     const supplyGroup = new THREE.Group();
     supplyGroup.position.set(-0.25, 0.08, 0.04);
 
-    // Power Supply Console Housing (Silver/Gray)
+    // 电源控制台外壳（银灰配色）
     const consoleBody = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.12), this.instrumentChassisMat);
     consoleBody.rotation.x = -Math.PI / 10;
     supplyGroup.add(consoleBody, outlined(consoleBody, 0x94a3b8, 0.35));
@@ -361,7 +361,7 @@ export class HysteresisBenchMesh {
 
     this.group.add(supplyGroup);
 
-    // Continuous Excitation Field Knob
+    // 连续励磁磁场调节旋钮
     this.knobGroup.name = 'FieldKnob';
     this.knobGroup.position.set(-0.28, 0.07, 0.11);
 
@@ -374,7 +374,7 @@ export class HysteresisBenchMesh {
     this.knobGroup.add(disc, ring, pointerMark);
     this.group.add(this.knobGroup);
 
-    // Auto-Sweep Dual-State Toggle Switch
+    // 自动扫描双态拨动开关
     this.sweepSwitch.name = 'SweepSwitch';
     this.sweepSwitch.position.set(-0.20, 0.08, 0.11);
 
@@ -388,7 +388,7 @@ export class HysteresisBenchMesh {
   }
 
   private buildCables(): void {
-    // Twin flexible BNC coaxial signal cables running from solenoid terminals to oscilloscope BNC inputs
+    // 连接螺线管端子与示波器 BNC 输入端口的双柔性 BNC 同轴信号线
     const cableH = createJumperLead([
       new THREE.Vector3(0.026, SAMPLE_CENTER_Y - 0.07, 0.065),
       new THREE.Vector3(0.10, 0.12, 0.08),

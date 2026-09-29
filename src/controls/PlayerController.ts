@@ -57,7 +57,7 @@ export class PlayerController {
     this.camera = camera;
     this.domElement = domElement;
 
-    // Gallery view in front of the table: oculus above, platter centered, floor in the foreground.
+    // 展厅视角（位于实验台前）：上方为天球顶，圆盘居中，地面在前景。
     this.yaw = LAB_ENTRY_REST.yaw;
     this.pitch = LAB_ENTRY_REST.pitch;
     this.eyeHeight = LAB_ENTRY_REST.y;
@@ -115,7 +115,7 @@ export class PlayerController {
 
     window.addEventListener('mousedown', (e) => {
       if (this.isLocked || !this.enabled || !this.allowMouseRotation) return;
-      // Right-click anywhere, or left-click on canvas
+      // 任意位置右键，或在画布上左键
       if (e.button === 2 || (e.button === 0 && e.target === this.domElement)) {
         blurActiveInput(true);
         isDragging = true;
@@ -132,7 +132,7 @@ export class PlayerController {
       if (!this.isLocked && isDragging) {
         const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
         isDragging = false;
-        // If it was a clean left click on canvas without dragging and pointer lock is allowed, lock pointer
+        // 若在画布上是单纯的左键点击（无拖拽）且允许指针锁定，则请求锁定指针
         if (dragButton === 0 && dist < 6 && e.target === this.domElement) {
           if (this.enabled && this.allowPointerLock) {
             this.requestLock();
@@ -183,12 +183,12 @@ export class PlayerController {
     if (!this.enabled) return;
 
     const target = event.target as HTMLElement | null;
-    // If user is actively typing in a valid, visible text input, ignore player movement keys
+    // 若用户正在有效且可见的文本输入框中输入，忽略玩家移动按键
     if (target && isTextInputElement(target)) {
       if (isElementVisibleAndActive(target) && !this.isLocked) {
         return;
       }
-      // Target was stale/hidden input or player is pointer-locked -> blur it immediately
+      // 目标为残留/隐藏的输入框，或玩家处于指针锁定状态 -> 立即取消聚焦
       blurActiveInput(true);
     } else if (isTextInputActive()) {
       return;
@@ -290,7 +290,7 @@ export class PlayerController {
       this.velocity.z += this.direction.z * speed * this.damping * dt;
     }
 
-    // Vertical elevation movement (Space = ascend, Shift = descend)
+    // 垂直升降移动（空格 = 上升，Shift = 下降）
     let dirY = 0;
     if (this.keys.up) dirY += 1;
     if (this.keys.down) dirY -= 1;
@@ -304,7 +304,7 @@ export class PlayerController {
     let newY = this.camera.position.y + this.velocity.y * dt;
     let newZ = this.camera.position.z + this.velocity.z * dt;
 
-    // Boundary constraints
+    // 空间边界约束
     const distFromOrigin = Math.hypot(newX, newZ);
     if (distFromOrigin > this.roomRadius) {
       const angle = Math.atan2(newZ, newX);
@@ -319,7 +319,7 @@ export class PlayerController {
       newZ = this.tableCenter.y + Math.sin(angle) * this.tableRadius;
     }
 
-    // Vertical boundary constraints
+    // 垂直高度边界约束
     if (newY < this.minHeight) {
       newY = this.minHeight;
       if (this.velocity.y < 0) this.velocity.y = 0;

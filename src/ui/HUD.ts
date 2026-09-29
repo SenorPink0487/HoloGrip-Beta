@@ -25,10 +25,10 @@ export class HUD {
 
     this.drawer = new ExperimentDrawer(document.body, this.onSwitchExperiment);
     this.perfOverlay = new PerfOverlay(this.computeBridge, this.platform, document.body);
-    // Hide FPS and latency overlay in the top-left corner per user request
+    // 根据需求隐藏左上角的 FPS 和延迟性能监控浮层
     this.perfOverlay.toggle(false);
 
-    // Bind F key to fullscreen
+    // 绑定 F 键切换全屏
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !isTextInputActive()) {
         this.platform.toggleFullscreen();
@@ -37,7 +37,7 @@ export class HUD {
   }
 
   private initTopBar(): void {
-    // Top bar is hidden per user request ("删掉上方这一行")
+    // 顶栏按需求隐藏（"删掉上方这一行"）
     this.topBarEl = document.createElement('div');
     this.topBarEl.id = 'hud-topbar';
     this.topBarEl.style.display = 'none';

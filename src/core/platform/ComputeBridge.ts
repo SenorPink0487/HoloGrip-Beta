@@ -63,7 +63,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run N-Body step across multiple CPU cores
+   * 跨多 CPU 核心运行 N 体引力模拟步进
    */
   public async simulateNBody(
     positions: Float32Array,
@@ -99,7 +99,7 @@ export class ComputeBridge {
       }
     }
 
-    // Web Worker Multi-Core execution
+    // Web Worker 多核并行计算
     const res = await this.workerPool.execute<NBodyStepResponse>(
       {
         action: 'NBODY_STEP',
@@ -121,7 +121,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run 2D Wave PDE step across multiple CPU cores
+   * 跨多 CPU 核心运行 2D 波动偏微分方程（PDE）步进
    */
   public async simulateWave(
     heightMap: Float32Array,
@@ -159,7 +159,7 @@ export class ComputeBridge {
       }
     }
 
-    // Web Worker execution
+    // Web Worker 执行
     const res = await this.workerPool.execute<WaveStepResponse>(
       {
         action: 'WAVE_STEP',
@@ -182,7 +182,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run Lorenz attractor particle step
+   * 运行洛伦兹吸引子粒子模拟步进
    */
   public async simulateLorenz(
     positions: Float32Array,
@@ -208,7 +208,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run optical diffraction / interference simulation across multi-core workers
+   * 跨多核 Worker 运行光学衍射 / 干涉模拟
    */
   public async simulateOpticalDiffraction(params: {
     intensityBuffer: Float32Array;
@@ -243,7 +243,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run 3D polarization vector wave simulation across multi-core workers
+   * 跨多核 Worker 运行 3D 偏振矢量波模拟
    */
   public async simulateOpticalPolarization(params: {
     positions: Float32Array;
@@ -288,7 +288,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run 3D prism multi-spectral dispersion ray tracing across multi-core workers
+   * 跨多核 Worker 运行 3D 三棱镜复色光色散光线追踪
    */
   public async simulateOpticalDispersion(params: {
     apexPos: [number, number, number];
@@ -314,7 +314,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run chemistry thermodynamic dissipation and decay across multi-core workers
+   * 跨多核 Worker 运行化学热力学耗散与衰减模拟
    */
   public async simulateChemistryStep(params: {
     temperature: number;
@@ -339,7 +339,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Simulate reaction particle physics across multi-core workers
+   * 跨多核 Worker 模拟化学反应粒子物理
    */
   public async simulateParticles(params: {
     bubblePositions: Float32Array;
@@ -373,7 +373,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Generate pour stream 3D tube geometry vertices in worker
+   * 在 Worker 中生成倾倒流 3D 管状几何体顶点
    */
   public async generatePourStreamTube(params: {
     startWorld: [number, number, number];
@@ -400,7 +400,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Bake FBM procedural texture in worker
+   * 在 Worker 中烘焙 FBM 程序化纹理
    */
   public async bakeTextureAsync(params: {
     task: 'floor_fbm' | 'roughness_fbm' | 'bump_fbm';
@@ -419,7 +419,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Solve chemistry equilibrium composition in worker
+   * 在 Worker 中求解化学平衡组分
    */
   public async solveChemistryComposition(params: {
     volume: number;
@@ -443,7 +443,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Simulate Hall carrier particle drift and Lorentz deflection in worker
+   * 在 Worker 中模拟霍尔载流子漂移与洛伦兹偏转
    */
   public async simulateHallCarriers(params: {
     positions: Float32Array;
@@ -477,7 +477,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run mass spectrometer ion trajectory & spectrum simulation in worker
+   * 在 Worker 中运行质谱仪离子轨迹与质谱图谱模拟
    */
   public async simulateMassSpec(params: {
     sampleId: string;
@@ -501,7 +501,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run ferromagnetism hysteresis loop & domain simulation in worker
+   * 在 Worker 中运行铁磁磁滞回线与磁畴模拟
    */
   public async simulateHysteresis(params: {
     materialId: string;
@@ -526,7 +526,7 @@ export class ComputeBridge {
   }
 
   /**
-   * Run electromagnetic induction & Faraday/Lenz dynamics in worker
+   * 在 Worker 中运行电磁感应及法拉第/楞次定律动力学模拟
    */
   public async simulateInduction(params: {
     axial: number;

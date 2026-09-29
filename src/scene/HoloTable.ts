@@ -37,7 +37,7 @@ export class HoloTable {
     const seamMat = new THREE.MeshStandardMaterial({
       color: 0x90a2ac, metalness: 0.22, roughness: 0.40, side: THREE.DoubleSide,
     });
-    // Sleek white satin composite tabletop with specular sheen matching Image 1
+    // 纯白缎面复合材质台面，具备高光反射质感
     const whiteMat = new THREE.MeshPhysicalMaterial({
       color: 0xf2f6f9,
       metalness: 0.02,
@@ -54,7 +54,7 @@ export class HoloTable {
       color: 0x1e2428, metalness: 0.65, roughness: 0.35, side: THREE.DoubleSide,
     });
 
-    // Dark recessed reveal shadow plinth at floor
+    // 贴地深色内凹阴影基座
     const plinth = new THREE.Mesh(new THREE.CylinderGeometry(1.26, 1.28, 0.024, 96), basePlinthMat);
     plinth.position.y = 0.012;
     plinth.receiveShadow = true;
@@ -76,7 +76,7 @@ export class HoloTable {
     pedestalSeam.position.set(0, 0.35, 1.09);
     this.group.add(pedestalSeam);
 
-    // Thick aerodynamic rounded saucer platter. Top stays at y = 0.99 for flush alignment.
+    // 流线型圆盘台面，顶部保持 y = 0.99 以平齐对齐
     const profile = [
       new THREE.Vector2(0.02, 0.99),
       new THREE.Vector2(2.18, 0.99),

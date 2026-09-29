@@ -43,7 +43,7 @@ async function run() {
           if (!engine) throw new Error('window.__ENGINE__ not found after waiting');
 
           // -------------------------------------------------------------
-          // 1. REAL LABORATORY SCENE RENDERING MEASUREMENT
+          // 1. 真实实验室场景渲染性能测量
           // -------------------------------------------------------------
           const renderTimes = [];
           for (let i = 0; i < 100; i++) {
@@ -58,7 +58,7 @@ async function run() {
           const maxRenderMs = renderTimes[renderTimes.length - 1];
           const sceneRenderCapacityFps = 1000 / avgRenderMs;
 
-          // Measure full animation loop (physics updates + chemistry + render)
+          // 测量完整动画循环耗时（物理更新 + 化学计算 + 渲染）
           const fullLoopTimes = [];
           for (let i = 0; i < 100; i++) {
             const t0 = performance.now();
@@ -76,7 +76,7 @@ async function run() {
           const avgFullLoopMs = fullLoopTimes.reduce((a,b)=>a+b,0) / fullLoopTimes.length;
           const fullLoopCapacityFps = 1000 / avgFullLoopMs;
 
-          // Check visual quality preservation invariants
+          // 检查画质保持不变量
           const visualQuality = {
             toneMapping: engine.renderer.toneMapping === 4 ? 'ACESFilmic' : 'Standard',
             toneMappingExposure: engine.renderer.toneMappingExposure,
@@ -88,7 +88,7 @@ async function run() {
           };
 
           // -------------------------------------------------------------
-          // 2. REAL HAND TRACKING MEASUREMENT (Camera Feed & Worker)
+          // 2. 真实手部追踪性能测量（摄像头画面与 Worker）
           // -------------------------------------------------------------
           const img = new Image();
           img.src = "${dataUrl}";
@@ -116,7 +116,7 @@ async function run() {
             });
           });
 
-          // Warmup
+          // 预热
           let ts = 1000;
           for (let i = 0; i < 3; i++) {
             ts += 33;
@@ -128,7 +128,7 @@ async function run() {
             });
           }
 
-          // Measure 50 consecutive frames with realistic camera micro-jitter
+          // 测量连续 50 帧耗时（模拟真实的摄像头微抖动）
           const handTimes = [];
           const handsDetectedCounts = [];
           for (let i = 0; i < 50; i++) {
@@ -155,7 +155,7 @@ async function run() {
           const maxHandLatencyMs = handTimes[handTimes.length - 1];
           const handTrackingFps = 1000 / avgHandLatencyMs;
 
-          // Check PerfOverlay DOM elements
+          // 检查 PerfOverlay DOM 元素
           const perfOverlayEl = document.getElementById('perf-overlay');
           const perfFpsVal = document.getElementById('perf-fps-val')?.textContent;
           const perfLatencyVal = document.getElementById('perf-latency-val')?.textContent;

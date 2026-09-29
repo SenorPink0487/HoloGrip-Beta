@@ -23,8 +23,8 @@ export class PrismMesh {
   }
 
   private createGlassMaterial(): void {
-    // High-performance physical glass: uses forward specular clearcoat lobes instead of
-    // transmission framebuffer copies, maintaining 120+ FPS with crystal-clear optical glass fidelity
+    // 高性能物理玻璃材质：采用前向镜面清漆高光瓣，避免传输帧缓冲拷贝，
+    // 在保持 120+ FPS 超高帧率的同时呈现晶莹剔透的光学玻璃质感
     this.glassMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xf0f7ff,
       roughness: 0.04,
@@ -44,7 +44,7 @@ export class PrismMesh {
     const prismHeight = 0.065;
     const side = 0.075;
 
-    // 1. Equilateral 60-degree prism
+    // 1. 60 度等边三棱镜
     const triShape = new THREE.Shape();
     const h = side * Math.sin(Math.PI / 3);
     triShape.moveTo(0, h * 0.667);
@@ -71,7 +71,7 @@ export class PrismMesh {
     this.equilateralMesh.userData = { isPrism: true, prism: this };
     this.group.add(this.equilateralMesh);
 
-    // 2. Semicircular cylindrical prism (radius 40mm)
+    // 2. 半圆柱透镜棱镜（半径 40mm）
     const semiShape = new THREE.Shape();
     const r = 0.042;
     semiShape.absarc(0, 0, r, 0, Math.PI, false);

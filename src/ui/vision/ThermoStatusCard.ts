@@ -1,14 +1,14 @@
 import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
 
 export interface ThermoTelemetryData {
-  temperature: number; // K
-  volume: number;      // L
-  pressure: number;    // kPa
-  moles: number;       // mol
-  molarMassKg: number; // kg/mol
-  vRms: number;        // m/s
-  vMp: number;         // m/s
-  vMean: number;       // m/s
+  temperature: number; // 开尔文 (K)
+  volume: number;      // 升 (L)
+  pressure: number;    // 千帕 (kPa)
+  moles: number;       // 物质的量 (mol)
+  molarMassKg: number; // 摩尔质量 (kg/mol)
+  vRms: number;        // 均方根速率 (m/s)
+  vMp: number;         // 最概然速率 (m/s)
+  vMean: number;       // 平均速率 (m/s)
   speedBins: number[];
   maxSpeed: number;
 }
@@ -47,7 +47,7 @@ export class ThermoStatusCard {
   private lastRenderedTemp = -1;
   private lastRenderedPress = -1;
 
-  // Cached DOM elements
+  // 缓存的 DOM 元素
   private valTempEl: HTMLElement | null = null;
   private subTempEl: HTMLElement | null = null;
   private valVolEl: HTMLElement | null = null;
@@ -61,7 +61,7 @@ export class ThermoStatusCard {
   private sliderVolEl: HTMLInputElement | null = null;
   private activeSliders = new Set<string>();
 
-  // Cached text strings to eliminate layout thrashing
+  // 缓存的文本字符串，消除频繁重排
   private lastTempStr = '';
   private lastSubTempStr = '';
   private lastVolStr = '';
@@ -151,7 +151,7 @@ export class ThermoStatusCard {
     this.canvasMaxwell = this.element.querySelector('#canvas-maxwell') as HTMLCanvasElement;
     this.canvasPV = this.element.querySelector('#canvas-pv') as HTMLCanvasElement;
 
-    // Cache DOM references
+    // 缓存 DOM 引用
     this.valTempEl = this.element.querySelector('#val-temp');
     this.subTempEl = this.element.querySelector('#sub-temp');
     this.valVolEl = this.element.querySelector('#val-vol');
@@ -201,7 +201,7 @@ export class ThermoStatusCard {
       Math.abs(this.currentData.volume - prevVol) > 0.02 ||
       Math.abs(this.currentData.pressure - prevPress) > 0.5;
 
-    // Throttle DOM text and canvas redraws: immediate on user change, 400ms in steady state
+    // 节流 DOM 文本与 Canvas 重绘：用户变更时立即响应，稳态时 400ms
     const interval = hasSignificantChange ? 60 : 400;
     if (now - this.lastTelemetryTime >= interval || hasSignificantChange) {
       this.lastTelemetryTime = now;
@@ -269,7 +269,7 @@ export class ThermoStatusCard {
       this.lastVrmsStr = vrmsStr;
     }
 
-    // Sync sliders if not currently active / focused
+    // 若滑块当前未处于活跃/聚焦状态，则同步其数值
     if (this.sliderTempEl && !isSliderActive(this.sliderTempEl, this.activeSliders)) {
       this.sliderTempEl.value = String(Math.round(d.temperature));
     }
@@ -282,7 +282,7 @@ export class ThermoStatusCard {
     this.isVisible = visible;
     if (visible) {
       this.updateDOMText();
-      // Force redraw of charts upon becoming visible
+      // 变为可见时强制重绘图表
       this.lastRenderedVol = -1;
       this.lastMaxwellDraw = 0;
       this.drawCharts();
@@ -314,7 +314,7 @@ export class ThermoStatusCard {
     const chartW = w - padLeft - padRight;
     const chartH = h - padTop - padBottom;
 
-    // Grid lines
+    // 网格线
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;
     for (let i = 0; i <= 3; i++) {
@@ -329,7 +329,7 @@ export class ThermoStatusCard {
     const maxBin = Math.max(...bins, 10);
     const barWidth = chartW / (bins.length || 1);
 
-    // Histogram bars
+    // 直方图柱条
     for (let i = 0; i < bins.length; i++) {
       const barH = (bins[i] / maxBin) * chartH * 0.9;
       const bx = padLeft + i * barWidth;
@@ -341,7 +341,7 @@ export class ThermoStatusCard {
       ctx.strokeRect(bx + 1, by, barWidth - 2, barH);
     }
 
-    // Theoretical Maxwell-Boltzmann curve
+    // 麦克斯韦-玻尔兹曼理论分布曲线
     ctx.strokeStyle = '#f59e0b';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -372,7 +372,7 @@ export class ThermoStatusCard {
     }
     ctx.stroke();
 
-    // Axis labels
+    // 坐标轴标签
     ctx.fillStyle = '#64748b';
     ctx.font = '11px monospace';
     ctx.textAlign = 'right';
@@ -392,7 +392,7 @@ export class ThermoStatusCard {
       Math.abs(curTemp - this.lastRenderedTemp) < 0.2 &&
       Math.abs(curPress - this.lastRenderedPress) < 0.1
     ) {
-      return; // Skip redraw if thermodynamic state point is stationary
+      return; // 若热力学状态点静止则跳过重绘
     }
     this.lastRenderedVol = curVol;
     this.lastRenderedTemp = curTemp;
@@ -412,7 +412,7 @@ export class ThermoStatusCard {
     const chartW = w - padLeft - padRight;
     const chartH = h - padTop - padBottom;
 
-    // Axes
+    // 坐标轴
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -426,7 +426,7 @@ export class ThermoStatusCard {
     ctx.fillText('P(kPa)', padLeft - 2, padTop - 4);
     ctx.fillText('V(L)', padLeft + chartW - 10, padTop + chartH + 20);
 
-    // Isotherms
+    // 等温线
     const isotherms = [
       { T: 200, color: 'rgba(56, 189, 248, 0.6)' },
       { T: 400, color: 'rgba(34, 197, 94, 0.6)' },
@@ -449,11 +449,11 @@ export class ThermoStatusCard {
       ctx.stroke();
     }
 
-    // Current operating state point
+    // 当前工作状态点
     const curX = padLeft + ((curVol - 0.8) / 4.4) * chartW;
     const curY = padTop + chartH - (curPress / 400) * chartH;
 
-    // Glowing halo
+    // 发光光晕
     ctx.fillStyle = 'rgba(255, 59, 48, 0.35)';
     ctx.beginPath();
     ctx.arc(curX, curY, 9, 0, Math.PI * 2);

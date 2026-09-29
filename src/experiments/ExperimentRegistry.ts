@@ -68,18 +68,18 @@ export class ExperimentRegistry {
   }
 
   /**
-   * Automated scan & dynamic registration using Vite's import.meta.glob.
-   * Completely decouples metadata definitions from heavy 3D implementations.
+   * 利用 Vite 的 import.meta.glob 进行自动扫描与动态注册。
+   * 将元数据定义与重型 3D 实现完全解耦。
    */
   private scanAndRegisterExperiments(): void {
     try {
-      // Eagerly scan all metadata modules across the catalog (lightweight metadata)
+      // 同步急加载整个目录中的所有元数据模块（轻量级元数据）
       const metaModules = import.meta.glob<{ metadata?: ExperimentMetadata; default?: ExperimentMetadata }>(
         './catalog/**/meta.ts',
         { eager: true }
       );
 
-      // Lazily scan all experiment implementation classes (code-split on demand)
+      // 懒加载所有实验实现类（按需代码分割）
       const implModules = import.meta.glob<ExperimentModule>(
         './catalog/**/index.ts'
       );
@@ -93,7 +93,7 @@ export class ExperimentRegistry {
           continue;
         }
 
-        // Match corresponding index.ts loader path
+        // 匹配对应的 index.ts 加载器路径
         const indexPath = metaPath.replace(/meta\.ts$/, 'index.ts');
         const loader = implModules[indexPath];
 
@@ -117,7 +117,7 @@ export class ExperimentRegistry {
   }
 
   private registerFallbackExperiments(): void {
-    // No fallback experiments registered when all catalog experiments are cleared
+    // 目录中所有实验均已清空时，不注册后备实验
   }
 
   public register(entry: ExperimentRegistryEntry): void {
@@ -155,7 +155,7 @@ export class ExperimentRegistry {
     const ExpClass = module.default;
     const instance = new ExpClass();
 
-    // Cache updated parameters from instance metadata if empty
+    // 若实例包含参数定义，则缓存并同步更新注册表元数据中的参数
     if (instance.metadata && instance.metadata.parameters && instance.metadata.parameters.length > 0) {
       entry.metadata.parameters = instance.metadata.parameters;
     }

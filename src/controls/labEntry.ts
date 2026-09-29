@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-/** Front-of-table pose the laboratory opens on. The dolly starts behind it. */
+/** 实验室初始化时的台前停靠位姿。推轨由此位姿后方开始。 */
 export const LAB_ENTRY_REST = {
   x: 0,
   y: 1.38,
@@ -9,13 +9,13 @@ export const LAB_ENTRY_REST = {
   pitch: -0.07,
 } as const;
 
-/** Meters of pull-back along the camera's look axis. A short push, not a fly-through. */
+/** 沿相机视线轴向后拉退的距离（米）。一段平缓推进，而非大范围穿梭。 */
 export const LAB_ENTRY_DOLLY_DISTANCE = 1.05;
 
-/** Extra vertical field of view at the start of the push. It settles to the camera's own fov. */
+/** 推进开始时的额外垂直视场角，随后平滑过渡至相机的基准视场角。 */
 export const LAB_ENTRY_FOV_OPEN = 3.8;
 
-/** Seconds. Slow enough for the glass to read, short enough that the view is not locked. */
+/** 持续时间（秒）。足够展示毛玻璃质感，同时避免视角锁定过久。 */
 export const LAB_ENTRY_DURATION = 1.42;
 
 export interface LabEntryPose {
@@ -35,23 +35,23 @@ export interface LabEntryClock {
 
 export interface LabEntryFrame {
   linear: number;
-  /** Smootherstep of `linear`. The camera rides this so the push starts and ends at rest. */
+  /** `linear` 的 smootherstep 平滑插值。相机依据此值运动，保证启停平稳。 */
   u: number;
   done: boolean;
   pose: LabEntryPose;
 }
 
 export interface GlassLook {
-  /** 1 = opaque board, 0 = gone. */
+  /** 1 = 完全不透明白板，0 = 完全隐去。 */
   fill: number;
-  /** Backdrop blur in CSS pixels. Peaks while the board is frosted, then falls away. */
+  /** 背景模糊度（CSS 像素）。在磨砂玻璃效果阶段达到峰值，随后淡出。 */
   blur: number;
-  /** Paper dots and grid lines. They leave as the surface becomes glass. */
+  /** 点阵与网格线。随着表面变为玻璃质感而逐渐消退。 */
   dots: number;
   saturate: number;
   ink: number;
   chrome: number;
-  /** 0 = the board still covers the frame, 1 = the center has opened onto the lab. */
+  /** 0 = 白板完全覆盖画面，1 = 中心完全透出实验室场景。 */
   aperture: number;
   sheen: number;
   sheenX: number;
@@ -60,7 +60,7 @@ export interface GlassLook {
 const rig = new THREE.Object3D();
 const forward = new THREE.Vector3();
 
-/** Camera look direction for Euler YXZ, rotation.x = pitch, rotation.y = yaw. Look is local −Z. */
+/** 欧拉角 YXZ 下的相机视线方向，rotation.x 为俯仰角 (pitch)，rotation.y 为偏航角 (yaw)。朝向为局部 -Z 轴。 */
 export function labLookDirection(yaw: number, pitch: number, out: THREE.Vector3): THREE.Vector3 {
   rig.rotation.order = 'YXZ';
   rig.rotation.x = pitch;
@@ -81,7 +81,7 @@ function smoothstep(edge0: number, edge1: number, value: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Zero slope at both ends. The push eases in, travels, then settles on the table. */
+/** 两端斜率为零。推进过程平缓切入、巡航、最终平稳停靠在实验台前。 */
 export function smootherstep(t: number): number {
   const x = clamp01(t);
   return x * x * x * (x * (x * 6 - 15) + 10);
@@ -92,10 +92,10 @@ export function createLabEntryClock(restFov: number): LabEntryClock {
 }
 
 /**
- * Pose along the entry dolly.
- * `u` 0 is the pulled-back start; `u` 1 is {@link LAB_ENTRY_REST}.
- * The offset uses the camera's look direction: Euler YXZ with rotation.x = pitch
- * and rotation.y = yaw, the same orientation PlayerController writes. Look is local -Z.
+ * 入场推轨轨迹上的位姿计算。
+ * `u` 为 0 时为后退起点；`u` 为 1 时为 {@link LAB_ENTRY_REST}。
+ * 偏移量采用相机视线方向：欧拉角 YXZ（rotation.x 为 pitch，rotation.y 为 yaw），
+ * 与 PlayerController 的朝向一致。视线为局部 -Z 轴。
  */
 export function labEntryPose(u: number, restFov: number): LabEntryPose {
   const t = clamp01(u);
@@ -124,8 +124,8 @@ export function advanceLabEntry(clock: LabEntryClock, dt: number): LabEntryFrame
 }
 
 /**
- * Frosted-glass dissolve, keyed on linear time so the board turns to glass
- * during the dolly's slow start, then transmits as the camera pushes in.
+ * 毛玻璃溶解过渡，基于线性时间推进，使白板在推轨缓启阶段呈现玻璃质感，
+ * 随后随着相机推进完全透明化。
  */
 export function glassLook(linear: number): GlassLook {
   const t = clamp01(linear);
@@ -145,9 +145,8 @@ export function glassLook(linear: number): GlassLook {
 }
 
 /**
- * Radial mask that opens on the table (just below screen center at the entry pose).
- * White is kept, clear is premultiplied black, so both alpha and luminance masks
- * punch the same hole.
+ * 聚焦在实验台上的径向遮罩（位于入场位姿屏幕中心略偏下方）。
+ * 白色保留，透明为预乘黑色，因此 Alpha 遮罩和亮度遮罩均能产生相同的镂空效果。
  */
 export function glassMask(aperture: number): string {
   const a = clamp01(aperture);

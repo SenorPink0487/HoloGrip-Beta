@@ -26,14 +26,14 @@ export class RotaryStageMesh {
     const outerR = 490;
     const innerR = 360;
 
-    // Satin silver dial background ring
+    // 缎面银色刻度盘背景环
     ctx.fillStyle = '#edf2f7';
     ctx.beginPath();
     ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
     ctx.arc(cx, cy, innerR, Math.PI * 2, 0, true);
     ctx.fill();
 
-    // Outer & Inner metallic bevel line
+    // 外圈与内圈金属倒角线
     ctx.strokeStyle = '#94a3b8';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -44,7 +44,7 @@ export class RotaryStageMesh {
     ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 360 Degree Ticks & Numbers in high-contrast deep black
+    // 高对比度纯黑 360 度刻度线与数字
     ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = '#0f172a';
     ctx.textAlign = 'center';
@@ -57,14 +57,14 @@ export class RotaryStageMesh {
       const sin = Math.sin(rad);
 
       if (deg % 30 === 0) {
-        // Major 30 deg mark
+        // 30 度主刻度标记
         ctx.lineWidth = 3.6;
         ctx.beginPath();
         ctx.moveTo(cx + cos * (outerR - 34), cy + sin * (outerR - 34));
         ctx.lineTo(cx + cos * outerR, cy + sin * outerR);
         ctx.stroke();
 
-        // Label
+        // 刻度数值标签
         const textR = innerR + 42;
         ctx.save();
         ctx.translate(cx + cos * textR, cy + sin * textR);
@@ -72,21 +72,21 @@ export class RotaryStageMesh {
         ctx.fillText(`${deg}°`, 0, 0);
         ctx.restore();
       } else if (deg % 10 === 0) {
-        // 10 deg mark
+        // 10 度中刻度标记
         ctx.lineWidth = 2.4;
         ctx.beginPath();
         ctx.moveTo(cx + cos * (outerR - 24), cy + sin * (outerR - 24));
         ctx.lineTo(cx + cos * outerR, cy + sin * outerR);
         ctx.stroke();
       } else if (deg % 5 === 0) {
-        // 5 deg mark
+        // 5 度小刻度标记
         ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.moveTo(cx + cos * (outerR - 16), cy + sin * (outerR - 16));
         ctx.lineTo(cx + cos * outerR, cy + sin * outerR);
         ctx.stroke();
       } else {
-        // 1 deg minor mark
+        // 1 度细分次刻度标记
         ctx.lineWidth = 1.0;
         ctx.beginPath();
         ctx.moveTo(cx + cos * (outerR - 10), cy + sin * (outerR - 10));
@@ -120,26 +120,26 @@ export class RotaryStageMesh {
       roughness: 0.25,
     });
 
-    // 1. Support post (Ø12mm)
+    // 1. 支撑立柱（直径 12mm）
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.12, 24), postMat);
     post.position.y = 0.06;
     post.castShadow = true;
     this.group.add(post);
 
-    // 2. Heavy stator base collar in satin silver
+    // 2. 缎面银色厚重定子底座套筒
     const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.016, 48), bodyMat);
     collar.position.y = 0.128;
     collar.castShadow = true;
     this.group.add(collar);
 
-    // 3. Vernier fixed reading pointer (red line on base)
+    // 3. 游标固定读数指针（底座上的红色指标线）
     const ptrGeo = new THREE.BoxGeometry(0.004, 0.018, 0.003);
     const ptrMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
     const pointer = new THREE.Mesh(ptrGeo, ptrMat);
     pointer.position.set(0, 0.136, 0.049);
     this.group.add(pointer);
 
-    // 4. Side micrometer fine tangent adjustment drum
+    // 4. 侧边微分切线微调鼓轮
     const micrometerGroup = new THREE.Group();
     micrometerGroup.position.set(0.056, 0.128, 0);
 
@@ -172,13 +172,13 @@ export class RotaryStageMesh {
 
     this.rotorGroup.position.y = 0.144;
 
-    // 1. Rotating main disc
+    // 1. 旋转主圆盘
     const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.012, 48), rotorMat);
     disc.castShadow = true;
     disc.userData = { isRotaryStageRotor: true, rotaryStage: this };
     this.rotorGroup.add(disc);
 
-    // 2. 360 Degree Dial Disc Top Face
+    // 2. 360 度分度盘顶面
     const dialTex = this.createDialCanvas();
     const dialMat = new THREE.MeshBasicMaterial({
       map: dialTex,
@@ -190,14 +190,14 @@ export class RotaryStageMesh {
     dialDisc.userData = { isRotaryStageRotor: true, rotaryStage: this };
     this.rotorGroup.add(dialDisc);
 
-    // 3. Central sample stage platform (for holding prism)
+    // 3. 中心样品承载台（用于放置棱镜）
     const stagePlatform = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.005, 36), rotorMat);
     stagePlatform.position.y = 0.0086;
     stagePlatform.castShadow = true;
     stagePlatform.userData = { isRotaryStageRotor: true, rotaryStage: this };
     this.rotorGroup.add(stagePlatform);
 
-    // 4. Spring-loaded stainless steel clamp arms for prism (3 clamps)
+    // 4. 棱镜弹簧不锈钢压臂（3 组压夹）
     for (let i = 0; i < 3; i++) {
       const angle = (i / 3) * Math.PI * 2;
       const clampArm = new THREE.Group();

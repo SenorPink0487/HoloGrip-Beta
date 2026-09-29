@@ -37,20 +37,20 @@ export interface VisionModalCallbacks {
   onCarnotToggleDirection?: () => void;
   onCarnotStepStage?: (step: 1 | -1) => void;
   onCarnotApplyPreset?: (preset: 'steam' | 'extreme' | 'stirling' | 'refrig') => void;
-  // Conduction Callbacks
+  // 热传导回调函数
   onCondTempHChange?: (tempK: number) => void;
   onCondTempCChange?: (tempK: number) => void;
   onCondMaterialChange?: (material: string) => void;
   onCondInsulationChange?: (insulated: boolean) => void;
   onCondProbeChange?: (normX: number) => void;
   onCondResetTransient?: () => void;
-  // Phase Callbacks
+  // 相变量热回调函数
   onPhasePowerChange?: (powerW: number) => void;
   onPhaseMassChange?: (massG: number) => void;
   onPhaseToggleHeating?: () => void;
   onPhaseReset?: () => void;
   onPhaseAccelChange?: (scale: number) => void;
-  // Hall Effect Callbacks
+  // 霍尔效应回调函数
   onHallMagFieldChange?: (tesla: number) => void;
   onHallCurrentChange?: (ma: number) => void;
   onHallThicknessChange?: (thicknessMm: number) => void;
@@ -66,7 +66,7 @@ export interface VisionModalCallbacks {
   onInductionCommand?: (cmd: InductionCommand) => void;
   onMassSpecCommand?: (cmd: MassSpecCommand) => void;
   onHysteresisCommand?: (cmd: HysteresisCommand) => void;
-  // Stereometry Math Callbacks
+  // 立体几何数学回调函数
   onMathModelChange?: (type: HighSchoolModelType) => void;
   onMathDimensionChange?: (dims: { a?: number; h?: number }) => void;
   onMathInteractionModeChange?: (mode: InteractionMode) => void;
@@ -193,12 +193,12 @@ export class VisionModal {
     this.btnBack = this.element.querySelector('#btn-window-back');
     this.scaleIndicatorEl = this.element.querySelector('#vision-scale-indicator');
 
-    // Stop propagation of pointer, mouse, and wheel events so floating screen interactions don't leak to 3D scene
+    // 阻止指针、鼠标与滚轮事件向外冒泡，防止悬浮视窗交互干扰 3D 场景控制
     this.element.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.element.addEventListener('mousedown', (e) => e.stopPropagation());
     this.element.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
 
-    // Multi-touch pinch-to-zoom for iPad and touch devices
+    // iPad 与触控设备的多指双指捏合缩放视窗交互
     let touchInitialDist = 0;
     let touchInitialScale = 1.0;
     const activeTouches = new Map<number, { x: number; y: number }>();
@@ -250,7 +250,7 @@ export class VisionModal {
     this.element.addEventListener('touchend', handleTouchEnd, { passive: false });
     this.element.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
-    // Safari / iPadOS native GestureEvent
+    // Safari / iPadOS 原生 GestureEvent 手势事件监听
     let gestureInitialScale = 1.0;
     this.element.addEventListener('gesturestart', (e: any) => {
       e.stopPropagation();
@@ -440,7 +440,7 @@ export class VisionModal {
     this.hysteresisStatusCard = new HysteresisStatusCard((cmd) => this.callbacks.onHysteresisCommand?.(cmd));
     this.mechStatusCard = new MechStatusCard();
 
-    // Mount initial view
+    // 挂载初始视窗视图
     this.switchTab('disciplines');
 
     this.bindHeaderEvents();
@@ -469,7 +469,7 @@ export class VisionModal {
   }
 
   private bindHeaderEvents(): void {
-    // Intercept clicks on window header when secondary modal is open to dismiss it
+    // 二级弹窗打开时拦截标题栏点击事件，点击标题栏自动关闭二级弹窗
     this.element.querySelector('.vision-window-header')?.addEventListener(
       'click',
       (e) => {

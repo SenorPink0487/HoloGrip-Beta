@@ -58,7 +58,7 @@ export class WhiteboardApp {
   }
 
   private initComponents(): void {
-    // 1. Canvas Layer (Draw engine & pages)
+    // 1. 画布图层（绘制引擎与多页面系统）
     this.canvas = new WhiteboardCanvas(this.root, {
       initialTheme: 'plain',
       defaultColor: '#1c1c1e',
@@ -69,10 +69,10 @@ export class WhiteboardApp {
       },
     });
 
-    // 2. Left Sidebar (Color, thickness, tools, pagination)
+    // 2. 左侧工具栏（颜色、线宽、工具选择、分页）
     this.toolbar = new WhiteboardToolbar(this.canvas, this.root);
 
-    // 3. Bottom Dock Bar (Laboratory toggle & Account page trigger)
+    // 3. 底部快捷 Dock 栏（实验室切换与账户面板入口）
     this.dock = new WhiteboardDock(document.body, {
       onEnterLab: () => {
         this.switchToLab();
@@ -102,7 +102,7 @@ export class WhiteboardApp {
     this.returnBtn.addEventListener('click', () => this.switchToWhiteboard());
     document.body.appendChild(this.returnBtn);
 
-    // 4. Account Modal. Logged-out clicks open login / register.
+    // 4. 账户弹窗：未登录时点击弹出登录/注册界面
     this.accountModal = new AccountModal(this.canvas, document.body);
     this.collaboration = new WhiteboardConnection(this.canvas, this.root);
     window.addEventListener('pagehide', () => this.collaboration.dispose());
@@ -111,7 +111,7 @@ export class WhiteboardApp {
     });
     void restoreSession();
 
-    // Shortcut to return to whiteboard from laboratory mode: KeyB
+    // 从实验室模式快捷返回白板：B 键
     window.addEventListener('keydown', (e) => {
       if (
         e.code === 'KeyB' &&
@@ -127,7 +127,7 @@ export class WhiteboardApp {
   }
 
   private setupViewMode(): void {
-    // Default mode is Whiteboard upon platform launch!
+    // 平台启动时默认进入白板模式
     this.applyViewMode('whiteboard');
   }
 
@@ -384,11 +384,11 @@ export class WhiteboardApp {
     this.dock.setMode(mode);
 
     if (mode === 'whiteboard') {
-      // Whiteboard in focus
+      // 聚焦至白板视图
       this.setReturnButtonVisible(false);
       this.root.classList.remove('hidden-view');
 
-      // Disable 3D pointer lock & scene navigation while drawing on whiteboard
+      // 在白板书写时禁用 3D 指针锁定与场景漫游控制
       if (this.engine) {
         if (this.engine.inputManager?.player) {
           this.engine.inputManager.player.exitLock();
@@ -401,13 +401,13 @@ export class WhiteboardApp {
         this.engine.setViewMode('whiteboard');
       }
 
-      // Ensure performance HUD overlay remains visible in top-left corner
+      // 确保左上角性能监控 HUD 浮层始终可见
       const perfOverlay = document.getElementById('perf-overlay');
       if (perfOverlay) {
         perfOverlay.style.display = '';
       }
 
-      // Re-render canvas in case of DPI/container change
+      // 重新渲染画布以应对 DPI 或容器尺寸变化
       setTimeout(() => {
         this.canvas.resize();
         const overlay = document.getElementById('perf-overlay');
@@ -416,7 +416,7 @@ export class WhiteboardApp {
         }
       }, 50);
     } else {
-      // Laboratory in focus
+      // 聚焦至 3D 实验室视图
       this.setReturnButtonVisible(true);
       this.root.classList.add('hidden-view');
 
@@ -425,7 +425,7 @@ export class WhiteboardApp {
         perfOverlay.style.display = '';
       }
 
-      // Enable 3D laboratory controls
+      // 启用 3D 实验室交互与漫游控制
       this.activateLaboratory();
       if (this.engine) {
         this.engine.setViewMode('laboratory');

@@ -20,7 +20,7 @@ export class ThermostatHeaterMesh {
   }
 
   private build(): void {
-    // Shared scientific materials (matching optics hardware specifications)
+    // 共享科研级材质（符合光学硬件规格）
     const satinSilverMat = new THREE.MeshStandardMaterial({
       color: 0xdfe6ed,
       metalness: 0.76,
@@ -38,7 +38,7 @@ export class ThermostatHeaterMesh {
     });
     this.disposables.push(satinSilverMat, stainlessMat, titaniumMat);
 
-    // 1. Non-slip industrial rubber base pad (y = 0 to 0.002)
+    // 1. 工业级防滑橡胶底垫 (y = 0 至 0.002)
     const rubberGeo = new THREE.CylinderGeometry(0.134, 0.134, 0.002, 36);
     const rubberMat = new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.9 });
     this.disposables.push(rubberGeo, rubberMat);
@@ -46,7 +46,7 @@ export class ThermostatHeaterMesh {
     rubberMesh.position.y = 0.001;
     this.group.add(rubberMesh);
 
-    // 2. Polished stainless steel lower bevel rim (y = 0.002 to 0.006)
+    // 2. 抛光不锈钢下斜倒角边框 (y = 0.002 至 0.006)
     const lowerRimGeo = new THREE.CylinderGeometry(0.131, 0.134, 0.004, 36);
     this.disposables.push(lowerRimGeo);
     const lowerRim = new THREE.Mesh(lowerRimGeo, stainlessMat);
@@ -54,7 +54,7 @@ export class ThermostatHeaterMesh {
     lowerRim.castShadow = true;
     this.group.add(lowerRim);
 
-    // 3. Precision satin clear-anodized aluminum base housing (y = 0.006 to 0.052)
+    // 3. 精密缎面阳极氧化铝基座外壳 (y = 0.006 至 0.052)
     const housingGeo = new THREE.CylinderGeometry(0.120, 0.131, 0.046, 36);
     this.disposables.push(housingGeo);
 
@@ -64,14 +64,14 @@ export class ThermostatHeaterMesh {
     housingMesh.receiveShadow = true;
     this.group.add(housingMesh);
 
-    // Top stainless steel collar rim (open-ended to eliminate co-planar caps)
+    // 顶部不锈钢法兰环（开放端设计以消除共面贴合闪烁）
     const topCollarGeo = new THREE.CylinderGeometry(0.114, 0.120, 0.004, 36, 1, true);
     this.disposables.push(topCollarGeo);
     const topCollar = new THREE.Mesh(topCollarGeo, stainlessMat);
     topCollar.position.y = 0.052;
     this.group.add(topCollar);
 
-    // 4. High-temp ceramic heating plate top (y = 0.052 to 0.062)
+    // 4. 高温陶瓷加热板台面 (y = 0.052 至 0.062)
     const plateGeo = new THREE.CylinderGeometry(0.108, 0.108, 0.010, 36);
     this.heatingSurfaceMat = new THREE.MeshStandardMaterial({
       color: 0x475569,
@@ -87,14 +87,14 @@ export class ThermostatHeaterMesh {
     this.heatingSurfaceMesh.castShadow = true;
     this.group.add(this.heatingSurfaceMesh);
 
-    // 5. Dynamic Thermal Infrared Glow PointLight
+    // 5. 动态热红外辐射泛光点光源
     this.heatGlowLight = new THREE.PointLight(0xff4500, 0, 0.4);
     this.heatGlowLight.position.set(0, 0.07, 0);
     this.group.add(this.heatGlowLight);
     this.disposables.push(this.heatGlowLight);
 
-    // 6. Digital LED temperature readout screen with extruded front bezel pod
-    // Front instrument bezel block (eliminates cylinder wall intersection/clipping)
+    // 6. 带凸出前面板外框的数显 LED 温度读数屏
+    // 仪表前面板基座（避免与圆柱壁相交穿模/剪裁）
     const bezelGeo = new THREE.BoxGeometry(0.076, 0.034, 0.012);
     this.disposables.push(bezelGeo);
     const bezelMesh = new THREE.Mesh(bezelGeo, titaniumMat);
@@ -122,8 +122,8 @@ export class ThermostatHeaterMesh {
     this.ledMesh.renderOrder = 2;
     this.group.add(this.ledMesh);
 
-    // 7. Knurled rotary temperature control dial (interactive knob)
-    // Dial collar in titanium
+    // 7. 滚花旋转控温旋钮（交互旋钮）
+    // 钛合金旋钮套环
     const dialCollarGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.004, 24);
     this.disposables.push(dialCollarGeo);
     const dialCollar = new THREE.Mesh(dialCollarGeo, titaniumMat);
@@ -145,7 +145,7 @@ export class ThermostatHeaterMesh {
     this.knobMesh.name = 'HeaterKnob';
     this.group.add(this.knobMesh);
 
-    // Dial notch indicator
+    // 旋钮刻度凹槽指示标
     const notchGeo = new THREE.BoxGeometry(0.003, 0.016, 0.006);
     const notchMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     this.disposables.push(notchGeo, notchMat);
@@ -162,21 +162,21 @@ export class ThermostatHeaterMesh {
   }
 
   private updateHeaterAppearance(tempK: number): void {
-    // 1. Rotary knob angle (-135° to +135° across 100K to 800K)
+    // 1. 旋钮旋转角度（在 100K 至 800K 范围内对应 -135° 至 +135°）
     const norm = (tempK - 100) / 700;
     const angle = (norm * 270 - 135) * (Math.PI / 180);
     this.knobMesh.rotation.z = -angle;
 
-    // 2. Thermal incandescence & glow:
-    // Below 350K: dark, cold
-    // 350K - 550K: dark red glow begins
-    // 550K - 800K: bright incandescent orange-red to bright amber
+    // 2. 热炽光与发光特效：
+    // 低于 350K：无发光，暗态冷态
+    // 350K 至 550K：开始呈现暗红微光
+    // 550K 至 800K：明亮的橙红炽光至金黄炽热光芒
     if (tempK < 350) {
       this.heatingSurfaceMat.emissive.setHex(0x000000);
       this.heatingSurfaceMat.emissiveIntensity = 0.0;
       this.heatGlowLight.intensity = 0.0;
     } else {
-      const heatFactor = (tempK - 350) / 450; // 0 to 1
+      const heatFactor = (tempK - 350) / 450; // 归一化至 0 到 1
       const r = Math.min(1.0, 0.4 + heatFactor * 0.6);
       const g = Math.max(0.0, (heatFactor - 0.3) * 0.7);
       const b = 0.0;
@@ -188,18 +188,18 @@ export class ThermostatHeaterMesh {
       this.heatGlowLight.intensity = heatFactor * 1.5;
     }
 
-    // 3. Update LED digital readout canvas
+    // 3. 更新 LED 数字读数 Canvas
     const ctx = this.ledCanvas.getContext('2d');
     if (ctx) {
       ctx.fillStyle = '#0b0f14';
       ctx.fillRect(0, 0, 256, 96);
 
-      // Glass inner border
+      // 玻璃内边框
       ctx.strokeStyle = '#1e293b';
       ctx.lineWidth = 4;
       ctx.strokeRect(2, 2, 252, 92);
 
-      // Temp value & unit
+      // 温度数值与单位
       ctx.fillStyle = '#00f5ff';
       ctx.font = 'bold 44px monospace';
       ctx.textAlign = 'center';

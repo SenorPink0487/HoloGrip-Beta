@@ -157,8 +157,8 @@ export class PerfOverlay {
       this.lastRenderTimeMs = avgRenderMs;
       const headroomFps = avgRenderMs > 0 ? Math.round(1000 / avgRenderMs) : 1000;
 
-      // When 3D engine render duration is < 8.33ms (120 FPS frame budget) or display supports high refresh,
-      // report 120 FPS / headroom FPS so user telemetry reflects full hardware capability (>= 100 FPS).
+      // 当 3D 引擎渲染耗时 < 8.33ms（120 FPS 帧预算）或显示器支持高刷时，
+      // 报告 120 FPS / 余量 FPS，使遥测数据反映完整硬件性能（>= 100 FPS）。
       if (avgRenderMs <= 8.33 || displayFps >= 100) {
         this.fps = Math.max(100, Math.min(120, headroomFps));
       } else {

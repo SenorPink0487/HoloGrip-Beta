@@ -29,7 +29,7 @@ export class LaserEmitterMesh {
     canvas.height = 128;
     const ctx = canvas.getContext('2d')!;
 
-    // Yellow hazard background
+    // 黄色危险警示背景
     ctx.fillStyle = '#facc15';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -56,35 +56,35 @@ export class LaserEmitterMesh {
   }
 
   private createLaserAssembly(): void {
-    // High-texture satin clear-anodized aluminum (银白喷砂航空铝)
+    // 高质感缎面阳极氧化喷砂铝（银白喷砂航空铝）
     const satinSilverMat = new THREE.MeshStandardMaterial({
       color: 0xe2eaf2,
       metalness: 0.75,
       roughness: 0.25,
     });
 
-    // Polished stainless steel / chrome (拉丝镜面不锈钢)
+    // 抛光不锈钢 / 镀铬（拉丝镜面不锈钢）
     const stainlessMat = new THREE.MeshStandardMaterial({
       color: 0xf1f5f9,
       metalness: 0.90,
       roughness: 0.16,
     });
 
-    // Knurled titanium accent (质感轻钛灰滚花)
+    // 滚花钛色点缀（质感轻钛灰滚花）
     const knurledMat = new THREE.MeshStandardMaterial({
       color: 0xc4cfdc,
       metalness: 0.82,
       roughness: 0.22,
     });
 
-    // Anti-reflection aperture recess
+    // 消杂光凹面光阑
     const darkApertureMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
       metalness: 0.40,
       roughness: 0.50,
     });
 
-    // 1. Vertical mounting post (Ø12mm stainless steel)
+    // 1. 垂直安装立柱（直径 12mm 不锈钢）
     const postHeight = 0.14;
     const postGeo = new THREE.CylinderGeometry(0.006, 0.006, postHeight, 24);
     const post = new THREE.Mesh(postGeo, stainlessMat);
@@ -93,7 +93,7 @@ export class LaserEmitterMesh {
     post.userData = { isLaserBarrel: true, laser: this };
     this.group.add(post);
 
-    // 2. Kinematic gimbal mounting bracket on top of post
+    // 2. 立柱顶部的精密调整架安装支架
     const gimbalGeo = new THREE.BoxGeometry(0.038, 0.032, 0.046);
     const gimbal = new THREE.Mesh(gimbalGeo, satinSilverMat);
     gimbal.position.y = postHeight + 0.016;
@@ -101,7 +101,7 @@ export class LaserEmitterMesh {
     gimbal.userData = { isLaserBarrel: true, laser: this };
     this.group.add(gimbal);
 
-    // Kinematic adjustment thumbscrews for pitch and yaw fine alignment
+    // 用于俯仰与偏摆精细对准的微调手拧螺钉
     const screwGeo = new THREE.CylinderGeometry(0.0055, 0.0055, 0.014, 16);
     const screw1 = new THREE.Mesh(screwGeo, knurledMat);
     screw1.rotation.x = Math.PI * 0.5;
@@ -113,12 +113,12 @@ export class LaserEmitterMesh {
     screw2.position.set(0.024, postHeight + 0.016, -0.012);
     this.group.add(screw2);
 
-    // 3. Precision Laser Barrel Assembly (centered at optical axis: y = postHeight + 0.052)
+    // 3. 精密激光镜筒组件（光轴中心高度：y = postHeight + 0.052）
     const barrelY = postHeight + 0.052;
     const barrelGroup = new THREE.Group();
     barrelGroup.position.set(0, barrelY, 0);
 
-    // Main cylindrical housing (Ø40mm, length 140mm along Z) in satin silver
+    // 缎面银色圆柱形主外壳（直径 40mm，沿 Z 轴长 140mm）
     const mainBarrelGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.14, 36);
     const mainBarrel = new THREE.Mesh(mainBarrelGeo, satinSilverMat);
     mainBarrel.rotation.x = Math.PI * 0.5;
@@ -128,7 +128,7 @@ export class LaserEmitterMesh {
     this.mainBarrel = mainBarrel;
     barrelGroup.add(mainBarrel);
 
-    // Machined accent rings (fine recessed grooves)
+    // 精加工装饰环（精密凹槽）
     for (let i = -1; i <= 1; i++) {
       const ringGeo = new THREE.CylinderGeometry(0.0203, 0.0203, 0.003, 36);
       const ring = new THREE.Mesh(ringGeo, knurledMat);
@@ -137,45 +137,45 @@ export class LaserEmitterMesh {
       barrelGroup.add(ring);
     }
 
-    // Front Knurled Focus Ring (Ø41mm, length 20mm) in knurled titanium
+    // 前端滚花对焦环（直径 41mm，长 20mm），钛灰色滚花材质
     const focusRingGeo = new THREE.CylinderGeometry(0.0205, 0.0205, 0.020, 36);
     const focusRing = new THREE.Mesh(focusRingGeo, knurledMat);
     focusRing.rotation.x = Math.PI * 0.5;
     focusRing.position.z = 0.075;
     barrelGroup.add(focusRing);
 
-    // Front Collimator Nose Cone in satin silver
+    // 缎面银色前端准直头锥台
     const noseGeo = new THREE.CylinderGeometry(0.015, 0.0198, 0.024, 36);
     const nose = new THREE.Mesh(noseGeo, satinSilverMat);
     nose.rotation.x = Math.PI * 0.5;
     nose.position.z = 0.097;
     barrelGroup.add(nose);
 
-    // Precision Stainless Steel Aperture Bezel
+    // 精密不锈钢出光孔压圈
     const bezelGeo = new THREE.CylinderGeometry(0.0145, 0.0145, 0.005, 32);
     const bezel = new THREE.Mesh(bezelGeo, stainlessMat);
     bezel.rotation.x = Math.PI * 0.5;
     bezel.position.z = 0.111;
     barrelGroup.add(bezel);
 
-    // Recessed dark aperture face with central pinhole
+    // 带中心小孔的内凹黑色出光面
     const faceGeo = new THREE.CylinderGeometry(0.0135, 0.0135, 0.004, 32);
     const face = new THREE.Mesh(faceGeo, darkApertureMat);
     face.rotation.x = Math.PI * 0.5;
     face.position.z = 0.115;
     barrelGroup.add(face);
 
-    // Optical exit aperture hole
+    // 光学出射孔
     const holeGeo = new THREE.CircleGeometry(0.0035, 24);
     const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
     const hole = new THREE.Mesh(holeGeo, holeMat);
     hole.position.z = 0.1221;
     barrelGroup.add(hole);
 
-    // Global beam origin coordinates
+    // 光束出射原点全局坐标
     this.beamOrigin.set(0, barrelY, 0.123);
 
-    // Rear End Cap Assembly
+    // 后端盖组件
     const rearCapGeo = new THREE.CylinderGeometry(0.0202, 0.0202, 0.016, 36);
     const rearCap = new THREE.Mesh(rearCapGeo, satinSilverMat);
     rearCap.rotation.x = Math.PI * 0.5;
@@ -183,7 +183,7 @@ export class LaserEmitterMesh {
     rearCap.userData = { isLaserSwitch: true, laser: this };
     barrelGroup.add(rearCap);
 
-    // Metal toggle switch in polished chrome
+    // 镜面镀铬金属拨动开关
     const toggleBase = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.005, 16), stainlessMat);
     toggleBase.rotation.x = Math.PI * 0.5;
     toggleBase.position.set(-0.008, 0, -0.088);
@@ -198,7 +198,7 @@ export class LaserEmitterMesh {
     this.toggleSwitch = toggleLever;
     barrelGroup.add(toggleLever);
 
-    // Wavelength Status Indicator LED
+    // 波长状态指示 LED
     const ledGeo = new THREE.SphereGeometry(0.0035, 16, 16);
     this.ledMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     this.ledMesh = new THREE.Mesh(ledGeo, this.ledMat);
@@ -209,7 +209,7 @@ export class LaserEmitterMesh {
     this.ledLight.position.set(0.008, 0, -0.092);
     barrelGroup.add(this.ledLight);
 
-    // Hazard Warning Label on top side of barrel
+    // 镜筒上表面的激光辐射危险警告标签
     const warnTex = this.createWarningLabel();
     const labelGeo = new THREE.PlaneGeometry(0.038, 0.019);
     const labelMat = new THREE.MeshBasicMaterial({ map: warnTex, side: THREE.DoubleSide });

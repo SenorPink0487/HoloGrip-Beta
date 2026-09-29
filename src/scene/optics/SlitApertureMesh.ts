@@ -42,20 +42,20 @@ export class SlitApertureMesh {
       roughness: 0.25,
     });
 
-    // 1. Stainless steel post (Ø12mm)
+    // 1. 不锈钢安装立柱（直径 12mm）
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.14, 24), postMat);
     post.position.y = 0.07;
     post.castShadow = true;
     post.userData = { isSlitFixture: true, slitFixture: this };
     this.group.add(post);
 
-    // 2. Optical mount collar
+    // 2. 光学固定套筒
     const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.024, 24), frameMat);
     collar.position.y = 0.14;
     collar.userData = { isSlitFixture: true, slitFixture: this };
     this.group.add(collar);
 
-    // 3. 50mm square blackened slide holder frame with center circular aperture (Ø25mm)
+    // 3. 50mm 方形发黑贴片夹具边框，带中心圆形通光孔径（直径 25mm）
     const frameGeo = new THREE.BoxGeometry(0.068, 0.072, 0.012);
     const frame = new THREE.Mesh(frameGeo, frameMat);
     frame.position.y = 0.186;
@@ -63,14 +63,14 @@ export class SlitApertureMesh {
     frame.userData = { isSlitSlide: true, slitFixture: this };
     this.group.add(frame);
 
-    // Circular inner window cutout
+    // 内圈通光窗口切口
     const holeGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.014, 32);
     const hole = new THREE.Mesh(holeGeo, new THREE.MeshBasicMaterial({ color: 0x020409 }));
     hole.rotation.x = Math.PI * 0.5;
     hole.position.set(0, 0.186, 0);
     this.group.add(hole);
 
-    // 4. Chrome retention spring clips (2 clips)
+    // 4. 镀铬压片弹簧夹（2 组弹簧夹）
     const clipGeo = new THREE.BoxGeometry(0.006, 0.018, 0.003);
     const clip1 = new THREE.Mesh(clipGeo, postMat);
     clip1.position.set(-0.026, 0.186, 0.007);
@@ -80,7 +80,7 @@ export class SlitApertureMesh {
     clip2.position.set(0.026, 0.186, 0.007);
     this.group.add(clip2);
 
-    // 5. Precision micrometer thimble adjustment drum on top (微分微调鼓轮)
+    // 5. 顶部精密微分微调鼓轮
     const micrometerGroup = new THREE.Group();
     micrometerGroup.position.set(0, 0.228, 0);
 
@@ -102,16 +102,16 @@ export class SlitApertureMesh {
     canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
 
-    // Blackened chrome-on-glass slide background
+    // 玻璃基底镀黑铬遮光背底
     ctx.fillStyle = '#0f1114';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Metal rim border
+    // 金属压边外框
     ctx.strokeStyle = '#2b313a';
     ctx.lineWidth = 8;
     ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
 
-    // Header label
+    // 顶部标题标注
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, monospace';
     ctx.textAlign = 'center';
@@ -125,7 +125,7 @@ export class SlitApertureMesh {
       ctx.fillStyle = '#8b949e';
       ctx.fillText(`d = ${this.slitDistanceMm.toFixed(2)} mm  |  a = ${this.slitWidthMm.toFixed(2)} mm`, cx, 96);
 
-      // Microscopic double-slit visual representation in center
+      // 中心微观双缝放大示意结构
       ctx.fillStyle = '#000000';
       ctx.beginPath();
       ctx.arc(cx, cy, 110, 0, Math.PI * 2);
@@ -134,7 +134,7 @@ export class SlitApertureMesh {
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Slits (two bright vertical lines)
+      // 双透光狭缝（两条垂直明线）
       ctx.strokeStyle = '#00f7ff';
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -157,7 +157,7 @@ export class SlitApertureMesh {
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Single vertical slit
+      // 单条垂直透光狭缝
       ctx.strokeStyle = '#00f7ff';
       ctx.lineWidth = 6;
       ctx.beginPath();
@@ -178,7 +178,7 @@ export class SlitApertureMesh {
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Multi-line grating lines
+      // 多刻线光栅透光缝线
       ctx.strokeStyle = 'rgba(0, 247, 255, 0.8)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();

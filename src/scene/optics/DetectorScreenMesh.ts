@@ -36,35 +36,35 @@ export class DetectorScreenMesh {
   }
 
   private createMount(): void {
-    // Laboratory brushed stainless steel post
+    // 实验室级拉丝不锈钢立柱
     const postMat = new THREE.MeshStandardMaterial({
       color: 0xf1f5f9,
       metalness: 0.90,
       roughness: 0.16,
     });
 
-    // High-grade satin clear-anodized aluminum frame
+    // 高级本色阳极氧化喷砂铝合金边框
     const frameMat = new THREE.MeshStandardMaterial({
       color: 0xdce4ed,
       metalness: 0.70,
       roughness: 0.28,
     });
 
-    // Contrasting knurled titanium lock thumbscrew
+    // 滚花钛灰对比色锁紧手拧螺钉
     const knobMat = new THREE.MeshStandardMaterial({
       color: 0x475569,
       metalness: 0.75,
       roughness: 0.25,
     });
 
-    // 1. Ø12mm Stainless Steel Mounting Post
+    // 1. 直径 12mm 不锈钢安装立柱
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.14, 24), postMat);
     post.position.y = 0.07;
     post.castShadow = true;
     post.userData = { isDetectorScreen: true, screen: this };
     this.group.add(post);
 
-    // 2. Post collar mount clamp
+    // 2. 立柱套筒固定夹
     const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.024, 24), frameMat);
     collar.position.y = 0.122;
     collar.castShadow = true;
@@ -75,7 +75,7 @@ export class DetectorScreenMesh {
     clampScrew.position.set(0.015, 0.122, 0);
     this.group.add(clampScrew);
 
-    // 3. Precision slim perimeter bezel frame support behind screen
+    // 3. 屏幕后方精密超窄边框支撑架
     const frame = new THREE.Mesh(
       new THREE.BoxGeometry(this.screenWidth + 0.010, this.screenHeight + 0.010, 0.004),
       frameMat
@@ -101,7 +101,7 @@ export class DetectorScreenMesh {
     this.screenTexture = new THREE.CanvasTexture(this.screenCanvas);
     this.screenTexture.colorSpace = THREE.SRGBColorSpace;
 
-    // Matte white diffuse projection material (DoubleSide for crisp visibility from all viewing angles)
+    // 哑光漫反射白色投影材质（双面渲染，确保全视角清晰可见）
     const screenMat = new THREE.MeshBasicMaterial({
       map: this.screenTexture,
       side: THREE.DoubleSide,
@@ -113,7 +113,7 @@ export class DetectorScreenMesh {
     );
     this.screenMesh.name = 'DetectorScreen';
     this.screenMesh.userData = { isDetectorScreen: true, screen: this };
-    // Positioned flush at front face
+    // 紧贴前面板平齐放置
     this.screenMesh.position.set(0, 0.186, -0.001);
     this.group.add(this.screenMesh);
   }
@@ -134,20 +134,20 @@ export class DetectorScreenMesh {
     });
 
     const meterGroup = new THREE.Group();
-    // Flush-mounted neatly right beneath the screen on the mounting post
+    // 平齐安装于屏幕正下方的安装立柱上
     meterGroup.position.set(0, 0.114, 0.001);
 
-    // Slim compact housing bar
+    // 超薄紧凑型外壳条
     const housing = new THREE.Mesh(new THREE.BoxGeometry(0.108, 0.024, 0.010), meterHousingMat);
     housing.castShadow = true;
     housing.userData = { isDetectorScreen: true, screen: this };
     meterGroup.add(housing);
 
-    // Integrated OLED readout window
+    // 集成式 OLED 读数显示窗
     const dispMat = new THREE.MeshBasicMaterial({ map: this.digitalDisplayTex });
     this.digitalDisplayMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.100, 0.018), dispMat);
     this.digitalDisplayMesh.position.set(0, 0, -0.0051);
-    this.digitalDisplayMesh.rotation.y = Math.PI; // Face front towards laser
+    this.digitalDisplayMesh.rotation.y = Math.PI; // 朝向前方迎光面（正对激光器）
     this.digitalDisplayMesh.userData = { isDetectorScreen: true, screen: this };
     meterGroup.add(this.digitalDisplayMesh);
 
@@ -164,20 +164,20 @@ export class DetectorScreenMesh {
     const cx = w * 0.5;
     const cy = h * 0.5;
 
-    // 1. Realistic university lab matte white projection surface (off-white satin plate)
+    // 1. 真实大学实验室哑光白投影屏面（暖白缎面标靶板）
     ctx.fillStyle = '#f6f8fb';
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Precision plate border
+    // 2. 精密面板边框
     ctx.strokeStyle = '#475569';
     ctx.lineWidth = 3;
     ctx.strokeRect(3, 3, w - 6, h - 6);
 
-    // 3. Fine millimeter grid (1024px / 160mm = 6.4 px/mm -> 32px per 5mm, 64px per 10mm)
+    // 3. 精细毫米标尺网格（1024px / 160mm = 6.4 px/mm，即每 5mm 对应 32px，每 10mm 对应 64px）
     const step5mm = 32;
     const step10mm = 64;
 
-    // Minor 5mm lines
+    // 5mm 次刻度线
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
     ctx.lineWidth = 1.0;
     for (let x = cx % step5mm; x < w; x += step5mm) {
@@ -193,7 +193,7 @@ export class DetectorScreenMesh {
       ctx.stroke();
     }
 
-    // Major 10mm lines
+    // 10mm 主刻度线
     ctx.strokeStyle = 'rgba(100, 116, 139, 0.45)';
     ctx.lineWidth = 1.4;
     for (let x = cx % step10mm; x < w; x += step10mm) {
@@ -209,7 +209,7 @@ export class DetectorScreenMesh {
       ctx.stroke();
     }
 
-    // High-contrast Center Coordinate Crosshairs (X & Y axes)
+    // 高对比度中心十字坐标分划线（X 与 Y 轴）
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
@@ -219,7 +219,7 @@ export class DetectorScreenMesh {
     ctx.lineTo(w, cy);
     ctx.stroke();
 
-    // Graduation ticks along center crosshairs
+    // 中心十字分划线刻度标记
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1.8;
     for (let x = cx - step10mm * 7; x <= cx + step10mm * 7; x += step10mm) {
@@ -235,7 +235,7 @@ export class DetectorScreenMesh {
       ctx.stroke();
     }
 
-    // Clear technical labels in corners
+    // 角落技术参数文字标注
     ctx.fillStyle = '#64748b';
     ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", monospace';
     ctx.fillText('MATTE PROJECTION SCREEN · 1 div = 5.0 mm', 22, h - 22);
@@ -245,7 +245,7 @@ export class DetectorScreenMesh {
   }
 
   /**
-   * Fast blit of pre-rendered reticle grid (< 0.02ms) with fallback for non-blit test environments
+   * 快速绘制预渲染的分划板网格（小于 0.02ms），包含针对非绘图测试环境的回退逻辑
    */
   private drawReticleGrid(): void {
     if (this.gridCanvas && typeof this.screenCtx.drawImage === 'function') {
@@ -270,7 +270,7 @@ export class DetectorScreenMesh {
   }
 
   /**
-   * Render real-time optical pattern on screen
+   * 在屏上实时渲染光学光斑与干涉条纹图样
    */
   public renderFringesPattern(params: {
     mode: 'spot' | 'double_slit' | 'single_slit' | 'grating' | 'polarization' | 'spectrum';
@@ -304,7 +304,7 @@ export class DetectorScreenMesh {
     const rgbStr = `rgba(${rVal}, ${gVal}, ${bVal}`;
 
     if (params.mode === 'spot' || params.mode === 'polarization') {
-      // Gaussian laser spot on matte white surface
+      // 哑光白色屏面上的高斯激光光斑
       const r = 28;
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.2);
       grad.addColorStop(0, `${rgbStr}, ${intensity * 0.95})`);
@@ -317,28 +317,28 @@ export class DetectorScreenMesh {
       ctx.arc(cx, cy, r * 2.2, 0, Math.PI * 2);
       ctx.fill();
     } else if (params.mode === 'spectrum') {
-      // Physical continuous rainbow dispersion spectrum projected on white lab plate
+      // 投射在白板上的物理连续彩虹色散光谱
       const bandCenter = cx + 80;
       const bandWidth = 280;
       const leftX = bandCenter - bandWidth * 0.5;
       const rightX = bandCenter + bandWidth * 0.5;
 
-      // 1. Continuous rainbow dispersion gradient (Red to Violet)
+      // 1. 连续彩虹色散渐变（红至紫）
       const grad = ctx.createLinearGradient(leftX, 0, rightX, 0);
       grad.addColorStop(0.00, 'rgba(235, 30, 30, 0.0)');
-      grad.addColorStop(0.08, 'rgba(235, 30, 30, 0.94)'); // Red (~680nm)
-      grad.addColorStop(0.22, 'rgba(245, 120, 0, 0.92)'); // Orange (~610nm)
-      grad.addColorStop(0.38, 'rgba(235, 195, 0, 0.95)'); // Yellow (~575nm)
-      grad.addColorStop(0.52, 'rgba(25, 185, 60, 0.92)'); // Green (~530nm)
-      grad.addColorStop(0.68, 'rgba(0, 180, 225, 0.92)'); // Cyan (~480nm)
-      grad.addColorStop(0.82, 'rgba(35, 75, 240, 0.95)'); // Blue (~440nm)
-      grad.addColorStop(0.94, 'rgba(135, 30, 230, 0.92)');// Violet (~405nm)
+      grad.addColorStop(0.08, 'rgba(235, 30, 30, 0.94)'); // 红光 (~680nm)
+      grad.addColorStop(0.22, 'rgba(245, 120, 0, 0.92)'); // 橙光 (~610nm)
+      grad.addColorStop(0.38, 'rgba(235, 195, 0, 0.95)'); // 黄光 (~575nm)
+      grad.addColorStop(0.52, 'rgba(25, 185, 60, 0.92)'); // 绿光 (~530nm)
+      grad.addColorStop(0.68, 'rgba(0, 180, 225, 0.92)'); // 青光 (~480nm)
+      grad.addColorStop(0.82, 'rgba(35, 75, 240, 0.95)'); // 蓝光 (~440nm)
+      grad.addColorStop(0.94, 'rgba(135, 30, 230, 0.92)');// 紫光 (~405nm)
       grad.addColorStop(1.00, 'rgba(135, 30, 230, 0.0)');
 
       ctx.fillStyle = grad;
       ctx.fillRect(leftX, cy - 120, bandWidth, 240);
 
-      // 2. Soft vertical boundary attenuation for realistic projected beam profile
+      // 2. 模拟真实光束轮廓的垂直边界柔和衰减
       const vGrad = ctx.createLinearGradient(0, cy - 120, 0, cy + 120);
       vGrad.addColorStop(0, 'rgba(246, 248, 251, 1.0)');
       vGrad.addColorStop(0.20, 'rgba(246, 248, 251, 0.0)');
@@ -347,7 +347,7 @@ export class DetectorScreenMesh {
       ctx.fillStyle = vGrad;
       ctx.fillRect(leftX, cy - 120, bandWidth, 240);
     } else if (params.mode === 'double_slit') {
-      // Analytical Young's double-slit interference pattern (bilateral symmetry optimized)
+      // 解析法计算杨氏双缝干涉条纹（双侧对称性优化）
       const d = (params.slitDistanceMm || 0.25) * 1e-3;
       const a = (params.slitWidthMm || 0.04) * 1e-3;
       const L = params.screenDistanceM || 1.0;
@@ -375,7 +375,7 @@ export class DetectorScreenMesh {
         }
       }
 
-      // Soft vertical boundary attenuation for realistic projected beam profile
+      // 模拟真实光束轮廓的垂直边界柔和衰减
       const vGrad = ctx.createLinearGradient(0, cy - 140, 0, cy + 140);
       vGrad.addColorStop(0, 'rgba(246, 248, 251, 1.0)');
       vGrad.addColorStop(0.20, 'rgba(246, 248, 251, 0.0)');
@@ -383,7 +383,7 @@ export class DetectorScreenMesh {
       vGrad.addColorStop(1, 'rgba(246, 248, 251, 1.0)');
       ctx.fillStyle = vGrad;
     } else if (params.mode === 'single_slit') {
-      // Fraunhofer single-slit pattern (bilateral symmetry optimized)
+      // 夫琅禾费单缝衍射图样（双侧对称性优化）
       const a = (params.slitWidthMm || 0.05) * 1e-3;
       const L = params.screenDistanceM || 1.0;
       const lambda = wavelength * 1e-9;
@@ -408,7 +408,7 @@ export class DetectorScreenMesh {
         }
       }
 
-      // Soft vertical boundary attenuation for realistic projected beam profile
+      // 模拟真实光束轮廓的垂直边界柔和衰减
       const vGrad = ctx.createLinearGradient(0, cy - 140, 0, cy + 140);
       vGrad.addColorStop(0, 'rgba(246, 248, 251, 1.0)');
       vGrad.addColorStop(0.20, 'rgba(246, 248, 251, 0.0)');
@@ -417,7 +417,7 @@ export class DetectorScreenMesh {
       ctx.fillStyle = vGrad;
       ctx.fillRect(0, cy - 140, w, 280);
     } else if (params.mode === 'grating') {
-      // Diffraction grating spectral orders
+      // 衍射光栅分光光谱级次
       const gratingLines = params.gratingLinesPerMm || 300;
       const d = 1e-3 / gratingLines;
       const lambda = wavelength * 1e-9;
@@ -460,7 +460,7 @@ export class DetectorScreenMesh {
   }
 
   /**
-   * High sensitivity 32-bit FNV-1a buffer hash to accurately detect fringe alterations without string serialization
+   * 高灵敏度 32 位 FNV-1a 缓冲区哈希，无需字符串序列化即可精确检测条纹变化
    */
   private computeBufferHash(buf: Float32Array): number {
     let h = 2166136261 >>> 0;
@@ -473,7 +473,7 @@ export class DetectorScreenMesh {
   }
 
   /**
-   * Render fringe intensity pattern directly from Multi-Core Worker calculation buffer
+   * 直接从多核 Worker 计算缓冲区渲染条纹光强图样
    */
   public renderFringesFromBuffer(intensityBuffer: Float32Array, wavelengthNm: number, intensity = 1.0): void {
     const bLen = intensityBuffer.length;
@@ -516,7 +516,7 @@ export class DetectorScreenMesh {
   }
 
   /**
-   * Toggle Virtual Vernier Caliper Measurement Tool
+   * 切换虚拟游标卡尺测量工具
    */
   public toggleCalipers(): boolean {
     this.showCalipers = !this.showCalipers;
@@ -526,7 +526,7 @@ export class DetectorScreenMesh {
   }
 
   /**
-   * Draw high precision virtual vernier calipers on the screen
+   * 在屏上绘制高精度虚拟游标卡尺指示线
    */
   private drawCalipersOverlay(fringeSpacingMm: number): void {
     const ctx = this.screenCtx;
@@ -542,7 +542,7 @@ export class DetectorScreenMesh {
     const x1 = cx - spanPx * 0.5;
     const x2 = cx + spanPx * 0.5;
 
-    // Dual vermilion precision measurement lines
+    // 双朱红色精密测量标线
     ctx.strokeStyle = '#dc2626';
     ctx.lineWidth = 2.4;
     if (typeof ctx.setLineDash === 'function') {
@@ -559,24 +559,24 @@ export class DetectorScreenMesh {
       ctx.setLineDash([]);
     }
 
-    // Caliper horizontal dimension line with arrows
+    // 带箭头的卡尺水平尺寸线
     const arrowY = cy - 170;
     ctx.strokeStyle = '#dc2626';
     ctx.lineWidth = 2.0;
     ctx.beginPath();
     ctx.moveTo(x1, arrowY);
     ctx.lineTo(x2, arrowY);
-    // Left arrow
+    // 左箭头
     ctx.moveTo(x1 + 8, arrowY - 5);
     ctx.lineTo(x1, arrowY);
     ctx.lineTo(x1 + 8, arrowY + 5);
-    // Right arrow
+    // 右箭头
     ctx.moveTo(x2 - 8, arrowY - 5);
     ctx.lineTo(x2, arrowY);
     ctx.lineTo(x2 - 8, arrowY + 5);
     ctx.stroke();
 
-    // Measurement badge box (clean laboratory white pill with crisp border)
+    // 测量读数标牌框（清晰边框的实验室白胶囊背景）
     ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     ctx.strokeStyle = '#dc2626';
     ctx.lineWidth = 1.8;
@@ -600,10 +600,10 @@ export class DetectorScreenMesh {
   }
 
   /**
-   * Update Integrated Lab Digital Radiometer Display
+   * 更新集成式实验室数字光功率计读数显示
    */
   public updateMeter(params: {
-    intensityRatio: number; // 0 to 1
+    intensityRatio: number; // 0 至 1 相对光强比
     wavelengthNm: number;
     fringeSpacingMm?: number;
   }): void {
@@ -615,21 +615,21 @@ export class DetectorScreenMesh {
     const w = this.digitalDisplayCanvas.width;
     const h = this.digitalDisplayCanvas.height;
 
-    // Dark technical OLED background
+    // 深色科技感 OLED 显示屏背景
     ctx.fillStyle = '#0b0f14';
     ctx.fillRect(0, 0, w, h);
 
-    // Slim accent border
+    // 细边框线
     ctx.strokeStyle = '#2d3748';
     ctx.lineWidth = 2;
     ctx.strokeRect(2, 2, w - 4, h - 4);
 
-    // Header title
+    // 顶部标题
     ctx.fillStyle = '#94a3b8';
     ctx.font = 'bold 18px monospace';
     ctx.fillText('OPTICAL POWER SENSOR', 18, 28);
 
-    // Relative Power Readout
+    // 相对光功率读数
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 36px monospace';
     const percent = (params.intensityRatio * 100).toFixed(1);
@@ -639,7 +639,7 @@ export class DetectorScreenMesh {
     ctx.font = '16px monospace';
     ctx.fillText('I / I₀', 156, 68);
 
-    // Secondary metrics: Wavelength & Spacing
+    // 次级物理量：波长与条纹间距
     ctx.fillStyle = '#e2e8f0';
     ctx.font = 'bold 20px monospace';
     ctx.fillText(`λ: ${params.wavelengthNm.toFixed(0)}nm`, 230, 48);
@@ -658,7 +658,7 @@ export class DetectorScreenMesh {
       ctx.fillText(`STATUS: OK`, 230, 76);
     }
 
-    // Mini signal bar at bottom
+    // 底部微型信号进度条
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(18, 92, w - 36, 12);
 

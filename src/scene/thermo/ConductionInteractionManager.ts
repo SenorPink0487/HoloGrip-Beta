@@ -63,7 +63,7 @@ export class ConductionInteractionManager {
         return true;
       }
       if (obj === this.callbacks.bench.rodMesh) {
-        // Direct click on rod jumps probe to hit.point.x
+        // 直接点击金属棒可使探针快速跳转至 hit.point.x 位置
         const norm = (hit.point.x - this.callbacks.bench.rodStartX) / this.callbacks.bench.rodLength;
         this.callbacks.onProbeDrag(THREE.MathUtils.clamp(norm, 0, 1));
         this.isDraggingProbe = true;
@@ -81,7 +81,7 @@ export class ConductionInteractionManager {
   public onPointerMove(event: PointerEvent, _hit: THREE.Intersection | null, _context: ExperimentContext): void {
     if (this.isDraggingProbe) {
       const dx = event.clientX - this.startClientX;
-      // Screen pixel delta mapped to normalized range
+      // 将屏幕像素位移映射到归一化区间
       const sensitivity = 0.0035;
       const newNorm = THREE.MathUtils.clamp(this.startNormX + dx * sensitivity, 0.0, 1.0);
       this.callbacks.onProbeDrag(newNorm);

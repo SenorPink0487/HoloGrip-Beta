@@ -20,7 +20,7 @@ interface GasLook {
   mistColor: number;
 }
 
-/** Per-gas motion. Radii are metres inside a 14 cm beaker. */
+/** 各类气体的运动参数（半径单位为米，基于 14cm 烧杯内径）。 */
 const GAS_LOOK: Record<GasKind, GasLook> = {
   H2: {
     minR: 0.006,
@@ -93,7 +93,7 @@ function createSoftDiscTexture(): THREE.CanvasTexture {
 export class ReactionEffects {
   public readonly group = new THREE.Group();
 
-  // Pouring stream
+  // 倾倒液流
   private pourStream: THREE.Mesh;
   private pourStreamMat: THREE.MeshBasicMaterial;
   private pourSplashParticles: THREE.Points;
@@ -108,7 +108,7 @@ export class ReactionEffects {
   private pourTimer = 0;
   private pourColor = new THREE.Color(0xffffff);
 
-  // Gas: instanced spheres released as nucleation packets
+  // 气体效果：以成核气泡包形式释放的实例化球体
   private bubbleMesh: THREE.InstancedMesh;
   private bubbleMat: THREE.MeshPhysicalMaterial;
   private readonly maxBubbles = 84;
@@ -128,7 +128,7 @@ export class ReactionEffects {
   private popKick = 0;
   private readonly scratch = new THREE.Object3D();
 
-  // Vapor leaving the mouth, and rings where bubbles burst
+  // 溢出杯口的烟雾，以及气泡破裂产生的涟漪光环
   private mistParticles: THREE.Points;
   private mistPositions: Float32Array;
   private mistSpeeds: Float32Array;
@@ -138,7 +138,7 @@ export class ReactionEffects {
   private ripples: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number; maxLife: number }[] = [];
   private ripplesActive = false;
 
-  // Precipitating flakes + a soft cloud
+  // 沉淀晶体微粒与柔和沉淀物云雾
   private precipParticles: THREE.Points;
   private precipPositions: Float32Array;
   private precipSpeeds: Float32Array;
@@ -151,7 +151,7 @@ export class ReactionEffects {
   private precipCloudMat: THREE.MeshBasicMaterial;
   private precipCloudLife = 0;
 
-  // Solution color flash
+  // 溶液颜色突变辉光
   private colorBloom: THREE.Mesh;
   private colorBloomMat: THREE.MeshBasicMaterial;
   private colorBloomLife = 0;
@@ -159,7 +159,7 @@ export class ReactionEffects {
   private watchedColor = new THREE.Color(0xd7f3ff);
   private colorWatchReady = false;
 
-  // Sodium burn effect
+  // 钠燃烧反应效果
   private sodiumBall: THREE.Mesh;
   private sodiumLight: THREE.PointLight;
   private sodiumSparkParticles: THREE.Points;
@@ -172,7 +172,7 @@ export class ReactionEffects {
   private sodiumAngle = 0;
   private readonly maxSodiumSparks = 70;
 
-  // Exotherm glow light + rising heat wisps
+  // 放热反应发光与上升热浪烟气
   private heatGlowLight: THREE.PointLight;
   private heatWisps: THREE.Points;
   private heatWispPositions: Float32Array;
@@ -483,7 +483,7 @@ export class ReactionEffects {
     this.group.add(this.heatWisps);
   }
 
-  /** Local XZ on the receiving liquid where the stream lands. */
+  /** 液流落入受液杯液面的局部 XZ 坐标。 */
   public setPourImpact(x: number, z: number): void {
     const limit = this.beaker.getLiquidRadius() * 0.72;
     const radius = Math.hypot(x, z);
