@@ -149,7 +149,7 @@ export class VisionModal {
 
     this.element.innerHTML = `
       <div class="vision-window-frame">
-        <!-- Top Apple Vision Pro Glass Window Bar -->
+        <!-- Top Spatial Glass Window Bar -->
         <div class="vision-window-header">
           <div class="header-left">
             <button class="vision-window-btn btn-back hidden" id="btn-window-back" title="返回">

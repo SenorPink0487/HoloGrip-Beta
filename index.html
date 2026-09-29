@@ -66,7 +66,7 @@
       touch-action: none;
     }
 
-    /* Apple 磨砂玻璃通用样式 */
+    /* 磨砂玻璃通用样式 */
     .hud-interactive {
       pointer-events: auto;
     }
@@ -167,7 +167,7 @@
       transform: scale(1.05);
     }
 
-    /* 实验侧边栏抽屉 - Apple 边栏风格 */
+    /* 实验侧边栏抽屉 - 极简边栏风格 */
     #experiment-drawer {
       position: fixed;
       top: 0;
@@ -409,7 +409,7 @@
       text-align: center;
     }
 
-    /* 性能监控浮层（Apple Metal HUD 风格 - 左上角） */
+    /* 性能监控浮层（极简 HUD 风格 - 左上角） */
     #perf-overlay {
       position: fixed;
       top: calc(16px + env(safe-area-inset-top, 0px));
@@ -602,7 +602,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS 准星指示器样式 - Apple 视盘光标 */
+    /* 空间准星指示器样式 - 视盘光标 */
     /* ========================================================== */
     #vision-crosshair {
       position: fixed;
@@ -673,7 +673,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS 3D 空间视窗（Apple Vision Pro 流体玻璃） */
+    /* 3D 空间视窗（现代空间流体玻璃） */
     /* ========================================================== */
     #css3d-container {
       position: absolute;
@@ -771,7 +771,7 @@
       transform: translateX(-50%) translateY(6px);
     }
 
-    /* 空间视窗标题栏 - Apple 半透明胶囊栏 */
+    /* 空间视窗标题栏 - 半透明胶囊栏 */
     .vision-window-header {
       height: 48px;
       padding: 0 16px;
@@ -872,7 +872,7 @@
     }
 
     /* ========================================================== */
-    /* 学科分类选择器样式 - Apple Vision Pro 磁贴设计 */
+    /* 学科分类选择器样式 - 现代空间磁贴设计 */
     /* ========================================================== */
     .vision-discipline-container {
       display: flex;
@@ -993,7 +993,7 @@
       letter-spacing: -0.1px;
     }
 
-    /* 学科专区入口页（物理与数学） - Apple Vision Pro 空状态设计 */
+    /* 学科专区入口页（物理与数学） - 现代空间空状态设计 */
     .vision-sector-page {
       display: flex;
       flex-direction: column;
@@ -1058,7 +1058,7 @@
     }
 
     /* ========================================================== */
-    /* 元素周期表矩阵样式（Apple Vision Pro 极简设计） */
+    /* 元素周期表矩阵样式（现代极简设计） */
     /* ========================================================== */
     .vision-periodic-container {
       position: relative;
@@ -1072,7 +1072,7 @@
       user-select: none;
     }
 
-    /* Apple VisionOS 主页面内容包裹层（就地光学虚化） */
+    /* 空间主页面内容包裹层（就地光学虚化） */
     .periodic-primary-content {
       width: 100%;
       display: flex;
@@ -1105,8 +1105,8 @@
       max-width: 1160px;
     }
 
-    /* Apple VisionOS 冰晶元素单元格（硬件加速，避免逐单元格重复背景模糊） */
-    /* Apple VisionOS 统一单色磨砂水晶元素单元格 */
+    /* 空间冰晶元素单元格（硬件加速，避免逐单元格重复背景模糊） */
+    /* 空间统一单色磨砂水晶元素单元格 */
     .element-cell {
       position: relative;
       border-radius: 14px;
@@ -1168,7 +1168,7 @@
     }
 
     /* ========================================================== */
-    /* Apple Vision Pro 悬浮上下文气泡弹窗（模态流体玻璃） */
+    /* 空间悬浮上下文气泡弹窗（模态流体玻璃） */
     /* ========================================================== */
     .element-popover-overlay {
       position: absolute;
@@ -1202,7 +1202,7 @@
       cursor: default;
       width: 420px;
       max-width: 92%;
-      /* 二级页面：Apple Vision Pro 精细磨砂玻璃 */
+      /* 二级页面：精细磨砂玻璃 */
       background: rgba(24, 28, 40, 0.95);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-top: 1px solid rgba(255, 255, 255, 0.22);
@@ -1451,7 +1451,7 @@
       font-weight: 500;
     }
 
-    /* Apple 灵动岛风格动态提示条 */
+    /* 现代悬浮胶囊风格动态提示条 */
     .vision-hud-toast {
       position: absolute;
       top: 16px;
@@ -1482,7 +1482,7 @@
 
 
     /* ========================================================== */
-    /* 空间状态卡片（Apple 健康 / 仪表盘风格） */
+    /* 空间状态卡片（现代仪表盘风格） */
     /* ========================================================== */
     .vision-status-slot {
       padding: 10px 20px;
@@ -1573,7 +1573,7 @@
       background: rgba(255, 255, 255, 0.22);
     }
 
-    /* 顶部核心指标栏 - Apple Vision Pro 三联指标栏 */
+    /* 顶部核心指标栏 - 三联指标栏 */
     .status-metrics-row {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -1713,7 +1713,7 @@
       transition: left 0.3s ease;
     }
 
-    /* 共享 Apple VisionOS 玻璃材质样式 */
+    /* 共享空间玻璃材质样式 */
     .glass-card {
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1804,7 +1804,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS 烧杯主要成分与浓度展示（遵循 Apple HIG 规范） */
+    /* 烧杯主要成分与浓度展示（遵循现代界面设计规范） */
     /* ========================================================== */
     .vision-status-card.apple-redesign {
       display: flex;
@@ -1816,7 +1816,7 @@
       box-sizing: border-box;
     }
 
-    /* 1. Apple 风格极简顶部导航与状态栏 */
+    /* 1. 现代极简顶部导航与状态栏 */
     .apple-nav-bar {
       display: flex;
       justify-content: space-between;
@@ -2028,7 +2028,7 @@
       }
     }
 
-    /* 2. Apple VisionOS 极简组分细分条 */
+    /* 2. 现代极简组分细分条 */
     .comp-view-mode-bar {
       display: flex;
       align-items: center;
@@ -2148,7 +2148,7 @@
       align-content: start;
     }
 
-    /* Apple 风格溶质卡片 */
+    /* 极简风格溶质卡片 */
     .apple-solute-card {
       position: relative;
       background: rgba(255, 255, 255, 0.05);
@@ -2409,7 +2409,7 @@
     }
 
     /* ========================================================== */
-    /* Apple SF Symbols 矢量图标规范 */
+    /* 矢量图标规范 */
     /* ========================================================== */
     .apple-sf-icon {
       display: inline-block;
@@ -2435,7 +2435,7 @@
     }
 
     /* ========================================================== */
-    /* 元素周期表 Apple Vision Pro 空间工具栏 */
+    /* 元素周期表空间工具栏 */
     /* ========================================================== */
     .periodic-top-bar {
       display: flex;
@@ -2447,7 +2447,7 @@
       margin-bottom: 6px;
     }
 
-    /* Apple Vision Pro 分段控制器 - 烧杯选择器 */
+    /* 空间分段控制器 - 烧杯选择器 */
     .periodic-beaker-tabs {
       display: inline-flex;
       background: rgba(255, 255, 255, 0.08);
@@ -2487,7 +2487,7 @@
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     }
 
-    /* Apple Vision Pro 胶囊徽章 - 常用试剂 */
+    /* 空间胶囊徽章 - 常用试剂 */
     .periodic-mode-badge {
       display: inline-flex;
       align-items: center;
@@ -2505,7 +2505,7 @@
       flex-shrink: 0;
     }
 
-    /* 尾部操作 - Apple 玻璃胶囊 */
+    /* 尾部操作 - 玻璃胶囊 */
     .periodic-analysis-action-btn {
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -2543,7 +2543,7 @@
     }
 
     /* ==========================================================================
-       Apple Vision Pro Spatial Physics Two-Level Hierarchical Navigation (Apple HIG Standard)
+       Spatial Physics Two-Level Hierarchical Navigation (Modern HIG Standard)
        ========================================================================== */
     .vision-physics-discipline {
       width: 100%;
@@ -2568,7 +2568,7 @@
       position: relative;
     }
 
-    /* Apple 极简导航栏 */
+    /* 现代极简导航栏 */
     .physics-nav-bar {
       display: flex;
       align-items: center;
@@ -3147,7 +3147,7 @@
     .legend-line.line-carnot-adi-comp { background: #a855f7; }
 
     /* ========================================================== */
-    /* 立体几何数学统一界面（纯粹 Apple 极简设计） */
+    /* 立体几何数学统一界面（现代极简设计） */
     /* ========================================================== */
     .vision-math-status-card {
       width: 100%;
@@ -3371,7 +3371,7 @@
     }
 
     /* ========================================================== */
-    /* VisionOS 霍尔效应工作台 - 纯粹 Apple 极简设计 */
+    /* 空间霍尔效应工作台 - 现代极简设计 */
     /* ========================================================== */
     .vision-hall-status-card {
       width: 100%;
@@ -3397,7 +3397,7 @@
       gap: 16px;
     }
 
-    /* 1. Apple 风格头部 */
+    /* 1. 现代极简风格头部 */
     .hall-pure-header {
       display: flex;
       justify-content: space-between;
@@ -3476,7 +3476,7 @@
       flex-shrink: 0;
     }
 
-    /* Apple 高精度调节游标 HUD */
+    /* 高精度调节游标 HUD */
     .hall-drag-hud {
       position: absolute;
       transform: translate(-50%, -100%);
@@ -3683,7 +3683,7 @@
       justify-content: center;
     }
 
-    /* 3. Apple 控制控制台（载流子类型切换 + 参数微调滑杆） */
+    /* 3. 控制控制台（载流子类型切换 + 参数微调滑杆） */
     .hall-focus-drawer {
       background: rgba(255, 255, 255, 0.035);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -3904,7 +3904,7 @@
       white-space: nowrap;
     }
 
-    /* 4. Apple 悬浮流体玻璃 Dock 栏 */
+    /* 4. 悬浮流体玻璃 Dock 栏 */
     .hall-pure-toolbar {
       display: flex;
       align-items: center;

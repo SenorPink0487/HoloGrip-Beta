@@ -686,7 +686,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Apple 专业工业设计：一体化黑曜石热力学展板纹理（1536 x 1024）
+   * 专业工业设计：一体化黑曜石热力学展板纹理（1536 x 1024）
    */
   static createWallThermodynamicsBoard(): THREE.CanvasTexture {
     const width = 1536;
@@ -890,7 +890,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Apple 专业工业设计：一体化黑曜石立体几何展板纹理（1536 x 1024）
+   * 专业工业设计：一体化黑曜石立体几何展板纹理（1536 x 1024）
    */
   static createWallStereometryBoard(): THREE.CanvasTexture {
     const width = 1536;
@@ -1091,7 +1091,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Apple 专业工业设计：一体化黑曜石实验室标牌铭牌（1024 x 512）
+   * 专业工业设计：一体化黑曜石实验室标牌铭牌（1024 x 512）
    */
   static createWallSignageTexture(): THREE.CanvasTexture {
     const width = 1024;
@@ -1115,7 +1115,7 @@ export class TextureGenerator {
     ctx.lineWidth = 1.0;
     ctx.stroke();
 
-    // Apple 品牌标识
+    // 品牌图标标识
     ctx.fillStyle = '#f4f6fa';
     ctx.font = '300 48px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.textAlign = 'left';

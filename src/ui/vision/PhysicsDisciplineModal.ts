@@ -374,7 +374,7 @@ export class PhysicsDisciplineModal {
 
     this.element.innerHTML = `
       <div class="physics-level-container physics-level-1">
-        <!-- Apple Minimalist Navigation Header -->
+        <!-- Minimalist Navigation Header -->
         <div class="physics-nav-bar">
           <button class="physics-back-pill" id="btn-crumb-disciplines" title="返回学科选择">
             <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -386,7 +386,7 @@ export class PhysicsDisciplineModal {
           <div class="physics-nav-placeholder"></div>
         </div>
 
-        <!-- 4 Physics Branches Grid (Apple Pure Frosted Tiles) -->
+        <!-- 4 Physics Branches Grid (Pure Frosted Tiles) -->
         <div class="physics-branches-deck">
           <!-- 1. Optics (Ready -> Click to enter Level 2) -->
           <div class="physics-branch-tile ready" id="branch-tile-optics" role="button" tabindex="0" title="进入光学实验">
@@ -474,7 +474,7 @@ export class PhysicsDisciplineModal {
 
     this.element.innerHTML = `
       <div class="physics-level-container physics-level-2">
-        <!-- Apple Minimalist Navigation Header with Back to Physics -->
+        <!-- Minimalist Navigation Header with Back to Physics -->
         <div class="physics-nav-bar">
           <button class="physics-back-pill" id="btn-back-to-physics" title="返回物理学">
             <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">

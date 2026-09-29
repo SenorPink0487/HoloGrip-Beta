@@ -1,10 +1,10 @@
 /* ==========================================================================
-   Apple Human Interface Guidelines (HIG) Touch-Optimized Whiteboard & Dock
-   Designed for iPad / Touchscreen & Apple Pencil (44pt+ Touch Target Standard)
+   Modern HIG Touch-Optimized Whiteboard & Dock
+   Designed for Touchscreen & Stylus (44pt+ Touch Target Standard)
    ========================================================================== */
 
 :root {
-  /* Apple System Palette */
+  /* System Palette */
   --apple-blue: #0071e3;
   --apple-blue-hover: #0077ed;
   --apple-blue-tint: rgba(0, 113, 227, 0.12);
@@ -26,7 +26,7 @@
     0 4px 16px rgba(0, 0, 0, 0.04),
     0 0 0 1px rgba(0, 0, 0, 0.04);
 
-  /* Apple Spring Animation Curves */
+  /* Fluid Spring Animation Curves */
   --apple-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --apple-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -291,7 +291,7 @@ body.lab-returning #touch-controls-layer * {
 }
 
 /* ==========================================================================
-   Whiteboard Canvas Surface (Apple Freeform Warm Minimalist Dot Grid)
+   Whiteboard Canvas Surface (Warm Minimalist Dot Grid)
    ========================================================================== */
 .whiteboard-canvas-layer {
   position: absolute;
@@ -626,8 +626,8 @@ body.lab-returning #touch-controls-layer * {
 }
 
 /* ==========================================================================
-   Touchscreen-Optimized Icon-Only Apple Floating Dock Bar (NO TEXT)
-   56pt+ iPadOS floating app dock icons, generous hit targets
+   Touchscreen-Optimized Icon-Only Floating Dock Bar (NO TEXT)
+   56pt+ floating app dock icons, generous hit targets
    ========================================================================== */
 .apple-dock-container {
   position: fixed;
@@ -809,7 +809,7 @@ body.lab-returning #touch-controls-layer * {
   opacity: 1;
 }
 
-/* Dedicated Apple ID Auth Dialog Specs */
+/* Dedicated Auth Dialog Specs */
 .apple-modal-card.auth-card-mode {
   position: relative;
   width: 390px;
@@ -1153,7 +1153,7 @@ body.lab-returning #touch-controls-layer * {
 }
 
 /* ==========================================================================
-   Auth Panel - Authentic Apple iOS / macOS HIG Design System
+   Auth Panel - Modern HIG Design System
    ========================================================================== */
 .auth-panel {
   display: flex;
@@ -1211,7 +1211,7 @@ body.lab-returning #touch-controls-layer * {
   letter-spacing: -0.1px;
 }
 
-/* Subtle Apple Haptic Micro-Shake */
+/* Subtle Haptic Micro-Shake */
 @keyframes apple-haptic-shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-3.5px); }
@@ -1408,7 +1408,7 @@ body.lab-returning #touch-controls-layer * {
   margin-top: 2px;
 }
 
-/* 5. Apple Inset Grouped Card (iOS Settings & Apple ID signature look) */
+/* 5. Modern Inset Grouped Card (Signature card look) */
 .auth-input-group {
   background: #ffffff;
   border-radius: 14px;
@@ -1549,7 +1549,7 @@ textarea:focus::placeholder {
   -webkit-user-select: text;
 }
 
-/* 6. Auth Primary Action Button - Modern Apple HIG Standard */
+/* 6. Auth Primary Action Button - Modern HIG Standard */
 .auth-submit,
 #auth-submit {
   width: 100%;
@@ -1813,7 +1813,7 @@ textarea:focus::placeholder {
 }
 
 /* ==========================================================================
-   Custom Apple HIG Color Picker Popover (No Default Browser UI)
+   Custom HIG Color Picker Popover (No Default Browser UI)
    ========================================================================== */
 .apple-color-popover {
   position: fixed;
@@ -1911,7 +1911,7 @@ textarea:focus::placeholder {
   transform: scale(1.08);
 }
 
-/* 18 Apple Curated Swatches (6 cols x 3 rows) */
+/* 18 Curated Swatches (6 cols x 3 rows) */
 .color-swatch-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);

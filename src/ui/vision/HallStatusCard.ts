@@ -169,7 +169,7 @@ export class HallStatusCard {
 
     this.element.innerHTML = `
       <div class="hall-pure-container">
-        <!-- 1. Apple Minimal Window Header -->
+        <!-- 1. Minimal Window Header -->
         <div class="hall-pure-header">
           <div class="hall-header-brand">
             <span class="hall-brand-title">霍尔效应</span>
@@ -237,9 +237,9 @@ export class HallStatusCard {
           </div>
         </div>
 
-        <!-- 3. Unified Apple Control Deck (Carrier Type Switch + Parameter Scrubber) -->
+        <!-- 3. Unified Control Deck (Carrier Type Switch + Parameter Scrubber) -->
         <div class="hall-focus-drawer" id="hall-focus-drawer">
-          <!-- Floating Apple Precision Scrubber HUD -->
+          <!-- Floating Precision Scrubber HUD -->
           <div class="hall-drag-hud" id="hall-drag-hud" style="display: none; opacity: 0;">
             <div class="hall-hud-bubble">
               <div class="hall-hud-val" id="hud-val-text">+0.50 T</div>
@@ -318,7 +318,7 @@ export class HallStatusCard {
           </div>
         </div>
 
-        <!-- 4. Apple Floating Glass Dock -->
+        <!-- 4. Floating Glass Dock -->
         <div class="hall-pure-toolbar">
           <div class="hall-dock-capsule">
             <button class="hall-dock-btn active" id="btn-toggle-vectors" title="矢量指示">

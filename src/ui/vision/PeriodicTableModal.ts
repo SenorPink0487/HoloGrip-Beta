@@ -188,7 +188,7 @@ export class PeriodicTableModal {
     this.element.innerHTML = `
       <!-- Primary Periodic Table Content (Recedes and soft-blurs when popover is open) -->
       <div class="periodic-primary-content" id="periodic-primary-content">
-        <!-- Apple Vision Pro Spatial Toolbar -->
+        <!-- Spatial Toolbar -->
         <div class="periodic-top-bar">
           <!-- Target Beaker Segmented Control -->
           <div class="periodic-beaker-tabs" role="tablist" aria-label="目标烧杯选择">
@@ -243,12 +243,12 @@ export class PeriodicTableModal {
         <div class="periodic-grid" id="periodic-elements-grid"></div>
       </div>
 
-      <!-- Apple Contextual Popover Card -->
+      <!-- Contextual Popover Card -->
       <div class="element-popover-overlay hidden" id="element-popover-overlay">
         <div class="element-popover-card" id="element-popover-card"></div>
       </div>
 
-      <!-- Apple Minimalist Toast -->
+      <!-- Minimalist Toast -->
       <div class="vision-hud-toast hidden" id="vision-hud-toast">
         <span class="toast-text" id="toast-text"></span>
       </div>

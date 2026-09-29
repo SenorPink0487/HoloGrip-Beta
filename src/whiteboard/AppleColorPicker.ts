@@ -55,7 +55,7 @@ export class AppleColorPicker {
         </button>
       </div>
 
-      <!-- Apple Preset Swatches (18 colors) -->
+      <!-- Preset Swatches (18 colors) -->
       <div class="color-swatch-grid" id="popover-swatch-grid"></div>
 
       <!-- Hue Rainbow Slider -->

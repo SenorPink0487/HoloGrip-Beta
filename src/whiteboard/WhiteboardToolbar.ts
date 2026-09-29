@@ -103,7 +103,7 @@ export class WhiteboardToolbar {
       colorGrid.appendChild(btn);
     });
 
-    // 自定义仿 Apple 取色器触发按钮（非原生 input）
+    // 自定义极简取色器触发按钮（非原生 input）
     const customPickerBtn = document.createElement('button');
     customPickerBtn.className = 'custom-color-dot-wrapper';
     customPickerBtn.title = '更多自定义颜色 (调色板)';

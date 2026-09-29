@@ -314,7 +314,7 @@ export class FieldStatusCard {
       </style>
 
       <div class="field-hall-unified-container">
-        <!-- 1. Apple Header matching Hall Effect -->
+        <!-- 1. Header matching Hall Effect -->
         <div class="field-hall-header">
           <div class="field-hall-brand">
             <span class="field-hall-title">静电场探索与电力线</span>
@@ -428,7 +428,7 @@ export class FieldStatusCard {
           </div>
         </div>
 
-        <!-- 4. Apple Control Dock matching hall-dock-capsule -->
+        <!-- 4. Control Dock matching hall-dock-capsule -->
         <div class="field-hall-dock">
           <div class="field-hall-dock-capsule">
             <button class="field-hall-action-btn" id="field-btn-add-pos" type="button">

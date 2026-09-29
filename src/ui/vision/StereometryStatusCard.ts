@@ -298,7 +298,7 @@ export class StereometryStatusCard {
   }
 
   /**
-   * 将遥测状态同步至 Apple VisionOS 卡片。
+   * 将遥测状态同步至空间视窗卡片。
    * 保持当前高亮选中的模型卡片与底层模型同步。
    */
   public updateTelemetry(data: StereometryTelemetryData): void {

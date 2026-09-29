@@ -130,7 +130,7 @@ export class TouchController {
     const wrapper = document.createElement('div');
     wrapper.id = 'touch-controls-layer';
     wrapper.innerHTML = `
-      <!-- Bottom-Left: Apple Minimalist Glassmorphic Movement Joystick -->
+      <!-- Bottom-Left: Minimalist Glassmorphic Movement Joystick -->
       <div id="virtual-joystick-base" class="hud-interactive" aria-label="移动摇杆">
         <div class="vj-compass-pip vj-pip-n" title="前"></div>
         <div class="vj-compass-pip vj-pip-s" title="后"></div>
@@ -145,7 +145,7 @@ export class TouchController {
         </div>
       </div>
 
-      <!-- Bottom-Right (Above Launcher): Apple VisionOS Minimalist Elevation Controls -->
+      <!-- Bottom-Right (Above Launcher): Minimalist Elevation Controls -->
       <div id="touch-elevation-controls" class="hud-interactive" role="group" aria-label="视角升降">
         <button id="touch-elevate-up" class="touch-elevate-btn" type="button" aria-label="升高视角" title="升高视角">
           <svg class="touch-elevate-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -160,7 +160,7 @@ export class TouchController {
         </button>
       </div>
 
-      <!-- Bottom-Right: Apple VisionOS Minimalist Spatial Window Capsule Button -->
+      <!-- Bottom-Right: Minimalist Spatial Window Capsule Button -->
       <button id="touch-vision-launcher" class="hud-interactive" type="button" aria-label="全息实验视窗" title="打开全息实验视窗">
         <div class="touch-launcher-content">
           <svg class="touch-launcher-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -174,7 +174,7 @@ export class TouchController {
       </button>
     `;
 
-    // 虚拟摇杆与悬浮视窗启动器的 Apple VisionOS 流体玻璃风格样式
+    // 虚拟摇杆与悬浮视窗启动器的空间流体玻璃风格样式
     const style = document.createElement('style');
     style.id = 'touch-controls-style';
     style.textContent = `

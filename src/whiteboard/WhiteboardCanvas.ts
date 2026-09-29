@@ -60,7 +60,7 @@ export class WhiteboardCanvas {
 
     this.ctx = this.canvas.getContext('2d', {
       alpha: true,
-      desynchronized: true, // 超低延迟 Apple Pencil 级绘制渲染
+      desynchronized: true, // 超低延迟手写笔级绘制渲染
     })!;
 
     this.element.appendChild(this.canvas);
@@ -97,7 +97,7 @@ export class WhiteboardCanvas {
   private setupEvents(): void {
     window.addEventListener('resize', () => this.resize());
 
-    // 指针事件统合支持鼠标、触控屏及 Apple Pencil / 手写笔
+    // 指针事件统合支持鼠标、触控屏及手写笔
     this.canvas.addEventListener('pointerdown', this.onPointerDown.bind(this));
     this.canvas.addEventListener('pointermove', this.onPointerMove.bind(this));
     this.canvas.addEventListener('pointerup', this.onPointerUp.bind(this));

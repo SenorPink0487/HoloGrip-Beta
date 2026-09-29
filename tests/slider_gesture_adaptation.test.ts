@@ -231,7 +231,7 @@ console.log('Test 5: Audit all status cards for bindVisionSlider and isSliderAct
     }
   }
 
-  // Whiteboard AppleColorPicker
+  // Whiteboard ColorPicker
   const pickerCode = fs.readFileSync('src/whiteboard/AppleColorPicker.ts', 'utf-8');
   assert.ok(pickerCode.includes('bindVisionSlider'), 'AppleColorPicker must use bindVisionSlider');
   assert.ok(pickerCode.includes('popover-hue-slider'), 'AppleColorPicker must contain popover-hue-slider');

@@ -42,7 +42,7 @@ export class InductionStatusCard {
     this.element.className = 'vision-hall-status-card hud-interactive';
     this.element.innerHTML = `
       <div class="em-unified-container">
-        <!-- 1. Apple Minimal Window Header matching Hall Effect -->
+        <!-- 1. Minimal Window Header matching Hall Effect -->
         <div class="hall-pure-header">
           <div class="hall-header-brand">
             <span class="hall-brand-title">法拉第电磁感应</span>

@@ -1,9 +1,9 @@
 /**
- * Vision Pro 与触控交互滑块手势辅助工具
+ * 空间悬浮与触控交互滑块手势辅助工具
  * 
  * 提供统一顺滑的连续捏合手势拖拽、44px 触控热区扩展、
  * 吸收 3D 垂直漂移的全局窗口跟踪、防止遥测覆盖的锁定机制，
- * 以及 Apple visionOS 级别的视觉反馈（.is-pinching）。
+ * 以及精细空间手势级别的视觉反馈（.is-pinching）。
  */
 
 export interface VisionSliderOptions {

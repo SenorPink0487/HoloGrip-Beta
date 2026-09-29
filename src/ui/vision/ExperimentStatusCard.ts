@@ -86,7 +86,7 @@ export class ExperimentStatusCard {
     this.element.className = 'vision-status-card apple-redesign hud-interactive';
 
     this.element.innerHTML = `
-      <!-- 1. Apple-Style Clean Top Navigation & Status Bar -->
+      <!-- 1. Clean Top Navigation & Status Bar -->
       <div class="apple-nav-bar">
         <!-- Segmented Picker: 左侧烧杯 / 右侧烧杯 -->
         <div class="apple-segmented-picker" role="tablist" aria-label="烧杯切换">
@@ -154,7 +154,7 @@ export class ExperimentStatusCard {
       </div>
       <p class="mixture-ai-status" id="mixture-ai-status"></p>
 
-      <!-- 2. Apple VisionOS Minimalist Breakdown Strip (全景成分占比条) -->
+      <!-- 2. Minimalist Breakdown Strip (全景成分占比条) -->
       <div class="apple-breakdown-bar-wrap">
         <div class="comp-view-mode-bar">
           <span class="comp-mode-title" id="comp-mode-title">体系成分全息分析 · 化学物质</span>

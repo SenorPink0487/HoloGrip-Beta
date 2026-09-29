@@ -226,7 +226,7 @@ console.log('=== Starting Chemistry Engine Comprehensive Verification ===\n');
   assert(fe3Color.r > fe3Color.b + 0.3, `FeCl3 should have strong red/amber tone: r=${fe3Color.r.toFixed(2)}, b=${fe3Color.b.toFixed(2)}`);
   console.log(`  FeCl3 amber color verified: rgb(${fe3Color.r.toFixed(2)}, ${fe3Color.g.toFixed(2)}, ${fe3Color.b.toFixed(2)})`);
 
-  // 10c. FeSO4 -> light apple/jade green (green exceeds red and blue)
+  // 10c. FeSO4 -> light pale/jade green (green exceeds red and blue)
   engine.reset();
   engine.addReagent('FeSO4', 25);
   const fe2Color = engine.state.liquidColor;
