@@ -2399,19 +2399,21 @@ export class Engine {
       this.reactionEffectsRight.update(delta, this.chemistryEngineRight.state);
     }
 
-    if (this.hud) {
-      this.hud.update(delta);
-    }
-
     if (!this.labEntryActive) {
       this.checkCrosshairIntersection(now);
     }
 
     // Render using ultra-fast native pipeline (100+ FPS) or optional downsampled bloom composer
+    const tRenderStart = performance.now();
     if (this.isPostProcessingActive && this.composer) {
       this.composer.render();
     } else {
       this.renderer.render(this.scene, this.camera);
+    }
+    const renderDuration = performance.now() - tRenderStart;
+
+    if (this.hud) {
+      this.hud.update(delta, renderDuration);
     }
 
     // Only render CSS3D scene when spatial window is open/visible and transforms are dirty

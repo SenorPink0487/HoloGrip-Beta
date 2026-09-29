@@ -9,8 +9,8 @@ import type {
   TrackerTelemetry,
 } from './types.ts';
 
-const TRACKING_FRAME_WIDTH = 320;
-const TRACKING_FRAME_HEIGHT = 240;
+const TRACKING_FRAME_WIDTH = 256;
+const TRACKING_FRAME_HEIGHT = 192;
 
 /**
  * Scale-invariant hysteresis pinch state machine based on HoloPhysics handPoseMath.
@@ -579,7 +579,7 @@ export class HandGestureService {
         this.videoElement.style.left = '0';
         this.videoElement.style.width = '320px';
         this.videoElement.style.height = '240px';
-        this.videoElement.style.opacity = '0.06';
+        this.videoElement.style.opacity = '0';
         this.videoElement.style.pointerEvents = 'none';
         this.videoElement.style.zIndex = '1';
         document.body.appendChild(this.videoElement);

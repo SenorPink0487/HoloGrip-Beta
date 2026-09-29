@@ -838,7 +838,7 @@ await (async () => {
   assert(!serviceCode.includes("zIndex = '-999'"), 'videoElement must not be placed behind page background (zIndex -999) to avoid compositor occlusion culling');
   assert(serviceCode.includes("width = '320px'"), 'videoElement width must be 320px for active compositor hardware decoding');
   assert(serviceCode.includes("height = '240px'"), 'videoElement height must be 240px for active compositor hardware decoding');
-  assert(serviceCode.includes("opacity = '0.06'"), 'videoElement opacity must be 0.06 to prevent compositor occlusion down-throttling');
+  assert(serviceCode.includes("opacity = '0'"), 'videoElement opacity must be 0 to keep user view pristine and eliminate top-left camera overlay');
   assert(serviceCode.includes("zIndex = '1'"), 'videoElement must be on active layer (zIndex 1) to prevent compositor occlusion');
 
   // 2. Verify rAF watchdog loop coordinates with rVFC via lastRvfCallTime
@@ -1117,7 +1117,24 @@ await (async () => {
   console.log('✓ Test 26 passed: Dual-hand simultaneous pinch scales floating window when open verified\n');
 }
 
+// Test 27: Adaptive Hand Scheduling & 256x192 Low-Latency Tracking Invariants
+{
+  console.log('Test 27: Adaptive Hand Scheduling & 256x192 Low-Latency Tracking Invariants');
+  const serviceCode = fs.readFileSync(path.join(rootDir, 'src/vision/HandGestureService.ts'), 'utf-8');
+  assert(serviceCode.includes('TRACKING_FRAME_WIDTH = 256'), 'HandGestureService must downscale tracking frame width to 256 to minimize GPU fillrate');
+  assert(serviceCode.includes('TRACKING_FRAME_HEIGHT = 192'), 'HandGestureService must downscale tracking frame height to 192 to match BlazePalm tensor size');
+
+  const workerCode = fs.readFileSync(path.join(rootDir, 'src/workers/handTracking.worker.ts'), 'utf-8');
+  assert(workerCode.includes('OffscreenCanvas(256, 192)'), 'Worker default canvas must be 256x192 for low-latency WebGL inference');
+  assert(workerCode.includes('setOptions({ numHands: desiredNumHands })'), 'Worker must implement dynamic setOptions for adaptive numHands scheduling');
+  assert(workerCode.includes('consecutiveSingleHandFrames'), 'Worker must track consecutive single hand frames to eliminate 200ms SSD palm scan stalls');
+  assert(workerCode.includes('trackedHandsCount'), 'Worker must track detected hand count for adaptive scheduling');
+
+  console.log('✓ Test 27 passed: Adaptive hand scheduling & 256x192 low-latency tracking verified\n');
+}
+
 console.log('========================================================');
-console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (26/26)!');
+console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (27/27)!');
 console.log('========================================================\n');
+
 

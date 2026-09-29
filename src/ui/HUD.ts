@@ -80,7 +80,7 @@ export class HUD {
     this.drawer.setActiveExperiment('');
   }
 
-  public update(delta: number): void {
-    this.perfOverlay.update(delta);
+  public update(delta: number, renderDuration = 0): void {
+    this.perfOverlay.update(delta, renderDuration);
   }
 }
