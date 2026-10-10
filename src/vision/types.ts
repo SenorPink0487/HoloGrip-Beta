@@ -94,7 +94,11 @@ export type TrackerStatus =
 export interface TrackerTelemetry {
   status: TrackerStatus;
   fps: number;
+  /** Capture start to result delivery, including worker transport. */
   latencyMs: number;
+  /** Time spent inside MediaPipe in the worker. */
+  inferenceMs?: number;
+  captureMs?: number;
   isPinching: boolean;
   isDualPinching?: boolean;
   pinchRatio: number;

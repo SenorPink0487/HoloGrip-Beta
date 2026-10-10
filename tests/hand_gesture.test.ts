@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { OneEuroFilter, PointFilter2D } from '../src/vision/OneEuroFilter.ts';
 import { HandGestureService } from '../src/vision/HandGestureService.ts';
+import { HandTrackingPipeline, type HandTrackingResult, type VideoHandDetector } from '../src/vision/HandTrackingPipeline.ts';
 import type { NormalizedLandmark } from '../src/vision/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -734,16 +735,16 @@ await (async () => {
       status: 'running',
     });
 
-    (service as any).processFrame(true);
+    (service as any).processFrame();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.strictEqual(sent.length, 1);
 
     video.currentTime = 2;
-    (service as any).processFrame(true);
+    (service as any).processFrame();
     assert.strictEqual((service as any).lastVideoCurrentTime, 1);
 
     (service as any).isWorkerBusy = false;
-    (service as any).processFrame(false);
+    (service as any).processFrame();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.strictEqual(sent.length, 2, 'Latest camera frame should be sent immediately after inference');
     assert.strictEqual((service as any).lastVideoCurrentTime, 2);
@@ -777,7 +778,7 @@ await (async () => {
   assert(workerCode.includes('class WebGLRenderingContext'), 'Worker must define distinct WebGLRenderingContext class so fixedGetContext returns WebGL2 context');
   assert(workerCode.includes('ModuleFactory'), 'Worker must preserve ModuleFactory to prevent MediaPipe re-init errors');
   assert(workerCode.includes('document.getElementById'), 'Worker must polyfill document.getElementById for Emscripten target resolution');
-  assert(workerCode.includes('gpuOptions.canvas = defaultWorkerCanvas'), 'Worker must pass explicit canvas to HandLandmarker.createFromOptions for GPU delegate');
+  assert(workerCode.includes('{ canvas }'), 'Worker must give each GPU detector an explicit canvas');
   console.log('✓ Test 18 passed: Worker ES module WASM loading & scope polyfill invariants verified\n');
 }
 
@@ -789,7 +790,7 @@ await (async () => {
   assert(!serviceCode.includes('initMainThread'), 'HandGestureService must not have main-thread fallback initialization');
   assert(!serviceCode.includes('detectForVideo'), 'HandGestureService must never execute detectForVideo on main thread');
   assert(!serviceCode.includes('@mediapipe/tasks-vision'), 'HandGestureService must not import @mediapipe on main thread');
-  assert(serviceCode.includes('processFrame(true)'), 'requestVideoFrameCallback must trigger processFrame with isRvfCallback=true');
+  assert(serviceCode.includes('this.latestVideoFrameTime = metadata.mediaTime'), 'Video callbacks must record camera frame identity independently of the playback clock');
   console.log('✓ Test 19 passed: Main-thread fallback elimination & hardware frame callback invariants verified\n');
 }
 
@@ -846,7 +847,7 @@ await (async () => {
   assert(serviceCode.includes('lastRvfCallTime'), 'startLoop must track lastRvfCallTime to prevent duplicate frame dispatch');
   assert(!serviceCode.includes('>= 120'), 'Watchdog must not enforce 120ms delay which caps frame rate to single digits');
   assert(serviceCode.includes('>= 25'), 'Watchdog must enforce high-cadence <= 25ms delay for 30+ FPS dispatch');
-  assert(serviceCode.includes('hasPendingFrame'), 'HandGestureService must track hasPendingFrame for zero-idle frame dispatch');
+  assert(serviceCode.includes('lastDecodedFrameCount'), 'HandGestureService must use decoded frame counts to prevent replay between camera frames');
 
   // 3. Simulate continuous 30+ FPS dispatch in HandGestureService via watchdog fallback
   const service = new HandGestureService();
@@ -866,10 +867,9 @@ await (async () => {
     // Simulate 30 frames arriving at 33.3ms intervals (1 second of real webcam stream)
     for (let frameIdx = 0; frameIdx < 30; frameIdx++) {
       (service as any).isWorkerBusy = false;
-      // In a real stream, currentTime may stay unchanged for multiple frames
-      // The service must NOT drop frames down to 2 FPS!
+      video.currentTime = frameIdx / 30;
       (service as any).lastFrameSendTime = performance.now() - 30; // 30ms passed
-      (service as any).processFrame(false);
+      (service as any).processFrame();
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
@@ -883,7 +883,8 @@ await (async () => {
     sentFrames.length = 0;
     for (let frameIdx = 0; frameIdx < 30; frameIdx++) {
       (service as any).isWorkerBusy = false;
-      (service as any).processFrame(true);
+      video.currentTime = 1 + frameIdx / 30;
+      (service as any).processFrame();
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
     assert.strictEqual(
@@ -1117,20 +1118,45 @@ await (async () => {
   console.log('✓ Test 26 passed: Dual-hand simultaneous pinch scales floating window when open verified\n');
 }
 
-// Test 27: Adaptive Hand Scheduling & 256x192 Low-Latency Tracking Invariants
+// Test 27: Keep VIDEO graphs alive while discovering a second hand by elapsed time.
 {
-  console.log('Test 27: Adaptive Hand Scheduling & 256x192 Low-Latency Tracking Invariants');
-  const serviceCode = fs.readFileSync(path.join(rootDir, 'src/vision/HandGestureService.ts'), 'utf-8');
-  assert(serviceCode.includes('TRACKING_FRAME_WIDTH = 256'), 'HandGestureService must downscale tracking frame width to 256 to minimize GPU fillrate');
-  assert(serviceCode.includes('TRACKING_FRAME_HEIGHT = 192'), 'HandGestureService must downscale tracking frame height to 192 to match BlazePalm tensor size');
+  console.log('Test 27: Persistent hand tracking graphs and bounded second-hand discovery');
+  const hand = createMockHand([0.45, 0.4, 0], [0.46, 0.4, 0]);
+  const calls: { mode: string; timestamp: number }[] = [];
+  let dualCount = 1;
+  let closes = 0;
+  const detector = (mode: string): VideoHandDetector => ({
+    detectForVideo(_image, timestamp): HandTrackingResult {
+      calls.push({ mode, timestamp });
+      return { landmarks: Array(mode === 'dual' ? dualCount : 1).fill(hand), handedness: [] };
+    },
+    close() { closes++; },
+  });
+  const pipeline = new HandTrackingPipeline(detector('single'), detector('dual'));
+  const image = {} as ImageBitmap;
+  pipeline.detectForVideo(image, 0);
+  for (let t = 10; t < 200; t += 10) pipeline.detectForVideo(image, t);
+  assert.strictEqual(calls.filter(c => c.mode === 'dual').length, 1, 'Single-hand frames must reuse the single graph without rescanning every frame');
 
-  const workerCode = fs.readFileSync(path.join(rootDir, 'src/workers/handTracking.worker.ts'), 'utf-8');
-  assert(workerCode.includes('OffscreenCanvas(256, 192)'), 'Worker default canvas must be 256x192 for low-latency WebGL inference');
-  assert(workerCode.includes('setOptions({ numHands: desiredNumHands })'), 'Worker must implement dynamic setOptions for adaptive numHands scheduling');
-  assert(workerCode.includes('consecutiveSingleHandFrames'), 'Worker must track consecutive single hand frames to eliminate 200ms SSD palm scan stalls');
-  assert(workerCode.includes('trackedHandsCount'), 'Worker must track detected hand count for adaptive scheduling');
+  dualCount = 2;
+  assert.strictEqual(pipeline.detectForVideo(image, 200).landmarks.length, 2, 'Second hand must be discovered by time, regardless of processed frame count');
+  pipeline.detectForVideo(image, 210);
+  pipeline.detectForVideo(image, 220);
+  assert(calls.slice(-3).every(c => c.mode === 'dual'), 'Both hands must be tracked on every frame after discovery');
 
-  console.log('✓ Test 27 passed: Adaptive hand scheduling & 256x192 low-latency tracking verified\n');
+  dualCount = 1;
+  pipeline.detectForVideo(image, 230);
+  pipeline.detectForVideo(image, 240);
+  assert.strictEqual(calls.at(-1)?.mode, 'single', 'Losing the second hand must return to the existing single graph');
+  pipeline.close();
+  assert.strictEqual(closes, 2, 'Both persistent graphs must be released');
+
+  calls.length = 0;
+  const singleOnly = new HandTrackingPipeline(detector('single'), null);
+  for (const t of [0, 33, 1000]) singleOnly.detectForVideo(image, t);
+  assert(calls.every(c => c.mode === 'single'), 'numHands=1 must not need a discovery graph');
+  singleOnly.close();
+  console.log('✓ Test 27 passed: No graph rebuilding, timed discovery, continuous two-hand tracking\n');
 }
 
 console.log('========================================================');

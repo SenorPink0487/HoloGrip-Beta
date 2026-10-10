@@ -1,15 +1,12 @@
 /// <reference lib="webworker" />
 
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+import { HandTrackingPipeline } from '../vision/HandTrackingPipeline.ts';
 
-let handLandmarker: HandLandmarker | null = null;
+let handLandmarker: HandTrackingPipeline | null = null;
 let isInitializing = false;
 let lastTimestamp = -1;
 let activeDelegate: 'GPU' | 'CPU' = 'CPU';
-let baseNumHands = 2;
-let currentConfiguredNumHands = 2;
-let trackedHandsCount = 0;
-let consecutiveSingleHandFrames = 0;
 
 const ctx: DedicatedWorkerGlobalScope = self as any;
 
@@ -146,63 +143,48 @@ ctx.onmessage = async (e: MessageEvent) => {
 
       console.log('[HandTrackingWorker] Initializing HandLandmarker model from:', modelAssetPath);
 
-      if (requestedDelegate === 'CPU') {
-        handLandmarker = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath,
-            delegate: 'CPU',
-          },
-          runningMode: 'VIDEO',
-          numHands: numHands ?? 2,
-          minHandDetectionConfidence: minDetectionConfidence ?? 0.5,
-          minHandPresenceConfidence: minDetectionConfidence ?? 0.5,
-          minTrackingConfidence: minTrackingConfidence ?? 0.5,
-        });
-        activeDelegate = 'CPU';
-        console.log(`[HandTrackingWorker] HandLandmarker initialized with CPU delegate (numHands: ${numHands})`);
-      } else {
-        // 优先尝试绑定明确 Canvas 的 GPU 代理，失败后回退至 CPU 代理
-        try {
-          const gpuOptions: any = {
-            baseOptions: {
-              modelAssetPath,
-              delegate: 'GPU',
-            },
-            runningMode: 'VIDEO',
-            numHands: numHands ?? 2,
+      const createPipeline = async (delegate: 'GPU' | 'CPU') => {
+        const createDetector = (hands: number, canvas: OffscreenCanvas | null) => {
+          const gpuOptions = {
+            baseOptions: { modelAssetPath, delegate },
+            runningMode: 'VIDEO' as const,
+            numHands: hands,
             minHandDetectionConfidence: minDetectionConfidence ?? 0.5,
             minHandPresenceConfidence: minDetectionConfidence ?? 0.5,
             minTrackingConfidence: minTrackingConfidence ?? 0.5,
+            ...(delegate === 'GPU' && canvas ? { canvas } : {}),
           };
-          if (defaultWorkerCanvas) {
-            gpuOptions.canvas = defaultWorkerCanvas;
-          }
+          return HandLandmarker.createFromOptions(vision, gpuOptions);
+        };
 
-          handLandmarker = await HandLandmarker.createFromOptions(vision, gpuOptions);
+        // Fixed graphs preserve their own ROI history and GPU programs. Never
+        // change numHands in the inference loop: it recompiles the entire graph.
+        const single = await createDetector(1, defaultWorkerCanvas);
+        try {
+          const dual = (numHands ?? 2) >= 2
+            ? await createDetector(2, typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(256, 192) : null)
+            : null;
+          return new HandTrackingPipeline(single, dual);
+        } catch (err) {
+          single.close();
+          throw err;
+        }
+      };
+
+      if (requestedDelegate === 'CPU') {
+        handLandmarker = await createPipeline('CPU');
+        activeDelegate = 'CPU';
+      } else {
+        try {
+          handLandmarker = await createPipeline('GPU');
           activeDelegate = 'GPU';
-          console.log(`[HandTrackingWorker] HandLandmarker initialized with GPU delegate (numHands: ${numHands})`);
         } catch (gpuErr) {
-          console.warn('[HandTrackingWorker] GPU delegate failed in worker, falling back to CPU delegate:', gpuErr);
-          handLandmarker = await HandLandmarker.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath,
-              delegate: 'CPU',
-            },
-            runningMode: 'VIDEO',
-            numHands: numHands ?? 2,
-            minHandDetectionConfidence: minDetectionConfidence ?? 0.5,
-            minHandPresenceConfidence: minDetectionConfidence ?? 0.5,
-            minTrackingConfidence: minTrackingConfidence ?? 0.5,
-          });
+          console.warn('[HandTrackingWorker] GPU initialization failed, using CPU:', gpuErr);
+          handLandmarker = await createPipeline('CPU');
           activeDelegate = 'CPU';
-          console.log(`[HandTrackingWorker] HandLandmarker initialized with CPU delegate (numHands: ${numHands})`);
         }
       }
-
-      baseNumHands = numHands ?? 2;
-      currentConfiguredNumHands = baseNumHands;
-      trackedHandsCount = 0;
-      consecutiveSingleHandFrames = 0;
+      lastTimestamp = -1;
 
       isInitializing = false;
       ctx.postMessage({
@@ -218,59 +200,32 @@ ctx.onmessage = async (e: MessageEvent) => {
       });
     }
   } else if (type === 'DETECT') {
-    const { imageBitmap, timestamp } = e.data;
+    const { imageBitmap, timestamp, frameId, sessionId } = e.data;
 
     if (!handLandmarker) {
       if (imageBitmap && typeof imageBitmap.close === 'function') {
         imageBitmap.close();
       }
+      ctx.postMessage({ type: 'DETECT_ERROR', error: 'Tracker is not initialized', timestamp, frameId, sessionId });
       return;
     }
 
     const tStart = performance.now();
 
     try {
-      // 动态自适应手势调度（Adaptive Hand Scheduling）：
-      // 当持续追踪单手时，每帧运行完整 BlazePalm SSD 手掌检测寻找不存在的第二只手会消耗 40-150ms；
-      // 通过动态交替调度 numHands: 1（极速关键点追踪：~5ms）与
-      // numHands: 2（周期性第二只手扫描：每 25 帧触发一次），
-      // 单手追踪可达到 60-120+ FPS，并在伸出第二只手时保持无感知延迟。
-      if (baseNumHands >= 2 && handLandmarker) {
-        let desiredNumHands = baseNumHands;
-        if (trackedHandsCount === 1) {
-          consecutiveSingleHandFrames++;
-          if (consecutiveSingleHandFrames >= 25) {
-            desiredNumHands = 2;
-            consecutiveSingleHandFrames = 0;
-          } else {
-            desiredNumHands = 1;
-          }
-        } else {
-          consecutiveSingleHandFrames = 0;
-        }
-
-        if (desiredNumHands !== currentConfiguredNumHands) {
-          try {
-            if (typeof (handLandmarker as any).setOptions === 'function') {
-              (handLandmarker as any).setOptions({ numHands: desiredNumHands });
-              currentConfiguredNumHands = desiredNumHands;
-            }
-          } catch (_optErr) {}
-        }
-      }
-
       // 严格强制单调递增的时间戳，以满足 MediaPipe VIDEO 模式的不变量要求
       const safeTimestamp = Math.max(lastTimestamp + 1, Math.round(timestamp));
       lastTimestamp = safeTimestamp;
       const results = handLandmarker.detectForVideo(imageBitmap, safeTimestamp);
       const latencyMs = performance.now() - tStart;
-      trackedHandsCount = results.landmarks ? results.landmarks.length : 0;
       if (imageBitmap && typeof imageBitmap.close === 'function') {
         imageBitmap.close();
       }
 
       ctx.postMessage({
         type: 'DETECT_RESULT',
+        frameId,
+        sessionId,
         landmarks: results.landmarks || [],
         handedness: results.handedness || [],
         timestamp: safeTimestamp,
@@ -283,6 +238,8 @@ ctx.onmessage = async (e: MessageEvent) => {
       }
       ctx.postMessage({
         type: 'DETECT_ERROR',
+        frameId,
+        sessionId,
         error: err instanceof Error ? `${err.message}\n${err.stack}` : String(err),
         timestamp,
       });
@@ -293,9 +250,7 @@ ctx.onmessage = async (e: MessageEvent) => {
       handLandmarker = null;
     }
     isInitializing = false;
-    trackedHandsCount = 0;
-    consecutiveSingleHandFrames = 0;
-    currentConfiguredNumHands = baseNumHands;
+    lastTimestamp = -1;
   }
 };
 

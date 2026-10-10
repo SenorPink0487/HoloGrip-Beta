@@ -244,8 +244,12 @@ export class HandGestureService {
   private worker: Worker | null = null;
   private isWorkerReady = false;
   private isWorkerBusy = false;
-  private hasPendingFrame = false;
+  private sessionId = 0;
+  private nextFrameId = 0;
+  private inFlightFrame: { id: number; sessionId: number; startedAt: number; captureMs: number } | null = null;
   private lastVideoCurrentTime = -1;
+  private lastDecodedFrameCount = -1;
+  private latestVideoFrameTime: number | null = null;
   private lastFrameSendTime = 0;
   private lastRvfCallTime = 0;
   private captureCanvas: OffscreenCanvas | null = null;
@@ -270,6 +274,8 @@ export class HandGestureService {
   private lastFpsTimestamp = performance.now();
   private currentFps = 0;
   private lastLatencyMs = 0;
+  private lastInferenceMs = 0;
+  private lastCaptureMs = 0;
   private delegate: 'GPU' | 'CPU' | 'unknown' = 'unknown';
 
   // 双手协同捏合缩放状态
@@ -333,6 +339,8 @@ export class HandGestureService {
       status: this.status,
       fps: this.currentFps,
       latencyMs: this.lastLatencyMs,
+      inferenceMs: this.lastInferenceMs,
+      captureMs: this.lastCaptureMs,
       isPinching: this.rightTracker.isPinching,
       isDualPinching: this.isDualPinchActive,
       pinchRatio: this.lastRightPinchRatio,
@@ -509,16 +517,29 @@ export class HandGestureService {
 
     this.worker.onmessage = (e: MessageEvent) => {
       const { type } = e.data;
+      if (type !== 'DETECT_RESULT' && type !== 'DETECT_ERROR') return;
+      const request = this.inFlightFrame;
+      if (!request || e.data.frameId !== request.id || e.data.sessionId !== request.sessionId) return;
+      this.inFlightFrame = null;
+      this.isWorkerBusy = false;
+
+      // A paused/stopped session may still have a result in transit. It must
+      // release its slot without emitting gestures into the new session.
+      if (this.status !== 'running' || request.sessionId !== this.sessionId) {
+        if (this.status === 'running') this.processFrame();
+        return;
+      }
       if (type === 'DETECT_RESULT') {
-        this.isWorkerBusy = false;
-        this.lastLatencyMs = e.data.latencyMs ?? 0;
+        const now = performance.now();
+        this.lastLatencyMs = now - request.startedAt;
+        this.lastInferenceMs = e.data.latencyMs ?? 0;
+        this.lastCaptureMs = request.captureMs;
         if (e.data.delegate) {
           this.delegate = e.data.delegate;
         }
 
         // 更新每秒帧率 (FPS) 计数器
         this.frameCount++;
-        const now = performance.now();
         const elapsedFps = now - this.lastFpsTimestamp;
         if (elapsedFps >= 500) {
           this.currentFps = Math.round((this.frameCount * 1000) / elapsedFps);
@@ -526,31 +547,23 @@ export class HandGestureService {
           this.lastFpsTimestamp = now;
         }
 
+        // Start capturing the latest camera frame before running UI listeners.
+        this.processFrame();
+
         const landmarksArray = (e.data.landmarks || []) as NormalizedLandmark[][];
         const handednessArray = (e.data.handedness || []) as any[][];
 
         const frame = this.processMultiHands(landmarksArray, handednessArray, e.data.timestamp);
         this.broadcastFrame(frame);
         this.notifyStatus();
-
-        // 当视频时间推进、存在待处理帧或满足保底调度周期时，处理下一帧画面
-        if (this.status === 'running' && this.videoElement && this.videoElement.readyState >= 2) {
-          const nowMs = performance.now();
-          if (
-            this.hasPendingFrame ||
-            this.videoElement.currentTime !== this.lastVideoCurrentTime ||
-            (this.videoFrameCallbackId === null && nowMs - this.lastFrameSendTime >= 25)
-          ) {
-            this.processFrame(false);
-          }
-        }
       } else if (type === 'DETECT_ERROR') {
-        this.isWorkerBusy = false;
         console.warn('[HandGestureService] Worker detection error:', e.data.error);
+        this.processFrame();
       }
     };
 
     this.worker.onerror = (err) => {
+      this.inFlightFrame = null;
       this.isWorkerBusy = false;
       this.status = 'error';
       this.errorMessage = err instanceof Error ? err.message : 'Worker runtime error';
@@ -605,8 +618,10 @@ export class HandGestureService {
       this.currentFps = 0;
       this.lastFpsTimestamp = performance.now();
       this.lastFrameSendTime = 0;
+      this.lastVideoCurrentTime = -1;
+      this.lastDecodedFrameCount = -1;
+      this.latestVideoFrameTime = null;
       this.lastRvfCallTime = 0;
-      this.hasPendingFrame = false;
       this.notifyStatus();
       this.leftTracker.reset();
       this.rightTracker.reset();
@@ -631,6 +646,7 @@ export class HandGestureService {
   public pause(): void {
     if (this.status !== 'running') return;
     this.status = 'paused';
+    this.sessionId++;
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
@@ -639,19 +655,21 @@ export class HandGestureService {
       (this.videoElement as any).cancelVideoFrameCallback(this.videoFrameCallbackId);
       this.videoFrameCallbackId = null;
     }
-    this.isWorkerBusy = false;
-    this.hasPendingFrame = false;
     this.notifyStatus();
   }
 
   public resume(): void {
     if (this.status !== 'paused') return;
     this.status = 'running';
+    this.lastVideoCurrentTime = -1;
+    this.lastDecodedFrameCount = -1;
+    this.latestVideoFrameTime = null;
     this.notifyStatus();
     this.startLoop();
   }
 
   public stop(): void {
+    this.sessionId++;
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
@@ -674,9 +692,9 @@ export class HandGestureService {
       this.videoElement = null;
     }
 
-    this.isWorkerBusy = false;
-    this.hasPendingFrame = false;
     this.lastVideoCurrentTime = -1;
+    this.lastDecodedFrameCount = -1;
+    this.latestVideoFrameTime = null;
     this.lastFrameSendTime = 0;
     this.lastRvfCallTime = 0;
     this.frameCount = 0;
@@ -705,6 +723,8 @@ export class HandGestureService {
   }
 
   private disposeWorker(): void {
+    this.sessionId++;
+    this.inFlightFrame = null;
     if (this.worker) {
       try {
         this.worker.postMessage({ type: 'CLOSE' });
@@ -718,10 +738,11 @@ export class HandGestureService {
 
   private startLoop(): void {
     if (this.videoElement && typeof (this.videoElement as any).requestVideoFrameCallback === 'function') {
-      const onVideoFrame = () => {
+      const onVideoFrame = (_now: number, metadata: VideoFrameCallbackMetadata) => {
         if (this.status !== 'running') return;
         this.lastRvfCallTime = performance.now();
-        this.processFrame(true);
+        this.latestVideoFrameTime = metadata.mediaTime;
+        this.processFrame();
         if (this.videoElement && typeof (this.videoElement as any).requestVideoFrameCallback === 'function') {
           this.videoFrameCallbackId = (this.videoElement as any).requestVideoFrameCallback(onVideoFrame);
         }
@@ -732,21 +753,20 @@ export class HandGestureService {
     const loop = () => {
       if (this.status !== 'running') return;
       const now = performance.now();
-      // 高频保底自驱动定时循环：
-      // 当 rVFC 正常提交硬件级视频帧时，容忍标准 33ms 摄像头刷新间隔，仅在超时卡顿时介入 (>= 80ms)；
-      // 若浏览器不支持 rVFC 或检测到视频流停滞，以保底高频节奏触发派发 (>= 25ms 间隔，40 FPS)。
+      // If video callbacks stall, poll for a new camera frame. The watchdog
+      // must never turn a stalled/unchanged video into duplicate inference.
       const hasActiveRvfc = this.videoFrameCallbackId !== null && (now - this.lastRvfCallTime < 80);
       if (!hasActiveRvfc && (now - this.lastFrameSendTime >= 25)) {
-        this.processFrame(false);
+        this.processFrame();
       }
       this.animFrameId = requestAnimationFrame(loop);
     };
     this.animFrameId = requestAnimationFrame(loop);
   }
 
-  private processFrame(isRvfCallback = false): void {
+  private processFrame(): void {
     const video = this.videoElement;
-    if (!video || video.readyState < 2) {
+    if (this.status !== 'running' || !video || video.readyState < 2) {
       return;
     }
 
@@ -754,29 +774,39 @@ export class HandGestureService {
       return;
     }
 
+    // currentTime is a continuously advancing playback clock, not a camera
+    // frame ID. Use decoded frame counts, or rVFC's media timestamp, to avoid
+    // repeatedly inferring the same pixels between camera frames.
+    const decodedFrameCount = video.getVideoPlaybackQuality?.().totalVideoFrames;
+    const hasDecodedFrameCount = decodedFrameCount !== undefined && decodedFrameCount > 0;
+    const videoTime = this.latestVideoFrameTime ?? video.currentTime;
+    if (hasDecodedFrameCount
+      ? decodedFrameCount === this.lastDecodedFrameCount
+      : videoTime === this.lastVideoCurrentTime) return;
+
     if (this.isWorkerBusy) {
-      // 帧合并 / 后进先出策略：Worker 仍在处理中，将当前最新帧标记为待处理挂起
-      this.hasPendingFrame = true;
+      // Do not capture/queue older bitmaps. Completion will read the latest frame.
       return;
     }
 
     const now = performance.now();
-    const isNewTime = video.currentTime !== this.lastVideoCurrentTime;
-    const isCadenceReady = !isRvfCallback && (now - this.lastFrameSendTime >= 25);
-
-    if (!isRvfCallback && !this.hasPendingFrame && !isNewTime && !isCadenceReady) {
-      return;
-    }
-
-    this.lastVideoCurrentTime = video.currentTime;
-    this.hasPendingFrame = false;
+    this.lastVideoCurrentTime = videoTime;
+    this.lastDecodedFrameCount = decodedFrameCount ?? -1;
     this.lastFrameSendTime = now;
 
     this.isWorkerBusy = true;
-    const tStart = performance.now();
+    const request = { id: ++this.nextFrameId, sessionId: this.sessionId, startedAt: now, captureMs: 0 };
+    this.inFlightFrame = request;
+    const worker = this.worker;
+    const releaseCapture = () => {
+      if (this.inFlightFrame !== request) return;
+      this.inFlightFrame = null;
+      this.isWorkerBusy = false;
+      if (this.status === 'running' && request.sessionId !== this.sessionId) this.processFrame();
+    };
 
     try {
-      // 在主线程外直接异步提取 ImageBitmap（彻底避免同步 2D Canvas 绘制冲刷 GPU 管线）
+      // Keep capture asynchronous and allow only one capture/inference in flight.
       let bitmapPromise: Promise<ImageBitmap> | null = null;
       if (typeof createImageBitmap === 'function') {
         bitmapPromise = createImageBitmap(video, {
@@ -803,35 +833,38 @@ export class HandGestureService {
       }
 
       if (!bitmapPromise) {
-        this.isWorkerBusy = false;
+        releaseCapture();
         return;
       }
 
       bitmapPromise.then((bitmap) => {
-        if (this.status !== 'running' || !this.worker) {
+        if (this.status !== 'running' || this.worker !== worker || request.sessionId !== this.sessionId) {
           if (typeof bitmap.close === 'function') bitmap.close();
-          this.isWorkerBusy = false;
+          releaseCapture();
           return;
         }
         try {
-          this.worker.postMessage(
+          request.captureMs = performance.now() - request.startedAt;
+          worker.postMessage(
             {
               type: 'DETECT',
               imageBitmap: bitmap,
-              timestamp: tStart,
+              timestamp: request.startedAt,
+              frameId: request.id,
+              sessionId: request.sessionId,
             },
             [bitmap]
           );
         } catch (postErr) {
           if (typeof bitmap.close === 'function') bitmap.close();
-          this.isWorkerBusy = false;
+          releaseCapture();
           console.warn('[HandGestureService] Worker postMessage error:', postErr);
         }
       }).catch(() => {
-        this.isWorkerBusy = false;
+        releaseCapture();
       });
     } catch (_err) {
-      this.isWorkerBusy = false;
+      releaseCapture();
     }
   }
 
