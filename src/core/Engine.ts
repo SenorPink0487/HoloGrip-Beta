@@ -48,7 +48,7 @@ import {
   type LabReturnClock,
 } from '../controls/labReturn.ts';
 import { blurActiveInput, isTextInputActive, isTextInputElement, isElementVisibleAndActive } from './focus.ts';
-import { HandTrackingHUD } from '../vision/index.ts';
+import { HandGestureService, VisionProCursor, HandTrackingHUD } from '../vision/index.ts';
 
 const _BEAKER_DRAG_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.10);
 const _BEAKER_HIT_POINT = new THREE.Vector3();
@@ -83,6 +83,8 @@ export class Engine {
   public reactionEffectsRight: ReactionEffects;
   public activeBeakerId: 'left' | 'right' = 'left';
   public visionModal: VisionModal;
+  public handGestureService: HandGestureService | null = null;
+  public visionProCursor: VisionProCursor | null = null;
   public handTrackingHUD: HandTrackingHUD | null = null;
 
   public get chemistryEngine(): ChemistryEngine {
@@ -1498,10 +1500,144 @@ export class Engine {
   private initHandTracking(): void {
     if (typeof document === 'undefined') return;
 
-    this.handTrackingHUD = new HandTrackingHUD(document.body);
+    this.handGestureService = new HandGestureService({
+      modelAssetPath: '/models/hand_landmarker.task',
+      wasmBasePath: '/mediapipe/wasm',
+      mirrorX: true,
+      activeMarginX: 0.12,
+      activeMarginY: 0.12,
+      pinchThresholdEnter: 0.21,
+      pinchThresholdExit: 0.27,
+      quickPinchMaxDurationMs: 200,
+    });
+
+    this.visionProCursor = new VisionProCursor(document.body);
+    this.handTrackingHUD = new HandTrackingHUD(this.handGestureService, document.body);
     if (this.isWhiteboardMode) {
       this.handTrackingHUD.setVisible(false);
     }
+
+    // 将手势追踪与 Vision Pro 光标及准星可见性同步
+    this.handGestureService.onFrame((frame) => {
+      this.visionProCursor?.update(frame);
+
+      if (frame.hasHand) {
+        if (this.inputManager?.player?.isLocked) {
+          this.inputManager.player.exitLock();
+        }
+        if (this.crosshair?.getVisible()) {
+          this.crosshair.setVisible(false);
+        }
+      } else {
+        if (
+          !this.labEntryActive &&
+          (!this.visionModal || !this.visionModal.visible) &&
+          !this.isWhiteboardMode &&
+          (!this.hud?.drawer || !this.hud.drawer.open) &&
+          this.currentExperimentId !== 'math-stereometry'
+        ) {
+          if (!this.crosshair?.getVisible()) {
+            this.crosshair?.setVisible(true);
+          }
+        }
+      }
+    });
+
+    // 左手快速捏合：打开/切换悬浮空间视窗（VisionModal）
+    this.handGestureService.onQuickPinchMenu(() => {
+      if (this.visionModal) {
+        if (this.visionModal.visible) {
+          console.log('[Engine] Left Hand Quick Pinch: closing floating window');
+          this.visionModal.close();
+        } else {
+          console.log('[Engine] Left Hand Quick Pinch: opening floating window at table center');
+          this.visionModal.open();
+        }
+      }
+    });
+
+    // 左手长捏合：控制摄像机视角与观察朝向
+    this.handGestureService.onCameraRotate((dx: number, dy: number) => {
+      // 触控互斥：当移动设备上的虚拟摇杆正在被按压操作时，抑制手势视角旋转
+      if (this.inputManager?.touch?.isJoystickActive()) {
+        return;
+      }
+      if (this.inputManager?.player && !this.labEntryActive) {
+        this.inputManager.player.rotate(dx, dy, 0.0035);
+      }
+    });
+
+    // 双手捏合：缩放悬浮视窗（若已打开）或 3D 立体几何模型
+    let initialDualPinchStereometryScale = 1.0;
+    let initialDualPinchSpatialWindowScale = 1.0;
+    this.handGestureService.onDualPinchZoom((event) => {
+      // 1. 若悬浮空间视窗处于打开状态，双手捏合缩放悬浮视窗
+      if (this.visionModal && this.visionModal.visible) {
+        if (event.state === 'start') {
+          initialDualPinchSpatialWindowScale = this.visionModal.scale;
+        } else if (event.state === 'move') {
+          const targetScale = THREE.MathUtils.clamp(
+            initialDualPinchSpatialWindowScale * event.scaleFactor,
+            0.5,
+            2.0
+          );
+          this.visionModal.setScale(targetScale);
+        }
+        return;
+      }
+
+      // 2. 否则（悬浮视窗关闭时），双手捏合缩放 3D 立体几何模型
+      if (this.currentExperimentId === 'math-stereometry') {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (exp) {
+          if (event.state === 'start') {
+            initialDualPinchStereometryScale = exp.getScale?.() ?? exp.mesh?.getScale?.() ?? 1.0;
+            exp.interactionManager?.callbacks?.onGuidanceChange?.(
+              `双手指势缩放 · 当前: ${Math.round(initialDualPinchStereometryScale * 100)}%`,
+              'info'
+            );
+          } else if (event.state === 'move') {
+            const targetScale = THREE.MathUtils.clamp(
+              initialDualPinchStereometryScale * event.scaleFactor,
+              0.35,
+              3.0
+            );
+            exp.setScale?.(targetScale);
+            exp.interactionManager?.callbacks?.onGuidanceChange?.(
+              `立体几何缩放: ${Math.round(targetScale * 100)}%`,
+              'active'
+            );
+          } else if (event.state === 'end') {
+            const finalScale = exp.getScale?.() ?? 1.0;
+            exp.interactionManager?.callbacks?.onGuidanceChange?.(
+              `缩放完成 · 当前: ${Math.round(finalScale * 100)}%`,
+              'success'
+            );
+          }
+        }
+      }
+    });
+
+    this.handGestureService.onStatusChange((telemetry) => {
+      const isRunning = telemetry.status === 'running';
+      if (typeof document !== 'undefined' && document.body) {
+        document.body.classList.toggle('hand-tracking-active', isRunning);
+      }
+      if (this.inputManager?.touch) {
+        this.inputManager.touch.setHandTrackingActive(isRunning);
+      }
+
+      if (isRunning) {
+        if (this.inputManager?.player) {
+          this.inputManager.player.allowPointerLock = false;
+          this.inputManager.player.allowMouseRotation = false;
+        }
+      } else {
+        if (this.inputManager?.player && !this.visionModal?.visible) {
+          this.inputManager.player.allowPointerLock = this.currentExperimentId !== 'math-stereometry';
+        }
+      }
+    });
   }
 
   private initEvents(): void {

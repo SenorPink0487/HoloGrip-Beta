@@ -2,12 +2,13 @@ import { defineConfig, loadEnv } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
 import { recognizePlugin } from './vite.recognizePlugin.ts';
 import { mixturePlugin } from './vite.mixturePlugin.ts';
+import { mediapipePlugin } from './vite.mediapipePlugin.ts';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '');
   const deepseekKey = env.DEEPSEEK_API_KEY || process.env.DEEPSEEK_API_KEY || '';
   return {
-    plugins: [recognizePlugin(deepseekKey), mixturePlugin(deepseekKey)],
+    plugins: [recognizePlugin(deepseekKey), mixturePlugin(deepseekKey), mediapipePlugin()],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

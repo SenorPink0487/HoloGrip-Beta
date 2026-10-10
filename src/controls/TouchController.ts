@@ -77,6 +77,10 @@ export class TouchController {
     this.elevateDownBtn?.classList?.remove?.('is-pressed');
   }
 
+  public isJoystickActive(): boolean {
+    return this.isDraggingJoystick;
+  }
+
   public setHandTrackingActive(active: boolean): void {
     this.isHandTrackingActive = active;
     const layer = document.getElementById('touch-controls-layer');
