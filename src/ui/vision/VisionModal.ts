@@ -9,9 +9,10 @@ import { PhaseStatusCard } from './PhaseStatusCard.ts';
 import { StereometryStatusCard } from './StereometryStatusCard.ts';
 import { HallStatusCard } from './HallStatusCard.ts';
 import { FieldStatusCard, type FieldCommand } from './FieldStatusCard.ts';
-import { InductionStatusCard, type InductionCommand } from './InductionStatusCard.ts';
 import { MassSpecStatusCard, type MassSpecCommand } from './MassSpecStatusCard.ts';
 import { HysteresisStatusCard, type HysteresisCommand } from './HysteresisStatusCard.ts';
+import { InductionStatusCard, type InductionCommand } from './InductionStatusCard.ts';
+import { GeneratorStatusCard, type GeneratorCommand } from './GeneratorStatusCard.ts';
 import { MechStatusCard, type MechExperimentId } from './MechStatusCard.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
@@ -63,9 +64,10 @@ export interface VisionModalCallbacks {
   onHallToggleVectors?: (show: boolean) => void;
   onHallToggleParticles?: (show: boolean) => void;
   onFieldCommand?: (cmd: FieldCommand) => void;
-  onInductionCommand?: (cmd: InductionCommand) => void;
   onMassSpecCommand?: (cmd: MassSpecCommand) => void;
   onHysteresisCommand?: (cmd: HysteresisCommand) => void;
+  onInductionCommand?: (cmd: InductionCommand) => void;
+  onGeneratorCommand?: (cmd: GeneratorCommand) => void;
   // 立体几何数学回调函数
   onMathModelChange?: (type: HighSchoolModelType) => void;
   onMathDimensionChange?: (dims: { a?: number; h?: number }) => void;
@@ -113,9 +115,10 @@ export class VisionModal {
   private stereometryStatusCard: StereometryStatusCard;
   private hallStatusCard: HallStatusCard;
   private fieldStatusCard: FieldStatusCard;
-  private inductionStatusCard: InductionStatusCard;
   private massSpecStatusCard: MassSpecStatusCard;
   private hysteresisStatusCard: HysteresisStatusCard;
+  private inductionStatusCard: InductionStatusCard;
+  private generatorStatusCard: GeneratorStatusCard;
   private mechStatusCard: MechStatusCard;
   private currentExperimentId = '';
 
@@ -435,9 +438,10 @@ export class VisionModal {
     });
 
     this.fieldStatusCard = new FieldStatusCard((cmd) => this.callbacks.onFieldCommand?.(cmd));
-    this.inductionStatusCard = new InductionStatusCard((cmd) => this.callbacks.onInductionCommand?.(cmd));
     this.massSpecStatusCard = new MassSpecStatusCard((cmd) => this.callbacks.onMassSpecCommand?.(cmd));
     this.hysteresisStatusCard = new HysteresisStatusCard((cmd) => this.callbacks.onHysteresisCommand?.(cmd));
+    this.inductionStatusCard = new InductionStatusCard((cmd) => this.callbacks.onInductionCommand?.(cmd));
+    this.generatorStatusCard = new GeneratorStatusCard((cmd) => this.callbacks.onGeneratorCommand?.(cmd));
     this.mechStatusCard = new MechStatusCard();
 
     // 挂载初始视窗视图
@@ -623,9 +627,6 @@ export class VisionModal {
     return this.fieldStatusCard;
   }
 
-  public get inductionCard(): InductionStatusCard {
-    return this.inductionStatusCard;
-  }
 
   public get massSpecCard(): MassSpecStatusCard {
     return this.massSpecStatusCard;
@@ -633,6 +634,14 @@ export class VisionModal {
 
   public get hysteresisCard(): HysteresisStatusCard {
     return this.hysteresisStatusCard;
+  }
+
+  public get inductionCard(): InductionStatusCard {
+    return this.inductionStatusCard;
+  }
+
+  public get generatorCard(): GeneratorStatusCard {
+    return this.generatorStatusCard;
   }
 
   public get mechCard(): MechStatusCard {
@@ -664,14 +673,16 @@ export class VisionModal {
     const isPhase = this.currentExperimentId === 'thermo-phase';
     const emId = this.currentExperimentId;
     const emCard =
-      emId === 'em-field' ? this.fieldStatusCard
-      : emId === 'em-induction' ? this.inductionStatusCard
+      emId === 'em-induction' ? this.inductionStatusCard
+      : emId === 'em-generator' ? this.generatorStatusCard
+      : emId === 'em-field' ? this.fieldStatusCard
       : emId === 'em-mass-spec' ? this.massSpecStatusCard
       : emId === 'em-hysteresis' ? this.hysteresisStatusCard
       : this.hallStatusCard;
     const emTitle =
-      emId === 'em-field' ? '静电场探索'
-      : emId === 'em-induction' ? '电磁感应'
+      emId === 'em-induction' ? '法拉第电磁感应'
+      : emId === 'em-generator' ? '旋转线圈发电机'
+      : emId === 'em-field' ? '静电场探索'
       : emId === 'em-mass-spec' ? '质谱仪'
       : emId === 'em-hysteresis' ? '磁滞回线'
       : '霍尔效应';
@@ -722,9 +733,10 @@ export class VisionModal {
     }
     if (this.hallStatusCard) this.hallStatusCard.setVisible(false);
     if (this.fieldStatusCard) this.fieldStatusCard.setVisible(false);
-    if (this.inductionStatusCard) this.inductionStatusCard.setVisible(false);
     if (this.massSpecStatusCard) this.massSpecStatusCard.setVisible(false);
     if (this.hysteresisStatusCard) this.hysteresisStatusCard.setVisible(false);
+    if (this.inductionStatusCard) this.inductionStatusCard.setVisible(false);
+    if (this.generatorStatusCard) this.generatorStatusCard.setVisible(false);
     if (this.mechStatusCard) this.mechStatusCard.setVisible(tab === 'mechanics');
     if (tab === 'em') emCard.setVisible(true);
 
@@ -822,7 +834,6 @@ export class VisionModal {
     this.stereometryStatusCard?.setVisible(false);
     this.hallStatusCard?.setVisible(false);
     this.fieldStatusCard?.setVisible(false);
-    this.inductionStatusCard?.setVisible(false);
     this.massSpecStatusCard?.setVisible(false);
     this.hysteresisStatusCard?.setVisible(false);
     this.mechStatusCard?.setVisible(false);

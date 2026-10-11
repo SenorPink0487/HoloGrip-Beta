@@ -130,6 +130,40 @@ export class PhysicsDisciplineModal {
       `,
     },
     {
+      id: 'em-induction',
+      name: '法拉第电磁感应与楞次定律',
+      category: '电磁感应与螺线管',
+      formula: 'ℰ_{感} = -N (ΔΦ/Δt)',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="15" width="18" height="16" rx="2" stroke-width="2" fill="currentColor" fill-opacity="0.08"/>
+          <line x1="9" y1="19" x2="27" y2="19" stroke="#ca8a04" stroke-width="2"/>
+          <line x1="9" y1="23" x2="27" y2="23" stroke="#ca8a04" stroke-width="2"/>
+          <line x1="9" y1="27" x2="27" y2="27" stroke="#ca8a04" stroke-width="2"/>
+          <rect x="15" y="3" width="6" height="6" rx="1" fill="#ef4444"/>
+          <rect x="15" y="9" width="6" height="6" rx="1" fill="#2563eb"/>
+          <path d="M18 10 L18 15" stroke="#38bdf8" stroke-width="2"/>
+          <polyline points="15,13 18,15 21,13" stroke="#38bdf8" stroke-width="1.8"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'em-generator',
+      name: '旋转线圈发电机与交直流输出',
+      category: '动生电动势与发电机',
+      formula: 'ℰ_{动} = NBSω sin(ωt)',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 10 C6 18 10 22 10 26" stroke="#ef4444" stroke-width="3" stroke-linecap="round"/>
+          <path d="M30 10 C30 18 26 22 26 26" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
+          <rect x="13" y="12" width="10" height="12" rx="2" stroke="#ca8a04" stroke-width="2" fill="none"/>
+          <circle cx="18" cy="18" r="3" stroke="#38bdf8" stroke-width="1.8"/>
+          <path d="M18 6 L18 12" stroke="#e2e8f0" stroke-width="2"/>
+          <path d="M18 24 L18 30" stroke="#e2e8f0" stroke-width="2"/>
+        </svg>
+      `,
+    },
+    {
       id: 'em-field',
       name: '静电场探索与电力线叠加',
       category: '静电场与高斯定理',
@@ -147,21 +181,6 @@ export class PhysicsDisciplineModal {
           <polyline points="19,8.5 21,8.5 20,10.5" stroke="#facc15" stroke-width="1.5"/>
           <path d="M13 22 C15 29 21 29 23 22" stroke="#facc15" stroke-width="1.8"/>
           <polyline points="19,27.5 21,27.5 20,25.5" stroke="#facc15" stroke-width="1.5"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'em-induction',
-      name: '法拉第电磁感应与楞次定律',
-      category: '电磁感应',
-      formula: 'ℰ = - dΦ_B / dt',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <ellipse cx="18" cy="18" rx="12" ry="7" stroke-width="2.2"/>
-          <path d="M18 4 L18 14" stroke="#ef4444" stroke-width="2.2"/>
-          <polyline points="15,8 18,4 21,8" stroke="#ef4444" stroke-width="2"/>
-          <path d="M12 18 A6 4 0 0 1 24 18" stroke="#38bdf8" stroke-width="1.8"/>
-          <polyline points="22,16 24,18 22,20" stroke="#38bdf8" stroke-width="1.6"/>
         </svg>
       `,
     },

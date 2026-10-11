@@ -13,7 +13,7 @@ export class PerfOverlay {
   private vsyncEl: HTMLElement | null = null;
   private statusDotEl: HTMLElement | null = null;
   private popoverEl: HTMLElement | null = null;
-  private isVisible = false;
+  private isVisible = true;
   private isDetailsOpen = false;
 
   private frameCount = 0;

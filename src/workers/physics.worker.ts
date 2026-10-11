@@ -27,11 +27,6 @@ import {
   solenoidSampleField,
   virginB,
 } from '../physics/em/hysteresis';
-import {
-  INDUCTION_GOLDEN,
-  evaluateInduction,
-  inductionCaption,
-} from '../physics/em/induction';
 
 const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 const SAMPLE_HALF = 0.12;
@@ -1031,93 +1026,6 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
         remanence: rem,
         caption,
         loop,
-        computeTimeMs,
-      };
-
-      ctx.postMessage(resp);
-      break;
-    }
-
-    case 'INDUCTION_STEP': {
-      const {
-        id,
-        poleSign,
-        turns,
-        resistanceOhm,
-        probeAxial,
-        driven,
-        scripted,
-        sampleClock,
-        dt,
-        fluxHistory,
-        emfHistory,
-      } = req;
-
-      let nextAxial = req.axial;
-      let nextVelocity = req.velocity;
-      let nextScripted = scripted;
-
-      const AXIAL_MIN = -0.18;
-      const AXIAL_MAX = 0.26;
-
-      if (!driven) {
-        if (nextScripted) {
-          nextAxial += nextVelocity * dt;
-          if ((nextVelocity < 0 && nextAxial <= AXIAL_MIN) || (nextVelocity > 0 && nextAxial >= AXIAL_MAX)) {
-            nextAxial = clamp(nextAxial, AXIAL_MIN, AXIAL_MAX);
-            nextVelocity = 0;
-            nextScripted = false;
-          }
-        } else {
-          nextVelocity *= Math.exp(-2.8 * dt);
-          if (Math.abs(nextVelocity) < 0.008) nextVelocity = 0;
-          nextAxial += nextVelocity * dt;
-          if (nextAxial <= AXIAL_MIN || nextAxial >= AXIAL_MAX) {
-            nextAxial = clamp(nextAxial, AXIAL_MIN, AXIAL_MAX);
-            nextVelocity = 0;
-          }
-        }
-      }
-
-      const input = {
-        ...INDUCTION_GOLDEN,
-        axial: nextAxial,
-        velocity: nextVelocity,
-        poleSign,
-        turns,
-        resistanceOhm,
-        probeAxial,
-      };
-
-      const reading = evaluateInduction(input);
-      const caption = inductionCaption(input, reading);
-
-      let nextSampleClock = sampleClock + dt;
-      const nextFluxHistory = [...fluxHistory];
-      const nextEmfHistory = [...emfHistory];
-
-      if (nextSampleClock >= 0.05) {
-        nextSampleClock = 0;
-        nextFluxHistory.push(reading.fluxLinkageWb);
-        nextEmfHistory.push(reading.emfVolt);
-        if (nextFluxHistory.length > 160) {
-          nextFluxHistory.shift();
-          nextEmfHistory.shift();
-        }
-      }
-
-      const computeTimeMs = Math.max(0.01, performance.now() - startTime);
-      const resp: WorkerResponse = {
-        id,
-        action: 'INDUCTION_STEP',
-        axial: nextAxial,
-        velocity: nextVelocity,
-        scripted: nextScripted,
-        sampleClock: nextSampleClock,
-        reading,
-        caption,
-        fluxHistory: nextFluxHistory,
-        emfHistory: nextEmfHistory,
         computeTimeMs,
       };
 

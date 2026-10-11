@@ -1071,26 +1071,6 @@ export class Engine {
           }
         }
       },
-      onInductionCommand: (cmd) => {
-        if (this.currentExperimentId !== 'em-induction') return;
-        const exp = this.holoStage?.activeExperiment as any;
-        if (!exp) return;
-        if (cmd.type === 'turns') {
-          this.currentContext.setParameter('turns', cmd.turns);
-          exp.setTurns?.(cmd.turns);
-        } else if (cmd.type === 'resistance') {
-          this.currentContext.setParameter('resistance', cmd.ohm);
-          exp.setResistance?.(cmd.ohm);
-        } else if (cmd.type === 'axial') {
-          this.currentContext.setParameter('axial', cmd.axial);
-          exp.setAxial?.(cmd.axial);
-        } else if (cmd.type === 'probe') {
-          this.currentContext.setParameter('probe', cmd.axial);
-          exp.setProbe?.(cmd.axial);
-        } else if (cmd.type === 'flip') exp.flipPole?.();
-        else if (cmd.type === 'pass') exp.startPass?.();
-        else if (cmd.type === 'reset') exp.resetGolden?.();
-      },
       onMassSpecCommand: (cmd) => {
         if (this.currentExperimentId !== 'em-mass-spec') return;
         const exp = this.holoStage?.activeExperiment as any;
@@ -1140,6 +1120,51 @@ export class Engine {
         else if (cmd.type === 'toggleFlow') exp.setToggles?.(exp.showLines, cmd.show);
         else if (cmd.type === 'setDensity') exp.setDensity?.(cmd.density);
         else if (cmd.type === 'reset') exp.resetGolden?.();
+      },
+      onInductionCommand: (cmd) => {
+        if (this.currentExperimentId !== 'em-induction') return;
+        const exp = this.holoStage?.activeExperiment as any;
+        if (!exp) return;
+        if (cmd.type === 'turns') {
+          this.currentContext.setParameter('turns', cmd.turns);
+          exp.setTurns?.(cmd.turns);
+        } else if (cmd.type === 'resistance') {
+          this.currentContext.setParameter('resistance', cmd.ohm);
+          exp.setResistance?.(cmd.ohm);
+        } else if (cmd.type === 'axial') {
+          this.currentContext.setParameter('axial', cmd.axial);
+          exp.setAxial?.(cmd.axial);
+        } else if (cmd.type === 'probe') {
+          this.currentContext.setParameter('probe', cmd.axial);
+          exp.setProbe?.(cmd.axial);
+        } else if (cmd.type === 'flip') {
+          exp.flipPole?.();
+        } else if (cmd.type === 'pass') {
+          exp.startPass?.();
+        } else if (cmd.type === 'reset') {
+          exp.resetGolden?.();
+        }
+      },
+      onGeneratorCommand: (cmd) => {
+        if (this.currentExperimentId !== 'em-generator') return;
+        const exp = this.holoStage?.activeExperiment as any;
+        if (!exp) return;
+        if (cmd.type === 'outputType') {
+          this.currentContext.setParameter('outputType', cmd.outputType);
+          exp.setOutputType?.(cmd.outputType);
+        } else if (cmd.type === 'magField') {
+          this.currentContext.setParameter('magField', cmd.field);
+          exp.setMagField?.(cmd.field);
+        } else if (cmd.type === 'turns') {
+          this.currentContext.setParameter('turns', cmd.turns);
+          exp.setTurns?.(cmd.turns);
+        } else if (cmd.type === 'boost') {
+          exp.boostSpeed?.();
+        } else if (cmd.type === 'toggleBulb') {
+          exp.toggleBulb?.();
+        } else if (cmd.type === 'reset') {
+          exp.reset?.();
+        }
       },
       // 立体几何数学回调
       onMathModelChange: (type) => {
@@ -2325,6 +2350,8 @@ export class Engine {
             this.visionModal.hallCard.updateTelemetry(exp.getTelemetryData());
           } else if (this.currentExperimentId === 'em-induction' && typeof exp?.getTelemetry === 'function') {
             this.visionModal.inductionCard.updateTelemetry(exp.getTelemetry());
+          } else if (this.currentExperimentId === 'em-generator' && typeof exp?.getTelemetry === 'function') {
+            this.visionModal.generatorCard.updateTelemetry(exp.getTelemetry());
           } else if (this.currentExperimentId === 'em-mass-spec' && typeof exp?.getTelemetry === 'function') {
             this.visionModal.massSpecCard.updateTelemetry(exp.getTelemetry());
           } else if (this.currentExperimentId === 'em-hysteresis' && typeof exp?.getTelemetry === 'function') {

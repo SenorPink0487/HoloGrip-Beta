@@ -13,8 +13,7 @@ export type WorkerAction =
   | 'CHEMISTRY_COMPOSITION_STEP'
   | 'HALL_CARRIER_STEP'
   | 'MASS_SPEC_STEP'
-  | 'HYSTERESIS_STEP'
-  | 'INDUCTION_STEP';
+  | 'HYSTERESIS_STEP';
 
 export interface BaseWorkerRequest {
   id: number;
@@ -202,22 +201,6 @@ export interface HysteresisStepRequest extends BaseWorkerRequest {
   dt: number;
 }
 
-export interface InductionStepRequest extends BaseWorkerRequest {
-  action: 'INDUCTION_STEP';
-  axial: number;
-  velocity: number;
-  poleSign: 1 | -1;
-  turns: number;
-  resistanceOhm: number;
-  probeAxial: number;
-  driven: boolean;
-  scripted: boolean;
-  sampleClock: number;
-  dt: number;
-  fluxHistory: number[];
-  emfHistory: number[];
-}
-
 export type WorkerRequest =
   | NBodyStepRequest
   | WaveStepRequest
@@ -232,8 +215,7 @@ export type WorkerRequest =
   | ChemistryCompositionStepRequest
   | HallCarrierStepRequest
   | MassSpecStepRequest
-  | HysteresisStepRequest
-  | InductionStepRequest;
+  | HysteresisStepRequest;
 
 export type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
 
@@ -406,31 +388,6 @@ export interface HysteresisStepResponse {
   computeTimeMs: number;
 }
 
-export interface WorkerInductionReading {
-  magnetFieldTesla: number;
-  probeFieldTesla: number;
-  inducedFieldTesla: number;
-  fluxSingleWb: number;
-  fluxLinkageWb: number;
-  emfVolt: number;
-  currentAmp: number;
-  frontFlowX: number;
-}
-
-export interface InductionStepResponse {
-  id: number;
-  action: 'INDUCTION_STEP';
-  axial: number;
-  velocity: number;
-  scripted: boolean;
-  sampleClock: number;
-  reading: WorkerInductionReading;
-  caption: string;
-  fluxHistory: number[];
-  emfHistory: number[];
-  computeTimeMs: number;
-}
-
 export type WorkerResponse =
   | NBodyStepResponse
   | WaveStepResponse
@@ -445,5 +402,4 @@ export type WorkerResponse =
   | ChemistryCompositionStepResponse
   | HallCarrierStepResponse
   | MassSpecStepResponse
-  | HysteresisStepResponse
-  | InductionStepResponse;
+  | HysteresisStepResponse;

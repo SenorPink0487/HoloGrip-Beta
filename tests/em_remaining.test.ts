@@ -1,14 +1,6 @@
 import assert from 'node:assert';
 import * as THREE from 'three';
 import {
-  INDUCTION_GOLDEN,
-  coilFrontFlow,
-  emfVolt,
-  evaluateInduction,
-  fluxLinkageWb,
-  magnetFieldAt,
-} from '../src/physics/em/induction.ts';
-import {
   CARTRIDGES,
   MASS_STAGE,
   analyzerRadius,
@@ -26,13 +18,12 @@ import {
   remanence,
   virginB,
 } from '../src/physics/em/hysteresis.ts';
-import { localPointOnBenchFace } from '../src/scene/em/benchDrag.ts';
-import { InductionBenchMesh } from '../src/scene/em/InductionBenchMesh.ts';
-import { InductionInteractionManager } from '../src/scene/em/InductionInteractionManager.ts';
-import EmInductionExperiment from '../src/experiments/catalog/em-induction/index.ts';
 import EmMassSpecExperiment from '../src/experiments/catalog/em-mass-spec/index.ts';
 import EmHysteresisExperiment from '../src/experiments/catalog/em-hysteresis/index.ts';
+import EmInductionExperiment from '../src/experiments/catalog/em-induction/index.ts';
+import EmGeneratorExperiment from '../src/experiments/catalog/em-generator/index.ts';
 import { InductionStatusCard } from '../src/ui/vision/InductionStatusCard.ts';
+import { GeneratorStatusCard } from '../src/ui/vision/GeneratorStatusCard.ts';
 import { PhysicsDisciplineModal } from '../src/ui/vision/PhysicsDisciplineModal.ts';
 
 class MockElement {
@@ -58,12 +49,19 @@ class MockElement {
       lineWidth: 1,
       font: '',
       textAlign: '',
+      textBaseline: '',
+      shadowColor: '',
+      shadowBlur: 0,
       clearRect: () => {},
       fillRect: () => {},
+      strokeRect: () => {},
+      fillText: () => {},
       beginPath: () => {},
       moveTo: () => {},
       lineTo: () => {},
       arc: () => {},
+      arcTo: () => {},
+      closePath: () => {},
       stroke: () => {},
       fill: () => {},
     };
@@ -149,101 +147,6 @@ function cameraOnPlusZ(): THREE.PerspectiveCamera {
 
 console.log('=== Electromagnetism remaining experiments ===\n');
 
-console.log('Test 1: Faraday EMF matches a finite difference, and Lenz opposes dB/dt');
-{
-  const moving = { ...INDUCTION_GOLDEN, axial: 0.08, velocity: -0.42, poleSign: -1 as const };
-  const dx = 1e-5;
-  const flux = (axial: number) => fluxLinkageWb({ ...moving, axial });
-  const numeric = -((flux(moving.axial + dx) - flux(moving.axial - dx)) / (2 * dx)) * moving.velocity;
-  const analytic = emfVolt(moving);
-  assert(Math.abs(numeric - analytic) / Math.abs(numeric) < 1e-4, `EMF ${analytic} != ${numeric}`);
-  assert.strictEqual(emfVolt({ ...moving, velocity: 0 }), 0);
-  assert.strictEqual(emfVolt({ ...moving, axial: 0, velocity: 1 }), 0);
-
-  const before = magnetFieldAt(moving, 0);
-  const later = magnetFieldAt({ ...moving, axial: moving.axial + moving.velocity * 0.02 }, 0);
-  const reading = evaluateInduction(moving);
-  assert(Math.sign(reading.inducedFieldTesla) === -Math.sign(later - before));
-  assert(Math.sign(reading.magnetFieldTesla) !== Math.sign(reading.inducedFieldTesla));
-  const doubled = evaluateInduction({ ...moving, turns: moving.turns * 2 });
-  assert(Math.abs(doubled.emfVolt / reading.emfVolt - 2) < 1e-9);
-
-  const omega = new THREE.Vector3(0, 1, 0);
-  const rim = new THREE.Vector3(0, 0, 1);
-  const flow = new THREE.Vector3().crossVectors(omega, rim);
-  assert(flow.x > 0.9, 'positive current at the near rim flows toward +X');
-  assert.strictEqual(coilFrontFlow(1).x, 1);
-  assert.strictEqual(coilFrontFlow(-1).x, -1);
-  console.log('✓ Test 1 passed');
-}
-
-console.log('Test 2: Vertical coil, drag-up raises the magnet, and a pass crosses zero EMF');
-{
-  const camera = cameraOnPlusZ();
-  const bench = new InductionBenchMesh();
-  const center = localPointOnBenchFace({ clientX: 400, clientY: 400 }, camera, bench.group, { width: 800, height: 800 });
-  const up = localPointOnBenchFace({ clientX: 400, clientY: 220 }, camera, bench.group, { width: 800, height: 800 });
-  assert(center && up);
-  assert(Math.abs(center.x) < 0.05 && Math.abs(center.y) < 0.05);
-  assert(up.y > center.y + 0.2, 'screen-up is local +Y on the bench face');
-
-  let draggedY = 0;
-  const manager = new InductionInteractionManager({
-    bench,
-    onMagnetY: (y) => { draggedY = y; },
-    onProbeY: () => {},
-    onFlipPole: () => {},
-    onCycleTurns: () => {},
-    onStartPass: () => {},
-  });
-  const hit = { object: bench.magnetGroup.children[0] } as THREE.Intersection;
-  manager.onPointerDown({ clientX: 400, clientY: 400 } as PointerEvent, hit, { camera } as any);
-  manager.onPointerMove({ clientX: 400, clientY: 220 } as PointerEvent, null, { camera } as any);
-  assert(draggedY > 0.2);
-
-  bench.sync({
-    axial: 0.22, poleSign: -1, probeAxial: 0, turns: 200, currentAmp: 0.04, magnetField: -0.02, inducedField: 0.001,
-  });
-  bench.flowArrow.updateMatrix();
-  const arrow = new THREE.Vector3(0, 1, 0).applyQuaternion(bench.flowArrow.quaternion);
-  assert(arrow.x > 0.9, 'flow arrow follows the +X rim current');
-  assert(bench.needlePivot.rotation.z > 0);
-  assert.strictEqual((bench.bottomCap.material as THREE.MeshStandardMaterial).color.getHex(), 0xef4444);
-
-  const coilBox = new THREE.Box3().setFromObject(bench.coilGroup);
-  assert(coilBox.max.x - coilBox.min.x > coilBox.max.y - coilBox.min.y);
-  const magnetBox = new THREE.Box3().setFromObject(bench.magnetGroup);
-  assert(magnetBox.max.y - magnetBox.min.y > magnetBox.max.x - magnetBox.min.x);
-
-  const exp = new EmInductionExperiment();
-  exp.init(ctx);
-  const before = exp.getTelemetry().poleSign;
-  exp.onPointerDown({ clientX: 10, clientY: 10 } as PointerEvent, { object: (exp as any).bench.magnetGroup } as THREE.Intersection, ctx);
-  exp.onPointerUp({ clientX: 10, clientY: 10 } as PointerEvent, ctx);
-  assert.notStrictEqual(exp.getTelemetry().poleSign, before);
-
-  exp.resetGolden();
-  exp.startPass();
-  let maxEmf = 0;
-  let nearCenter = 1;
-  let crossed = false;
-  for (let i = 0; i < 80; i++) {
-    exp.update(0.02, i * 0.02, ctx);
-    const data = exp.getTelemetry();
-    maxEmf = Math.max(maxEmf, Math.abs(data.emfVolt));
-    if (Math.abs(data.axial) < 0.02) {
-      nearCenter = Math.min(nearCenter, Math.abs(data.emfVolt));
-      crossed = true;
-    }
-  }
-  assert(crossed, 'the scripted pass must go through the coil');
-  assert(maxEmf > 0.05);
-  assert(nearCenter < maxEmf * 0.5, 'EMF is smallest at maximum flux');
-  assert.strictEqual(exp.getTelemetry().velocity, 0);
-  exp.dispose(ctx);
-  bench.dispose();
-  console.log('✓ Test 2 passed');
-}
 
 console.log('Test 3: Mass spectrometer radii, selector, and Lorentz orbit');
 {
@@ -380,7 +283,7 @@ console.log('Test 5: Catalog cards are selectable and the status card sends comm
     onSelectExperiment: async (id) => { selected = id; },
   });
   modal.showLevel2('em');
-  for (const id of ['em-induction', 'em-mass-spec', 'em-hysteresis']) {
+  for (const id of ['em-induction', 'em-generator', 'em-mass-spec', 'em-hysteresis']) {
     assert(modal.element.innerHTML.includes(`data-exp-id="${id}"`));
     assert(modal.element.innerHTML.includes(`data-exp-id="${id}" data-planned="false"`));
   }
@@ -391,20 +294,33 @@ console.log('Test 5: Catalog cards are selectable and the status card sends comm
     assert.strictEqual(selected, id);
   };
   click('em-induction');
+  click('em-generator');
   click('em-mass-spec');
   click('em-hysteresis');
 
-  let command = '';
-  const card = new InductionStatusCard((cmd) => { command = cmd.type; });
-  card.setVisible(true);
-  card.element.querySelector('#ind-reset').dispatchEvent({ type: 'click' });
-  assert.strictEqual(command, 'reset');
+  let indCmd = '';
+  const indCard = new InductionStatusCard((cmd) => { indCmd = cmd.type; });
+  indCard.setVisible(true);
+  indCard.element.querySelector('#ind-reset')?.dispatchEvent({ type: 'click' });
+  assert.strictEqual(indCmd, 'reset');
+
+  let genCmd = '';
+  const genCard = new GeneratorStatusCard((cmd) => { genCmd = cmd.type; });
+  genCard.setVisible(true);
+  genCard.element.querySelector('#gen-boost')?.dispatchEvent({ type: 'click' });
+  assert.strictEqual(genCmd, 'boost');
+
   console.log('✓ Test 5 passed');
 }
 
 console.log('Test 6: Frame budget');
 {
-  const experiments = [new EmInductionExperiment(), new EmMassSpecExperiment(), new EmHysteresisExperiment()];
+  const experiments = [
+    new EmInductionExperiment(),
+    new EmGeneratorExperiment(),
+    new EmMassSpecExperiment(),
+    new EmHysteresisExperiment(),
+  ];
   for (const exp of experiments) {
     exp.init(ctx);
     const started = performance.now();

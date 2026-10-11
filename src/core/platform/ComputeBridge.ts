@@ -16,7 +16,6 @@ import type {
   HallCarrierStepResponse,
   MassSpecStepResponse,
   HysteresisStepResponse,
-  InductionStepResponse,
 } from '../../workers/workerMessages';
 
 export interface ComputeMetrics {
@@ -518,32 +517,6 @@ export class ComputeBridge {
   }): Promise<HysteresisStepResponse> {
     const res = await this.workerPool.execute<HysteresisStepResponse>({
       action: 'HYSTERESIS_STEP',
-      ...params,
-    });
-
-    this.recordMetrics(res.computeTimeMs);
-    return res;
-  }
-
-  /**
-   * 在 Worker 中运行电磁感应及法拉第/楞次定律动力学模拟
-   */
-  public async simulateInduction(params: {
-    axial: number;
-    velocity: number;
-    poleSign: 1 | -1;
-    turns: number;
-    resistanceOhm: number;
-    probeAxial: number;
-    driven: boolean;
-    scripted: boolean;
-    sampleClock: number;
-    dt: number;
-    fluxHistory: number[];
-    emfHistory: number[];
-  }): Promise<InductionStepResponse> {
-    const res = await this.workerPool.execute<InductionStepResponse>({
-      action: 'INDUCTION_STEP',
       ...params,
     });
 

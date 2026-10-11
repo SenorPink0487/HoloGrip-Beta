@@ -42,14 +42,13 @@ export class AuthPanel {
     this.element.id = 'auth-panel';
     this.element.className = 'auth-panel';
 
-    // 1. HoloGrip 头部品牌 Logo
+    // 1. HoloGrip 头部品牌 Logo（突出展示大图标）
     this.heroEl = document.createElement('div');
     this.heroEl.className = 'auth-hero';
     this.heroEl.innerHTML = `
       <div class="auth-hero-logo">
         <img src="/hologrip-logo.png" alt="HoloGrip" class="auth-hero-img" />
       </div>
-      <h1 class="auth-hero-brand">HoloGrip</h1>
     `;
 
     // 2. 分段控制器（登录 / 注册）

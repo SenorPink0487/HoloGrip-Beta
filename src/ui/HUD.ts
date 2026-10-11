@@ -25,8 +25,8 @@ export class HUD {
 
     this.drawer = new ExperimentDrawer(document.body, this.onSwitchExperiment);
     this.perfOverlay = new PerfOverlay(this.computeBridge, this.platform, document.body);
-    // 根据需求隐藏左上角的 FPS 和延迟性能监控浮层
-    this.perfOverlay.toggle(false);
+    // 根据需求默认显示左上角的 FPS 和延迟性能监控浮层
+    this.perfOverlay.toggle(true);
 
     // 绑定 F 键切换全屏
     window.addEventListener('keydown', (e) => {
