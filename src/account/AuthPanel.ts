@@ -33,7 +33,8 @@ export class AuthPanel {
   private readonly inviteInput: HTMLInputElement;
   private readonly errorEl: HTMLDivElement;
   private readonly submitBtn: HTMLButtonElement;
-  private readonly submitBtnText: HTMLSpanElement;
+  private readonly submitViewport: HTMLSpanElement;
+  private submitBtnText: HTMLSpanElement;
   private readonly onMode: (mode: AuthMode) => void;
 
   constructor(initialError: string, onMode: (mode: AuthMode) => void) {
@@ -119,10 +120,16 @@ export class AuthPanel {
     this.submitBtn.id = 'auth-submit';
     this.submitBtn.className = 'auth-submit';
     this.submitBtn.type = 'submit';
+    this.submitBtn.setAttribute('aria-label', '登录');
+
+    this.submitViewport = document.createElement('span');
+    this.submitViewport.className = 'auth-submit-viewport';
+
     this.submitBtnText = document.createElement('span');
-    this.submitBtnText.className = 'auth-submit-label';
+    this.submitBtnText.className = 'auth-submit-label current';
     this.submitBtnText.textContent = '登录';
-    this.submitBtn.appendChild(this.submitBtnText);
+    this.submitViewport.appendChild(this.submitBtnText);
+    this.submitBtn.appendChild(this.submitViewport);
 
     const form = document.createElement('form');
     form.id = 'auth-form';
@@ -199,17 +206,44 @@ export class AuthPanel {
     this.studentBtn.classList.toggle('active', this.role === 'student');
 
     const targetText = register ? '注册' : '登录';
-    if (this.submitBtnText) {
-      if (this.submitBtnText.textContent !== targetText) {
-        this.submitBtnText.classList.add('swapping');
-        setTimeout(() => {
-          this.submitBtnText.textContent = targetText;
-          this.submitBtnText.classList.remove('swapping');
-        }, 90);
-      }
-    } else {
+    this.updateSubmitButton(targetText);
+  }
+
+  private updateSubmitButton(targetText: string): void {
+    this.submitBtn.setAttribute('aria-label', targetText);
+
+    if (!this.submitViewport) {
       this.submitBtn.textContent = targetText;
+      return;
     }
+
+    const currentLabel = this.submitViewport.querySelector('.auth-submit-label.current') as HTMLSpanElement | null;
+    if (currentLabel && currentLabel.textContent === targetText) {
+      return;
+    }
+
+    // 清理可能遗留的退出元素
+    const oldExiting = this.submitViewport.querySelectorAll('.auth-submit-label.crossfade-out');
+    oldExiting.forEach((el) => el.remove());
+
+    if (currentLabel) {
+      currentLabel.classList.remove('current');
+      currentLabel.classList.add('crossfade-out');
+      currentLabel.setAttribute('aria-hidden', 'true');
+      const onEnd = () => {
+        if (currentLabel.parentElement) {
+          currentLabel.remove();
+        }
+      };
+      currentLabel.addEventListener('animationend', onEnd, { once: true });
+      setTimeout(onEnd, 260);
+    }
+
+    const nextLabel = document.createElement('span');
+    nextLabel.className = 'auth-submit-label current crossfade-in';
+    nextLabel.textContent = targetText;
+    this.submitViewport.appendChild(nextLabel);
+    this.submitBtnText = nextLabel;
   }
 
   private showError(message: string): void {

@@ -2,6 +2,7 @@ import type { StereometryTelemetryData } from '../../experiments/catalog/math-st
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 import { captureProblemPhoto } from './captureProblemPhoto.ts';
+import { MathARScannerModal } from './MathARScannerModal.ts';
 
 export interface StereometryStatusCardCallbacks {
   onModelChange?: (type: HighSchoolModelType) => void;
@@ -194,9 +195,11 @@ export class StereometryStatusCard {
 
     fileInput?.addEventListener('change', () => takeFile(fileInput));
     cameraInput?.addEventListener('change', () => takeFile(cameraInput));
-    this.uploadBtn?.addEventListener('click', () => fileInput?.click());
+    this.uploadBtn?.addEventListener('click', () => {
+      this.openARScanner();
+    });
     this.cameraBtn?.addEventListener('click', () => {
-      void this.openCamera(cameraInput);
+      this.openARScanner();
     });
 
     // 拖拽文件至卡片或上传按钮
@@ -261,14 +264,28 @@ export class StereometryStatusCard {
     this.element.querySelectorAll('.math-model-card').forEach((card) => card.classList.remove('active'));
   }
 
-  private async openCamera(fallback: HTMLInputElement | null): Promise<void> {
+  /** 打开全屏沉浸式 Apple 风格数学 AR 题目扫描工作台。 */
+  public openARScanner(): void {
     if (this.recognizing) return;
-    const shot = await captureProblemPhoto();
-    if (shot.ok) {
-      await this.handleImage(shot.dataUrl);
-      return;
-    }
-    if (shot.reason === 'unavailable') fallback?.click();
+    const scanner = new MathARScannerModal({
+      onRecognizeImage: this.callbacks.onRecognizeImage
+        ? async (dataUrl) => {
+            const res = await this.callbacks.onRecognizeImage!(dataUrl);
+            this.clearPresetSelection();
+            this.setScanStatus(`已构建「${res.name}」`);
+            return res;
+          }
+        : undefined,
+      onSyncModel: (def) => {
+        this.clearPresetSelection();
+        this.setScanStatus(`已同步「${def.name}」`);
+      },
+    });
+    document.body.appendChild(scanner.element);
+  }
+
+  private async openCamera(_fallback: HTMLInputElement | null): Promise<void> {
+    this.openARScanner();
   }
 
   private async handleImage(dataUrl: string): Promise<void> {

@@ -1656,10 +1656,12 @@ export class Engine {
         if (this.inputManager?.player) {
           this.inputManager.player.allowPointerLock = false;
           this.inputManager.player.allowMouseRotation = false;
+          this.inputManager.player.exitLock();
         }
       } else {
         if (this.inputManager?.player && !this.visionModal?.visible) {
           this.inputManager.player.allowPointerLock = this.currentExperimentId !== 'math-stereometry';
+          this.inputManager.player.allowMouseRotation = true;
         }
       }
     });

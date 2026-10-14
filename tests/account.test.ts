@@ -19,4 +19,10 @@ assert.match(avatarRule, /width:\s*100%/, 'Account avatar must not render at the
 assert.match(avatarRule, /height:\s*100%/, 'Account avatar must not render at the source image height');
 assert.match(avatarRule, /object-fit:\s*cover/, 'Account avatar should be cropped within its frame');
 
-console.log('account invite code tests passed');
+// 校验苹果设计风格的底部按钮平滑交叉淡入淡出 (Native Crossfade)
+assert.match(whiteboardCss, /\.auth-submit-viewport/, 'Auth submit button must have viewport container');
+assert.match(whiteboardCss, /@keyframes\s+apple-crossfade-in/, 'Crossfade-in animation must be defined');
+assert.match(whiteboardCss, /@keyframes\s+apple-crossfade-out/, 'Crossfade-out animation must be defined');
+assert.match(whiteboardCss, /@media\s*\(prefers-reduced-motion:\s*reduce\)/, 'Accessibility reduced-motion fallback must be supported');
+
+console.log('account invite code & Apple-style crossfade button motion tests passed');

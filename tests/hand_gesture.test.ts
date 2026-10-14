@@ -448,8 +448,10 @@ const createMockHand = (
   const dummyDom = createMockElement('canvas');
   const player = new PlayerController(cam, dummyDom);
 
-  // Invariant 1: allowMouseRotation must be false
-  assert.strictEqual(player.allowMouseRotation, false, 'allowMouseRotation must be disabled by default');
+  // Invariant 1: allowMouseRotation is enabled by default for mouse aiming, but disabled during active hand tracking
+  assert.strictEqual(player.allowMouseRotation, true, 'allowMouseRotation should be enabled by default for mouse aiming');
+  player.allowMouseRotation = false; // Simulation of active hand tracking
+  assert.strictEqual(player.allowMouseRotation, false, 'allowMouseRotation must be disabled during active hand tracking');
 
   const initialYaw = player.yaw;
   const initialPitch = player.pitch;

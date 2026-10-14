@@ -37,7 +37,7 @@ export class PlayerController {
 
   public isLocked = false;
   public enabled = true;
-  public allowMouseRotation = false; // 严格规则：只有左手手势能转动视角，完全禁用鼠标与右手的拖拽视角旋转
+  public allowMouseRotation = true; // 默认允许鼠标转动视角与指针锁定；当手势追踪启动时动态禁用
   private _allowPointerLock = true;
 
   public get allowPointerLock(): boolean {
@@ -114,7 +114,7 @@ export class PlayerController {
     });
 
     window.addEventListener('mousedown', (e) => {
-      if (this.isLocked || !this.enabled || !this.allowMouseRotation) return;
+      if (this.isLocked || !this.enabled) return;
       // 任意位置右键，或在画布上左键
       if (e.button === 2 || (e.button === 0 && e.target === this.domElement)) {
         blurActiveInput(true);
@@ -128,7 +128,6 @@ export class PlayerController {
     });
 
     window.addEventListener('mouseup', (e) => {
-      if (!this.allowMouseRotation) return;
       if (!this.isLocked && isDragging) {
         const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
         isDragging = false;
