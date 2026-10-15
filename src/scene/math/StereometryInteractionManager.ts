@@ -266,21 +266,11 @@ export class StereometryInteractionManager {
         if (hoveredKp && hoveredKp.id !== activeStart.id) {
           // 吸附到目标点
           const len = activeStart.position.distanceTo(hoveredKp.position);
-          let targetName = hoveredKp.label;
-          if (hoveredKp.subLabel === '1/2') {
-            targetName = hoveredKp.edgeVertices ? `${hoveredKp.edgeVertices[0]}${hoveredKp.edgeVertices[1]} 中点` : `${hoveredKp.label} 中点`;
-          } else if (hoveredKp.subLabel === '1/3') {
-            targetName = hoveredKp.edgeVertices ? `${hoveredKp.edgeVertices[0]}${hoveredKp.edgeVertices[1]} (1/3)` : `${hoveredKp.label} (1/3)`;
-          } else if (hoveredKp.subLabel === '2/3') {
-            targetName = hoveredKp.edgeVertices ? `${hoveredKp.edgeVertices[0]}${hoveredKp.edgeVertices[1]} (2/3)` : `${hoveredKp.label} (2/3)`;
-          } else if (hoveredKp.type === 'center') {
-            targetName = `${hoveredKp.label} 中心`;
-          }
-          const badgeText = `→ ${targetName} · ${len.toFixed(3)}m`;
+          const badgeText = this.mesh.formatNormalizedDistance(len);
           this.mesh.updatePreviewWire(activeStart.position, hoveredKp.position, 0x10b981, badgeText, context.camera);
           const snapColor = this.getKeyPointColor(hoveredKp);
           this.callbacks.onGuidanceChange?.(
-            `已选起点 ${activeStart.label} → 目标: ${hoveredLabel || hoveredKp.label} (距离: ${len.toFixed(3)}m) · 单击完成接线`,
+            `已选起点 ${activeStart.label} → 目标: ${hoveredLabel || hoveredKp.label} (距离: ${badgeText}) · 单击完成接线`,
             'active',
             snapColor
           );
@@ -294,7 +284,7 @@ export class StereometryInteractionManager {
           if (raycaster.ray.intersectPlane(plane, hitWorld)) {
             const hitLocal = hitWorld.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld.clone().invert());
             const len = activeStart.position.distanceTo(hitLocal);
-            const badgeText = `${len.toFixed(3)}m`;
+            const badgeText = this.mesh.formatNormalizedDistance(len);
             this.mesh.updatePreviewWire(activeStart.position, hitLocal, 0x38bdf8, badgeText, context.camera);
             this.callbacks.onGuidanceChange?.(`已选起点 ${activeStart.label} · 移动至目标点完成接线 (按 Esc 取消)`, 'info');
           }
@@ -490,7 +480,7 @@ export class StereometryInteractionManager {
           'success'
         );
       } else {
-        this.callbacks.onGuidanceChange?.(`成功生成辅助线 ${seg.label} (长 ${seg.length.toFixed(3)}m)`, 'success');
+        this.callbacks.onGuidanceChange?.(`成功生成辅助线 ${seg.label} (长 ${this.mesh.formatNormalizedDistance(seg.length)})`, 'success');
       }
     }
   }
@@ -593,7 +583,7 @@ export class StereometryInteractionManager {
     if (this.pendingStartPoint) {
       if (this.currentHoveredKp && this.currentHoveredKp.id !== this.pendingStartPoint.id) {
         const len = this.pendingStartPoint.position.distanceTo(this.currentHoveredKp.position);
-        return `已选起点 ${this.pendingStartPoint.label} → 目标: ${this.currentSnapLabel} (距离: ${len.toFixed(3)}m) · 单击完成接线`;
+        return `已选起点 ${this.pendingStartPoint.label} → 目标: ${this.currentSnapLabel} (距离: ${this.mesh.formatNormalizedDistance(len)}) · 单击完成接线`;
       }
       return `已选起点 ${this.pendingStartPoint.label} · 移动鼠标吸附端点/中点/三等分点 (单击空白取消)`;
     }

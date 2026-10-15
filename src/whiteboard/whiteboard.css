@@ -2819,7 +2819,7 @@ textarea:focus::placeholder {
   100% { opacity: 0; }
 }
 
-/* 3. 试卷上浮动的 AR 3D 模型卡片 (AR Anchor Card) */
+/* 3. 真实叠加于试卷纸面之上的无框 AR 空间系统 (Spatial AR Paper Scene) */
 .math-ar-overlay-layer {
   position: absolute;
   inset: 0;
@@ -2827,173 +2827,132 @@ textarea:focus::placeholder {
   z-index: 25;
 }
 
-.math-ar-anchor-card {
+.math-ar-spatial-root {
   position: absolute;
-  top: 48%;
-  left: 50%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.math-ar-spatial-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
   pointer-events: auto;
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease;
+  touch-action: none;
+  cursor: grab;
+}
+
+.math-ar-spatial-canvas:active {
+  cursor: grabbing;
+}
+
+.math-ar-spatial-tags-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  overflow: hidden;
+}
+
+/* 浮动在 3D 模型正上方的微型 Apple 胶囊标识 (极简微型标牌，杜绝卡片方框) */
+.math-ar-spatial-pin-tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+  user-select: none;
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform, opacity;
 }
 
-.math-ar-anchor-card.is-entering {
-  animation: apple-ar-card-pop 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.math-ar-anchor-card.is-exiting {
-  animation: apple-ar-card-shrink 0.22s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-  pointer-events: none;
-}
-
-@keyframes apple-ar-card-pop {
-  0% {
-    opacity: 0;
-    transform: translate(calc(-50% + var(--ar-x, 0px)), calc(-50% + var(--ar-y, 0px))) scale(0.75);
-  }
-  100% {
-    opacity: 1;
-    transform: translate(calc(-50% + var(--ar-x, 0px)), calc(-50% + var(--ar-y, 0px))) scale(1);
-  }
-}
-
-@keyframes apple-ar-card-shrink {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.82);
-  }
-}
-
-.math-ar-card-glass {
-  width: 200px;
-  padding: 10px 12px;
-  border-radius: 20px;
-  background: rgba(18, 18, 24, 0.76);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+.math-ar-pin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 9999px;
+  background: rgba(18, 18, 24, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 0.5px solid rgba(255, 255, 255, 0.22);
   box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.45),
+    0 8px 24px rgba(0, 0, 0, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  cursor: grab;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.math-ar-anchor-card.active .math-ar-card-glass {
-  border-color: rgba(56, 189, 248, 0.85);
+.math-ar-spatial-pin-tag:hover .math-ar-pin-pill {
+  background: rgba(28, 28, 35, 0.88);
+  border-color: rgba(56, 189, 248, 0.6);
+  transform: translateY(-1px);
+}
+
+.math-ar-spatial-pin-tag.active .math-ar-pin-pill {
+  background: rgba(14, 28, 48, 0.88);
+  border-color: rgba(56, 189, 248, 0.9);
   box-shadow: 
-    0 18px 44px rgba(0, 0, 0, 0.5),
+    0 10px 28px rgba(0, 0, 0, 0.45),
     0 0 0 2px rgba(56, 189, 248, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-/* 试卷空间锚钉投影线 (Spatial Ground Pin) */
-.math-ar-spatial-pin {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  pointer-events: none;
-  margin-top: -2px;
-}
-
-.math-ar-pin-line {
-  width: 1.5px;
-  height: 26px;
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.75) 0%, rgba(56, 189, 248, 0.08) 100%);
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
-}
-
 .math-ar-pin-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #38bdf8;
-  box-shadow: 0 0 10px #38bdf8, 0 0 4px #ffffff;
-  animation: apple-ar-dot-pulse 2s infinite ease-in-out;
+  box-shadow: 0 0 8px #38bdf8;
+  flex-shrink: 0;
 }
 
-.math-ar-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 2px 2px 0 2px;
-}
-
-.math-ar-card-tag {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.math-ar-pin-text {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  max-width: 140px;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.math-ar-card-index {
+.math-ar-pin-close {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.78);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 6px;
-  background: rgba(56, 189, 248, 0.22);
-  color: #38bdf8;
-  border: 0.5px solid rgba(56, 189, 248, 0.3);
-}
-
-.math-ar-card-title {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #ffffff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: -0.1px;
-}
-
-.math-ar-card-delete {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
+  padding: 0;
   outline: none;
-  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
-.math-ar-card-delete:hover {
-  background: rgba(239, 68, 68, 0.85);
+.math-ar-pin-close:hover {
+  background: rgba(239, 68, 68, 0.88);
   color: #ffffff;
+  transform: scale(1.1);
 }
 
-.math-ar-card-delete:active {
-  transform: scale(0.9);
+.math-ar-pin-close:active {
+  transform: scale(0.92);
 }
 
-.math-ar-card-body {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: radial-gradient(circle at center, rgba(56, 189, 248, 0.08) 0%, transparent 70%);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
+/* 兼容离线多面体微型渲染组件 */
 .math-ar-mini-preview {
   position: relative;
   display: block;
@@ -3004,25 +2963,6 @@ textarea:focus::placeholder {
   width: 100%;
   height: 100%;
   display: block;
-}
-
-.math-ar-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2px;
-}
-
-.math-ar-geo-pill {
-  font-size: 10.5px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-.math-ar-rotate-hint {
-  font-size: 10.5px;
-  color: #38bdf8;
-  opacity: 0.85;
 }
 
 /* 4. 底部已生成模型抽屉托盘 */

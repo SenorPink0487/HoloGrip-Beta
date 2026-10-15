@@ -644,15 +644,48 @@ assert.strictEqual(undone!.label, 'A₁B₁');
 assert.strictEqual(animMesh.getSegments().length, 1, 'Only 1 segment should remain after undo');
 assert.strictEqual(animMesh.getSegments()[0].label, 'AB');
 
-// 6. Preview wire with distance badge
+// 6. Preview wire with enlarged distance badge (normalized, no units)
 const vStart = new THREE.Vector3(0, 0, 0);
 const vEnd = new THREE.Vector3(0.38, 0, 0);
-animMesh.updatePreviewWire(vStart, vEnd, 0x10b981, 'AB · 0.380 m');
+animMesh.updatePreviewWire(vStart, vEnd, 0x10b981, '0.655');
 const previewGroup = (animMesh as any).previewSegmentGroup as THREE.Group;
 assert.strictEqual(previewGroup.visible, true, 'Preview wire group must be visible');
 const badgeSprite = (animMesh as any).previewBadgeSprite as THREE.Sprite;
 assert(badgeSprite !== null, 'Preview distance badge sprite must be instantiated');
 assert.strictEqual(badgeSprite.renderOrder, 9, 'Badge sprite renderOrder must be 9');
+assert.strictEqual(badgeSprite.scale.x, 0.240, 'Badge sprite scale X must be enlarged to 0.240m');
+assert.strictEqual(badgeSprite.scale.y, 0.080, 'Badge sprite scale Y must be enlarged to 0.080m');
+assert.strictEqual((animMesh as any).lastPreviewBadgeKey, '0.655_1096065', 'Badge key should store pure normalized distance string');
+
+// Test formatNormalizedDistance math logic
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58), '1', 'Cube edge must normalize to 1');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.29), '0.5', 'Half edge must normalize to 0.5 without trailing zero');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.SQRT2), '1.414', 'Face diagonal must normalize to 1.414');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.sqrt(3)), '1.732', 'Space diagonal must normalize to 1.732');
+
+// 6.1 Perspective projection alignment: sprite rotation must match screen 2D line angle
+const testCamera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 100);
+testCamera.position.set(0, 1.4, 2.0);
+testCamera.lookAt(0, 0.3, 0.72);
+testCamera.updateMatrixWorld();
+testCamera.updateProjectionMatrix();
+
+const testPointB = new THREE.Vector3(0.29, -0.29, -0.29);
+const testPointRight = new THREE.Vector3(0.29, 0.15, 0.29);
+animMesh.updatePreviewWire(testPointB, testPointRight, 0x10b981, '1.118', testCamera);
+
+const startWorld = testPointB.clone().applyMatrix4((animMesh as any).modelContainer.matrixWorld);
+const endWorld = testPointRight.clone().applyMatrix4((animMesh as any).modelContainer.matrixWorld);
+const sStart = startWorld.clone().project(testCamera);
+const sEnd = endWorld.clone().project(testCamera);
+const dxScreen = (sEnd.x - sStart.x) * testCamera.aspect;
+const dyScreen = sEnd.y - sStart.y;
+let expectedAngle = Math.atan2(dyScreen, dxScreen);
+if (expectedAngle > Math.PI / 2) expectedAngle -= Math.PI;
+if (expectedAngle < -Math.PI / 2) expectedAngle += Math.PI;
+
+const actualRot = (badgeSprite.material as THREE.SpriteMaterial).rotation;
+assert(Math.abs(actualRot - expectedAngle) < 1e-4, `Sprite rotation must match screen projected line angle: expected ${expectedAngle}, got ${actualRot}`);
 
 // 7. Reticle Sprite billboard verification
 const snapSprite = (animMesh as any).snapCursorSprite as THREE.Sprite;

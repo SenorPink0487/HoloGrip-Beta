@@ -91,6 +91,8 @@ export class StereometryMesh {
   private previewBadgeCanvas: HTMLCanvasElement | null = null;
   private previewBadgeTex: THREE.CanvasTexture | null = null;
   private lastPreviewBadgeKey = '';
+  private lastPreviewStartPos: THREE.Vector3 | null = null;
+  private lastPreviewEndPos: THREE.Vector3 | null = null;
 
   // 聚焦光晕与准星公告板精灵（无裁剪，始终面向相机）
   private snapCursorSprite: THREE.Sprite | null = null;
@@ -1853,6 +1855,25 @@ export class StereometryMesh {
     return { ...this.currentOptions };
   }
 
+  public getBaseUnit(): number {
+    return (
+      this.currentModelDef?.defaultParams?.a ||
+      this.currentModelDef?.defaultParams?.r ||
+      this.currentOptions?.dimensions?.a ||
+      0.58
+    );
+  }
+
+  /**
+   * 将 3D 空间测量的绝对几何距离归一化为高中立体几何无单位标量（以基准棱长为 1）。
+   */
+  public formatNormalizedDistance(len: number): string {
+    const base = this.getBaseUnit();
+    const val = len / (base > 1e-6 ? base : 1);
+    if (len < 1e-4) return '0';
+    return parseFloat(val.toFixed(3)).toString();
+  }
+
   public setScale(scale: number): void {
     this.modelScale = THREE.MathUtils.clamp(scale, 0.35, 3.0);
     this.modelContainer.scale.setScalar(this.modelScale);
@@ -2019,12 +2040,12 @@ export class StereometryMesh {
     (this.previewEndBead.material as THREE.MeshStandardMaterial).color.setHex(color);
     (this.previewEndBead.material as THREE.MeshStandardMaterial).emissive.setHex(color);
 
-    // 3. 沿连线对齐的纯文本度量指示器
-    const labelToDisplay = badgeText || `${len.toFixed(3)}m`;
+    // 3. 沿连线对齐的纯文本度量指示器（加大文字、去除单位、归一化）
+    const labelToDisplay = badgeText || this.formatNormalizedDistance(len);
     if (!this.previewBadgeSprite) {
       this.previewBadgeCanvas = document.createElement('canvas');
       this.previewBadgeCanvas.width = 768;
-      this.previewBadgeCanvas.height = 160;
+      this.previewBadgeCanvas.height = 256;
       this.previewBadgeTex = new THREE.CanvasTexture(this.previewBadgeCanvas);
       this.previewBadgeTex.minFilter = THREE.LinearFilter;
       const bMat = new THREE.SpriteMaterial({
@@ -2033,7 +2054,7 @@ export class StereometryMesh {
         depthTest: false,
       });
       this.previewBadgeSprite = new THREE.Sprite(bMat);
-      this.previewBadgeSprite.scale.set(0.180, 0.0375, 1);
+      this.previewBadgeSprite.scale.set(0.240, 0.080, 1);
       this.previewBadgeSprite.renderOrder = 9;
       this.previewSegmentGroup.add(this.previewBadgeSprite);
     }
@@ -2042,74 +2063,98 @@ export class StereometryMesh {
       this.lastPreviewBadgeKey = `${labelToDisplay}_${color}`;
       const bctx = this.previewBadgeCanvas.getContext('2d');
       if (bctx) {
-        bctx.clearRect(0, 0, 768, 160);
+        bctx.clearRect(0, 0, 768, 256);
         const isEmerald = (color === 0x10b981 || color === 0x38d9a9);
 
-        // 沿线直接渲染纯文本标号，不添加背景框
-        bctx.font = 'bold 60px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif';
+        // 沿线直接渲染纯文本标号，不添加背景框，加大文字尺寸
+        bctx.font = 'bold 120px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif';
         bctx.textAlign = 'center';
         bctx.textBaseline = 'middle';
 
         // 深色描边以确保在 3D 几何体上方清晰可辨
-        bctx.lineWidth = 9.0;
+        bctx.lineWidth = 16.0;
         bctx.lineJoin = 'round';
         bctx.strokeStyle = 'rgba(8, 14, 26, 0.95)';
         if (typeof bctx.strokeText === 'function') {
-          bctx.strokeText(labelToDisplay, 384, 80);
+          bctx.strokeText(labelToDisplay, 384, 128);
         }
 
         // 清晰字形填充
         bctx.fillStyle = isEmerald ? '#34d399' : '#ffffff';
-        bctx.fillText(labelToDisplay, 384, 80);
+        bctx.fillText(labelToDisplay, 384, 128);
         this.previewBadgeTex.needsUpdate = true;
       }
     }
 
-    // 动态姿态与位置：在摄像机视图空间中沿 3D 直线对齐
+    this.lastPreviewStartPos = startPos.clone();
+    this.lastPreviewEndPos = endPos.clone();
+
+    // 动态姿态与位置：在透视投影视图空间中沿真实屏幕 2D 连线严密对齐
     const cam = camera || this.lastCamera;
-    let angle = 0;
     if (cam && typeof (cam as any).matrixWorldInverse !== 'undefined' && typeof (cam as any).matrixWorld !== 'undefined') {
-      const startWorld = startPos.clone().applyMatrix4(this.modelContainer.matrixWorld);
-      const endWorld = endPos.clone().applyMatrix4(this.modelContainer.matrixWorld);
-      const midWorld = mid.clone().applyMatrix4(this.modelContainer.matrixWorld);
-
-      const vStart = startWorld.clone().applyMatrix4((cam as any).matrixWorldInverse);
-      const vEnd = endWorld.clone().applyMatrix4((cam as any).matrixWorldInverse);
-      const dx = vEnd.x - vStart.x;
-      const dy = vEnd.y - vStart.y;
-      const len2D = Math.hypot(dx, dy);
-
-      if (len2D > 1e-4) {
-        angle = Math.atan2(dy, dx);
-        // 确保文字始终从左至右可读（避免倒置）
-        if (angle > Math.PI / 2) angle -= Math.PI;
-        if (angle < -Math.PI / 2) angle += Math.PI;
-
-        // 在摄像机视图空间中垂直于直线偏移，使文本清晰悬浮于连线上方
-        const nx = -Math.sin(angle);
-        const ny = Math.cos(angle);
-        const offsetDist = 0.020; // 连线上方 2.0cm
-
-        const midView = midWorld.clone().applyMatrix4((cam as any).matrixWorldInverse);
-        midView.x += nx * offsetDist;
-        midView.y += ny * offsetDist;
-        const targetWorld = midView.applyMatrix4((cam as any).matrixWorld);
-        const targetLocal = targetWorld.applyMatrix4(this.modelContainer.matrixWorld.clone().invert());
-        this.previewBadgeSprite.position.copy(targetLocal);
-      } else {
-        this.previewBadgeSprite.position.copy(mid).add(new THREE.Vector3(0, 0.020, 0));
-      }
+      this.updatePreviewBadgePose(startPos, endPos, cam);
     } else {
-      this.previewBadgeSprite.position.copy(mid).add(new THREE.Vector3(0, 0.020, 0));
+      this.previewBadgeSprite.position.copy(mid).add(new THREE.Vector3(0, 0.032, 0));
+      (this.previewBadgeSprite.material as THREE.SpriteMaterial).rotation = 0;
     }
 
-    (this.previewBadgeSprite.material as THREE.SpriteMaterial).rotation = angle;
     this.previewBadgeSprite.visible = true;
     this.previewSegmentGroup.visible = true;
   }
 
+  /**
+   * 将连线两端经由透视投影矩阵精确映射到屏幕像素坐标系，
+   * 消除三维近大远小引起的视角斜率偏差，保证字与线始终平齐。
+   */
+  private updatePreviewBadgePose(
+    startPos: THREE.Vector3,
+    endPos: THREE.Vector3,
+    cam: THREE.Camera
+  ): void {
+    if (!this.previewBadgeSprite) return;
+    const mid = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
+    const startWorld = startPos.clone().applyMatrix4(this.modelContainer.matrixWorld);
+    const endWorld = endPos.clone().applyMatrix4(this.modelContainer.matrixWorld);
+    const midWorld = mid.clone().applyMatrix4(this.modelContainer.matrixWorld);
+
+    // 将 3D 空间端点精确投影至屏幕 NDC 空间，结合视口宽高比计算透视投影下的真实屏幕 2D 倾角
+    const sStart = startWorld.clone().project(cam);
+    const sEnd = endWorld.clone().project(cam);
+    const aspect = (cam as any).aspect || (typeof window !== 'undefined' ? window.innerWidth / window.innerHeight : 1.0);
+
+    const dx = (sEnd.x - sStart.x) * aspect;
+    const dy = sEnd.y - sStart.y;
+    const len2D = Math.hypot(dx, dy);
+
+    let angle = 0;
+    if (len2D > 1e-4) {
+      angle = Math.atan2(dy, dx);
+      // 确保文字始终从左至右可读（避免倒置）
+      if (angle > Math.PI / 2) angle -= Math.PI;
+      if (angle < -Math.PI / 2) angle += Math.PI;
+
+      // 在摄像机视图空间中垂直于直线偏移，使文本清晰悬浮于连线上方
+      const nx = -Math.sin(angle);
+      const ny = Math.cos(angle);
+      const offsetDist = 0.032; // 连线上方 3.2cm
+
+      const midView = midWorld.clone().applyMatrix4((cam as any).matrixWorldInverse);
+      midView.x += nx * offsetDist;
+      midView.y += ny * offsetDist;
+      const targetWorld = midView.applyMatrix4((cam as any).matrixWorld);
+      const targetLocal = targetWorld.applyMatrix4(this.modelContainer.matrixWorld.clone().invert());
+      this.previewBadgeSprite.position.copy(targetLocal);
+    } else {
+      this.previewBadgeSprite.position.copy(mid).add(new THREE.Vector3(0, 0.032, 0));
+    }
+
+    (this.previewBadgeSprite.material as THREE.SpriteMaterial).rotation = angle;
+  }
+
   public clearPreviewWire(): void {
     this.previewSegmentGroup.visible = false;
+    this.lastPreviewStartPos = null;
+    this.lastPreviewEndPos = null;
   }
 
   private clearGroup(group: THREE.Group): void {
@@ -2215,6 +2260,12 @@ export class StereometryMesh {
     const beaconScale = 0.026;
     for (const sprite of this.selectedBeaconSprites.values()) {
       sprite.scale.set(beaconScale, beaconScale, 1);
+    }
+
+    // 动态刷新预览连线标牌姿态（确保任何旋转视角下文字与连线严密平齐）
+    const activeCam = camera || this.lastCamera;
+    if (this.previewSegmentGroup.visible && this.lastPreviewStartPos && this.lastPreviewEndPos && activeCam) {
+      this.updatePreviewBadgePose(this.lastPreviewStartPos, this.lastPreviewEndPos, activeCam);
     }
 
     // 更新空间连线生成动画

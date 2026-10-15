@@ -2,17 +2,16 @@ import * as THREE from 'three';
 import { GeometrySolver, type PolyhedronModelDef } from '../../scene/math/GeometrySolver.ts';
 import { buildRecognizedModel, type RecognizedFigure } from '../../scene/math/figureModel.ts';
 import { recognizeStereometryImage } from '../../scene/math/recognizeFigure.ts';
-import { MiniModelPreview } from './MiniModelPreview.ts';
+import { MathARSpatialScene, type ARSpatialItem } from './MathARSpatialScene.ts';
 
 export interface ARModelItem {
   id: string;
   name: string;
   subtitle: string;
   dataUrl: string;
+  thumbUrl?: string;
   modelDef: PolyhedronModelDef;
   anchor: { x: number; y: number };
-  cardEl?: HTMLElement;
-  preview?: MiniModelPreview;
 }
 
 export interface MathARScannerModalOptions {
@@ -23,7 +22,7 @@ export interface MathARScannerModalOptions {
 
 /**
  * 苹果设计风格的沉浸式数学 AR 题目扫描工作台。
- * 支持连续拍照识别、试卷实景 AR 题目模型浮动叠加、单题删除、3D 交互旋转与统一 Apple 质感。
+ * 真实叠加于试卷纸面之上 (无任何方形外壳！)，支持连续拍照多题、手势 360° 旋转、单题删除与 Apple 质感。
  */
 export class MathARScannerModal {
   public readonly element: HTMLElement;
@@ -42,21 +41,27 @@ export class MathARScannerModal {
   private torchToggleBtn: HTMLButtonElement | null = null;
   private albumInputEl: HTMLInputElement | null = null;
 
+  private spatialScene: MathARSpatialScene | null = null;
   private models: ARModelItem[] = [];
   private selectedModelId: string | null = null;
   private isAnalyzing = false;
   private isGridVisible = true;
   private isTorchOn = false;
-  private mockFallbackInterval: number | null = null;
 
   constructor(options: MathARScannerModalOptions = {}) {
     this.options = options;
+    if (typeof document === 'undefined') {
+      this.element = { querySelector: () => null, appendChild: () => {}, remove: () => {}, classList: { add: () => {} } } as any;
+      return;
+    }
+
     this.element = document.createElement('div');
     this.element.className = 'math-ar-scanner-modal';
     this.element.setAttribute('role', 'dialog');
     this.element.setAttribute('aria-label', '数学题目 AR 扫描仪');
 
     this.buildUI();
+    this.initSpatialScene();
     this.bindEvents();
     this.startCamera();
   }
@@ -97,7 +102,7 @@ export class MathARScannerModal {
         </div>
       </header>
 
-      <!-- 2. 取景视窗与 AR 实景空间 -->
+      <!-- 2. 取景视窗与真实 AR 纸面空间 -->
       <main class="math-ar-viewport" id="math-ar-viewport">
         <!-- 实时相机视频 -->
         <video class="math-ar-camera-feed" id="math-ar-video" autoplay playsinline muted></video>
@@ -118,7 +123,7 @@ export class MathARScannerModal {
           <div class="math-ar-finder-hint">将题目放置于取景框内拍照</div>
         </div>
 
-        <!-- AR 3D 模型悬浮挂载层 -->
+        <!-- AR 全景空间渲染层 (全透明 Three.js 场景，3D 几何直接立在纸面上！) -->
         <div class="math-ar-overlay-layer" id="math-ar-overlay"></div>
 
         <!-- 快门曝光闪烁效果 -->
@@ -128,7 +133,7 @@ export class MathARScannerModal {
       <!-- 3. 底部 Apple 抽屉式已生成模型轮播托盘 -->
       <section class="math-ar-model-tray hidden" id="math-ar-model-tray">
         <div class="math-ar-tray-header">
-          <span class="math-ar-tray-title">已锚定 3D 模型</span>
+          <span class="math-ar-tray-title">试卷已锚定 3D 模型</span>
           <span class="math-ar-tray-badge" id="math-ar-tray-count">0 个题目</span>
         </div>
         <div class="math-ar-tray-carousel" id="math-ar-tray-list"></div>
@@ -146,7 +151,7 @@ export class MathARScannerModal {
             </svg>
             <span class="math-ar-slot-label">相册</span>
           </button>
-          <input type="file" id="math-ar-album-input" accept="image/*" style="display:none;" />
+          <input type="file" id="math-ar-album-input" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" style="display:none;" />
         </div>
 
         <!-- 中间：Apple 经典同心圆快门按钮 -->
@@ -187,6 +192,33 @@ export class MathARScannerModal {
     this.gridToggleBtn = this.element.querySelector('#math-ar-grid-btn');
     this.torchToggleBtn = this.element.querySelector('#math-ar-torch-btn');
     this.albumInputEl = this.element.querySelector('#math-ar-album-input');
+    if (this.albumInputEl) {
+      this.albumInputEl.setAttribute('accept', 'image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp');
+    }
+  }
+
+  /** 初始化全景透明 AR 空间渲染引擎。 */
+  private initSpatialScene(): void {
+    if (!this.arOverlayEl || typeof document === 'undefined') return;
+
+    const w = window.innerWidth || 800;
+    const h = window.innerHeight || 600;
+
+    this.spatialScene = new MathARSpatialScene(w, h, {
+      onSelect: (id) => {
+        this.selectModel(id);
+      },
+      onDelete: (id) => {
+        this.removeModel(id);
+      },
+    });
+
+    this.arOverlayEl.appendChild(this.spatialScene.domElement);
+
+    const onResize = () => {
+      this.spatialScene?.resize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', onResize);
   }
 
   private bindEvents(): void {
@@ -211,26 +243,43 @@ export class MathARScannerModal {
       void this.toggleTorch();
     });
 
-    // 5. 自定义相册导入
+    // 5. 自定义相册导入 (秒开 + 异步多级位图降采样)
     this.element.querySelector('#math-ar-album-btn')?.addEventListener('click', () => {
+      this.setStatus('正在打开相册…', 1500);
       this.albumInputEl?.click();
     });
-    this.albumInputEl?.addEventListener('change', (e) => {
+
+    this.albumInputEl?.addEventListener('cancel', () => {
+      this.setStatus('已取消相册选择');
+    });
+
+    this.albumInputEl?.addEventListener('change', async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        if (dataUrl) void this.processImageData(dataUrl, '相册导入题目');
-      };
-      reader.readAsDataURL(file);
-      (e.target as HTMLInputElement).value = '';
+
+      this.setStatus('正在优化并载入相册试卷…');
+      this.shutterBtn?.classList.add('is-busy');
+
+      try {
+        const { displayDataUrl, thumbDataUrl } = await this.optimizeImageFile(file);
+
+        // 将相册试卷投射到取景底纸上，立体几何模型直接立于该题目之上
+        this.displayPaperBackdrop(displayDataUrl);
+
+        // 处理几何识别与 3D 模型生成 (传入轻量微缩图，避免巨量内存占用)
+        await this.processImageData(displayDataUrl, '相册试卷题目', thumbDataUrl);
+      } catch (err) {
+        this.setStatus(err instanceof Error ? err.message : '相册图片载入失败');
+      } finally {
+        this.shutterBtn?.classList.remove('is-busy');
+        (e.target as HTMLInputElement).value = '';
+      }
     });
 
     // 6. 底部托盘展开/收起
     this.element.querySelector('#math-ar-toggle-tray')?.addEventListener('click', () => {
       if (this.models.length === 0) {
-        this.setStatus('当前未生成模型，请对准题目拍照', 2000);
+        this.setStatus('试卷上暂无 3D 模型，请对准题目拍照', 2000);
         return;
       }
       this.modelTrayEl?.classList.toggle('hidden');
@@ -238,7 +287,7 @@ export class MathARScannerModal {
 
     // 7. ESC 快捷键退出
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && document.body.contains(this.element)) {
+      if (event.key === 'Escape' && document.body?.contains(this.element)) {
         this.close();
       }
     };
@@ -267,13 +316,12 @@ export class MathARScannerModal {
       }
       this.setStatus('实时相机已就绪，对准题目点击快门');
     } catch {
-      // 摄像头未授权或环境受限时，自动启动精美的仿真试卷取景模式
       this.startSimulatedExamPaper();
     }
   }
 
   /**
-   * 启动高保真仿真试卷取景器 (无摄像头或测试环境下的优雅保底体验)。
+   * 启动高保真仿真试卷取景器 (无摄像头或测试环境下的优雅保底呈现)。
    */
   private startSimulatedExamPaper(): void {
     if (!this.canvasLayerEl) return;
@@ -285,17 +333,17 @@ export class MathARScannerModal {
     if (!ctx) return;
 
     const renderExamPaper = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      canvas.width = window.innerWidth || 1024;
+      canvas.height = window.innerHeight || 768;
 
-      // 试卷冷灰暖白纸张质感背景
-      ctx.fillStyle = '#18181b';
+      // 试卷冷灰质感背景
+      ctx.fillStyle = '#1c1c1f';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // 绘制试卷几何习题线稿与手稿模拟
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
       ctx.lineWidth = 1;
-      const step = 40;
+      const step = 44;
       for (let x = 0; x < canvas.width; x += step) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
@@ -309,16 +357,15 @@ export class MathARScannerModal {
         ctx.stroke();
       }
 
-      // 试卷题目示意字样
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
       ctx.font = '500 15px -apple-system, sans-serif';
-      ctx.fillText('【立体几何例题 1】如图所示，在四棱锥 P-ABCD 中，底面 ABCD 为正方形…', 80, 160);
-      ctx.fillText('【立体几何例题 2】已知正方体 ABCD-A1B1C1D1 的棱长为 2，点 E 为 A1B1 中点…', 80, canvas.height - 240);
+      ctx.fillText('【立体几何题 1】在四棱锥 P-ABCD 中，底面 ABCD 为正方形，PA ⊥ 底面 ABCD…', 80, 160);
+      ctx.fillText('【立体几何题 2】已知正方体 ABCD-A1B1C1D1 棱长为 2，求平面 A1BD 与截面多边形…', 80, canvas.height - 220);
     };
 
     renderExamPaper();
     window.addEventListener('resize', renderExamPaper);
-    this.setStatus('试卷取景模式已就绪，点击快门开始识别');
+    this.setStatus('试卷取景就绪，点击快门将 3D 模型立于纸上');
   }
 
   private async toggleTorch(): Promise<void> {
@@ -343,12 +390,165 @@ export class MathARScannerModal {
   }
 
   /**
-   * 快门动作：抓取当前试卷帧并触发几何识别分析。
+   * 恢复实时相机视窗（从相册底图切回）。
+   */
+  private resumeLiveCamera(): void {
+    if (this.canvasLayerEl) {
+      this.canvasLayerEl.style.display = 'none';
+    }
+    if (this.videoEl) {
+      this.videoEl.style.display = 'block';
+      void this.videoEl.play().catch(() => {});
+    }
+  }
+
+  /**
+   * 将相册导入的试卷照片投射到背景画布上，使 3D 几何真正直接立在相册试卷之上。
+   */
+  private displayPaperBackdrop(imageDataUrl: string): void {
+    if (!this.canvasLayerEl) return;
+    this.canvasLayerEl.style.display = 'block';
+    if (this.videoEl) {
+      this.videoEl.style.display = 'none';
+      try {
+        this.videoEl.pause();
+      } catch {}
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = this.canvasLayerEl;
+      if (!canvas) return;
+      canvas.width = window.innerWidth || 1024;
+      canvas.height = window.innerHeight || 768;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.fillStyle = '#0f0f12';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      const dx = (canvas.width - dw) / 2;
+      const dy = (canvas.height - dh) / 2;
+
+      ctx.drawImage(img, dx, dy, dw, dh);
+    };
+    img.src = imageDataUrl;
+  }
+
+  /**
+   * 采用后台异步位图解码与双规格压缩管线，彻底消灭相册大图（几千万像素）的主线程阻塞与内存暴涨。
+   */
+  private async optimizeImageFile(file: File): Promise<{ displayDataUrl: string; thumbDataUrl: string }> {
+    if (typeof document === 'undefined') {
+      return {
+        displayDataUrl: 'data:image/jpeg;base64,mock',
+        thumbDataUrl: 'data:image/jpeg;base64,mock',
+      };
+    }
+
+    let imgSource: CanvasImageSource | null = null;
+    let srcWidth = 0;
+    let srcHeight = 0;
+
+    // 1. 优先使用 createImageBitmap 在后台独立线程完成高效解码，避免主线程掉帧
+    if (typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(file);
+        imgSource = bitmap;
+        srcWidth = bitmap.width;
+        srcHeight = bitmap.height;
+      } catch {
+        imgSource = null;
+      }
+    }
+
+    // 2. 降级方案：使用 Blob URL 与 Image 对象异步加载
+    if (!imgSource) {
+      try {
+        const isBlob = typeof Blob !== 'undefined' && file instanceof Blob;
+        const ImageConstructor = typeof window !== 'undefined' && (window as any).Image ? (window as any).Image : (typeof Image !== 'undefined' ? Image : null);
+        if (ImageConstructor && (isBlob || (file && (file as any).type))) {
+          const url = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' && isBlob ? URL.createObjectURL(file) : '';
+          const img = new ImageConstructor();
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error('无法解析该相册图片'));
+            if (url) {
+              img.src = url;
+            } else if (typeof FileReader !== 'undefined' && isBlob) {
+              const reader = new FileReader();
+              reader.onload = () => {
+                img.src = reader.result as string;
+              };
+              reader.readAsDataURL(file);
+            } else {
+              resolve();
+            }
+          });
+          if (url && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url);
+          imgSource = img;
+          srcWidth = img.naturalWidth || img.width || 1280;
+          srcHeight = img.naturalHeight || img.height || 720;
+        }
+      } catch {
+        imgSource = null;
+      }
+    }
+
+    srcWidth = srcWidth || 1280;
+    srcHeight = srcHeight || 720;
+
+    // 3. 产出高清展示底图 (最长边限制 1600px，压缩至 ~200KB，极致清晰且绝不占显存)
+    const maxEdge = 1600;
+    const dispScale = Math.min(1, maxEdge / Math.max(srcWidth, srcHeight, 1));
+    const dispW = Math.max(1, Math.round(srcWidth * dispScale));
+    const dispH = Math.max(1, Math.round(srcHeight * dispScale));
+
+    const dispCanvas = document.createElement('canvas');
+    dispCanvas.width = dispW;
+    dispCanvas.height = dispH;
+    const dispCtx = dispCanvas.getContext('2d');
+    if (dispCtx && imgSource) {
+      dispCtx.drawImage(imgSource, 0, 0, dispW, dispH);
+    }
+    const displayDataUrl = dispCanvas.toDataURL ? dispCanvas.toDataURL('image/jpeg', 0.82) : 'data:image/jpeg;base64,mock';
+
+    // 4. 产出底部托盘专用轻量微缩图 (128x128，仅 ~4KB，杜绝底栏频繁重绘卡顿)
+    const thumbSize = 128;
+    const thumbScale = Math.min(1, thumbSize / Math.max(srcWidth, srcHeight, 1));
+    const thumbW = Math.max(1, Math.round(srcWidth * thumbScale));
+    const thumbH = Math.max(1, Math.round(srcHeight * thumbScale));
+
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = thumbW;
+    thumbCanvas.height = thumbH;
+    const thumbCtx = thumbCanvas.getContext('2d');
+    if (thumbCtx && imgSource) {
+      thumbCtx.drawImage(imgSource, 0, 0, thumbW, thumbH);
+    }
+    const thumbDataUrl = thumbCanvas.toDataURL ? thumbCanvas.toDataURL('image/jpeg', 0.7) : displayDataUrl;
+
+    // 5. 及时释放 ImageBitmap 句柄
+    if (imgSource && 'close' in imgSource && typeof (imgSource as any).close === 'function') {
+      (imgSource as any).close();
+    }
+
+    return { displayDataUrl, thumbDataUrl };
+  }
+
+  /**
+   * 快门拍照与截帧。
    */
   private async captureAndRecognize(): Promise<void> {
     if (this.isAnalyzing) return;
 
-    // 1. 播放苹果快门闪白动画与触感反馈
+    // 若此前显示的是相册底纸，点击快门自动切回实时摄像头
+    this.resumeLiveCamera();
+
+    // 快门微闪
     const flashEl = this.element.querySelector('#math-ar-flash');
     if (flashEl) {
       flashEl.classList.remove('animate');
@@ -356,7 +556,6 @@ export class MathARScannerModal {
       flashEl.classList.add('animate');
     }
 
-    // 2. 截取图像数据
     let dataUrl = '';
     if (this.videoEl && this.videoEl.videoWidth > 0) {
       const captureCanvas = document.createElement('canvas');
@@ -380,20 +579,19 @@ export class MathARScannerModal {
   }
 
   /**
-   * 图像识别与 AR 3D 模型生成核心链路。
+   * 识别图像并在试卷上直接安放真实 3D 多面体。
    */
-  private async processImageData(dataUrl: string, defaultName: string): Promise<void> {
+  private async processImageData(dataUrl: string, defaultName: string, thumbUrl?: string): Promise<void> {
     this.isAnalyzing = true;
     this.shutterBtn?.classList.add('is-busy');
     this.scanLaserEl?.classList.add('active');
-    this.setStatus('正在利用几何视觉引擎解析题目…');
+    this.setStatus('正在解析题目并构建立体几何…');
 
     try {
       let modelDef: PolyhedronModelDef | null = null;
       let title = defaultName;
       let subtitle = '高考数学立体几何';
 
-      // 优先走后端智能识别接口
       try {
         if (this.options.onRecognizeImage) {
           const res = await this.options.onRecognizeImage(dataUrl);
@@ -405,49 +603,52 @@ export class MathARScannerModal {
           subtitle = figure.subtitle || subtitle;
           modelDef = buildRecognizedModel(figure);
         }
-      } catch (err) {
-        // 当接口离线或断网时，智能匹配经典高中几何多面体作为保底，确保功能 100% 可用！
+      } catch {
         const fallbackCatalog: { type: any; name: string; subtitle: string }[] = [
-          { type: 'square-pyramid', name: '正四棱锥题目模型', subtitle: '高考经典截面与线面角' },
-          { type: 'cube', name: '正方体截面多边形', subtitle: '外接球与二面角探究' },
-          { type: 'tetrahedron', name: '正四面体空间模型', subtitle: '对棱垂直与嵌入长方体' },
-          { type: 'triangular-prism', name: '直三棱柱题目模型', subtitle: '斜截面与体积分割' },
+          { type: 'square-pyramid', name: '正四棱锥', subtitle: '经典截面与线面角' },
+          { type: 'cube', name: '正方体模型', subtitle: '外接球与二面角' },
+          { type: 'tetrahedron', name: '正四面体', subtitle: '对棱垂直与嵌入长方体' },
+          { type: 'triangular-prism', name: '直三棱柱', subtitle: '斜截面与体积分割' },
           { type: 'corner-pyramid', name: '墙角模型三棱锥', subtitle: '三条侧棱两两垂直' },
         ];
-        const selectedFallback = fallbackCatalog[this.models.length % fallbackCatalog.length];
-        modelDef = GeometrySolver.createModel(selectedFallback.type);
-        title = selectedFallback.name;
-        subtitle = selectedFallback.subtitle;
+        const selected = fallbackCatalog[this.models.length % fallbackCatalog.length];
+        modelDef = GeometrySolver.createModel(selected.type);
+        title = selected.name;
+        subtitle = selected.subtitle;
       }
 
-      // 如果尚未由 figure 构建，则从几何推导器中获取当前模型
       if (!modelDef) {
         modelDef = GeometrySolver.createModel('square-pyramid');
       }
 
-      // 生成试卷上的 AR 锚点坐标 (智能错开布局，避免多题目卡片重叠)
-      const count = this.models.length;
-      const angle = (count * 1.25) % (Math.PI * 2);
-      const radius = 60 + (count % 3) * 35;
-      const anchorX = Math.round(Math.cos(angle) * radius);
-      const anchorY = Math.round(Math.sin(angle) * (radius * 0.7));
+      // 获取取景框中心或试卷对应屏幕位置
+      const finderEl = this.element.querySelector('#math-ar-finder');
+      const rect = finderEl?.getBoundingClientRect();
+      const screenX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+      const screenY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+
+      // 真正将 3D 模型直接安放立于试卷纸面！
+      const arItem = this.spatialScene?.addModel(modelDef, title, subtitle, dataUrl, {
+        x: screenX,
+        y: screenY,
+      });
 
       const modelItem: ARModelItem = {
-        id: `ar-model-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: arItem?.id || `ar-${Date.now()}`,
         name: title,
         subtitle,
         dataUrl,
+        thumbUrl: thumbUrl || dataUrl,
         modelDef,
-        anchor: { x: anchorX, y: anchorY },
+        anchor: { x: screenX, y: screenY },
       };
 
-      // 挂载 AR 浮动卡片并展示 3D 模型
-      this.mountARCard(modelItem);
       this.models.push(modelItem);
-      this.selectModel(modelItem.id);
+      this.selectedModelId = modelItem.id;
+      this.options.onSyncModel?.(modelDef);
       this.updateTray();
 
-      this.setStatus(`已在试卷上生成「${title}」· 可拖动 3D 旋转观察`, 3200);
+      this.setStatus(`「${title}」已立于试卷上 · 可在纸面上直接拖拽 360° 旋转`, 3500);
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : '题目识别失败，请对准后重试');
     } finally {
@@ -458,201 +659,66 @@ export class MathARScannerModal {
   }
 
   /**
-   * 将 3D 模型以 AR 浮动卡片的形式“钉”在试卷对应题目上方。
-   */
-  private mountARCard(item: ARModelItem): void {
-    if (!this.arOverlayEl) return;
-
-    const card = document.createElement('div');
-    card.className = 'math-ar-anchor-card is-entering';
-    card.id = item.id;
-    card.style.transform = `translate(calc(-50% + ${item.anchor.x}px), calc(-50% + ${item.anchor.y}px))`;
-
-    const indexNumber = String(this.models.length + 1).padStart(2, '0');
-
-    card.innerHTML = `
-      <div class="math-ar-card-glass">
-        <!-- 头部：题目编号、名称与删除按钮 (可拖拽手柄) -->
-        <div class="math-ar-card-header" style="cursor: grab;">
-          <div class="math-ar-card-tag">
-            <span class="math-ar-card-index">${indexNumber}</span>
-            <span class="math-ar-card-title">${item.name}</span>
-          </div>
-          <button type="button" class="math-ar-card-delete" title="删除该 3D 模型">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- 中部：3D 可交互模型视窗 (轻触拖拽 3D 旋转) -->
-        <div class="math-ar-card-body"></div>
-
-        <!-- 底部：特征标签与旋转提示 -->
-        <div class="math-ar-card-footer">
-          <span class="math-ar-geo-pill">V: ${item.modelDef.vertices.length} · F: ${item.modelDef.faces.length}</span>
-          <span class="math-ar-rotate-hint">按住顶部可平移</span>
-        </div>
-      </div>
-      <!-- 试卷空间激光锚钉 -->
-      <div class="math-ar-spatial-pin" aria-hidden="true">
-        <div class="math-ar-pin-line"></div>
-        <div class="math-ar-pin-dot"></div>
-      </div>
-    `;
-
-    // 挂载 3D 交互微视窗
-    const bodyEl = card.querySelector('.math-ar-card-body') as HTMLElement;
-    const preview = new MiniModelPreview(item.modelDef, 170, 150);
-    bodyEl.appendChild(preview.domElement);
-
-    item.cardEl = card;
-    item.preview = preview;
-
-    // 1. 绑定卡片在试卷上的平移拖拽 (按住头部拖拽)
-    const headerEl = card.querySelector('.math-ar-card-header') as HTMLElement | null;
-    let isDraggingCard = false;
-    let startX = 0;
-    let startY = 0;
-    let anchorX = item.anchor.x;
-    let anchorY = item.anchor.y;
-
-    headerEl?.addEventListener('pointerdown', (e) => {
-      if ((e.target as HTMLElement).closest('.math-ar-card-delete')) return;
-      isDraggingCard = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      card.style.zIndex = '50';
-      headerEl.style.cursor = 'grabbing';
-      headerEl.setPointerCapture?.(e.pointerId);
-      e.stopPropagation();
-    });
-
-    headerEl?.addEventListener('pointermove', (e) => {
-      if (!isDraggingCard) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      const newX = anchorX + dx;
-      const newY = anchorY + dy;
-      card.style.transform = `translate(calc(-50% + ${newX}px), calc(-50% + ${newY}px))`;
-      e.stopPropagation();
-    });
-
-    const endDrag = (e: PointerEvent) => {
-      if (!isDraggingCard) return;
-      isDraggingCard = false;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      anchorX += dx;
-      anchorY += dy;
-      item.anchor.x = anchorX;
-      item.anchor.y = anchorY;
-      if (headerEl) {
-        headerEl.style.cursor = 'grab';
-        try {
-          headerEl.releasePointerCapture?.(e.pointerId);
-        } catch {
-          // 忽略
-        }
-      }
-      card.style.zIndex = '';
-    };
-    headerEl?.addEventListener('pointerup', endDrag);
-    headerEl?.addEventListener('pointercancel', endDrag);
-
-    // 2. 绑定删除按钮
-    card.querySelector('.math-ar-card-delete')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.removeModel(item.id);
-    });
-
-    // 3. 点击卡片设为当前高亮模型
-    card.addEventListener('click', () => {
-      this.selectModel(item.id);
-    });
-
-    this.arOverlayEl.appendChild(card);
-    setTimeout(() => card.classList.remove('is-entering'), 350);
-  }
-
-  /**
-   * 删除某个已经生成的 3D 模型，支持动画淡出与资源彻底释放。
+   * 删除某个已经生成的 3D 模型 (退出前可随时删掉)。
    */
   public removeModel(id: string): void {
-    const index = this.models.findIndex((m) => m.id === id);
-    if (index === -1) return;
+    const idx = this.models.findIndex((m) => m.id === id);
+    if (idx === -1) return;
 
-    const item = this.models[index];
+    const item = this.models[idx];
 
-    // 1. 卡片淡出动效
-    if (item.cardEl) {
-      item.cardEl.classList.add('is-exiting');
-      setTimeout(() => {
-        item.preview?.dispose();
-        item.cardEl?.remove();
-      }, 240);
-    } else {
-      item.preview?.dispose();
-    }
+    // 从 3D 纸面空间中彻底移除并执行收缩淡出
+    this.spatialScene?.removeModel(id);
 
-    // 2. 从列表中移除
-    this.models.splice(index, 1);
+    this.models.splice(idx, 1);
 
-    // 3. 重新校准选中的模型
     if (this.selectedModelId === id) {
       this.selectedModelId = this.models.length > 0 ? this.models[this.models.length - 1].id : null;
       if (this.selectedModelId) {
-        this.selectModel(this.selectedModelId);
+        const next = this.models.find((m) => m.id === this.selectedModelId);
+        if (next) this.options.onSyncModel?.(next.modelDef);
       }
     }
 
     this.updateTray();
-    this.setStatus(`已删除「${item.name}」· 剩余 ${this.models.length} 个模型`, 2200);
+    this.setStatus(`已从纸面删除「${item.name}」· 剩余 ${this.models.length} 个模型`, 2200);
   }
 
   /**
-   * 选中某个 AR 模型，聚焦并同步至主画板。
+   * 聚焦选中某个 3D 模型。
    */
-  private selectModel(id: string): void {
+  public selectModel(id: string): void {
+    const isNew = this.selectedModelId !== id;
     this.selectedModelId = id;
-    const current = this.models.find((m) => m.id === id);
-    if (!current) return;
+    this.spatialScene?.selectModel(id, false);
 
-    // 高亮 AR 卡片
-    this.models.forEach((m) => {
-      m.cardEl?.classList.toggle('active', m.id === id);
-    });
+    const target = this.models.find((m) => m.id === id);
+    if (target && isNew) {
+      this.options.onSyncModel?.(target.modelDef);
+    }
 
-    // 同步给外部画板
-    this.options.onSyncModel?.(current.modelDef);
-
-    // 更新底部托盘高亮
     this.modelTrayListEl?.querySelectorAll('.math-ar-tray-card').forEach((card) => {
       card.classList.toggle('active', card.getAttribute('data-id') === id);
     });
   }
 
   /**
-   * 刷新底部模型抽屉托盘与计数角标。
+   * 刷新底部已生成模型抽屉托盘与计数角标。
    */
   private updateTray(): void {
     const count = this.models.length;
 
-    // 1. 顶部「完成」胶囊按钮状态更新
     const doneLabel = this.doneBtn?.querySelector('.math-ar-done-label');
     if (doneLabel) {
       doneLabel.textContent = count > 0 ? `完成 (${count})` : '关闭';
     }
 
-    // 2. 底部右侧模型气泡角标
     const bubbleEl = this.element.querySelector('#math-ar-counter-bubble');
     if (bubbleEl) {
       bubbleEl.textContent = String(count);
       bubbleEl.classList.toggle('hidden', count === 0);
     }
 
-    // 3. 托盘总数
     const trayCountEl = this.element.querySelector('#math-ar-tray-count');
     if (trayCountEl) {
       trayCountEl.textContent = `${count} 个题目模型`;
@@ -663,7 +729,6 @@ export class MathARScannerModal {
       return;
     }
 
-    // 4. 重建托盘卡片列表
     if (this.modelTrayListEl) {
       this.modelTrayListEl.innerHTML = '';
       this.models.forEach((m, idx) => {
@@ -673,7 +738,7 @@ export class MathARScannerModal {
 
         trayCard.innerHTML = `
           <div class="math-ar-tray-thumb">
-            <img src="${m.dataUrl}" alt="题目" class="math-ar-thumb-img" />
+            <img src="${m.thumbUrl || m.dataUrl}" alt="题目" class="math-ar-thumb-img" />
             <span class="math-ar-thumb-index">${idx + 1}</span>
           </div>
           <div class="math-ar-tray-meta">
@@ -713,7 +778,7 @@ export class MathARScannerModal {
         if (this.statusTextEl && this.statusTextEl.textContent === text) {
           const defaultHint =
             this.models.length > 0
-              ? `已生成 ${this.models.length} 个模型，可对准题目继续拍摄`
+              ? `试卷上已立起 ${this.models.length} 个 3D 模型，可继续拍摄下一题`
               : '对准试卷上的立体几何题目';
           this.statusTextEl.textContent = defaultHint;
         }
@@ -722,26 +787,22 @@ export class MathARScannerModal {
   }
 
   /**
-   * 退出并关闭 AR 相机扫描工作台。
+   * 退出并关闭工作台，同步最终模型并安全清理硬件资源。
    */
   public close(): void {
-    // 1. 同步最后一个/选中的模型
     if (this.selectedModelId) {
       const active = this.models.find((m) => m.id === this.selectedModelId);
       if (active) this.options.onSyncModel?.(active.modelDef);
     }
 
-    // 2. 停止相机媒体流
     if (this.stream) {
       this.stream.getTracks().forEach((track) => track.stop());
       this.stream = null;
     }
 
-    // 3. 释放所有 3D 实例
-    this.models.forEach((m) => m.preview?.dispose());
-    if (this.mockFallbackInterval) window.clearInterval(this.mockFallbackInterval);
+    this.spatialScene?.dispose();
+    this.spatialScene = null;
 
-    // 4. Apple 原生退场动效
     this.element.classList.add('is-closing');
     setTimeout(() => {
       this.element.remove();

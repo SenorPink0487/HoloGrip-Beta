@@ -68,8 +68,8 @@ export class StereometryStatusCard {
             <span class="apple-btn-label">拍摄</span>
           </button>
 
-          <input id="math-scan-file" type="file" accept="image/*" style="display:none;" />
-          <input id="math-scan-camera" type="file" accept="image/*" capture="environment" style="display:none;" />
+          <input id="math-scan-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" style="display:none;" />
+          <input id="math-scan-camera" type="file" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" capture="environment" style="display:none;" />
         </div>
 
         <!-- 2. 4 Built-in Models Grid (Clean, No Subtitles) -->
