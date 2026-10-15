@@ -1,3 +1,5 @@
+import { preloadAccountAssets } from './AccountModal.ts';
+
 export interface WhiteboardDockCallbacks {
   onEnterLab: () => void;
   onReturnWhiteboard: () => void;
@@ -53,6 +55,8 @@ export class WhiteboardDock {
       </svg>
     `;
 
+    this.accountBtn.addEventListener('mouseenter', () => preloadAccountAssets(), { once: true });
+    this.accountBtn.addEventListener('touchstart', () => preloadAccountAssets(), { passive: true, once: true });
     this.accountBtn.addEventListener('click', () => {
       this.callbacks.onOpenAccount();
     });

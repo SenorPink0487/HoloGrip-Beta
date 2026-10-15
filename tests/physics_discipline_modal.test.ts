@@ -349,6 +349,38 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   console.log('✓ Test 6 passed: Mechanics branch accurately presents 5 classic experiments and formulas\n');
 }
 
+// Test 7: Current discipline query & state retention across navigation
+{
+  console.log('Test 7: Current discipline query & state retention across navigation');
+  const modal = new PhysicsDisciplineModal({
+    onBackToDisciplines: () => {},
+  });
+
+  assert.strictEqual(modal.getCurrentLevel(), 1);
+
+  modal.showLevel2('optics');
+  assert.strictEqual(modal.getCurrentLevel(), 2);
+  assert.strictEqual(modal.getCurrentDiscipline(), 'optics');
+
+  modal.showLevel2('thermo');
+  assert.strictEqual(modal.getCurrentLevel(), 2);
+  assert.strictEqual(modal.getCurrentDiscipline(), 'thermo');
+
+  modal.showLevel2('em');
+  assert.strictEqual(modal.getCurrentLevel(), 2);
+  assert.strictEqual(modal.getCurrentDiscipline(), 'em');
+
+  modal.showLevel2('mechanics');
+  assert.strictEqual(modal.getCurrentLevel(), 2);
+  assert.strictEqual(modal.getCurrentDiscipline(), 'mechanics');
+
+  modal.goBack();
+  assert.strictEqual(modal.getCurrentLevel(), 1);
+
+  console.log('✓ Test 7 passed: Discipline state and query verified\n');
+}
+
 console.log('========================================================');
-console.log('All Physics Discipline Modal Tests Passed (6/6)!');
+console.log('All Physics Discipline Modal Tests Passed (7/7)!');
 console.log('========================================================\n');
+

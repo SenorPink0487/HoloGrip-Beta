@@ -48,7 +48,7 @@ export class AuthPanel {
     this.heroEl.className = 'auth-hero';
     this.heroEl.innerHTML = `
       <div class="auth-hero-logo">
-        <img src="/hologrip-logo.png" alt="HoloGrip" class="auth-hero-img" />
+        <img src="/hologrip-logo.png" alt="HoloGrip" class="auth-hero-img" width="82" height="82" decoding="async" fetchpriority="high" />
       </div>
     `;
 

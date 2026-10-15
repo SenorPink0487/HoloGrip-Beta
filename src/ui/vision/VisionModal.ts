@@ -276,7 +276,10 @@ export class VisionModal {
     // Sub-components
     this.disciplineSelector = new DisciplineSelector({
       onSelectChemistry: () => this.switchTab('chemistry'),
-      onSelectPhysics: () => this.switchTab('physics'),
+      onSelectPhysics: () => {
+        this.physicsModal.showLevel1();
+        this.switchTab('physics');
+      },
       onSelectMath: () => this.switchTab('math'),
     });
 
@@ -494,6 +497,13 @@ export class VisionModal {
         }
         this.switchTab('disciplines');
       } else if (this.activeTab === 'thermo') {
+        this.physicsModal.showLevel2('thermo');
+        this.switchTab('physics');
+      } else if (this.activeTab === 'em') {
+        this.physicsModal.showLevel2('em');
+        this.switchTab('physics');
+      } else if (this.activeTab === 'mechanics') {
+        this.physicsModal.showLevel2('mechanics');
         this.switchTab('physics');
       } else if (this.activeTab === 'chemistry' || this.activeTab === 'math') {
         this.switchTab('disciplines');
@@ -656,6 +666,12 @@ export class VisionModal {
       this.activeTab = 'thermo';
     } else if (id.startsWith('em-')) {
       this.activeTab = 'em';
+    } else if (id.startsWith('mech-')) {
+      this.activeTab = 'mechanics';
+      this.mechStatusCard.setExperiment(id as MechExperimentId);
+    } else if (id.startsWith('optics-')) {
+      this.activeTab = 'physics';
+      this.physicsModal.showLevel2('optics');
     }
   }
 
@@ -747,7 +763,6 @@ export class VisionModal {
       this.bodyContainer.appendChild(this.periodicTableModal.element);
       this.callbacks.onSelectChemistry?.();
     } else if (tab === 'physics') {
-      this.physicsModal.reset();
       this.bodyContainer.appendChild(this.physicsModal.element);
     } else if (tab === 'math') {
       if (this.currentExperimentId !== 'math-stereometry') {
@@ -787,18 +802,7 @@ export class VisionModal {
   }
 
   public open(tab?: VisionTab, beakerId?: 'left' | 'right'): void {
-    const targetTab =
-      tab ||
-      (this.currentExperimentId === 'math-stereometry'
-        ? 'math'
-        : this.currentExperimentId?.startsWith('thermo-')
-        ? 'thermo'
-        : this.currentExperimentId?.startsWith('em-')
-        ? 'em'
-        : this.currentExperimentId?.startsWith('mech-')
-        ? 'mechanics'
-        : this.activeTab) ||
-      'disciplines';
+    const targetTab = tab || this.activeTab || 'disciplines';
 
     this.switchTab(targetTab);
 
@@ -836,6 +840,8 @@ export class VisionModal {
     this.fieldStatusCard?.setVisible(false);
     this.massSpecStatusCard?.setVisible(false);
     this.hysteresisStatusCard?.setVisible(false);
+    this.inductionStatusCard?.setVisible(false);
+    this.generatorStatusCard?.setVisible(false);
     this.mechStatusCard?.setVisible(false);
     this.callbacks.onClose();
   }

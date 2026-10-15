@@ -25,4 +25,22 @@ assert.match(whiteboardCss, /@keyframes\s+apple-crossfade-in/, 'Crossfade-in ani
 assert.match(whiteboardCss, /@keyframes\s+apple-crossfade-out/, 'Crossfade-out animation must be defined');
 assert.match(whiteboardCss, /@media\s*\(prefers-reduced-motion:\s*reduce\)/, 'Accessibility reduced-motion fallback must be supported');
 
-console.log('account invite code & Apple-style crossfade button motion tests passed');
+// 校验首屏图片与资产预加载及解码性能
+const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+assert.match(indexHtml, /<link\s+rel="preload"\s+as="image"\s+href="\/hologrip-logo\.png"/, 'index.html should preload hologrip-logo.png');
+
+// 校验 GPU 硬件加速与 will-change 优化
+assert.match(whiteboardCss, /\.apple-modal-backdrop\s*\{[^}]*will-change:\s*opacity/, 'Backdrop must have will-change: opacity');
+assert.match(whiteboardCss, /\.apple-modal-backdrop\s*\{[^}]*transform:\s*translateZ\(0\)/, 'Backdrop must have 3D hardware layer');
+assert.match(whiteboardCss, /\.apple-modal-card\s*\{[^}]*will-change:\s*transform,\s*opacity/, 'Card must have will-change: transform, opacity');
+assert.match(whiteboardCss, /\.apple-modal-card\s*\{[^}]*translate3d/, 'Card must use 3D hardware transform');
+assert.match(whiteboardCss, /\.auth-hero-img\s*\{[^}]*will-change:\s*transform/, 'Auth hero image must have will-change: transform');
+assert.match(whiteboardCss, /\.auth-hero-img\s*\{[^}]*translateZ\(0\)/, 'Auth hero image must be isolated to GPU layer');
+
+// 校验预热函数导出与安全调用
+import { preloadAccountAssets } from '../src/whiteboard/AccountModal.ts';
+assert.strictEqual(typeof preloadAccountAssets, 'function');
+assert.doesNotThrow(() => preloadAccountAssets());
+
+console.log('account invite code, performance warmup & Apple-style crossfade button motion tests passed');
+

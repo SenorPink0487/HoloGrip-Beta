@@ -88,13 +88,6 @@ export class MathARScannerModal {
           </button>
         </div>
 
-        <div class="math-ar-nav-center">
-          <div class="math-ar-status-pill">
-            <span class="math-ar-status-dot"></span>
-            <span class="math-ar-status-text" id="math-ar-status-text">对准试卷上的立体几何题目</span>
-          </div>
-        </div>
-
         <div class="math-ar-nav-right">
           <button type="button" class="math-ar-done-capsule" id="math-ar-done-btn">
             <span class="math-ar-done-label">关闭</span>
@@ -133,8 +126,8 @@ export class MathARScannerModal {
       <!-- 3. 底部 Apple 抽屉式已生成模型轮播托盘 -->
       <section class="math-ar-model-tray hidden" id="math-ar-model-tray">
         <div class="math-ar-tray-header">
-          <span class="math-ar-tray-title">试卷已锚定 3D 模型</span>
-          <span class="math-ar-tray-badge" id="math-ar-tray-count">0 个题目</span>
+          <span class="math-ar-tray-title">3D 模型</span>
+          <span class="math-ar-tray-badge" id="math-ar-tray-count">0 个</span>
         </div>
         <div class="math-ar-tray-carousel" id="math-ar-tray-list"></div>
       </section>
@@ -721,7 +714,7 @@ export class MathARScannerModal {
 
     const trayCountEl = this.element.querySelector('#math-ar-tray-count');
     if (trayCountEl) {
-      trayCountEl.textContent = `${count} 个题目模型`;
+      trayCountEl.textContent = `${count} 个`;
     }
 
     if (count === 0) {
@@ -736,14 +729,17 @@ export class MathARScannerModal {
         trayCard.className = `math-ar-tray-card ${m.id === this.selectedModelId ? 'active' : ''}`;
         trayCard.setAttribute('data-id', m.id);
 
+        const displayName = this.formatModelName(m.name);
+        const displaySub = this.simplifyModelDescription(m.name, m.subtitle);
+
         trayCard.innerHTML = `
           <div class="math-ar-tray-thumb">
             <img src="${m.thumbUrl || m.dataUrl}" alt="题目" class="math-ar-thumb-img" />
             <span class="math-ar-thumb-index">${idx + 1}</span>
           </div>
           <div class="math-ar-tray-meta">
-            <span class="math-ar-tray-name">${m.name}</span>
-            <span class="math-ar-tray-sub">${m.subtitle}</span>
+            <span class="math-ar-tray-name">${displayName}</span>
+            ${displaySub ? `<span class="math-ar-tray-sub">${displaySub}</span>` : ''}
           </div>
           <button type="button" class="math-ar-tray-delete-btn" title="删除该模型">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -767,6 +763,50 @@ export class MathARScannerModal {
 
       this.modelTrayEl?.classList.remove('hidden');
     }
+  }
+
+  /**
+   * 格式化并优雅展示模型名称 (如 "四面体ABCD" -> "四面体 ABCD")
+   */
+  private formatModelName(name: string): string {
+    if (!name) return '立体几何';
+    return name.replace(/([\u4e00-\u9fa5])([A-Za-z0-9])/g, '$1 $2').trim();
+  }
+
+  /**
+   * 简化模型卡片的文字描述，保持 Apple 简约低调风格，去除冗长公式与截断文本。
+   */
+  private simplifyModelDescription(name: string, subtitle?: string): string {
+    if (!subtitle) return '';
+
+    // 1. 若包含长数学公式/条件表达式 (如 AD⊥平面ABC、AC=2 等)，提炼精简核心属性
+    if (/[⊥=∠△∥\+\-\*\/]/.test(subtitle)) {
+      if (/⊥|垂直/.test(subtitle)) return '线面垂直';
+      if (/截面/.test(subtitle)) return '截面分析';
+      if (/外接球|内切球|球/.test(subtitle)) return '外接球模型';
+      if (/二面角|线面角|角/.test(subtitle)) return '空间夹角';
+      if (/平行/.test(subtitle)) return '线面平行';
+      if (/棱长|体积|面积/.test(subtitle)) return '度量几何';
+      return '几何分析';
+    }
+
+    // 2. 去除冗长尾缀词，保持 4~8 个汉字以内的极简描述
+    let clean = subtitle
+      .replace(/^(已知|在|对于)/, '')
+      .replace(/与嵌入长方体|与线面角|与二面角|与体积分割|两两垂直/g, '')
+      .replace(/模型$/, '')
+      .trim();
+
+    // 如果与名称高度重复（例如 name="正四面体", subtitle="正四面体"），返回精简说明
+    if (clean === name) {
+      return '标准模型';
+    }
+
+    if (clean.length > 8) {
+      clean = clean.slice(0, 8);
+    }
+
+    return clean || '3D 几何';
   }
 
   private setStatus(text: string, duration?: number): void {

@@ -23,7 +23,6 @@ export interface ARSpatialItem {
 export class MathARSpatialScene {
   public readonly domElement: HTMLElement;
   private canvas: HTMLCanvasElement;
-  private tagsLayer: HTMLElement;
   private renderer: THREE.WebGLRenderer | null = null;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
@@ -43,7 +42,6 @@ export class MathARSpatialScene {
   private shadowTexture: THREE.CanvasTexture | null = null;
   private viewportWidth = 800;
   private viewportHeight = 600;
-  private tempTopPos = new THREE.Vector3();
 
   private onSelectCallback?: (id: string) => void;
   private onDeleteCallback?: (id: string) => void;
@@ -67,10 +65,6 @@ export class MathARSpatialScene {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'math-ar-spatial-canvas';
     this.domElement.appendChild(this.canvas);
-
-    this.tagsLayer = document.createElement('div');
-    this.tagsLayer.className = 'math-ar-spatial-tags-layer';
-    this.domElement.appendChild(this.tagsLayer);
 
     this.scene = new THREE.Scene();
 
@@ -225,23 +219,7 @@ export class MathARSpatialScene {
       group.add(shadowMesh);
     }
 
-    // 2. 试卷地面选中脉冲光环 (Ground Ring)
-    const ringGeom = new THREE.RingGeometry(0.75, 0.78, 36);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.75,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const ringMesh = new THREE.Mesh(ringGeom, ringMat);
-    ringMesh.name = 'groundRing';
-    ringMesh.rotation.x = -Math.PI / 2;
-    ringMesh.position.y = 0.004;
-    ringMesh.visible = true;
-    group.add(ringMesh);
-
-    // 3. 构建 3D 多面体核心网格 (半透明科技晶体 + 高光外骨架)
+    // 2. 构建 3D 多面体核心网格 (半透明科技晶体 + 高光外骨架)
     const modelSubGroup = this.buildPolyhedronMesh(modelDef);
     modelSubGroup.name = 'polyhedronMesh';
     group.add(modelSubGroup);
@@ -249,10 +227,6 @@ export class MathARSpatialScene {
     // 生长入场动画：从纸面拔地而起
     group.scale.set(0.01, 0.01, 0.01);
     this.scene.add(group);
-
-    // 4. 创建浮动在模型顶部的极简 Apple 标签胶囊 (仅显示名称与微型删除圆钮，无方框外壳)
-    const tagEl = this.createFloatingTag(id, name);
-    this.tagsLayer.appendChild(tagEl);
 
     const fallbackW = typeof window !== 'undefined' ? window.innerWidth : 800;
     const fallbackH = typeof window !== 'undefined' ? window.innerHeight : 600;
@@ -269,7 +243,6 @@ export class MathARSpatialScene {
       rotationX: 0,
       scale: 1,
       group,
-      tagEl,
     };
 
     this.items.push(item);
@@ -429,76 +402,6 @@ export class MathARSpatialScene {
   /**
    * 创建悬浮在 3D 模型正上方的微型胶囊标牌 (轻量、纯粹、无方框)。
    */
-  private createFloatingTag(id: string, name: string): HTMLElement {
-    const tag = document.createElement('div');
-    tag.className = 'math-ar-spatial-pin-tag';
-    tag.setAttribute('data-id', id);
-
-    tag.innerHTML = `
-      <div class="math-ar-pin-pill">
-        <span class="math-ar-pin-dot"></span>
-        <span class="math-ar-pin-text">${name}</span>
-        <button type="button" class="math-ar-pin-close" title="从试卷中删除该 3D 模型">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-    `;
-
-    // 绑定删除按钮
-    tag.querySelector('.math-ar-pin-close')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.removeModel(id);
-      this.onDeleteCallback?.(id);
-    });
-
-    // 点击标签选中该模型
-    tag.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.selectModel(id);
-    });
-
-    return tag;
-  }
-
-  /**
-   * 将三维模型顶部的世界坐标实时投影至屏幕二维平面，更新悬浮微胶囊位置。
-   */
-  private updateTagPositions(): void {
-    const w = this.viewportWidth;
-    const h = this.viewportHeight;
-
-    for (const item of this.items) {
-      if (!item.tagEl) continue;
-
-      // 模型顶部世界坐标 (复用 tempTopPos，避免每帧触发垃圾回收)
-      this.tempTopPos.copy(item.group.position);
-      this.tempTopPos.y += 0.95 * item.scale; // 漂浮在模型正上方
-
-      this.tempTopPos.project(this.camera);
-
-      // 视锥外裁切
-      if (this.tempTopPos.z > 1) {
-        if (item.tagEl.style.display !== 'none') {
-          item.tagEl.style.display = 'none';
-        }
-        continue;
-      }
-
-      if (item.tagEl.style.display !== 'flex') {
-        item.tagEl.style.display = 'flex';
-      }
-      const x = Math.round(((this.tempTopPos.x + 1) / 2) * w);
-      const y = Math.round(((-this.tempTopPos.y + 1) / 2) * h);
-      const targetTransform = `translate(-50%, -100%) translate(${x}px, ${y - 8}px)`;
-      if (item.tagEl.style.transform !== targetTransform) {
-        item.tagEl.style.transform = targetTransform;
-      }
-    }
-  }
-
   /**
    * 移除试卷上的某个 3D 模型。
    */
@@ -517,7 +420,6 @@ export class MathARSpatialScene {
         requestAnimationFrame(shrink);
       } else {
         this.scene.remove(item.group);
-        item.tagEl?.remove();
         this.disposeGroup(item.group);
       }
     };
@@ -537,12 +439,6 @@ export class MathARSpatialScene {
     if (this.selectedId === id && !notify) return;
     const changed = this.selectedId !== id;
     this.selectedId = id;
-    this.items.forEach((item) => {
-      const isSelected = item.id === id;
-      const ring = item.group.getObjectByName('groundRing');
-      if (ring) ring.visible = isSelected;
-      item.tagEl?.classList.toggle('active', isSelected);
-    });
     if (changed && notify) {
       this.onSelectCallback?.(id);
     }
@@ -652,7 +548,6 @@ export class MathARSpatialScene {
         this.renderer.render(this.scene, this.camera);
       }
 
-      this.updateTagPositions();
       this.animFrameId = requestAnimationFrame(render);
     };
 
@@ -681,7 +576,6 @@ export class MathARSpatialScene {
 
     this.items.forEach((item) => {
       this.disposeGroup(item.group);
-      item.tagEl?.remove();
     });
     this.items = [];
 

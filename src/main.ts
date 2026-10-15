@@ -1,7 +1,9 @@
 import { Engine } from './core/Engine';
 import { WhiteboardApp } from './whiteboard/WhiteboardApp';
+import { preloadAccountAssets } from './whiteboard/AccountModal';
 
 function init() {
+  preloadAccountAssets();
   const engine = new Engine('webgl-container');
   (window as any).__ENGINE__ = engine;
 

@@ -384,6 +384,10 @@ export class PhysicsDisciplineModal {
     return this.currentLevel;
   }
 
+  public getCurrentDiscipline(): 'optics' | 'thermo' | 'em' | 'mechanics' {
+    return this.currentDiscipline;
+  }
+
   /**
    * 渲染一级界面：物理二级学科分支选择网格
    */

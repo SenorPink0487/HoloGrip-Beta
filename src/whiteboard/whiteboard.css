@@ -803,6 +803,9 @@ body.lab-returning #touch-controls-layer * {
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
+  will-change: opacity;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
   transition: opacity 0.22s ease-out, visibility 0.22s ease-out;
 }
 
@@ -831,8 +834,12 @@ body.lab-returning #touch-controls-layer * {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  transform: translateY(12px) scale(0.98);
+  transform: translate3d(0, 12px, 0) scale(0.98);
+  -webkit-transform: translate3d(0, 12px, 0) scale(0.98);
   opacity: 0;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   transition: 
     transform 0.26s cubic-bezier(0.16, 1, 0.3, 1),
     opacity 0.2s ease-out,
@@ -841,7 +848,8 @@ body.lab-returning #touch-controls-layer * {
 }
 
 .apple-modal-backdrop.open .apple-modal-card {
-  transform: translateY(0) scale(1);
+  transform: translate3d(0, 0, 0) scale(1);
+  -webkit-transform: translate3d(0, 0, 0) scale(1);
   opacity: 1;
 }
 
@@ -1238,6 +1246,9 @@ body.lab-returning #touch-controls-layer * {
   display: block;
   filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.14)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.06));
   transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), filter 0.32s ease;
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .auth-hero-logo:hover .auth-hero-img {

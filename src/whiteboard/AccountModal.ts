@@ -15,6 +15,23 @@ const THEMES: { id: WhiteboardTheme; label: string; preview: string }[] = [
   { id: 'dark', label: '极客深空', preview: 'preview-dark' },
 ];
 
+export function preloadAccountAssets(): void {
+  if (typeof window === 'undefined' || typeof Image === 'undefined') return;
+  try {
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = '/hologrip-logo.png';
+    if (typeof img.decode === 'function') {
+      img.decode().catch(() => {});
+    }
+  } catch {
+    // 忽略在非浏览器或测试环境中的错误
+  }
+}
+
+// 模块加载时尽早触发预热
+preloadAccountAssets();
+
 export class AccountModal {
   public element: HTMLDivElement;
   private canvas: WhiteboardCanvas;
@@ -24,6 +41,11 @@ export class AccountModal {
   private body: HTMLDivElement;
   private titleEl: HTMLHeadingElement;
   private badgeEl: HTMLSpanElement;
+  private needsRender = false;
+  private lastRenderedUserId: string | null = null;
+  private lastRenderedRole: string | null = null;
+  private lastRenderedClassName: string | null = null;
+  private lastRenderedError: string = '';
 
   constructor(canvas: WhiteboardCanvas, parent: HTMLElement = document.body) {
     this.canvas = canvas;
@@ -31,10 +53,15 @@ export class AccountModal {
     this.bindShell();
     subscribe(() => {
       if (getUser()) this.authError = '';
-      if (this.isOpen) this.render();
+      if (this.isOpen) {
+        this.render();
+      } else {
+        this.needsRender = true;
+      }
     });
     this.render();
     this.setInputsDisabled(true);
+    preloadAccountAssets();
   }
 
   private setInputsDisabled(disabled: boolean): void {
@@ -51,6 +78,20 @@ export class AccountModal {
     });
   }
 
+  private shouldRender(): boolean {
+    const childrenCount = this.body?.children?.length ?? 0;
+    if (childrenCount === 0) return true;
+    const user = getUser();
+    const userId = user?.id ?? null;
+    const role = user?.role ?? null;
+    const className = user?.class?.name ?? null;
+    if (userId !== this.lastRenderedUserId) return true;
+    if (role !== this.lastRenderedRole) return true;
+    if (className !== this.lastRenderedClassName) return true;
+    if (this.authError !== this.lastRenderedError) return true;
+    return false;
+  }
+
   public open(): void {
     this.isOpen = true;
     this.element.classList.add('open');
@@ -58,7 +99,9 @@ export class AccountModal {
     this.element.removeAttribute?.('inert');
     (this.element as any).inert = false;
     this.setInputsDisabled(false);
-    this.render();
+    if (this.needsRender || this.shouldRender()) {
+      this.render();
+    }
     this.updateStats();
     if (getUser() || hasRefreshToken()) {
       void this.refreshFromServer();
@@ -168,8 +211,14 @@ export class AccountModal {
   }
 
   private render(): void {
-    clearChildren(this.body);
     const user = getUser();
+    this.lastRenderedUserId = user?.id ?? null;
+    this.lastRenderedRole = user?.role ?? null;
+    this.lastRenderedClassName = user?.class?.name ?? null;
+    this.lastRenderedError = this.authError;
+    this.needsRender = false;
+
+    clearChildren(this.body);
     if (!user) {
       this.card.classList.add('auth-card-mode');
       this.titleEl.textContent = '登录';
@@ -204,7 +253,7 @@ export class AccountModal {
 
     const avatar = document.createElement('div');
     avatar.className = 'profile-avatar-wrapper';
-    avatar.innerHTML = `<img src="/hologrip-logo.png" alt="User" class="profile-avatar-img" />`;
+    avatar.innerHTML = `<img src="/hologrip-logo.png" alt="User" class="profile-avatar-img" width="52" height="52" decoding="async" />`;
     profile.appendChild(avatar);
 
     const form = document.createElement('div');
@@ -408,6 +457,7 @@ export class AccountModal {
   }
 
   private showAccountError(message: string): void {
+    this.lastRenderedError = message;
     const el = this.element.querySelector('#account-error');
     if (!el) return;
     el.textContent = message;

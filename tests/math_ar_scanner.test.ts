@@ -200,8 +200,8 @@ assert.ok(arModel1.id, 'AR item must have a unique ID');
 assert.strictEqual(spatialScene.getItems().length, 1, 'Scene must contain 1 model');
 assert.strictEqual(selectedIdFromScene, arModel1.id, 'Added model should be automatically selected');
 assert.ok(arModel1.group.getObjectByName('polyhedronMesh'), '3D polyhedron mesh must be mounted');
-assert.ok(arModel1.group.getObjectByName('groundRing'), 'Ground pulse ring must be present on paper');
-assert.ok(arModel1.tagEl, 'Floating minimal Apple capsule tag must exist');
+assert.ok(!arModel1.group.getObjectByName('groundRing'), 'Ground pulse ring must be eliminated for Apple minimalism');
+assert.strictEqual(arModel1.tagEl, undefined, 'Floating pin tag bubble must be eliminated for Apple minimalism');
 
 // 连拍立起第 2 个 3D 几何模型 (多模型同屏立于纸面)
 const arModel2 = spatialScene.addModel(
@@ -246,7 +246,8 @@ assert.ok(scanner.element.querySelector('#math-ar-laser'), 'Scan laser beam must
 assert.ok(scanner.element.querySelector('#math-ar-overlay'), 'AR overlay container must exist');
 assert.ok(scanner.element.querySelector('#math-ar-model-tray'), 'Model carousel tray must exist');
 assert.ok(scanner.element.querySelector('#math-ar-done-btn'), 'Apple capsule Done button must exist');
-assert.ok(scanner.element.querySelector('#math-ar-album-btn'), 'Album import button must exist');
+assert.ok(!scanner.element.innerHTML.includes('math-ar-status-pill'), 'Top status pill bubble must be eliminated for Apple minimalism');
+assert.ok(!scanner.element.innerHTML.includes('math-ar-status-text'), 'Status text element must be eliminated for Apple minimalism');
 
 console.log('✓ Test 3 passed: All Apple-inspired scanner UI components verified\n');
 
@@ -259,6 +260,13 @@ console.log('Test 4: Multi-Shot Continuous Scanning on Paper Surface');
 await (scanner as any).processImageData('data:image/jpeg;base64,mock1', '题目 1');
 assert.strictEqual((scanner as any).models.length, 1, 'Model 1 should be added to scanner models');
 assert.ok(syncedModel, 'Model should sync with whiteboard');
+
+const card1Meta = scanner.element.querySelector('.math-ar-tray-meta');
+assert.ok(card1Meta, 'Tray card meta must exist');
+const card1Sub = card1Meta?.querySelector('.math-ar-tray-sub');
+if (card1Sub) {
+  assert.ok(!/[⊥=∠△∥]/.test(card1Sub.textContent || ''), 'Tray card description must not contain raw formula noise');
+}
 
 // 模拟第二道题连拍 (不退出页面继续拍照)
 await (scanner as any).processImageData('data:image/jpeg;base64,mock2', '题目 2');
