@@ -386,6 +386,11 @@ export class VisionModal {
           this.switchTab('thermo');
         } else if (id.startsWith('em-')) {
           this.switchTab('em');
+        } else if (id === 'mech-galileo') {
+          // 伽利略理想斜面实验不需要悬浮窗口状态卡片（参考光学板块：选择后关闭浮窗，打开时显示力学目录）
+          this.activeTab = 'physics';
+          this.physicsModal.showLevel2('mechanics');
+          this.close();
         } else if (id.startsWith('mech-')) {
           this.mechStatusCard.setExperiment(id as MechExperimentId);
           this.switchTab('mechanics');
@@ -660,18 +665,16 @@ export class VisionModal {
 
   public setCurrentExperimentId(id: string): void {
     this.currentExperimentId = id;
-    if (id === 'mech-galileo') {
-      if (this.isOpen) {
-        this.close();
-      }
-      return;
-    }
     if (id === 'math-stereometry') {
       this.activeTab = 'math';
     } else if (id.startsWith('thermo-')) {
       this.activeTab = 'thermo';
     } else if (id.startsWith('em-')) {
       this.activeTab = 'em';
+    } else if (id === 'mech-galileo') {
+      // 伽利略理想斜面实验不需要悬浮窗口的状态卡片（参考光学板块：打开视窗时呈现力学实验列表，不呈现状态卡片）
+      this.activeTab = 'physics';
+      this.physicsModal.showLevel2('mechanics');
     } else if (id.startsWith('mech-')) {
       this.activeTab = 'mechanics';
       this.mechStatusCard.setExperiment(id as MechExperimentId);
@@ -808,9 +811,6 @@ export class VisionModal {
   }
 
   public open(tab?: VisionTab, beakerId?: 'left' | 'right'): void {
-    if (this.currentExperimentId === 'mech-galileo' && tab !== 'disciplines') {
-      return;
-    }
     const targetTab = tab || this.activeTab || 'disciplines';
 
     this.switchTab(targetTab);

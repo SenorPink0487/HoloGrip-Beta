@@ -174,15 +174,26 @@ export class StereometryMesh {
   // 展开动画多边形面组缓存
   private unfoldingFaceGroups: THREE.Group[] = [];
 
+  public static readonly CANONICAL_VISUAL_SIZE = 0.58;
+  public static readonly CANONICAL_VISUAL_DIMENSIONS = {
+    a: 0.58,
+    b: 0.58,
+    c: 0.58,
+    h: 0.58,
+    r: 0.29,
+  };
+
+  private numericalDimensions: { a: number; h: number; b?: number; c?: number; r?: number } = { a: 1, h: 1 };
+
   constructor() {
     this.group.name = 'StereometryMesh';
     this.initMaterials();
     this.assembleGroups();
 
-    // 默认配置：标准高中正方体，课本标准斜二测视角
+    // 默认配置：标准高中正方体，课本标准斜二测视角，精确整数归一化
     this.currentOptions = {
       modelType: 'cube',
-      dimensions: { a: 0.58, b: 0.58, c: 0.58 },
+      dimensions: { a: 1, b: 1, c: 1, h: 1 },
       showKeyPoints: true,
       showMidpoints: false,      // 默认绝不平铺中点
       showFaceCenters: false,    // 默认绝不平铺面心
@@ -197,9 +208,11 @@ export class StereometryMesh {
       clippingEnabled: false,
       explodeDistance: 0,
     };
+    this.numericalDimensions = { a: 1, h: 1 };
 
-    this.currentModelDef = GeometrySolver.createModel('cube', this.currentOptions.dimensions);
-    this.currentSphereAnalysis = GeometrySolver.computeSphereAnalysis('cube', this.currentOptions.dimensions);
+    // 视觉实体始终采用标准归一化基准尺寸构建，确保无论数值如何修改，显示大小均保持稳定
+    this.currentModelDef = GeometrySolver.createModel('cube', StereometryMesh.CANONICAL_VISUAL_DIMENSIONS);
+    this.currentSphereAnalysis = GeometrySolver.computeSphereAnalysis('cube', this.numericalDimensions);
 
     this.rebuildAll();
     this.updateBaseHoverHeight();
@@ -729,21 +742,65 @@ export class StereometryMesh {
       return;
     }
 
+    if (options.dimensions) {
+      if (options.dimensions.a !== undefined) this.numericalDimensions.a = Math.max(1, Math.round(options.dimensions.a));
+      if (options.dimensions.h !== undefined) this.numericalDimensions.h = Math.max(1, Math.round(options.dimensions.h));
+      if (options.dimensions.b !== undefined) this.numericalDimensions.b = Math.max(1, Math.round(options.dimensions.b));
+      if (options.dimensions.c !== undefined) this.numericalDimensions.c = Math.max(1, Math.round(options.dimensions.c));
+    }
+
     this.currentOptions = { ...this.currentOptions, ...options };
 
     const keepFigure = this.recognizedModel !== null && this.currentOptions.modelType === 'recognized';
-    if (!keepFigure && (modelChanged || dimsChanged) && this.currentOptions.modelType !== 'recognized') {
+    if (!keepFigure && modelChanged && this.currentOptions.modelType !== 'recognized') {
       this.currentModelDef = GeometrySolver.createModel(
         this.currentOptions.modelType,
-        this.currentOptions.dimensions
+        StereometryMesh.CANONICAL_VISUAL_DIMENSIONS
       );
       this.currentSphereAnalysis = GeometrySolver.computeSphereAnalysis(
         this.currentOptions.modelType,
-        this.currentOptions.dimensions
+        this.numericalDimensions
       );
-      if (modelChanged && !options.crossSectionPlane) {
+      if (!options.crossSectionPlane) {
         this.currentCrossSection = null;
       }
+      this.rebuildAll();
+    } else if (dimsChanged && !modelChanged) {
+      // 关键：修改尺寸只改变数值不改变显示的大小，显示的大小只由 +- 或触摸屏缩放决定
+      this.currentSphereAnalysis = GeometrySolver.computeSphereAnalysis(
+        this.currentOptions.modelType,
+        this.numericalDimensions
+      );
+      // 仅同步更新已绘制辅助线的归一化整数长度，不重新生成 3D 几何实体
+      if (this.drawnSegments.length > 0) {
+        for (const seg of this.drawnSegments) {
+          const kpA = this.currentModelDef?.keyPoints.find((k) => k.id === seg.pointIdA);
+          const kpB = this.currentModelDef?.keyPoints.find((k) => k.id === seg.pointIdB);
+          if (kpA && kpB) {
+            seg.length = this.calculateNormalizedSegmentLength(kpA.position, kpB.position);
+          }
+        }
+      }
+    } else if (modelChanged && this.currentOptions.modelType === 'recognized') {
+      this.rebuildAll();
+    }
+
+    const otherVisualOptionsChanged = (
+      options.showKeyPoints !== undefined ||
+      options.showMidpoints !== undefined ||
+      options.showFaceCenters !== undefined ||
+      options.showLabels !== undefined ||
+      options.showDashedLines !== undefined ||
+      options.showCoordinateSystem !== undefined ||
+      options.showCircumSphere !== undefined ||
+      options.showInSphere !== undefined ||
+      options.showEmbeddingBox !== undefined ||
+      options.showThreeViews !== undefined ||
+      options.clippingEnabled !== undefined ||
+      options.explodeDistance !== undefined
+    );
+    if (otherVisualOptionsChanged && !modelChanged) {
+      this.rebuildAll();
     }
 
     if (options.crossSectionPlane !== undefined) {
@@ -755,9 +812,8 @@ export class StereometryMesh {
       } else {
         this.currentCrossSection = null;
       }
+      this.rebuildCrossSection();
     }
-
-    this.rebuildAll();
   }
 
   public rebuildAll(): void {
@@ -1188,6 +1244,25 @@ export class StereometryMesh {
     }
   }
 
+  /**
+   * 将 3D 几何顶点坐标间距计算并归一化为高中立体几何尺寸（精确到整数）。
+   */
+  public calculateNormalizedSegmentLength(posA: THREE.Vector3, posB: THREE.Vector3): number {
+    const base = this.getBaseUnit();
+    const unitA = this.numericalDimensions?.a ?? 1;
+    const unitH = this.numericalDimensions?.h ?? unitA;
+
+    const dx = posB.x - posA.x;
+    const dy = posB.y - posA.y;
+    const dz = posB.z - posA.z;
+    const dxz = Math.hypot(dx, dz);
+
+    const normXZ = (dxz / (base > 1e-6 ? base : 1)) * unitA;
+    const normY = (Math.abs(dy) / (base > 1e-6 ? base : 1)) * unitH;
+    const dist = Math.hypot(normXZ, normY);
+    return Math.max(1, Math.round(dist));
+  }
+
   // -------------------------------------------------------------
   // 6. 空间连线绘制（附带生成动画）
   // -------------------------------------------------------------
@@ -1201,7 +1276,7 @@ export class StereometryMesh {
     );
     if (existing) return existing;
 
-    const length = kpA.position.distanceTo(kpB.position);
+    const length = this.calculateNormalizedSegmentLength(kpA.position, kpB.position);
     const seg: DrawnSegment = {
       id: `seg_${pointIdA}_${pointIdB}`,
       pointIdA,
@@ -1852,26 +1927,25 @@ export class StereometryMesh {
   }
 
   public getOptions(): StereometryDisplayOptions {
-    return { ...this.currentOptions };
+    return {
+      ...this.currentOptions,
+      dimensions: { ...this.numericalDimensions },
+    };
   }
 
   public getBaseUnit(): number {
-    return (
-      this.currentModelDef?.defaultParams?.a ||
-      this.currentModelDef?.defaultParams?.r ||
-      this.currentOptions?.dimensions?.a ||
-      0.58
-    );
+    return StereometryMesh.CANONICAL_VISUAL_SIZE;
   }
 
   /**
-   * 将 3D 空间测量的绝对几何距离归一化为高中立体几何无单位标量（以基准棱长为 1）。
+   * 将 3D 空间测量的绝对几何距离归一化为高中立体几何尺寸（精确到整数）。
    */
   public formatNormalizedDistance(len: number): string {
-    const base = this.getBaseUnit();
-    const val = len / (base > 1e-6 ? base : 1);
     if (len < 1e-4) return '0';
-    return parseFloat(val.toFixed(3)).toString();
+    const base = this.getBaseUnit();
+    const unitScale = this.numericalDimensions?.a ?? 1;
+    const val = (len / (base > 1e-6 ? base : 1)) * unitScale;
+    return Math.max(1, Math.round(val)).toString();
   }
 
   public setScale(scale: number): void {

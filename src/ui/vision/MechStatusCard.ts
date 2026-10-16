@@ -50,6 +50,10 @@ export class MechStatusCard {
     this.element.style.display = show ? 'block' : 'none';
   }
 
+  public get visible(): boolean {
+    return this.isVisible;
+  }
+
   public updateTelemetry(telemetry: any): void {
     this.currentTelemetry = telemetry;
     if (!this.isVisible || !telemetry) return;

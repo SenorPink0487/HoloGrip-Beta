@@ -148,6 +148,7 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(!html.includes('全息光学综合实验台'), 'Experiments must NOT be visible on Level 1 before clicking optics');
   assert(!html.includes('杨氏双缝干涉'), 'Young interference must NOT be visible on Level 1');
   assert(!html.includes('optics-card'), 'Optics experiment cards must not exist on Level 1');
+  assert(!html.includes('btn-crumb-disciplines'), 'Blue return button btn-crumb-disciplines must be removed from Level 1');
 
   console.log('✓ Test 1 passed: Level 1 correctly displays branches and hides experiments before click\n');
 }

@@ -436,14 +436,7 @@ export class PhysicsDisciplineModal {
       <div class="physics-level-container physics-level-1">
         <!-- Minimalist Navigation Header -->
         <div class="physics-nav-bar">
-          <button class="physics-back-pill" id="btn-crumb-disciplines" title="返回学科选择">
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-            <span>学科</span>
-          </button>
           <h2 class="physics-level-title">物理学</h2>
-          <div class="physics-nav-placeholder"></div>
         </div>
 
         <!-- 4 Physics Branches Grid (Pure Frosted Tiles) -->
@@ -582,11 +575,6 @@ export class PhysicsDisciplineModal {
   }
 
   private bindLevel1Events(): void {
-    // 返回按钮 -> 返回大学科选择界面
-    this.element.querySelector('#btn-crumb-disciplines')?.addEventListener('click', () => {
-      this.callbacks.onBackToDisciplines();
-    });
-
     // 光学卡片 -> 进入二级界面（光学实验目录）
     const opticsTile = this.element.querySelector('#branch-tile-optics');
     opticsTile?.addEventListener('click', () => {

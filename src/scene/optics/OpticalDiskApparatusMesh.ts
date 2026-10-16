@@ -1114,11 +1114,11 @@ export class OpticalDiskApparatusMesh {
       addAngleArcMesh(0.095, 0.0055, minAng2, span2, 0xf59e0b, 0.22);
     }
 
-    // 4. 纯文字加清晰角度符号 (°) 实时标注刷新
+    // 4. 纯文字加清晰角度符号 (°) 实时标注刷新 (精确到整数)
     const theta1DegAbs = Math.abs(this.incidentAngleDeg);
-    const theta1Key = theta1DegAbs.toFixed(1);
+    const theta1Key = Math.round(theta1DegAbs).toString();
     const theta2Deg = isTIR ? 0 : THREE.MathUtils.radToDeg(theta2Rad);
-    const theta2Key = isTIR ? 'TIR' : theta2Deg.toFixed(1);
+    const theta2Key = isTIR ? 'TIR' : Math.round(theta2Deg).toString();
 
     if (this.lastIncidentKey !== theta1Key) {
       this.lastIncidentKey = theta1Key;
@@ -1164,7 +1164,7 @@ export class OpticalDiskApparatusMesh {
       }
     }
 
-    // 5. 紧贴弧线外侧纯文字定位 (微错距防重叠)
+    // 5. 紧贴弧线外侧纯文字定位 (微错距防重叠；在 0° 或极小角度时沿法线左右错开避免叠字)
     const rInc = 0.145;
     const rRefl = 0.130;
     const rRefr = 0.138;
@@ -1173,21 +1173,28 @@ export class OpticalDiskApparatusMesh {
     const midAngR = (minAngR + maxAngR) / 2;
     const midAng2 = isTIR ? oppositeNormalAngleRad : (minAng2 + maxAng2) / 2;
 
-    this.incidentBadgeSprite.position.set(
-      Math.cos(midAng1) * rInc,
-      Math.sin(midAng1) * rInc,
-      0
-    );
-    this.reflectedBadgeSprite.position.set(
-      Math.cos(midAngR) * rRefl,
-      Math.sin(midAngR) * rRefl,
-      0
-    );
-    this.refractedBadgeSprite.position.set(
-      Math.cos(midAng2) * rRefr,
-      Math.sin(midAng2) * rRefr,
-      0
-    );
+    if (theta1DegAbs < 5.0) {
+      // 0 点及极小角度下，入射角标注位于法线右侧(+X)，反射角标注位于法线左侧(-X)，折射角居于水下
+      this.incidentBadgeSprite.position.set(0.046, this.isAirToWater ? rInc : -rInc, 0);
+      this.reflectedBadgeSprite.position.set(-0.046, this.isAirToWater ? rRefl : -rRefl, 0);
+      this.refractedBadgeSprite.position.set(0.046, this.isAirToWater ? -rRefr : rRefr, 0);
+    } else {
+      this.incidentBadgeSprite.position.set(
+        Math.cos(midAng1) * rInc,
+        Math.sin(midAng1) * rInc,
+        0
+      );
+      this.reflectedBadgeSprite.position.set(
+        Math.cos(midAngR) * rRefl,
+        Math.sin(midAngR) * rRefl,
+        0
+      );
+      this.refractedBadgeSprite.position.set(
+        Math.cos(midAng2) * rRefr,
+        Math.sin(midAng2) * rRefr,
+        0
+      );
+    }
   }
 
   /**
@@ -1446,10 +1453,21 @@ export class OpticalDiskApparatusMesh {
   }
 
   /**
-   * 调节入射角
+   * 调节入射角 (精确到整数，并在 0 点处具备磁吸吸附效果)
    */
-  public setIncidentAngle(angleDeg: number): void {
-    this.incidentAngleDeg = Math.max(-85.0, Math.min(85.0, angleDeg));
+  public setIncidentAngle(angleDeg: number, snapToZero = true): void {
+    let target = angleDeg;
+    if (snapToZero) {
+      // 0 点处适当吸附效果：在 ±2.0° 范围内自动磁吸至 0°，离开后平滑调节
+      if (Math.abs(target) <= 2.0) {
+        target = 0;
+      } else {
+        target = Math.round(target);
+      }
+    } else {
+      target = Math.round(target);
+    }
+    this.incidentAngleDeg = Math.max(-85, Math.min(85, target));
     this.updateOpticalPaths();
   }
 

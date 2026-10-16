@@ -326,7 +326,18 @@ console.log('Test 5: Interaction Manager 3D Raycast & Pointer Lifecycle');
   assert.ok(dragHover !== null, 'Dragging provides hover info with angle');
   assert.strictEqual(dragHover?.cursor, 'grabbing');
 
-  // 5.4 Pointer up
+  // 5.4 验证下半部拖拽与入射/反射位置不颠倒
+  rootGroup.updateMatrixWorld(true);
+  const lowerRightRay = new THREE.Raycaster(
+    new THREE.Vector3(0.258, apparatus.diskCenterY - 0.258, 2.0),
+    new THREE.Vector3(0, 0, -1)
+  );
+  interaction.onPointerMove(new PointerEvent('pointermove'), lowerRightRay);
+  assert.strictEqual(apparatus.isAirToWater, false, 'Pointer in lower half should set water-to-air');
+  assert.ok(reportedAngle > 0, `Lower right angle must be positive, got ${reportedAngle}`);
+  assert.ok(apparatus.laserCarriageGroup.position.x > 0, 'Emitter must stay on positive X quadrant, not swapped to left');
+
+  // 5.5 Pointer up
   interaction.onPointerUp(new PointerEvent('pointerup'));
   assert.strictEqual(interaction.isDragging, false, 'Dragging should be false on pointerup');
 
@@ -473,13 +484,29 @@ console.log('Test 8: 3D Angle Annotation Labels (Incident, Reflected, Refracted 
   apparatus.updateOpticalPaths();
   assert.ok(apparatus.refractedBadgeSprite.position.y > 0, 'In TIR, refraction indicator positioned in air region');
 
-  // 8.4 验证 showAngleArcs 隐藏联动
+  // 8.4 验证 0 点吸附与整数角度调节
+  apparatus.setIncidentAngle(1.5);
+  assert.strictEqual(apparatus.incidentAngleDeg, 0, 'Should snap to 0° within ±2° threshold (input: 1.5°)');
+  apparatus.setIncidentAngle(-1.8);
+  assert.strictEqual(apparatus.incidentAngleDeg, 0, 'Should snap to 0° within ±2° threshold (input: -1.8°)');
+  apparatus.setIncidentAngle(32.4);
+  assert.strictEqual(apparatus.incidentAngleDeg, 32, 'Should round to integer 32° (input: 32.4°)');
+  apparatus.setIncidentAngle(44.7);
+  assert.strictEqual(apparatus.incidentAngleDeg, 45, 'Should round to integer 45° (input: 44.7°)');
+
+  // 8.5 验证 0° 时标注沿法线左右错开不叠字
+  apparatus.setIncidentAngle(0);
+  apparatus.updateOpticalPaths();
+  assert.ok(apparatus.incidentBadgeSprite.position.x > 0, 'At 0°, incident badge offset to +X');
+  assert.ok(apparatus.reflectedBadgeSprite.position.x < 0, 'At 0°, reflected badge offset to -X');
+
+  // 8.6 验证 showAngleArcs 隐藏联动
   apparatus.showAngleArcs = false;
   apparatus.updateOpticalPaths();
   assert.strictEqual(apparatus.angleLabelsGroup.visible, false, 'angleLabelsGroup hidden when showAngleArcs is false');
 
   apparatus.dispose();
-  console.log('✓ Test 8 passed: Pure text angle annotations for reflection & refraction verified');
+  console.log('✓ Test 8 passed: Pure text angle annotations, integer precision & 0° snapping verified');
 }
 
 console.log('\n========================================================');

@@ -37,7 +37,7 @@ export class OpticalDiskInteractionManager {
     if (this.isDraggingLaser) {
       return {
         id: 'laser_handle',
-        label: `入射角: ${Math.abs(this.apparatus.incidentAngleDeg).toFixed(1)}° (${this.apparatus.isAirToWater ? '空气→水' : '水→空气'})`,
+        label: `入射角: ${Math.round(Math.abs(this.apparatus.incidentAngleDeg))}° (${this.apparatus.isAirToWater ? '空气→水' : '水→空气'})`,
         cursor: 'grabbing',
       };
     }
@@ -86,7 +86,7 @@ export class OpticalDiskInteractionManager {
     if (targetIsLaser) {
       this.isDraggingLaser = true;
       // 设置圆盘所在的前向平面 (法向量为 rootGroup 旋转后的世界前向 +Z 轴)
-      const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(this.rootGroup.quaternion);
+      const normal = new THREE.Vector3(0, 0, 1).transformDirection(this.rootGroup.matrixWorld);
       const centerWorld = new THREE.Vector3(0, this.apparatus.diskCenterY, 0).applyMatrix4(this.rootGroup.matrixWorld);
       this.dragPlane.setFromNormalAndCoplanarPoint(normal, centerWorld);
       return true; // 拦截事件，触发 Engine.ts 锁定指针并关闭自由转头
@@ -127,16 +127,22 @@ export class OpticalDiskInteractionManager {
     // 上半部法线为 90°(正上方)，下半部法线为 -90°(正下方)
     let newAngleDeg = 0;
     if (isInUpperHalf) {
-      // 90° 为法线。dx < 0 为左侧入射(正角)，dx > 0 为右侧入射(负角)
+      // 上半部：90° 为法线。dx > 0 时 angleDeg 在 (0, 90)，newAngleDeg > 0；dx < 0 时 angleDeg 在 (90, 180)，newAngleDeg < 0
       newAngleDeg = 90 - angleDeg;
     } else {
-      // -90° 为法线。
-      newAngleDeg = -90 - angleDeg;
-      if (newAngleDeg < -180) newAngleDeg += 360;
+      // 下半部：-90° 为法线。dx > 0 时 angleDeg 在 (-90, 0)，newAngleDeg > 0；dx < 0 时 angleDeg 在 (-180, -90)，newAngleDeg < 0
+      newAngleDeg = angleDeg + 90;
+    }
+
+    // 0 点处适当吸附效果 (磁吸感 ±2° 阈值自动吸附至 0°，离开后恢复平滑整数调节)
+    if (Math.abs(newAngleDeg) <= 2.0) {
+      newAngleDeg = 0;
+    } else {
+      newAngleDeg = Math.round(newAngleDeg);
     }
 
     // 限制在 -85° ~ +85° 范围内，防止贴合分界面产生奇点
-    newAngleDeg = Math.max(-85.0, Math.min(85.0, newAngleDeg));
+    newAngleDeg = Math.max(-85, Math.min(85, newAngleDeg));
 
     this.apparatus.setIncidentAngle(newAngleDeg);
     const telemetry = this.apparatus.updateOpticalPaths();

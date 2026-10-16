@@ -143,6 +143,7 @@ export class Engine {
   private lastCss3dCamPos = new THREE.Vector3(Infinity, Infinity, Infinity);
   private lastCss3dCamQuat = new THREE.Quaternion(Infinity, Infinity, Infinity, Infinity);
   private lastCss3dWinPos = new THREE.Vector3(Infinity, Infinity, Infinity);
+  private lastCss3dWinRotX = Infinity;
   private lastCss3dWinRotY = Infinity;
   private lastCss3dWinScale = 1.0;
   private lastCss3dVisible = false;
@@ -651,21 +652,27 @@ export class Engine {
     const targetY = this.spatialWindowTargetPos.y;
     const targetZ = this.spatialWindowTargetPos.z;
 
+    const dx = this.camera.position.x - targetX;
+    const dy = this.camera.position.y - targetY;
+    const dz = this.camera.position.z - targetZ;
+    const distXZ = Math.hypot(dx, dz) || 1e-4;
+
     // 位于实验台中心时，沿 Y 轴动态朝向用户视角
     let targetRotY = this.spatialWindowTargetRotY;
     if (Math.hypot(targetX, targetZ) < 1e-3) {
-      const dx = this.camera.position.x - targetX;
-      const dz = this.camera.position.z - targetZ;
-      if (Math.hypot(dx, dz) > 1e-4) {
+      if (distXZ > 1e-4) {
         targetRotY = Math.atan2(dx, dz);
         this.spatialWindowTargetRotY = targetRotY;
       }
     }
 
-    // 保持视窗严格直立（俯仰角与翻滚角均为 0），仅沿 Y 轴朝向用户
+    // 视窗法线对齐视线俯仰角（Pitch），消除仰视/俯视视差导致的透视梯形与边缘失真
+    const targetRotX = -Math.atan2(dy, distXZ);
+
+    // 保持视窗水平对齐相机视角（0 翻滚角），并沿 X/Y 轴正对相机消除边缘梯形形变
     if (snap) {
       this.spatialWindowObject.position.set(targetX, targetY, targetZ);
-      this.spatialWindowObject.rotation.set(0, targetRotY, 0);
+      this.spatialWindowObject.rotation.set(targetRotX, targetRotY, 0);
     } else {
       const lerpSpeed = Math.min(1.0, delta * 7.0);
       const pos = this.spatialWindowObject.position;
@@ -677,6 +684,14 @@ export class Engine {
         pos.z = THREE.MathUtils.lerp(pos.z, targetZ, lerpSpeed);
       }
 
+      // 处理俯仰角平滑过渡（消除上下梯形畸变）
+      let diffX = targetRotX - rot.x;
+      while (diffX < -Math.PI) diffX += Math.PI * 2;
+      while (diffX > Math.PI) diffX -= Math.PI * 2;
+      if (Math.abs(diffX) > 1e-4) {
+        rot.x += diffX * lerpSpeed;
+      }
+
       // 处理角度循环跨越（Wrap-around），确保平滑旋转
       let diffY = targetRotY - rot.y;
       while (diffY < -Math.PI) diffY += Math.PI * 2;
@@ -684,7 +699,6 @@ export class Engine {
       if (Math.abs(diffY) > 1e-4) {
         rot.y += diffY * lerpSpeed;
       }
-      rot.x = 0;
       rot.z = 0;
     }
   }
@@ -1391,15 +1405,7 @@ export class Engine {
           this.inputManager.player.allowPointerLock = true;
         }
       }
-      if (id === 'mech-galileo') {
-        // 伽利略理想斜面实验不需要悬浮窗口，隐藏悬浮视窗启动按钮并关闭浮窗
-        this.inputManager?.touch?.setVisionLauncherVisible(false);
-        if (this.visionModal.visible) {
-          this.visionModal.close();
-        }
-      } else {
-        this.inputManager?.touch?.setVisionLauncherVisible(true);
-      }
+      this.inputManager?.touch?.setVisionLauncherVisible(true);
       this.visionModal.setCurrentExperimentId(id);
       this.hud.setActiveExperiment(experiment, this.currentContext);
       this.holoStage.setStageVisible(true);
@@ -2472,6 +2478,7 @@ export class Engine {
 
       const winMoved =
         win.position.distanceToSquared(this.lastCss3dWinPos) > 1e-6 ||
+        Math.abs(win.rotation.x - this.lastCss3dWinRotX) > 1e-4 ||
         Math.abs(win.rotation.y - this.lastCss3dWinRotY) > 1e-4 ||
         Math.abs(win.scale.x - this.lastCss3dWinScale) > 1e-5;
 
@@ -2481,6 +2488,7 @@ export class Engine {
         this.lastCss3dCamPos.copy(cam.position);
         this.lastCss3dCamQuat.copy(cam.quaternion);
         this.lastCss3dWinPos.copy(win.position);
+        this.lastCss3dWinRotX = win.rotation.x;
         this.lastCss3dWinRotY = win.rotation.y;
         this.lastCss3dWinScale = win.scale.x;
         this.lastCss3dVisible = true;

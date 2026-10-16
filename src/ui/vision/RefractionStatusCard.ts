@@ -132,11 +132,11 @@ export class RefractionStatusCard {
           <div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
               <span style="font-size:12px; color:rgba(255,255,255,0.6); font-weight:500;">入射角 θ₁</span>
-              <span id="readout-angle" style="font-size:14px; font-weight:600; color:#ffffff; font-variant-numeric:tabular-nums;">45.0°</span>
+              <span id="readout-angle" style="font-size:14px; font-weight:600; color:#ffffff; font-variant-numeric:tabular-nums;">45°</span>
             </div>
             
             <div style="display:flex; align-items:center; gap:8px;">
-              <input type="range" id="slider-refraction-angle" class="thermo-mini-slider" min="-85" max="85" step="0.5" value="45" style="flex:1; accent-color:#0a84ff;" />
+              <input type="range" id="slider-refraction-angle" class="thermo-mini-slider" min="-85" max="85" step="1" value="45" style="flex:1; accent-color:#0a84ff;" />
             </div>
 
             <!-- 常用角度预设药丸 -->
@@ -211,11 +211,17 @@ export class RefractionStatusCard {
       bindVisionSlider(this.angleSlider, {
         activeSet: this.activeSliderSet,
         onChange: (val) => {
-          this.currentAngle = val;
-          if (this.angleReadout) {
-            this.angleReadout.textContent = `${Math.abs(val).toFixed(1)}°`;
+          let snappedVal = val;
+          if (Math.abs(snappedVal) <= 2.0) {
+            snappedVal = 0;
+          } else {
+            snappedVal = Math.round(snappedVal);
           }
-          this.callbacks.onAngleChange?.(val);
+          this.currentAngle = snappedVal;
+          if (this.angleReadout) {
+            this.angleReadout.textContent = `${Math.abs(snappedVal)}°`;
+          }
+          this.callbacks.onAngleChange?.(snappedVal);
         },
       });
     }
@@ -223,10 +229,10 @@ export class RefractionStatusCard {
     // 2. 预设角度快捷按钮
     this.element.querySelectorAll('.btn-preset-ang').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const ang = parseFloat(btn.getAttribute('data-ang') || '0');
+        const ang = Math.round(parseFloat(btn.getAttribute('data-ang') || '0'));
         if (this.angleSlider) this.angleSlider.value = ang.toString();
         this.currentAngle = ang;
-        if (this.angleReadout) this.angleReadout.textContent = `${Math.abs(ang).toFixed(1)}°`;
+        if (this.angleReadout) this.angleReadout.textContent = `${Math.abs(ang)}°`;
         this.callbacks.onAngleChange?.(ang);
       });
     });
@@ -234,10 +240,10 @@ export class RefractionStatusCard {
     // 临界角快捷按钮
     this.element.querySelector('#btn-preset-tc')?.addEventListener('click', () => {
       if (this.currentTelemetry && this.currentTelemetry.criticalAngleDeg < 90) {
-        const tc = parseFloat(this.currentTelemetry.criticalAngleDeg.toFixed(1));
+        const tc = Math.round(this.currentTelemetry.criticalAngleDeg);
         if (this.angleSlider) this.angleSlider.value = tc.toString();
         this.currentAngle = tc;
-        if (this.angleReadout) this.angleReadout.textContent = `${tc.toFixed(1)}°`;
+        if (this.angleReadout) this.angleReadout.textContent = `${tc}°`;
         this.callbacks.onAngleChange?.(tc);
       }
     });
@@ -338,15 +344,15 @@ export class RefractionStatusCard {
     this.currentTelemetry = t;
     if (!this.isVisible) return;
 
-    // 1. 更新 4 项指标数值 (纯白高雅排版)
-    if (this.m1Val) this.m1Val.textContent = `${Math.abs(t.incidentAngleDeg).toFixed(1)}°`;
-    if (this.m2Val) this.m2Val.textContent = `${t.reflectionAngleDeg.toFixed(1)}°`;
+    // 1. 更新 4 项指标数值 (纯白高雅排版，精确到整数角度)
+    if (this.m1Val) this.m1Val.textContent = `${Math.round(Math.abs(t.incidentAngleDeg))}°`;
+    if (this.m2Val) this.m2Val.textContent = `${Math.round(t.reflectionAngleDeg)}°`;
     if (this.m3Val) {
       if (t.isTotalInternalReflection) {
         this.m3Val.textContent = '全反射';
         this.m3Val.style.color = '#ff9f0a';
       } else {
-        this.m3Val.textContent = `${t.refractionAngleDeg.toFixed(1)}°`;
+        this.m3Val.textContent = `${Math.round(t.refractionAngleDeg)}°`;
         this.m3Val.style.color = '#ffffff';
       }
     }
@@ -364,7 +370,7 @@ export class RefractionStatusCard {
         this.tirBanner.style.background = 'rgba(255, 159, 10, 0.08)';
         if (dot) dot.style.background = '#ff9f0a';
         if (text) {
-          text.innerHTML = `<span style="color:#ff9f0a; font-weight:600;">全反射发生 (TIR)</span> · 临界角 θc = ${t.criticalAngleDeg.toFixed(1)}°`;
+          text.innerHTML = `<span style="color:#ff9f0a; font-weight:600;">全反射发生 (TIR)</span> · 临界角 θc = ${Math.round(t.criticalAngleDeg)}°`;
         }
       } else {
         this.tirBanner.style.borderColor = 'rgba(255,255,255,0.08)';
@@ -378,9 +384,9 @@ export class RefractionStatusCard {
 
     // 3. 同步滑块位置 (若未在活跃捏合/拖拽状态)
     if (this.angleSlider && !isSliderActive(this.angleSlider, this.activeSliderSet)) {
-      this.angleSlider.value = t.incidentAngleDeg.toString();
+      this.angleSlider.value = Math.round(t.incidentAngleDeg).toString();
       if (this.angleReadout) {
-        this.angleReadout.textContent = `${Math.abs(t.incidentAngleDeg).toFixed(1)}°`;
+        this.angleReadout.textContent = `${Math.round(Math.abs(t.incidentAngleDeg))}°`;
       }
     }
   }

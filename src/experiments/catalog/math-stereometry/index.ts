@@ -78,8 +78,8 @@ export default class MathStereometryExperiment extends BaseExperiment {
 
   // 状态缓存
   private modelType: HighSchoolModelType = 'cube';
-  private dimA = 0.58;
-  private dimH = 0.58;
+  private dimA = 1;
+  private dimH = 1;
   private originPointId = 'v_0';
   private interactionMode: InteractionMode = 'direct';
   private lastTelemetryStateKey = '';
@@ -194,11 +194,11 @@ export default class MathStereometryExperiment extends BaseExperiment {
         });
         break;
       case 'dimA':
-        this.dimA = parseFloat(value);
+        this.dimA = Math.max(1, Math.round(parseFloat(value) || 1));
         this.mesh.setOptions({ dimensions: { a: this.dimA, h: this.dimH } });
         break;
       case 'dimH':
-        this.dimH = parseFloat(value);
+        this.dimH = Math.max(1, Math.round(parseFloat(value) || 1));
         this.mesh.setOptions({ dimensions: { a: this.dimA, h: this.dimH } });
         break;
       case 'showKeyPoints':
@@ -265,8 +265,8 @@ export default class MathStereometryExperiment extends BaseExperiment {
   }
 
   public setDimensions(dims: { a?: number; b?: number; c?: number; h?: number; r?: number }): void {
-    if (dims.a !== undefined) this.dimA = dims.a;
-    if (dims.h !== undefined) this.dimH = dims.h;
+    if (dims.a !== undefined) this.dimA = Math.max(1, Math.round(dims.a));
+    if (dims.h !== undefined) this.dimH = Math.max(1, Math.round(dims.h));
     this.mesh.setOptions({ dimensions: dims });
   }
 

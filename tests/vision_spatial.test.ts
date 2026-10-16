@@ -348,7 +348,42 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   console.log('✓ Test 8 passed: Floating window default location strictly situated at table center (0, 2.20, 0) facing user\n');
 }
 
+// Test 9: Elimination of keystone trapezoid perspective distortion via sightline pitch tracking
+{
+  console.log('Test 9: Elimination of keystone trapezoid perspective distortion via sightline pitch tracking');
+  const THREE = await import('three');
+  const { Engine } = await import('../src/core/Engine.ts');
+
+  const engine: any = Object.create(Engine.prototype);
+  engine.camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 400);
+  engine.camera.position.set(0, 1.38, 4.25); // Eye height 1.38, distance 4.25
+  engine.spatialWindowTargetPos = new THREE.Vector3(0, 2.20, 0); // Window center 2.20
+  engine.spatialWindowTargetRotY = 0;
+  engine.spatialWindowObject = new THREE.Object3D();
+  engine.spatialWindowObject.rotation.order = 'YXZ';
+  engine.visionModal = { visible: true };
+
+  // Snap transform update
+  engine.updateSpatialWindowTransform(0.1, true);
+
+  // Expected pitch angle to directly face camera
+  const dy = 1.38 - 2.20;
+  const distXZ = 4.25;
+  const expectedPitch = -Math.atan2(dy, distXZ);
+
+  assert(Math.abs(engine.spatialWindowObject.rotation.x - expectedPitch) < 1e-5, `Pitch rot.x must match sightline angle (${expectedPitch.toFixed(4)}), got ${engine.spatialWindowObject.rotation.x.toFixed(4)}`);
+  assert.strictEqual(engine.spatialWindowObject.rotation.z, 0, 'Roll rot.z must remain strictly 0');
+
+  // Verify from afar (distance = 10m)
+  engine.camera.position.set(0, 1.50, 10.0);
+  engine.updateSpatialWindowTransform(0.1, true);
+  const expectedPitchFar = -Math.atan2(1.50 - 2.20, 10.0);
+  assert(Math.abs(engine.spatialWindowObject.rotation.x - expectedPitchFar) < 1e-5, `Distant pitch rot.x must match sightline angle (${expectedPitchFar.toFixed(4)})`);
+
+  console.log('✓ Test 9 passed: Spatial window pitch automatically tracks camera elevation, eliminating perspective trapezoid distortion\n');
+}
+
 console.log('========================================================');
-console.log('All VisionOS Spatial Window Tests Passed (8/8)!');
+console.log('All VisionOS Spatial Window Tests Passed (9/9)!');
 console.log('========================================================\n');
 

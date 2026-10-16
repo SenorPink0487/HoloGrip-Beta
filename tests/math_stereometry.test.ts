@@ -150,6 +150,14 @@ class MockElement {
     return el;
   }
 
+  closest(_selector: string): MockElement | null {
+    return this;
+  }
+
+  contains(_node: MockElement): boolean {
+    return true;
+  }
+
   querySelectorAll(_selector: string): MockElement[] {
     return [new MockElement('button'), new MockElement('div')];
   }
@@ -368,7 +376,22 @@ assert.strictEqual(statusCard.element.style.display, 'none');
 statusCard.setVisible(true);
 assert.strictEqual(statusCard.element.style.display, 'flex');
 statusCard.updateTelemetry(telemetrySkew);
-console.log('✓ Test 7 passed: StereometryStatusCard instantiated, telemetry updated, and close-reopen display cycle verified\n');
+
+// 验证：点击模型进入更改长度页面（Apple 极简风格）
+statusCard.openParamPage('cube');
+assert.strictEqual(statusCard.element.querySelector('#math-param-title')?.textContent, '正方体');
+assert.strictEqual((statusCard as any).paramViewEl.style.display, 'flex');
+assert.strictEqual((statusCard as any).selectionViewEl.style.display, 'none');
+
+statusCard.openParamPage('square-pyramid');
+assert.strictEqual(statusCard.element.querySelector('#math-param-title')?.textContent, '四棱锥');
+
+// 验证：返回按钮关闭更改长度页面回到模型选择
+statusCard.closeParamPage();
+assert.strictEqual((statusCard as any).paramViewEl.style.display, 'none');
+assert.strictEqual((statusCard as any).selectionViewEl.style.display, 'flex');
+
+console.log('✓ Test 7 passed: StereometryStatusCard instantiated, Apple length subpage verified, and close-reopen display cycle verified\n');
 
 // -------------------------------------------------------------
 // Test 8: Special Points Generation (1/2 Midpoints and 1/3, 2/3 Trisection Points)
@@ -657,11 +680,32 @@ assert.strictEqual(badgeSprite.scale.x, 0.240, 'Badge sprite scale X must be enl
 assert.strictEqual(badgeSprite.scale.y, 0.080, 'Badge sprite scale Y must be enlarged to 0.080m');
 assert.strictEqual((animMesh as any).lastPreviewBadgeKey, '0.655_1096065', 'Badge key should store pure normalized distance string');
 
-// Test formatNormalizedDistance math logic
-assert.strictEqual(animMesh.formatNormalizedDistance(0.58), '1', 'Cube edge must normalize to 1');
-assert.strictEqual(animMesh.formatNormalizedDistance(0.29), '0.5', 'Half edge must normalize to 0.5 without trailing zero');
-assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.SQRT2), '1.414', 'Face diagonal must normalize to 1.414');
-assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.sqrt(3)), '1.732', 'Space diagonal must normalize to 1.732');
+// Test formatNormalizedDistance math logic: 线的长度精确到整数，都是归一化的
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58), '1', 'Cube edge must normalize to integer 1');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.29), '1', 'Half edge must normalize to integer 1');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.SQRT2), '1', 'Face diagonal must normalize to integer 1');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.sqrt(3)), '2', 'Space diagonal must normalize to integer 2');
+
+// When user modifies model dimensions (e.g. edge length a = 2)
+animMesh.setOptions({ dimensions: { a: 2, h: 2 } });
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58), '2', 'Cube edge with a=2 must normalize to integer 2');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.29), '1', 'Half edge with a=2 must normalize to integer 1');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.SQRT2), '3', 'Face diagonal with a=2 must normalize to integer 3');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.sqrt(3)), '3', 'Space diagonal with a=2 must normalize to integer 3');
+
+// 核心验证：这个页面只改变数值不改变显示的大小，显示的大小还是通过+-或者触摸屏缩放
+const v0 = (animMesh as any).currentModelDef.vertices[0];
+assert.strictEqual(Math.abs(v0.x), 0.29, 'Visual geometry vertex position x must remain canonical 0.29m, not scaled by dimension 2');
+assert.strictEqual(Math.abs(v0.y), 0.29, 'Visual geometry vertex position y must remain canonical 0.29m, not scaled by dimension 2');
+assert.strictEqual(Math.abs(v0.z), 0.29, 'Visual geometry vertex position z must remain canonical 0.29m, not scaled by dimension 2');
+assert.strictEqual(animMesh.getScale(), 1.0, 'Visual display scale must remain unchanged at 1.0');
+
+// 显示的大小由 +- 或触摸屏缩放控制
+animMesh.zoom(1.10);
+assert(Math.abs(animMesh.getScale() - 1.10) < 1e-4, 'Scale must change only through zoom (+/- / touch)');
+animMesh.setScale(1.0);
+animMesh.setOptions({ dimensions: { a: 1, h: 1 } });
+
 
 // 6.1 Perspective projection alignment: sprite rotation must match screen 2D line angle
 const testCamera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 100);

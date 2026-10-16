@@ -313,6 +313,36 @@ const visionModal = new VisionModal(engine, {
   console.log('✓ Test 6 passed: Switching experiment establishes correct initial page\n');
 }
 
+// Test 7: Switching experiment to mech-galileo opens physics mechanics menu without status card (like optics)
+{
+  console.log('Test 7: Galileo ideal experiment operates without status card, opening mechanics catalog');
+  visionModal.setCurrentExperimentId('mech-galileo');
+  assert.strictEqual(visionModal.currentTab, 'physics', 'Galileo tab must default to physics');
+  const physicsModal = (visionModal as any).physicsModal;
+  assert.strictEqual(physicsModal.getCurrentLevel(), 2, 'Must default to Level 2');
+  assert.strictEqual(physicsModal.getCurrentDiscipline(), 'mechanics', 'Must default to Mechanics');
+
+  // Open modal - must open successfully!
+  visionModal.open();
+  assert.strictEqual(visionModal.visible, true, 'Modal must open successfully when Galileo is active');
+  assert.strictEqual(visionModal.currentTab, 'physics');
+  assert.strictEqual(physicsModal.getCurrentLevel(), 2);
+  assert.strictEqual(physicsModal.getCurrentDiscipline(), 'mechanics');
+
+  // Verify status card is NOT visible
+  const mechCard = (visionModal as any).mechStatusCard;
+  assert.strictEqual(mechCard.visible, false, 'Mechanics status card must not be visible in Galileo experiment');
+
+  // Re-close and re-open
+  visionModal.close();
+  assert.strictEqual(visionModal.visible, false);
+  visionModal.open();
+  assert.strictEqual(visionModal.visible, true, 'Modal must reopen smoothly on demand');
+  assert.strictEqual(visionModal.currentTab, 'physics');
+
+  console.log('✓ Test 7 passed: Galileo experiment opens mechanics catalog without status card\n');
+}
+
 console.log('========================================================');
-console.log('All Modal Page Retention Tests Passed (6/6)!');
+console.log('All Modal Page Retention Tests Passed (7/7)!');
 console.log('========================================================\n');

@@ -39,7 +39,7 @@ export default class OpticsReflectionRefractionExperiment extends BaseExperiment
       {
         onAngleChange: (angleDeg, telemetry) => {
           this.latestTelemetry = telemetry;
-          context.setParameter('incidentAngle', parseFloat(angleDeg.toFixed(1)));
+          context.setParameter('incidentAngle', Math.round(angleDeg));
         },
         onDirectionToggle: (isAirToWater) => {
           context.setParameter('isAirToWater', isAirToWater ? 'airToWater' : 'waterToAir');
