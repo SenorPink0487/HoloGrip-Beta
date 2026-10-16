@@ -631,8 +631,9 @@ export class Engine {
         this.crosshair.setVisible(false);
       } else {
         if (!this.visionModal || !this.visionModal.visible) {
-          this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
-          if (!this.labEntryActive && !this.isWhiteboardMode && this.currentExperimentId !== 'math-stereometry') {
+          const noPointerLockExp = this.currentExperimentId === 'math-stereometry' || this.currentExperimentId === 'mech-galileo';
+          this.inputManager.player.allowPointerLock = !noPointerLockExp;
+          if (!this.labEntryActive && !this.isWhiteboardMode && !noPointerLockExp) {
             this.crosshair.setVisible(true);
           }
         }
@@ -755,8 +756,9 @@ export class Engine {
         this.spatialWindowObject.visible = false;
         this.inputManager?.touch?.setVisionModalOpen(false);
         this.lab?.setObservationWindowVisible(true);
-        this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
-        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
+        const noPointerLockExp = this.currentExperimentId === 'math-stereometry' || this.currentExperimentId === 'mech-galileo';
+        this.inputManager.player.allowPointerLock = !noPointerLockExp;
+        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !noPointerLockExp) {
           this.crosshair.setVisible(true);
         }
         this.isExperimentInteracting = false;
@@ -1380,7 +1382,7 @@ export class Engine {
       }
 
       this.currentExperimentId = id;
-      if (id === 'math-stereometry') {
+      if (id === 'math-stereometry' || id === 'mech-galileo') {
         this.crosshair?.setVisible(false);
         if (this.inputManager?.player) {
           this.inputManager.player.allowPointerLock = false;
@@ -1390,6 +1392,15 @@ export class Engine {
         if (this.inputManager?.player && !this.labEntryActive) {
           this.inputManager.player.allowPointerLock = true;
         }
+      }
+      if (id === 'mech-galileo') {
+        // 伽利略理想斜面实验不需要悬浮窗口，隐藏悬浮视窗启动按钮并关闭浮窗
+        this.inputManager?.touch?.setVisionLauncherVisible(false);
+        if (this.visionModal.visible) {
+          this.visionModal.close();
+        }
+      } else {
+        this.inputManager?.touch?.setVisionLauncherVisible(true);
       }
       this.visionModal.setCurrentExperimentId(id);
       this.hud.setActiveExperiment(experiment, this.currentContext);
@@ -1425,6 +1436,7 @@ export class Engine {
     this.reactionEffectsLeft?.reset();
     this.reactionEffectsRight?.reset();
     this.currentExperimentId = null;
+    this.inputManager?.touch?.setVisionLauncherVisible(true);
     this.holoTable?.hideHologram(true);
     this.hud?.clearActiveExperiment();
     if (this.renderer?.shadowMap?.enabled) {
@@ -1660,7 +1672,8 @@ export class Engine {
         }
       } else {
         if (this.inputManager?.player && !this.visionModal?.visible) {
-          this.inputManager.player.allowPointerLock = this.currentExperimentId !== 'math-stereometry';
+          this.inputManager.player.allowPointerLock =
+            this.currentExperimentId !== 'math-stereometry' && this.currentExperimentId !== 'mech-galileo';
           this.inputManager.player.allowMouseRotation = true;
         }
       }
@@ -1828,7 +1841,7 @@ export class Engine {
 
       if (
         !this.visionModal?.visible &&
-        (this.isExperimentInteracting || this.currentExperimentId === 'math-stereometry') &&
+        (this.isExperimentInteracting || this.currentExperimentId === 'math-stereometry' || this.currentExperimentId === 'mech-galileo') &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
         this.raycaster.setFromCamera(this.lastPointerPos, this.camera);
@@ -1887,10 +1900,11 @@ export class Engine {
           this.isExperimentInteracting = false;
           if (!this.labEntryActive) {
             this.inputManager.player.enabled = true;
-            this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
-          }
-          if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
-            this.crosshair.setVisible(true);
+            const noPointerLockExp = this.currentExperimentId === 'math-stereometry' || this.currentExperimentId === 'mech-galileo';
+            this.inputManager.player.allowPointerLock = !noPointerLockExp;
+            if (this.crosshair && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !noPointerLockExp) {
+              this.crosshair.setVisible(true);
+            }
           }
         }
       }
@@ -2260,7 +2274,7 @@ export class Engine {
       if (this.renderer?.shadowMap?.enabled) {
         this.renderer.shadowMap.needsUpdate = true;
       }
-      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
+      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry' && this.currentExperimentId !== 'mech-galileo') {
         this.crosshair.setVisible(true);
       }
     } else if (this.isWhiteboardMode) {
@@ -2367,7 +2381,7 @@ export class Engine {
         if (nowMs - this.lastMechTelemetrySync >= 50) {
           this.lastMechTelemetrySync = nowMs;
           const exp = this.holoStage.activeExperiment as any;
-          if (typeof exp?.getTelemetry === 'function') {
+          if (typeof exp?.getTelemetry === 'function' && this.currentExperimentId !== 'mech-galileo') {
             this.visionModal.updateMechanicsTelemetry(exp.getTelemetry());
           }
         }

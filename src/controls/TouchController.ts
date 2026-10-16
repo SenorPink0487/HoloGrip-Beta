@@ -40,6 +40,12 @@ export class TouchController {
     }
   }
 
+  public setVisionLauncherVisible(visible: boolean): void {
+    if (this.visionLauncherBtn) {
+      this.visionLauncherBtn.style.display = visible ? '' : 'none';
+    }
+  }
+
   public setVisible(visible: boolean): void {
     const layer = document.getElementById('touch-controls-layer');
     if (layer) {

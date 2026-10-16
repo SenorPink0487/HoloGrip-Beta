@@ -25,7 +25,7 @@ export class DisciplineSelector {
 
       <div class="discipline-cards-grid">
         <!-- 1. Chemistry Card -->
-        <div class="discipline-card chemistry-card" id="card-discipline-chem" role="button" tabindex="0" title="化学">
+        <div class="discipline-card chemistry-card" id="card-discipline-chem" role="button" tabindex="0" aria-label="化学">
           <div class="card-icon-wrapper">
             <svg class="vision-card-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M10 2v7.31L4.62 18.5A2 2 0 0 0 6.34 22h11.32a2 2 0 0 0 1.72-3.5L14 9.31V2"/>
@@ -41,7 +41,7 @@ export class DisciplineSelector {
         </div>
 
         <!-- 2. Physics Card -->
-        <div class="discipline-card physics-card" id="card-discipline-phys" role="button" tabindex="0" title="物理">
+        <div class="discipline-card physics-card" id="card-discipline-phys" role="button" tabindex="0" aria-label="物理">
           <div class="card-icon-wrapper">
             <svg class="vision-card-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
@@ -56,7 +56,7 @@ export class DisciplineSelector {
         </div>
 
         <!-- 3. Math Card -->
-        <div class="discipline-card math-card" id="card-discipline-math" role="button" tabindex="0" title="数学">
+        <div class="discipline-card math-card" id="card-discipline-math" role="button" tabindex="0" aria-label="数学">
           <div class="card-icon-wrapper">
             <svg class="vision-card-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/>

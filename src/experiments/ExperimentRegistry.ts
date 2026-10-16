@@ -42,7 +42,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: 'mechanics',
     name: '经典力学',
     icon: 'physics',
-    description: '牛顿第二定律、动量守恒碰撞、平抛与机械能、单摆简谐振动与向心力探究实验台',
+    description: '伽利略理想斜面实验、牛顿第二定律、动量守恒碰撞、平抛与机械能、单摆简谐振动与向心力探究实验台',
   },
   {
     id: 'math',

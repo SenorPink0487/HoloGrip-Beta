@@ -107,6 +107,22 @@ export class PhysicsDisciplineModal {
         </svg>
       `,
     },
+    {
+      id: 'mech-galileo',
+      name: '伽利略理想斜面实验',
+      category: '惯性定律与理想实验',
+      formula: 'v = \\sqrt{2gh} · h_1 = h_2',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4,12 12,26 22,26 32,16" stroke-width="2.2"/>
+          <line x1="4" y1="12" x2="32" y2="12" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2 1.5"/>
+          <circle cx="8" cy="19" r="2.4" fill="#38bdf8" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M9 22 L15 26" stroke="#38bdf8" stroke-width="1.8"/>
+          <polyline points="13,24 15,26 13,28" stroke="#38bdf8" stroke-width="1.5"/>
+          <circle cx="28" cy="20" r="2.2" fill="#facc15" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+        </svg>
+      `,
+    },
   ];
 
   public static readonly EM_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
@@ -285,6 +301,27 @@ export class PhysicsDisciplineModal {
   ];
 
   public static readonly OPTICS_EXPERIMENTS: OpticsExperimentDef[] = [
+    {
+      id: 'optics-reflection-refraction',
+      name: '光的反射与折射',
+      category: '几何光学与全反射',
+      formula: 'n₁ sinθ₁ = n₂ sinθ₂ · θᵣ = θ₁',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="18" r="14" stroke="#0284c7" stroke-width="2"/>
+          <path d="M4 18 A14 14 0 0 0 32 18 Z" fill="#38bdf8" fill-opacity="0.18"/>
+          <line x1="4" y1="18" x2="32" y2="18" stroke="#38bdf8" stroke-width="2.2"/>
+          <line x1="18" y1="4" x2="18" y2="32" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="3 1.5"/>
+          <line x1="8" y1="8" x2="18" y2="18" stroke="#ff3b30" stroke-width="2.4"/>
+          <polyline points="12,8.5 8,8 10,12" stroke="#ff3b30" stroke-width="1.8"/>
+          <line x1="18" y1="18" x2="28" y2="8" stroke="#ff3b30" stroke-width="2"/>
+          <polyline points="24,10 28,8 26,12" stroke="#ff3b30" stroke-width="1.6"/>
+          <line x1="18" y1="18" x2="25" y2="30" stroke="#ff3b30" stroke-width="2.2"/>
+          <polyline points="23,26 25,30 21,28" stroke="#ff3b30" stroke-width="1.8"/>
+          <circle cx="18" cy="18" r="1.8" fill="#ff3b30"/>
+        </svg>
+      `,
+    },
     {
       id: 'optics-propagation',
       name: '光的传播与折射色散',

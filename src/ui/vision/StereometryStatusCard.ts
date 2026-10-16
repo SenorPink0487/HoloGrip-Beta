@@ -76,7 +76,7 @@ export class StereometryStatusCard {
         <div class="math-deck-container">
           <div class="math-branches-deck">
             <!-- Cube -->
-            <div class="math-branch-tile math-model-card active" data-model="cube" role="button" tabindex="0" title="正方体">
+            <div class="math-branch-tile math-model-card active" data-model="cube" role="button" tabindex="0" aria-label="正方体">
               <div class="math-tile-icon-box">
                 <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor">
                   <path d="M22 6 L38 15 L22 24 L6 15 Z" fill="currentColor" fill-opacity="0.14" stroke-width="1.8" stroke-linejoin="round"/>
@@ -88,7 +88,7 @@ export class StereometryStatusCard {
             </div>
 
             <!-- Regular Tetrahedron -->
-            <div class="math-branch-tile math-model-card" data-model="tetrahedron" role="button" tabindex="0" title="正四面体">
+            <div class="math-branch-tile math-model-card" data-model="tetrahedron" role="button" tabindex="0" aria-label="正四面体">
               <div class="math-tile-icon-box">
                 <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor">
                   <polygon points="22,6 38,36 6,36" fill="currentColor" fill-opacity="0.12" stroke-width="1.8" stroke-linejoin="round"/>
@@ -102,7 +102,7 @@ export class StereometryStatusCard {
             </div>
 
             <!-- Square Pyramid -->
-            <div class="math-branch-tile math-model-card" data-model="square-pyramid" role="button" tabindex="0" title="四棱锥">
+            <div class="math-branch-tile math-model-card" data-model="square-pyramid" role="button" tabindex="0" aria-label="四棱锥">
               <div class="math-tile-icon-box">
                 <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor">
                   <path d="M22 6 L6 30 L26 38 L38 26 Z" fill="currentColor" fill-opacity="0.12" stroke-width="1.8" stroke-linejoin="round"/>
@@ -120,7 +120,7 @@ export class StereometryStatusCard {
             </div>
 
             <!-- Triangular Prism -->
-            <div class="math-branch-tile math-model-card" data-model="triangular-prism" role="button" tabindex="0" title="三棱柱">
+            <div class="math-branch-tile math-model-card" data-model="triangular-prism" role="button" tabindex="0" aria-label="三棱柱">
               <div class="math-tile-icon-box">
                 <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor">
                   <polygon points="10,8 34,8 22,16" fill="currentColor" fill-opacity="0.16" stroke-width="1.8" stroke-linejoin="round"/>

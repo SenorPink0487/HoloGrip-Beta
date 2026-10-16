@@ -660,6 +660,12 @@ export class VisionModal {
 
   public setCurrentExperimentId(id: string): void {
     this.currentExperimentId = id;
+    if (id === 'mech-galileo') {
+      if (this.isOpen) {
+        this.close();
+      }
+      return;
+    }
     if (id === 'math-stereometry') {
       this.activeTab = 'math';
     } else if (id.startsWith('thermo-')) {
@@ -802,6 +808,9 @@ export class VisionModal {
   }
 
   public open(tab?: VisionTab, beakerId?: 'left' | 'right'): void {
+    if (this.currentExperimentId === 'mech-galileo' && tab !== 'disciplines') {
+      return;
+    }
     const targetTab = tab || this.activeTab || 'disciplines';
 
     this.switchTab(targetTab);
