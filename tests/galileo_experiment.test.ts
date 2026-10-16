@@ -300,6 +300,35 @@ console.log('=== Starting Galileo Ideal Incline Experiment Analytical & Integrat
   console.log('✓ Test 6 passed: Performance well within 60+ FPS budget\n');
 }
 
+// Test 7: Pure 3D interaction verification and zero DOM floating widgets
+{
+  console.log('Test 7: Pure 3D Interaction & Zero DOM Floating Widgets (Optics-like Model)');
+  const exp = new MechGalileoExperiment();
+  exp.init(mockContext);
+
+  // Check hover detection on right handle
+  const raycaster = new THREE.Raycaster();
+  // Ray pointing directly at right tip handle
+  const handleMesh = exp['bench'].getRightTipHandleMesh();
+  const worldPos = new THREE.Vector3();
+  handleMesh.getWorldPosition(worldPos);
+
+  raycaster.ray.origin.set(worldPos.x, worldPos.y, worldPos.z + 2.0);
+  raycaster.ray.direction.set(0, 0, -1);
+
+  const hoverInfo = exp.getHoverTarget(raycaster);
+  assert(hoverInfo !== null, 'Should detect hover on right direction indicator');
+  assert(hoverInfo?.id === 'galileo-direction-handle', 'Target ID must be galileo-direction-handle');
+  assert(hoverInfo?.label.includes('方向标'), 'Label must indicate direction handle');
+
+  // Verify zero floating DOM widgets attached
+  const domWidgets = document.body.querySelectorAll('.galileo-direction-widget');
+  assert.strictEqual(domWidgets.length, 0, 'No 2D floating widget elements should exist in DOM');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 7 passed: 3D raycast hover target detected and zero DOM floating widgets verified\n');
+}
+
 console.log('========================================================');
-console.log('All Galileo Experiment Tests Passed (6/6)!');
+console.log('All Galileo Experiment Tests Passed (7/7)!');
 console.log('========================================================\n');

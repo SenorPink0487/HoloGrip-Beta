@@ -153,9 +153,27 @@ export class OpticalDiskApparatusMesh {
   private spotMat: THREE.MeshBasicMaterial;
   private tirHaloMat: THREE.MeshBasicMaterial;
 
-  // 辅助标线 (法线、分界面、角度弧线)
+  // 辅助标线 (法线、分界面、角度弧线与 3D 浮空角度标注)
   private normalLineGroup = new THREE.Group();
-  private angleArcsGroup = new THREE.Group();
+  public angleArcsGroup = new THREE.Group();
+  public angleLabelsGroup = new THREE.Group();
+
+  // 3D 浮空角度标注 (纯 WebGL Sprite 纹理与 Canvas 徽标)
+  private incidentBadgeCanvas: HTMLCanvasElement | null = null;
+  private incidentBadgeTex: THREE.CanvasTexture | null = null;
+  public incidentBadgeSprite: THREE.Sprite;
+
+  private reflectedBadgeCanvas: HTMLCanvasElement | null = null;
+  private reflectedBadgeTex: THREE.CanvasTexture | null = null;
+  public reflectedBadgeSprite: THREE.Sprite;
+
+  private refractedBadgeCanvas: HTMLCanvasElement | null = null;
+  private refractedBadgeTex: THREE.CanvasTexture | null = null;
+  public refractedBadgeSprite: THREE.Sprite;
+
+  private lastIncidentKey = '';
+  private lastReflectedKey = '';
+  private lastRefractedKey = '';
 
   constructor() {
     this.group.name = 'OpticalDiskApparatusMesh';
@@ -296,6 +314,20 @@ export class OpticalDiskApparatusMesh {
     });
     const plateGeo = new THREE.CylinderGeometry(this.diskRadius, this.diskRadius, 0.008, 96);
     plateGeo.rotateX(Math.PI / 2);
+
+    // 重新校准圆盘正面 (z > 0) 的 UV 映射，保证 1:1 对齐真实物理笛卡尔坐标系
+    // 解决 Three.js CylinderGeometry 默认顶盖 UV 旋转 90 度导致的文字垂直侧立及 0°/90° 轴向反转
+    const pos = plateGeo.attributes.position.array;
+    const norm = plateGeo.attributes.normal.array;
+    const uv = plateGeo.attributes.uv.array;
+    for (let i = 0; i < pos.length; i += 3) {
+      if (norm[i + 2] > 0.5) {
+        uv[(i / 3) * 2] = pos[i] / (2 * this.diskRadius) + 0.5;
+        uv[(i / 3) * 2 + 1] = pos[i + 1] / (2 * this.diskRadius) + 0.5;
+      }
+    }
+    plateGeo.attributes.uv.needsUpdate = true;
+
     this.diskPlateMesh = new THREE.Mesh(plateGeo, dialMat);
     this.diskPlateMesh.position.z = 0;
     diskGroup.add(this.diskPlateMesh);
@@ -363,7 +395,7 @@ export class OpticalDiskApparatusMesh {
     ctx.arc(cx, cy, 5, 0, Math.PI * 2);
     ctx.fill();
 
-    // 4. 四象限 10 ~ 90 角度标度与向内刻度线
+    // 4. 四象限 0 ~ 90 角度标度与向内刻度线
     // 刻度线完全位于 r >= 725px 区域，水槽半径为 647px，水槽完全位于刻度内侧，零遮挡！
     for (let deg = 0; deg < 360; deg++) {
       // 0° 位于 12点钟与 6点钟方向法线
@@ -383,17 +415,26 @@ export class OpticalDiskApparatusMesh {
         ctx.lineTo(cx + cos * rTickOuter, cy + sin * rTickOuter);
         ctx.stroke();
 
-        // 象限读数：10, 20, 30, 40, 50, 60, 70, 80, 90 (0°由法线直接指示)
-        if (quadAngle > 0) {
-          const textX = cx + cos * rNumbers;
-          const textY = cy + sin * rNumbers;
+        // 象限读数：0, 10, 20, 30, 40, 50, 60, 70, 80, 90
+        const textX = cx + cos * rNumbers;
+        const textY = cy + sin * rNumbers;
 
-          ctx.font = 'bold 40px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif';
-          ctx.fillStyle = '#0f172a';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(`${quadAngle}`, textX, textY);
+        ctx.save();
+        ctx.font = '600 42px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // 白色轮廓保护晕层，保证数字在横贯轴线或任何背景时绝对清晰，字形保持正向水平无倾斜
+        if (typeof ctx.strokeText === 'function') {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 8;
+          ctx.lineJoin = 'round';
+          ctx.strokeText(`${quadAngle}`, textX, textY);
         }
+
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(`${quadAngle}`, textX, textY);
+        ctx.restore();
       } else if (deg % 5 === 0) {
         // 5 度中刻度线 (长 75px，从 855px 到 780px)
         ctx.strokeStyle = '#0f172a';
@@ -793,7 +834,7 @@ export class OpticalDiskApparatusMesh {
   }
 
   /**
-   * 6. 辅助矢量图形 (法线、角度测量弧线)
+   * 6. 辅助矢量图形 (法线、角度测量弧线与 3D 浮空角度标注)
    */
   private createAuxiliaryGraphics(): void {
     const auxGroup = new THREE.Group();
@@ -815,11 +856,175 @@ export class OpticalDiskApparatusMesh {
 
     // 角度弧线组
     auxGroup.add(this.angleArcsGroup);
+
+    // 3D 浮空角度标注组 (位于水槽前表面前向 Z = 0.035，彻底杜绝深度遮挡)
+    const incBadge = this.createBadgeSprite('incident');
+    this.incidentBadgeCanvas = incBadge.canvas;
+    this.incidentBadgeTex = incBadge.texture;
+    this.incidentBadgeSprite = incBadge.sprite;
+    this.angleLabelsGroup.add(this.incidentBadgeSprite);
+
+    const reflBadge = this.createBadgeSprite('reflected');
+    this.reflectedBadgeCanvas = reflBadge.canvas;
+    this.reflectedBadgeTex = reflBadge.texture;
+    this.reflectedBadgeSprite = reflBadge.sprite;
+    this.angleLabelsGroup.add(this.reflectedBadgeSprite);
+
+    const refrBadge = this.createBadgeSprite('refracted');
+    this.refractedBadgeCanvas = refrBadge.canvas;
+    this.refractedBadgeTex = refrBadge.texture;
+    this.refractedBadgeSprite = refrBadge.sprite;
+    this.angleLabelsGroup.add(this.refractedBadgeSprite);
+
+    this.angleLabelsGroup.position.set(0, 0, 0.035);
+    auxGroup.add(this.angleLabelsGroup);
+
     this.group.add(auxGroup);
   }
 
   /**
-   * 动态刷新角度测量弧线
+   * 构造 3D 浮空角度标注 Sprite (纯文字与醒目大尺寸角度符号，无背景气泡)
+   */
+  private createBadgeSprite(
+    type: 'incident' | 'reflected' | 'refracted'
+  ): { canvas: HTMLCanvasElement | null; texture: THREE.CanvasTexture | null; sprite: THREE.Sprite } {
+    if (typeof document === 'undefined') {
+      const dummyMat = new THREE.SpriteMaterial();
+      const sprite = new THREE.Sprite(dummyMat);
+      sprite.raycast = () => {};
+      return { canvas: null, texture: null, sprite };
+    }
+
+    const canvas = document.createElement('canvas');
+    if (!canvas || typeof canvas.getContext !== 'function') {
+      const dummyMat = new THREE.SpriteMaterial();
+      const sprite = new THREE.Sprite(dummyMat);
+      sprite.raycast = () => {};
+      return { canvas: null, texture: null, sprite };
+    }
+
+    // 高清纯文字画布 (宽 600，高 140，长宽比约 4.286:1，背景完全透明)
+    canvas.width = 600;
+    canvas.height = 140;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+
+    const spriteMat = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    });
+
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.name = `AngleBadge_${type}`;
+    sprite.raycast = () => {};
+    // 大尺寸纯文字标度 (宽 0.165m, 高 0.0385m)，字形与表盘刻度数字相当，清晰夺目
+    sprite.scale.set(0.165, 0.0385, 1.0);
+    sprite.renderOrder = 30;
+
+    return { canvas, texture, sprite };
+  }
+
+  /**
+   * 纯文字与专属高对比度角度符号标注 (严禁使用任何气泡、胶囊背景框或实心圆点)
+   * 采用大号粗体与醒目镂空度数符号 (°) 绘制，确保在任何视距下都一清二楚
+   */
+  private renderAngleBadge(
+    canvas: HTMLCanvasElement | null,
+    texture: THREE.CanvasTexture | null,
+    label: string,
+    valText: string,
+    color: string
+  ): void {
+    if (!canvas || typeof canvas.getContext !== 'function' || !texture) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.save();
+
+    const cy = h / 2;
+
+    ctx.font = 'bold 50px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textBaseline = 'middle';
+
+    // 严禁绘制任何背景气泡、胶囊底板或实心圆点！纯文字 + 醒目大尺寸度数符号 (°)
+    if (!valText) {
+      // 纯文本状态 (例如 "全反射")
+      ctx.textAlign = 'center';
+      const cx = w / 2;
+      if (typeof ctx.strokeText === 'function') {
+        ctx.lineWidth = 6.0;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(8, 14, 26, 0.95)';
+        ctx.strokeText(label, cx, cy);
+      }
+      ctx.fillStyle = color;
+      ctx.fillText(label, cx, cy);
+    } else {
+      // 格式: "折射角: 32.0" + 专属镂空度数圆环 "°"
+      const mainText = `${label}: ${valText}`;
+
+      let mainW = 280;
+      if (typeof ctx.measureText === 'function') {
+        const tm = ctx.measureText(mainText);
+        if (tm && typeof tm.width === 'number') mainW = tm.width;
+      }
+
+      // 角度符号 (°) 的几何规格：半径 7.0px、间距 6px、线宽 3.0px，保持开孔通透清晰
+      const degRadius = 7.0;
+      const degGap = 6.0;
+      const totalW = mainW + degGap + degRadius * 2;
+
+      // 整体居中对齐
+      const startX = (w - totalW) / 2;
+      ctx.textAlign = 'left';
+
+      // 1. 绘制文字深色保护描边与纯色填充
+      if (typeof ctx.strokeText === 'function') {
+        ctx.lineWidth = 6.0;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(8, 14, 26, 0.95)';
+        ctx.strokeText(mainText, startX, cy);
+      }
+      ctx.fillStyle = color;
+      ctx.fillText(mainText, startX, cy);
+
+      // 2. 绘制醒目镂空角度符号 (°)
+      const degCenterX = startX + mainW + degGap + degRadius;
+      const degCenterY = cy - 14.0; // 上标适度提升
+
+      // 外层深色描边
+      ctx.beginPath();
+      if (typeof ctx.arc === 'function') {
+        ctx.arc(degCenterX, degCenterY, degRadius, 0, Math.PI * 2);
+      }
+      ctx.lineWidth = 5.5;
+      ctx.strokeStyle = 'rgba(8, 14, 26, 0.95)';
+      ctx.stroke();
+
+      // 内层纯色圆环 (镂空通透，彻底告别糊成墨点)
+      ctx.beginPath();
+      if (typeof ctx.arc === 'function') {
+        ctx.arc(degCenterX, degCenterY, degRadius, 0, Math.PI * 2);
+      }
+      ctx.lineWidth = 3.0;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+    }
+
+    ctx.restore();
+
+    texture.needsUpdate = true;
+  }
+
+  /**
+   * 动态刷新角度测量弧线与大尺寸纯文字角度标注
    */
   private updateAngleArcs(theta1Rad: number, theta2Rad: number, isTIR: boolean): void {
     // 清空上一帧旧弧线几何体
@@ -829,63 +1034,160 @@ export class OpticalDiskApparatusMesh {
       this.angleArcsGroup.remove(child);
     }
 
-    if (!this.showAngleArcs) return;
+    if (!this.showAngleArcs) {
+      this.angleLabelsGroup.visible = false;
+      return;
+    }
+    this.angleLabelsGroup.visible = true;
 
-    const arcRadius = 0.09;
-    const arcPointsCount = 32;
+    // 实体圆弧带与半透明角度扇形构造器 (彻底突破 WebGL 1px 线宽无法加粗的底层限制)
+    const addAngleArcMesh = (
+      r: number,
+      thickness: number,
+      startAng: number,
+      spanAng: number,
+      color: number,
+      fanOpacity = 0.16
+    ) => {
+      if (spanAng < 0.005) return;
+      const innerR = r - thickness / 2;
+      const outerR = r + thickness / 2;
 
-    // 1. 入射角弧线 (从法线到入射光线)
+      // 1. 半透明扇形区域 (角度张角扇面，直观展示角的范围)
+      const fanGeo = new THREE.RingGeometry(0.002, innerR, 32, 1, startAng, spanAng);
+      const fanMat = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: fanOpacity,
+        side: THREE.DoubleSide,
+        depthTest: false,
+      });
+      const fanMesh = new THREE.Mesh(fanGeo, fanMat);
+      fanMesh.renderOrder = 24;
+      this.angleArcsGroup.add(fanMesh);
+
+      // 2. 醒目大线宽圆弧测量带 (5.5mm 实体网格，清晰醒目绝不模糊)
+      const arcGeo = new THREE.RingGeometry(innerR, outerR, 48, 1, startAng, spanAng);
+      const arcMat = new THREE.MeshBasicMaterial({
+        color,
+        side: THREE.DoubleSide,
+        depthTest: false,
+      });
+      const arcMesh = new THREE.Mesh(arcGeo, arcMat);
+      arcMesh.renderOrder = 25;
+      this.angleArcsGroup.add(arcMesh);
+    };
+
+    // 1. 入射角圆弧与扇形 (翡翠高光绿)
     const normalAngleRad = this.isAirToWater ? Math.PI / 2 : -Math.PI / 2;
     const incidentRayAngleRad = this.isAirToWater
       ? normalAngleRad + (this.incidentAngleDeg >= 0 ? -Math.abs(theta1Rad) : Math.abs(theta1Rad))
       : normalAngleRad + (this.incidentAngleDeg >= 0 ? Math.abs(theta1Rad) : -Math.abs(theta1Rad));
 
-    const arc1Pts: THREE.Vector3[] = [];
     const minAng1 = Math.min(normalAngleRad, incidentRayAngleRad);
     const maxAng1 = Math.max(normalAngleRad, incidentRayAngleRad);
+    const span1 = maxAng1 - minAng1;
+    addAngleArcMesh(0.095, 0.0055, minAng1, span1, 0x10b981, 0.16);
 
-    for (let i = 0; i <= arcPointsCount; i++) {
-      const a = minAng1 + ((maxAng1 - minAng1) * i) / arcPointsCount;
-      arc1Pts.push(new THREE.Vector3(Math.cos(a) * arcRadius, Math.sin(a) * arcRadius, 0));
-    }
-    const arc1Geo = new THREE.BufferGeometry().setFromPoints(arc1Pts);
-    const arc1Mat = new THREE.LineBasicMaterial({ color: 0x4ade80, linewidth: 2 });
-    this.angleArcsGroup.add(new THREE.Line(arc1Geo, arc1Mat));
-
-    // 2. 反射角弧线
+    // 2. 反射角圆弧与扇形 (电光亮青色，半径略收以防法线处叠压)
     const reflRayAngleRad = this.isAirToWater
       ? normalAngleRad + (this.incidentAngleDeg >= 0 ? Math.abs(theta1Rad) : -Math.abs(theta1Rad))
       : normalAngleRad + (this.incidentAngleDeg >= 0 ? -Math.abs(theta1Rad) : Math.abs(theta1Rad));
 
-    const arcRPts: THREE.Vector3[] = [];
     const minAngR = Math.min(normalAngleRad, reflRayAngleRad);
     const maxAngR = Math.max(normalAngleRad, reflRayAngleRad);
-    for (let i = 0; i <= arcPointsCount; i++) {
-      const a = minAngR + ((maxAngR - minAngR) * i) / arcPointsCount;
-      arcRPts.push(new THREE.Vector3(Math.cos(a) * (arcRadius * 0.85), Math.sin(a) * (arcRadius * 0.85), 0));
-    }
-    const arcRGeo = new THREE.BufferGeometry().setFromPoints(arcRPts);
-    const arcRMat = new THREE.LineBasicMaterial({ color: 0x2dd4bf, linewidth: 2 });
-    this.angleArcsGroup.add(new THREE.Line(arcRGeo, arcRMat));
+    const spanR = maxAngR - minAngR;
+    addAngleArcMesh(0.078, 0.0055, minAngR, spanR, 0x06b6d4, 0.16);
 
-    // 3. 折射角弧线 (未发生全反射时)
+    // 3. 折射角圆弧与扇形 (未发生全反射时，金黄琥珀色在水槽中具极高反差)
+    const oppositeNormalAngleRad = this.isAirToWater ? -Math.PI / 2 : Math.PI / 2;
+    let minAng2 = 0;
+    let maxAng2 = 0;
     if (!isTIR) {
-      const oppositeNormalAngleRad = this.isAirToWater ? -Math.PI / 2 : Math.PI / 2;
       const refrRayAngleRad = this.isAirToWater
         ? oppositeNormalAngleRad + (this.incidentAngleDeg >= 0 ? Math.abs(theta2Rad) : -Math.abs(theta2Rad))
         : oppositeNormalAngleRad + (this.incidentAngleDeg >= 0 ? -Math.abs(theta2Rad) : Math.abs(theta2Rad));
 
-      const arc2Pts: THREE.Vector3[] = [];
-      const minAng2 = Math.min(oppositeNormalAngleRad, refrRayAngleRad);
-      const maxAng2 = Math.max(oppositeNormalAngleRad, refrRayAngleRad);
-      for (let i = 0; i <= arcPointsCount; i++) {
-        const a = minAng2 + ((maxAng2 - minAng2) * i) / arcPointsCount;
-        arc2Pts.push(new THREE.Vector3(Math.cos(a) * arcRadius, Math.sin(a) * arcRadius, 0));
-      }
-      const arc2Geo = new THREE.BufferGeometry().setFromPoints(arc2Pts);
-      const arc2Mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2 });
-      this.angleArcsGroup.add(new THREE.Line(arc2Geo, arc2Mat));
+      minAng2 = Math.min(oppositeNormalAngleRad, refrRayAngleRad);
+      maxAng2 = Math.max(oppositeNormalAngleRad, refrRayAngleRad);
+      const span2 = maxAng2 - minAng2;
+      addAngleArcMesh(0.095, 0.0055, minAng2, span2, 0xf59e0b, 0.22);
     }
+
+    // 4. 纯文字加清晰角度符号 (°) 实时标注刷新
+    const theta1DegAbs = Math.abs(this.incidentAngleDeg);
+    const theta1Key = theta1DegAbs.toFixed(1);
+    const theta2Deg = isTIR ? 0 : THREE.MathUtils.radToDeg(theta2Rad);
+    const theta2Key = isTIR ? 'TIR' : theta2Deg.toFixed(1);
+
+    if (this.lastIncidentKey !== theta1Key) {
+      this.lastIncidentKey = theta1Key;
+      this.renderAngleBadge(
+        this.incidentBadgeCanvas,
+        this.incidentBadgeTex,
+        '入射角',
+        theta1Key,
+        '#4ade80'
+      );
+    }
+
+    if (this.lastReflectedKey !== theta1Key) {
+      this.lastReflectedKey = theta1Key;
+      this.renderAngleBadge(
+        this.reflectedBadgeCanvas,
+        this.reflectedBadgeTex,
+        '反射角',
+        theta1Key,
+        '#2dd4bf'
+      );
+    }
+
+    const refrFullKey = `${theta2Key}_${isTIR}`;
+    if (this.lastRefractedKey !== refrFullKey) {
+      this.lastRefractedKey = refrFullKey;
+      if (isTIR) {
+        this.renderAngleBadge(
+          this.refractedBadgeCanvas,
+          this.refractedBadgeTex,
+          '全反射',
+          '',
+          '#f43f5e'
+        );
+      } else {
+        this.renderAngleBadge(
+          this.refractedBadgeCanvas,
+          this.refractedBadgeTex,
+          '折射角',
+          theta2Key,
+          '#fbbf24'
+        );
+      }
+    }
+
+    // 5. 紧贴弧线外侧纯文字定位 (微错距防重叠)
+    const rInc = 0.145;
+    const rRefl = 0.130;
+    const rRefr = 0.138;
+
+    const midAng1 = (minAng1 + maxAng1) / 2;
+    const midAngR = (minAngR + maxAngR) / 2;
+    const midAng2 = isTIR ? oppositeNormalAngleRad : (minAng2 + maxAng2) / 2;
+
+    this.incidentBadgeSprite.position.set(
+      Math.cos(midAng1) * rInc,
+      Math.sin(midAng1) * rInc,
+      0
+    );
+    this.reflectedBadgeSprite.position.set(
+      Math.cos(midAngR) * rRefl,
+      Math.sin(midAngR) * rRefl,
+      0
+    );
+    this.refractedBadgeSprite.position.set(
+      Math.cos(midAng2) * rRefr,
+      Math.sin(midAng2) * rRefr,
+      0
+    );
   }
 
   /**
@@ -1158,6 +1460,18 @@ export class OpticalDiskApparatusMesh {
     if (this.dialTexture) {
       this.dialTexture.dispose();
       this.dialTexture = null;
+    }
+    if (this.incidentBadgeTex) {
+      this.incidentBadgeTex.dispose();
+      this.incidentBadgeTex = null;
+    }
+    if (this.reflectedBadgeTex) {
+      this.reflectedBadgeTex.dispose();
+      this.reflectedBadgeTex = null;
+    }
+    if (this.refractedBadgeTex) {
+      this.refractedBadgeTex.dispose();
+      this.refractedBadgeTex = null;
     }
 
     this.group.traverse((obj) => {

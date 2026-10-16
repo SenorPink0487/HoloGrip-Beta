@@ -631,9 +631,8 @@ export class Engine {
         this.crosshair.setVisible(false);
       } else {
         if (!this.visionModal || !this.visionModal.visible) {
-          const noPointerLockExp = this.currentExperimentId === 'math-stereometry' || this.currentExperimentId === 'mech-galileo';
-          this.inputManager.player.allowPointerLock = !noPointerLockExp;
-          if (!this.labEntryActive && !this.isWhiteboardMode && !noPointerLockExp) {
+          this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
+          if (!this.labEntryActive && !this.isWhiteboardMode && this.currentExperimentId !== 'math-stereometry') {
             this.crosshair.setVisible(true);
           }
         }
@@ -756,9 +755,8 @@ export class Engine {
         this.spatialWindowObject.visible = false;
         this.inputManager?.touch?.setVisionModalOpen(false);
         this.lab?.setObservationWindowVisible(true);
-        const noPointerLockExp = this.currentExperimentId === 'math-stereometry' || this.currentExperimentId === 'mech-galileo';
-        this.inputManager.player.allowPointerLock = !noPointerLockExp;
-        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !noPointerLockExp) {
+        this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
+        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
           this.crosshair.setVisible(true);
         }
         this.isExperimentInteracting = false;
@@ -1382,7 +1380,7 @@ export class Engine {
       }
 
       this.currentExperimentId = id;
-      if (id === 'math-stereometry' || id === 'mech-galileo') {
+      if (id === 'math-stereometry') {
         this.crosshair?.setVisible(false);
         if (this.inputManager?.player) {
           this.inputManager.player.allowPointerLock = false;
@@ -1672,8 +1670,7 @@ export class Engine {
         }
       } else {
         if (this.inputManager?.player && !this.visionModal?.visible) {
-          this.inputManager.player.allowPointerLock =
-            this.currentExperimentId !== 'math-stereometry' && this.currentExperimentId !== 'mech-galileo';
+          this.inputManager.player.allowPointerLock = this.currentExperimentId !== 'math-stereometry';
           this.inputManager.player.allowMouseRotation = true;
         }
       }
@@ -1900,9 +1897,8 @@ export class Engine {
           this.isExperimentInteracting = false;
           if (!this.labEntryActive) {
             this.inputManager.player.enabled = true;
-            const noPointerLockExp = this.currentExperimentId === 'math-stereometry' || this.currentExperimentId === 'mech-galileo';
-            this.inputManager.player.allowPointerLock = !noPointerLockExp;
-            if (this.crosshair && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !noPointerLockExp) {
+            this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
+            if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
               this.crosshair.setVisible(true);
             }
           }
@@ -2274,7 +2270,7 @@ export class Engine {
       if (this.renderer?.shadowMap?.enabled) {
         this.renderer.shadowMap.needsUpdate = true;
       }
-      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry' && this.currentExperimentId !== 'mech-galileo') {
+      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
         this.crosshair.setVisible(true);
       }
     } else if (this.isWhiteboardMode) {

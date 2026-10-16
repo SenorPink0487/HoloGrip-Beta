@@ -550,7 +550,7 @@ export class PhysicsDisciplineModal {
         <div class="optics-exp-deck">
           ${experiments.map(
             (exp) => `
-            <div class="optics-card ${(exp as any).planned ? 'planned-card' : ''}" data-exp-id="${exp.id}" data-planned="${(exp as any).planned ? 'true' : 'false'}" data-formula="${exp.formula}" title="${exp.name}&#10;${exp.formula}" role="button" tabindex="0">
+            <div class="optics-card ${(exp as any).planned ? 'planned-card' : ''}" data-exp-id="${exp.id}" data-planned="${(exp as any).planned ? 'true' : 'false'}" data-formula="${exp.formula}" role="button" tabindex="0">
               <div class="optics-card-icon-box">${exp.iconSvg}</div>
               <h3 class="optics-card-name">${exp.name}</h3>
               ${(exp as any).planned ? '<span class="branch-tile-badge planned" style="margin-top: 4px;">规划中</span>' : `

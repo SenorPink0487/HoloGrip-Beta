@@ -73,6 +73,7 @@ const createMockElement = (tag = 'div'): any => {
           strokeRect: () => {},
           clearRect: () => {},
           fillText: () => {},
+          strokeText: () => {},
           beginPath: () => {},
           moveTo: () => {},
           lineTo: () => {},
@@ -444,6 +445,44 @@ console.log('Test 7: OpticsReflectionRefractionExperiment Full Lifecycle');
   console.log('✓ Test 7 passed: Experiment lifecycle, parameter handling, scaling and disposal verified');
 }
 
+// Test 8: 3D Angle Annotation Labels (Incident, Reflected, Refracted Badges)
+console.log('Test 8: 3D Angle Annotation Labels (Incident, Reflected, Refracted Badges)');
+{
+  const apparatus = new OpticalDiskApparatusMesh();
+
+  // 8.1 验证 3D 浮空角度标注组及 Sprite 存在
+  assert.ok(apparatus.angleLabelsGroup, 'angleLabelsGroup must exist');
+  assert.strictEqual(apparatus.angleLabelsGroup.children.length, 3, 'Must contain 3 angle badge sprites (incident, reflected, refracted)');
+  assert.ok(apparatus.incidentBadgeSprite, 'Incident badge sprite exists');
+  assert.ok(apparatus.reflectedBadgeSprite, 'Reflected badge sprite exists');
+  assert.ok(apparatus.refractedBadgeSprite, 'Refracted badge sprite exists');
+
+  // 8.2 验证初始 45° 入射角时的纯文字标注位置
+  apparatus.setIncidentAngle(45);
+  apparatus.updateOpticalPaths();
+
+  assert.strictEqual(apparatus.angleLabelsGroup.visible, true, 'angleLabelsGroup is visible when showAngleArcs is true');
+  assert.ok(apparatus.incidentBadgeSprite.position.x > 0, 'Incident badge in positive X quadrant');
+  assert.ok(apparatus.reflectedBadgeSprite.position.x < 0, 'Reflected badge in negative X quadrant');
+  assert.ok(apparatus.refractedBadgeSprite.position.y < 0, 'Refracted badge in water region (negative Y)');
+  assert.strictEqual(apparatus.angleArcsGroup.children.length, 6, 'Must have 6 angle measurement ribbon and fan meshes');
+
+  // 8.3 验证全反射状态下的折射标注切换
+  apparatus.setIncidentDirection(false); // 水到空气
+  apparatus.setIncidentAngle(55); // 大于临界角 48.6°
+  apparatus.updateOpticalPaths();
+  assert.ok(apparatus.refractedBadgeSprite.position.y > 0, 'In TIR, refraction indicator positioned in air region');
+
+  // 8.4 验证 showAngleArcs 隐藏联动
+  apparatus.showAngleArcs = false;
+  apparatus.updateOpticalPaths();
+  assert.strictEqual(apparatus.angleLabelsGroup.visible, false, 'angleLabelsGroup hidden when showAngleArcs is false');
+
+  apparatus.dispose();
+  console.log('✓ Test 8 passed: Pure text angle annotations for reflection & refraction verified');
+}
+
 console.log('\n========================================================');
-console.log('All Light Reflection & Refraction Tests Passed Successfully (7/7)!');
+console.log('All Light Reflection & Refraction Tests Passed Successfully (8/8)!');
 console.log('========================================================\n');
+

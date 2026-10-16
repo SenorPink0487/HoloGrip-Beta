@@ -6,7 +6,6 @@ import {
   GalileoDynamicsSolver,
   type GalileoTelemetry,
 } from '../../../physics/mech/galileoDynamics.ts';
-import { GalileoDirectionWidget } from '../../../ui/GalileoDirectionWidget.ts';
 import { metadata } from './meta.ts';
 
 export default class MechGalileoExperiment extends BaseExperiment {
@@ -16,32 +15,32 @@ export default class MechGalileoExperiment extends BaseExperiment {
 
   private bench!: GalileoBenchMesh;
   private solver!: GalileoDynamicsSolver;
-  private widget: GalileoDirectionWidget | null = null;
   private isDisposed = false;
   private isPlaying = true;
   private allowOscillation = true;
   private showVelocity = true;
   private currentReleaseSide: 'left' | 'right' = 'left';
 
-  // 3D 场景内直接拖拽把手交互状态
+  // 3D 场景纯三维交互状态 (与光学实验一致，无任何 2D 悬浮窗口)
   private is3DDragging = false;
   private dragPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private dragPlaneIntersection = new THREE.Vector3();
+  private lastHoveredTarget: string | null = null;
 
   // 遥测缓存
   private telemetry!: GalileoTelemetry;
   private lastApexTriggered = false;
 
   public init(context: ExperimentContext): void {
-    // 将实验根节点放置于实验桌前沿 (Y=0.12, Z=1.55)
+    // 将实验根节点放置于实验台操作区域 (Y=0.12, Z=1.55)
     this.rootGroup.position.set(0, 0.12, 1.55);
 
-    // 初始化 3D 台面模型
+    // 实例化 3D 实验台模型
     this.bench = new GalileoBenchMesh();
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
 
-    // 初始化物理动力学求解器
+    // 实例化物理动力学求解器
     this.solver = new GalileoDynamicsSolver({
       releaseHeightM: 0.25,
       leftAngleDeg: 35.0,
@@ -52,49 +51,192 @@ export default class MechGalileoExperiment extends BaseExperiment {
     });
     this.solver.reset(this.currentReleaseSide);
 
-    // 创建右上角全息方向标交互控件
-    this.createWidget();
-
     this.recalculate();
   }
 
-  private createWidget(): void {
-    if (typeof document === 'undefined') return;
+  /**
+   * 射线检测悬停目标（供 Crosshair 准星与 HUD 工具提示使用）
+   */
+  public override getHoverTarget(raycaster: THREE.Raycaster): {
+    id: string;
+    label: string;
+    cursor?: string;
+  } | null {
+    if (this.isDisposed) return null;
 
-    this.widget = new GalileoDirectionWidget(
-      {
-        onTransformChange: (angleDeg, lengthM) => {
-          this.applyRightInclineTransform(angleDeg, lengthM, false);
-        },
-        onTransformCommit: (angleDeg, lengthM) => {
-          // 用户明确要求："改变右侧斜面的长度和高度后，小球自动回复到...初始位置，观察小球的运动状况。"
-          this.applyRightInclineTransform(angleDeg, lengthM, true);
-        },
-        onResetBall: () => {
-          this.resetBall();
-        },
-        onTogglePlay: (playing) => {
-          this.isPlaying = playing;
-        },
-        onSideChange: (side) => {
-          this.currentReleaseSide = side;
-          this.resetBall();
-        },
-      },
-      document.body
-    );
+    if (this.is3DDragging) {
+      const angle = this.solver.rightAngleDeg.toFixed(1);
+      const len = this.solver.rightLengthM.toFixed(2);
+      const h = this.solver.rightHeightM.toFixed(2);
+      return {
+        id: 'galileo-direction-handle',
+        label: `右侧斜面方向标 · 倾角: ${angle}° · 坡长: ${len}m · 端高: ${h}m`,
+        cursor: 'grabbing',
+      };
+    }
 
-    this.addDisposable(() => {
-      this.widget?.destroy();
-      this.widget = null;
-    });
+    const hits = raycaster.intersectObjects(this.bench.group.children, true);
+    if (hits.length === 0) {
+      if (this.lastHoveredTarget) {
+        this.bench.setHandleHovered(false);
+        this.lastHoveredTarget = null;
+      }
+      return null;
+    }
+
+    for (const hit of hits) {
+      let cur: THREE.Object3D | null = hit.object;
+      while (cur && cur !== this.bench.group) {
+        if (cur.name === 'galileo-direction-handle' || cur.userData?.isDirectionHandle) {
+          this.bench.setHandleHovered(true);
+          this.lastHoveredTarget = 'galileo-direction-handle';
+          const angle = this.solver.rightAngleDeg.toFixed(1);
+          const len = this.solver.rightLengthM.toFixed(2);
+          return {
+            id: 'galileo-direction-handle',
+            label: `右上角方向标 · 倾角: ${angle}° · 坡长: ${len}m (按住拖拽调节)`,
+            cursor: 'grab',
+          };
+        }
+        if (cur.name === 'galileo-ball' || cur.userData?.isBall) {
+          this.bench.setHandleHovered(false);
+          this.lastHoveredTarget = 'galileo-ball';
+          return {
+            id: 'galileo-ball',
+            label: '小球 · 点击立即重置回起点重新滑行',
+            cursor: 'pointer',
+          };
+        }
+        if (cur.name === 'galileo-left-gate' || cur.userData?.isLeftGate) {
+          this.bench.setHandleHovered(false);
+          this.lastHoveredTarget = 'galileo-left-gate';
+          return {
+            id: 'galileo-left-gate',
+            label: '左侧释放端 · 点击从此释放小球',
+            cursor: 'pointer',
+          };
+        }
+        cur = cur.parent;
+      }
+    }
+
+    if (this.lastHoveredTarget) {
+      this.bench.setHandleHovered(false);
+      this.lastHoveredTarget = null;
+    }
+    return null;
   }
 
   /**
-   * 应用右侧斜面的新倾角与长度
-   * @param autoReset 是否在改变后让小球自动回复到初始位置开始滑行
+   * 鼠标/触控指针按下
    */
-  public applyRightInclineTransform(angleDeg: number, lengthM: number, autoReset = true): void {
+  public override onPointerDown(
+    event: PointerEvent,
+    hit: THREE.Intersection | null,
+    context: ExperimentContext
+  ): boolean | void {
+    if (!hit) return false;
+
+    let targetType: 'direction_handle' | 'ball' | 'left_gate' | 'none' = 'none';
+    let obj: THREE.Object3D | null = hit.object;
+
+    while (obj && obj !== this.bench.group) {
+      if (obj.name === 'galileo-direction-handle' || obj.userData?.isDirectionHandle) {
+        targetType = 'direction_handle';
+        break;
+      }
+      if (obj.name === 'galileo-ball' || obj.userData?.isBall) {
+        targetType = 'ball';
+        break;
+      }
+      if (obj.name === 'galileo-left-gate' || obj.userData?.isLeftGate) {
+        targetType = 'left_gate';
+        break;
+      }
+      obj = obj.parent;
+    }
+
+    if (targetType === 'direction_handle') {
+      this.is3DDragging = true;
+      // 设置垂直拖拽平面 (法向量指向 Z 轴，过实验台中心)
+      this.dragPlane.setFromNormalAndCoplanarPoint(
+        new THREE.Vector3(0, 0, 1),
+        this.rootGroup.position
+      );
+      return true; // 拦截事件，触发 Engine.ts 锁定指针拖拽
+    }
+
+    if (targetType === 'ball' || targetType === 'left_gate') {
+      this.currentReleaseSide = 'left';
+      this.resetBall();
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * 鼠标/触控指针拖拽移动
+   */
+  public override onPointerMove(
+    event: PointerEvent,
+    _hit: THREE.Intersection | null,
+    context: ExperimentContext
+  ): void {
+    if (!this.is3DDragging || !context.camera) return;
+
+    const mouse = new THREE.Vector2(
+      (event.clientX / window.innerWidth) * 2 - 1,
+      -(event.clientY / window.innerHeight) * 2 + 1
+    );
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, context.camera);
+
+    this.dragPlane.setFromNormalAndCoplanarPoint(
+      new THREE.Vector3(0, 0, 1),
+      this.rootGroup.position
+    );
+
+    if (raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
+      // 转换至 rootGroup 局部坐标系
+      const localPoint = this.rootGroup.worldToLocal(this.dragPlaneIntersection.clone());
+      const halfFlat = this.solver.flatLengthM * 0.5;
+
+      const dx = localPoint.x - halfFlat;
+      const dy = localPoint.y;
+
+      if (dx > 0) {
+        let angleRad = Math.atan2(Math.max(0, dy), dx);
+        let angleDeg = (angleRad * 180.0) / Math.PI;
+        angleDeg = Math.max(0.0, Math.min(60.0, angleDeg));
+
+        const lengthM = Math.max(0.30, Math.min(1.20, Math.sqrt(dx * dx + dy * dy)));
+
+        this.applyRightInclineTransform(angleDeg, lengthM, false);
+        context.setParameter?.('rightAngle', parseFloat(angleDeg.toFixed(1)));
+        context.setParameter?.('rightLength', parseFloat(lengthM.toFixed(2)));
+      }
+    }
+  }
+
+  /**
+   * 鼠标/触控指针松开
+   */
+  public override onPointerUp(_event: PointerEvent, _context: ExperimentContext): void {
+    if (this.is3DDragging) {
+      this.is3DDragging = false;
+      this.bench.setHandleHovered(false);
+
+      // 用户要求：“拖动右上角的方向标，改变右侧斜面的长度和高度后，小球自动回复到初始位置，观察小球的运动状况。”
+      this.resetBall();
+    }
+  }
+
+  /**
+   * 更新右侧斜面倾角与坡长
+   */
+  public applyRightInclineTransform(angleDeg: number, lengthM: number, autoReset = false): void {
     this.solver.updateParameters({
       rightAngleDeg: angleDeg,
       rightLengthM: lengthM,
@@ -125,7 +267,6 @@ export default class MechGalileoExperiment extends BaseExperiment {
     this.bench.updateAnimation(delta);
 
     if (this.isPlaying) {
-      // 限制单帧最大时间步长以保证积分平滑稳定
       const stepDt = Math.min(0.033, Math.max(0.001, delta));
       const state = this.solver.step(stepDt, this.allowOscillation);
 
@@ -137,7 +278,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
         this.showVelocity
       );
 
-      // 当小球接近最高点且速度接近 0 时触发等高到达光晕特效
+      // 到达顶点时触发等高光晕动效
       if (
         state.zone === 'right_incline' &&
         Math.abs(state.speed) < 0.12 &&
@@ -154,95 +295,21 @@ export default class MechGalileoExperiment extends BaseExperiment {
 
   public override onParameterChange(id: string, value: any, _context: ExperimentContext): void {
     if (id === 'releaseHeight') {
-      this.solver.updateParameters({ releaseHeightM: value });
-      this.bench.updateHeightLine(value);
-      this.widget?.setReleaseHeight(value);
+      this.solver.updateParameters({ releaseHeightM: Number(value) });
+      this.bench.updateHeightLine(Number(value));
       this.resetBall();
     } else if (id === 'rightAngle') {
       const curLen = this.solver.rightLengthM;
-      this.widget?.setTransform(value, curLen, true);
+      this.applyRightInclineTransform(Number(value), curLen, true);
     } else if (id === 'rightLength') {
       const curAngle = this.solver.rightAngleDeg;
-      this.widget?.setTransform(curAngle, value, true);
+      this.applyRightInclineTransform(curAngle, Number(value), true);
     } else if (id === 'frictionMu') {
-      this.solver.updateParameters({ frictionMu: value });
+      this.solver.updateParameters({ frictionMu: Number(value) });
     } else if (id === 'showVelocity') {
       this.showVelocity = Boolean(value);
     } else if (id === 'allowOscillation') {
       this.allowOscillation = Boolean(value);
-    }
-  }
-
-  /**
-   * 支持直接在 3D 视图中拖动右侧斜面顶端的发光把手
-   */
-  public override onPointerDown(
-    event: PointerEvent,
-    hit: THREE.Intersection | null,
-    _context: ExperimentContext
-  ): boolean | void {
-    if (!hit) return false;
-
-    // 检查是否击中右侧斜面顶端的方向标把手
-    let obj: THREE.Object3D | null = hit.object;
-    while (obj && obj !== this.rootGroup) {
-      if (obj.name === 'galileo-right-handle' || obj.name === 'rightInclineTipHandle') {
-        this.is3DDragging = true;
-        return true;
-      }
-      obj = obj.parent;
-    }
-    return false;
-  }
-
-  public override onPointerMove(
-    event: PointerEvent,
-    _hit: THREE.Intersection | null,
-    context: ExperimentContext
-  ): void {
-    if (!this.is3DDragging || !context.camera) return;
-
-    // 将屏幕坐标反向投射到实验台所在的垂直交互平面上
-    const mouse = new THREE.Vector2(
-      (event.clientX / window.innerWidth) * 2 - 1,
-      -(event.clientY / window.innerHeight) * 2 + 1
-    );
-
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, context.camera);
-
-    // 拖拽平面：过铰链中心 (halfFlat, 0, 0)，法向量垂直于 Z 轴
-    this.dragPlane.setFromNormalAndCoplanarPoint(
-      new THREE.Vector3(0, 0, 1),
-      this.rootGroup.position
-    );
-
-    if (raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
-      // 转换为局部坐标系
-      const localPoint = this.rootGroup.worldToLocal(this.dragPlaneIntersection.clone());
-      const halfFlat = this.solver.flatLengthM * 0.5;
-
-      const dx = localPoint.x - halfFlat;
-      const dy = localPoint.y;
-
-      if (dx > 0) {
-        let angleRad = Math.atan2(Math.max(0, dy), dx);
-        let angleDeg = (angleRad * 180.0) / Math.PI;
-        angleDeg = Math.max(0, Math.min(60, angleDeg));
-
-        const lengthM = Math.max(0.30, Math.min(1.20, Math.sqrt(dx * dx + dy * dy)));
-
-        this.widget?.setTransform(angleDeg, lengthM, false);
-        this.applyRightInclineTransform(angleDeg, lengthM, false);
-      }
-    }
-  }
-
-  public override onPointerUp(_event: PointerEvent, _context: ExperimentContext): void {
-    if (this.is3DDragging) {
-      this.is3DDragging = false;
-      // 拖拽完成后自动重置小球开始运动
-      this.resetBall();
     }
   }
 
@@ -252,8 +319,6 @@ export default class MechGalileoExperiment extends BaseExperiment {
 
   public override dispose(context: ExperimentContext): void {
     this.isDisposed = true;
-    this.widget?.destroy();
-    this.widget = null;
     super.dispose(context);
   }
 
