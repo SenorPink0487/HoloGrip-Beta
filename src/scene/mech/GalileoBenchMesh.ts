@@ -47,7 +47,7 @@ export class GalileoBenchMesh {
   private ballMesh: THREE.Mesh;
   private ballRadius = 0.022; // 22mm 纯净纯色金属小球
   private apexFlashRing: THREE.Mesh;
-  private heightReferenceLine: THREE.LineSegments;
+  private heightReferenceGroup = new THREE.Group();
   private leftReleaseGateMesh: THREE.Mesh;
 
   // 材质引用
@@ -84,7 +84,7 @@ export class GalileoBenchMesh {
     this.group.add(this.rightInclinePivot);
     this.group.add(this.leftSupportStrut);
     this.group.add(this.rightSupportStrut);
-    this.group.add(this.heightReferenceLine);
+    this.group.add(this.heightReferenceGroup);
     this.group.add(this.ballMesh);
     this.group.add(this.apexFlashRing);
 
@@ -338,27 +338,34 @@ export class GalileoBenchMesh {
   }
 
   /**
-   * 5. 极简等高激光基准线
+   * 5. 极简全息微光等高虚线 (精细点划线段，优雅非实线，不喧宾夺主)
    */
   private createHeightReferenceLine(): void {
-    const points = [
-      new THREE.Vector3(-1.20, this.releaseHeightM, 0),
-      new THREE.Vector3(1.20, this.releaseHeightM, 0),
-    ];
-    const geom = new THREE.BufferGeometry().setFromPoints(points);
+    const dashCount = 23;
+    const dashLength = 0.045;
+    const dashGap = 0.055;
+    // 微细圆柱截面，确保抗锯齿渲染清晰，但保持纤细（直径 1.8mm）
+    const dashGeom = new THREE.CylinderGeometry(0.0009, 0.0009, dashLength, 8);
+    dashGeom.rotateZ(Math.PI / 2);
 
-    const laserMat = new THREE.LineDashedMaterial({
-      color: 0x38bdf8,
-      dashSize: 0.02,
-      gapSize: 0.012,
-      linewidth: 1.5,
+    const dashMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8, // 柔和科技冰蓝
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.65,
     });
-    laserMat.toneMapped = false;
 
-    this.heightReferenceLine = new THREE.LineSegments(geom, laserMat);
-    this.heightReferenceLine.computeLineDistances();
+    const instancedDashes = new THREE.InstancedMesh(dashGeom, dashMat, dashCount);
+    const dummy = new THREE.Object3D();
+    const startX = -1.15 + dashLength * 0.5;
+
+    for (let i = 0; i < dashCount; i++) {
+      dummy.position.set(startX + i * (dashLength + dashGap), 0, 0);
+      dummy.updateMatrix();
+      instancedDashes.setMatrixAt(i, dummy.matrix);
+    }
+    instancedDashes.instanceMatrix.needsUpdate = true;
+
+    this.heightReferenceGroup.add(instancedDashes);
   }
 
   /**
@@ -430,6 +437,9 @@ export class GalileoBenchMesh {
     this.leftStrutInner.position.y = Math.min(0.25, strutH * 0.6);
     this.leftStrutInner.scale.set(1, Math.max(0.001, strutH - Math.min(0.25, strutH * 0.6)), 1);
     this.leftSupportStrut.visible = angleDeg > 1.2;
+
+    // 联动同步等高参考光束
+    this.updateHeightLine(this.releaseHeightM);
   }
 
   /**
@@ -465,17 +475,14 @@ export class GalileoBenchMesh {
   }
 
   /**
-   * 更新等高激光参考虚线的高度
+   * 更新等高激光参考线的高度 (精确穿过释放初始高度球心)
    */
   public updateHeightLine(heightM: number): void {
     this.releaseHeightM = heightM;
-    const pos = this.heightReferenceLine.geometry.attributes.position;
-    if (pos) {
-      pos.setY(0, heightM);
-      pos.setY(1, heightM);
-      pos.needsUpdate = true;
-      this.heightReferenceLine.computeLineDistances();
-    }
+    const H_NORMAL = 0.04145;
+    const leftRad = (this.leftAngleDeg * Math.PI) / 180.0;
+    const targetY = heightM + H_NORMAL * Math.cos(leftRad);
+    this.heightReferenceGroup.position.set(0, targetY, 0);
   }
 
   /**

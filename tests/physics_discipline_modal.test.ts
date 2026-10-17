@@ -188,8 +188,8 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(html.includes('d sinθ = mλ'), 'Must contain Grating formula');
   assert(html.includes('I = I₀ cos²(θ₂ - θ₁)'), 'Must contain Malus formula');
 
-  // Back button to physics branches exists
-  assert(html.includes('btn-back-to-physics'), 'Must contain back button to physics branches');
+  // Blue pill back button inside content area removed (relying on top-left window header back button)
+  assert(!html.includes('btn-back-to-physics'), 'Internal blue back button must be removed in favor of top-left window back button');
 
   console.log('✓ Test 2 passed: Level 2 accurately reveals 4 core experiments and formulas\n');
 }

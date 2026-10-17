@@ -156,7 +156,7 @@ export class VisionModal {
         <div class="vision-window-header">
           <div class="header-left">
             <button class="vision-window-btn btn-back hidden" id="btn-window-back" title="返回">
-              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 18 9 12 15 6"/>
               </svg>
             </button>
@@ -169,7 +169,7 @@ export class VisionModal {
 
           <div class="header-right">
             <button class="vision-window-btn btn-close" id="btn-window-close" title="关闭 (ESC)">
-              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <svg class="apple-sf-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
               </svg>

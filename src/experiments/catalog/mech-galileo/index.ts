@@ -47,7 +47,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
       flatLengthM: 0.40,
       rightAngleDeg: 30.0,
       rightLengthM: 0.60,
-      frictionMu: 0.0,
+      frictionMu: 0.02,
     });
     this.solver.reset(this.currentReleaseSide);
 

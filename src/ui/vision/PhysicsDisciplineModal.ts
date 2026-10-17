@@ -527,16 +527,9 @@ export class PhysicsDisciplineModal {
 
     this.element.innerHTML = `
       <div class="physics-level-container physics-level-2">
-        <!-- Minimalist Navigation Header with Back to Physics -->
+        <!-- Minimalist Navigation Header -->
         <div class="physics-nav-bar">
-          <button class="physics-back-pill" id="btn-back-to-physics" title="返回物理学">
-            <svg class="apple-sf-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-            <span>物理学</span>
-          </button>
           <h2 class="physics-level-title">${title}</h2>
-          <div class="physics-nav-placeholder"></div>
         </div>
 
         <!-- 4 Core Experiments 2x2 Spatial Grid -->
@@ -623,11 +616,6 @@ export class PhysicsDisciplineModal {
   }
 
   private bindLevel2Events(): void {
-    // 返回按钮 -> 返回一级物理分支网格
-    this.element.querySelector('#btn-back-to-physics')?.addEventListener('click', () => {
-      this.showLevel1();
-    });
-
     // 实验卡片点击加载对应实验
     this.element.querySelectorAll('.optics-card').forEach((card) => {
       const expId = (card as HTMLElement).getAttribute('data-exp-id');
