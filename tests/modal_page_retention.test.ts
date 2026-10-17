@@ -329,9 +329,8 @@ const visionModal = new VisionModal(engine, {
   assert.strictEqual(physicsModal.getCurrentLevel(), 2);
   assert.strictEqual(physicsModal.getCurrentDiscipline(), 'mechanics');
 
-  // Verify status card is NOT visible
-  const mechCard = (visionModal as any).mechStatusCard;
-  assert.strictEqual(mechCard.visible, false, 'Mechanics status card must not be visible in Galileo experiment');
+  // Verify status card does not exist
+  assert.strictEqual((visionModal as any).mechStatusCard, undefined, 'Mechanics status card must not exist in Galileo experiment');
 
   // Re-close and re-open
   visionModal.close();

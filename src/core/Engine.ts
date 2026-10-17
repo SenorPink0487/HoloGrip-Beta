@@ -139,7 +139,6 @@ export class Engine {
   private lastThermoTelemetrySync = 0;
   private lastMathTelemetrySync = 0;
   private lastEmTelemetrySync = 0;
-  private lastMechTelemetrySync = 0;
   private lastCss3dCamPos = new THREE.Vector3(Infinity, Infinity, Infinity);
   private lastCss3dCamQuat = new THREE.Quaternion(Infinity, Infinity, Infinity, Infinity);
   private lastCss3dWinPos = new THREE.Vector3(Infinity, Infinity, Infinity);
@@ -2380,15 +2379,6 @@ export class Engine {
             this.visionModal.hysteresisCard.updateTelemetry(exp.getTelemetry());
           } else if (this.currentExperimentId === 'em-field' && typeof exp?.getTelemetry === 'function') {
             this.visionModal.fieldCard.updateTelemetry(exp.getTelemetry());
-          }
-        }
-      } else if (isModalOpen && this.visionModal.currentTab === 'mechanics') {
-        const nowMs = performance.now();
-        if (nowMs - this.lastMechTelemetrySync >= 50) {
-          this.lastMechTelemetrySync = nowMs;
-          const exp = this.holoStage.activeExperiment as any;
-          if (typeof exp?.getTelemetry === 'function' && this.currentExperimentId !== 'mech-galileo') {
-            this.visionModal.updateMechanicsTelemetry(exp.getTelemetry());
           }
         }
       }

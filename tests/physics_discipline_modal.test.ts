@@ -328,28 +328,17 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(html.includes('physics-level-2'), 'Must render Level 2 container');
   assert(html.includes('力学实验'), 'Header must contain 力学实验');
 
-  // Verify all core mechanics experiments
-  assert(html.includes('牛顿第二定律与斜面滑块'), 'Must contain 牛顿第二定律与斜面滑块');
-  assert(html.includes('动量守恒与气轨多体碰撞'), 'Must contain 动量守恒与气轨多体碰撞');
-  assert(html.includes('平抛运动与机械能守恒'), 'Must contain 平抛运动与机械能守恒');
-  assert(html.includes('单摆简谐运动测重力加速度'), 'Must contain 单摆简谐运动测重力加速度');
-  assert(html.includes('圆周运动向心力定量探究'), 'Must contain 圆周运动向心力定量探究');
+  // Verify Galileo ideal inclined plane experiment is present and is the sole experiment in mechanics
   assert(html.includes('伽利略理想斜面实验'), 'Must contain 伽利略理想斜面实验');
-
-  // Verify core formulas
-  assert(html.includes('F_{net} = Ma'), 'Must contain Newton 2nd law formula');
-  assert(html.includes('m₁v₁ + m₂v₂'), 'Must contain Momentum conservation formula');
-  assert(html.includes('y = (g/2v₀²)x²'), 'Must contain Projectile motion formula');
-  assert(html.includes('T = 2π√(L/g)'), 'Must contain Pendulum period formula');
-  assert(html.includes('F_n = m ω² r'), 'Must contain Centripetal force formula');
   assert(html.includes('h_1 = h_2'), 'Must contain Galileo ideal experiment formula');
+  assert.strictEqual(PhysicsDisciplineModal.MECHANICS_EXPERIMENTS.length, 1, 'Mechanics branch should contain exactly 1 experiment');
 
   // Go back to Level 1
   assert.strictEqual(modal.canGoBack(), true);
   modal.goBack();
   assert.strictEqual(modal.getCurrentLevel(), 1, 'Should return to Level 1 from mechanics Level 2');
 
-  console.log('✓ Test 6 passed: Mechanics branch accurately presents 5 classic experiments and formulas\n');
+  console.log('✓ Test 6 passed: Mechanics branch accurately presents Galileo ideal experiment\n');
 }
 
 // Test 7: Current discipline query & state retention across navigation

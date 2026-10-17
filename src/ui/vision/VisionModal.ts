@@ -13,13 +13,12 @@ import { MassSpecStatusCard, type MassSpecCommand } from './MassSpecStatusCard.t
 import { HysteresisStatusCard, type HysteresisCommand } from './HysteresisStatusCard.ts';
 import { InductionStatusCard, type InductionCommand } from './InductionStatusCard.ts';
 import { GeneratorStatusCard, type GeneratorCommand } from './GeneratorStatusCard.ts';
-import { MechStatusCard, type MechExperimentId } from './MechStatusCard.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 import { blurActiveInput, isTextInputActive } from '../../core/focus.ts';
 
-export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo' | 'em' | 'mechanics';
+export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo' | 'em';
 
 export interface VisionModalCallbacks {
   onClose: () => void;
@@ -119,7 +118,6 @@ export class VisionModal {
   private hysteresisStatusCard: HysteresisStatusCard;
   private inductionStatusCard: InductionStatusCard;
   private generatorStatusCard: GeneratorStatusCard;
-  private mechStatusCard: MechStatusCard;
   private currentExperimentId = '';
 
   private bodyContainer: HTMLElement;
@@ -386,14 +384,11 @@ export class VisionModal {
           this.switchTab('thermo');
         } else if (id.startsWith('em-')) {
           this.switchTab('em');
-        } else if (id === 'mech-galileo') {
+        } else if (id.startsWith('mech-')) {
           // 伽利略理想斜面实验不需要悬浮窗口状态卡片（参考光学板块：选择后关闭浮窗，打开时显示力学目录）
           this.activeTab = 'physics';
           this.physicsModal.showLevel2('mechanics');
           this.close();
-        } else if (id.startsWith('mech-')) {
-          this.mechStatusCard.setExperiment(id as MechExperimentId);
-          this.switchTab('mechanics');
         } else {
           this.close();
         }
@@ -450,7 +445,6 @@ export class VisionModal {
     this.hysteresisStatusCard = new HysteresisStatusCard((cmd) => this.callbacks.onHysteresisCommand?.(cmd));
     this.inductionStatusCard = new InductionStatusCard((cmd) => this.callbacks.onInductionCommand?.(cmd));
     this.generatorStatusCard = new GeneratorStatusCard((cmd) => this.callbacks.onGeneratorCommand?.(cmd));
-    this.mechStatusCard = new MechStatusCard();
 
     // 挂载初始视窗视图
     this.switchTab('disciplines');
@@ -506,9 +500,6 @@ export class VisionModal {
         this.switchTab('physics');
       } else if (this.activeTab === 'em') {
         this.physicsModal.showLevel2('em');
-        this.switchTab('physics');
-      } else if (this.activeTab === 'mechanics') {
-        this.physicsModal.showLevel2('mechanics');
         this.switchTab('physics');
       } else if (this.activeTab === 'chemistry' || this.activeTab === 'math') {
         this.switchTab('disciplines');
@@ -659,10 +650,6 @@ export class VisionModal {
     return this.generatorStatusCard;
   }
 
-  public get mechCard(): MechStatusCard {
-    return this.mechStatusCard;
-  }
-
   public setCurrentExperimentId(id: string): void {
     this.currentExperimentId = id;
     if (id === 'math-stereometry') {
@@ -671,13 +658,10 @@ export class VisionModal {
       this.activeTab = 'thermo';
     } else if (id.startsWith('em-')) {
       this.activeTab = 'em';
-    } else if (id === 'mech-galileo') {
+    } else if (id.startsWith('mech-')) {
       // 伽利略理想斜面实验不需要悬浮窗口的状态卡片（参考光学板块：打开视窗时呈现力学实验列表，不呈现状态卡片）
       this.activeTab = 'physics';
       this.physicsModal.showLevel2('mechanics');
-    } else if (id.startsWith('mech-')) {
-      this.activeTab = 'mechanics';
-      this.mechStatusCard.setExperiment(id as MechExperimentId);
     } else if (id.startsWith('optics-')) {
       this.activeTab = 'physics';
       this.physicsModal.showLevel2('optics');
@@ -730,7 +714,6 @@ export class VisionModal {
       math: '立体几何',
       thermo: thermoTitle,
       em: emTitle,
-      mechanics: '力学实验',
     };
     if (titleEl) {
       titleEl.textContent = titles[tab] || '实验视窗';
@@ -762,7 +745,6 @@ export class VisionModal {
     if (this.hysteresisStatusCard) this.hysteresisStatusCard.setVisible(false);
     if (this.inductionStatusCard) this.inductionStatusCard.setVisible(false);
     if (this.generatorStatusCard) this.generatorStatusCard.setVisible(false);
-    if (this.mechStatusCard) this.mechStatusCard.setVisible(tab === 'mechanics');
     if (tab === 'em') emCard.setVisible(true);
 
     if (tab === 'disciplines') {
@@ -800,14 +782,7 @@ export class VisionModal {
     } else if (tab === 'em') {
       emCard.setVisible(true);
       this.bodyContainer.appendChild(emCard.element);
-    } else if (tab === 'mechanics') {
-      this.mechStatusCard.setVisible(true);
-      this.bodyContainer.appendChild(this.mechStatusCard.element);
     }
-  }
-
-  public updateMechanicsTelemetry(telemetry: any): void {
-    this.mechStatusCard?.updateTelemetry(telemetry);
   }
 
   public open(tab?: VisionTab, beakerId?: 'left' | 'right'): void {
@@ -851,7 +826,6 @@ export class VisionModal {
     this.hysteresisStatusCard?.setVisible(false);
     this.inductionStatusCard?.setVisible(false);
     this.generatorStatusCard?.setVisible(false);
-    this.mechStatusCard?.setVisible(false);
     this.callbacks.onClose();
   }
 
