@@ -56,13 +56,6 @@ export const metadata: ExperimentMetadata = {
       description: '轨道表面摩擦因数（理想实验设为 0.0 验证严格机械能守恒与惯性）',
     },
     {
-      id: 'showVelocity',
-      name: '显示速度矢量',
-      type: 'boolean',
-      defaultValue: true,
-      description: '在小球上方显示瞬时切向速度矢量箭头',
-    },
-    {
       id: 'allowOscillation',
       name: '小球往复往返运动',
       type: 'boolean',

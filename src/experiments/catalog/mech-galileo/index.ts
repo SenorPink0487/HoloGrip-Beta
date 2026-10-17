@@ -18,11 +18,11 @@ export default class MechGalileoExperiment extends BaseExperiment {
   private isDisposed = false;
   private isPlaying = true;
   private allowOscillation = true;
-  private showVelocity = true;
+  private showVelocity = false;
   private currentReleaseSide: 'left' | 'right' = 'left';
 
-  // 3D 场景纯三维交互状态 (与光学实验一致，无任何 2D 悬浮窗口)
-  private is3DDragging = false;
+  // 3D 场景纯三维交互状态 (支持左右双向自由拖拽调节)
+  private is3DDragging: 'left' | 'right' | null = null;
   private dragPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private dragPlaneIntersection = new THREE.Vector3();
   private lastHoveredTarget: string | null = null;
@@ -52,6 +52,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
     this.solver.reset(this.currentReleaseSide);
 
     this.recalculate();
+    this.resetBall();
   }
 
   /**
@@ -64,13 +65,23 @@ export default class MechGalileoExperiment extends BaseExperiment {
   } | null {
     if (this.isDisposed) return null;
 
-    if (this.is3DDragging) {
+    if (this.is3DDragging === 'right') {
       const angle = this.solver.rightAngleDeg.toFixed(1);
       const len = this.solver.rightLengthM.toFixed(2);
       const h = this.solver.rightHeightM.toFixed(2);
       return {
         id: 'galileo-direction-handle',
-        label: `右侧斜面方向标 · 倾角: ${angle}° · 坡长: ${len}m · 端高: ${h}m`,
+        label: `右侧斜面方向标 (调节手柄) · 倾角: ${angle}° · 坡长: ${len}m · 端高: ${h}m`,
+        cursor: 'grabbing',
+      };
+    }
+
+    if (this.is3DDragging === 'left') {
+      const angle = this.solver.leftAngleDeg.toFixed(1);
+      const h = this.solver.releaseHeightM.toFixed(2);
+      return {
+        id: 'galileo-left-handle',
+        label: `左侧斜面调节端 · 倾角: ${angle}° · 释放高度: ${h}m`,
         cursor: 'grabbing',
       };
     }
@@ -78,7 +89,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
     const hits = raycaster.intersectObjects(this.bench.group.children, true);
     if (hits.length === 0) {
       if (this.lastHoveredTarget) {
-        this.bench.setHandleHovered(false);
+        this.bench.setHandleHovered(null);
         this.lastHoveredTarget = null;
       }
       return null;
@@ -88,31 +99,33 @@ export default class MechGalileoExperiment extends BaseExperiment {
       let cur: THREE.Object3D | null = hit.object;
       while (cur && cur !== this.bench.group) {
         if (cur.name === 'galileo-direction-handle' || cur.userData?.isDirectionHandle) {
-          this.bench.setHandleHovered(true);
+          this.bench.setHandleHovered('right');
           this.lastHoveredTarget = 'galileo-direction-handle';
           const angle = this.solver.rightAngleDeg.toFixed(1);
           const len = this.solver.rightLengthM.toFixed(2);
           return {
             id: 'galileo-direction-handle',
-            label: `右上角方向标 · 倾角: ${angle}° · 坡长: ${len}m (按住拖拽调节)`,
+            label: `右上角方向标 (调节手柄) · 倾角: ${angle}° · 坡长: ${len}m (按住拖拽调节)`,
+            cursor: 'grab',
+          };
+        }
+        if (cur.name === 'galileo-left-handle' || cur.userData?.isLeftHandle) {
+          this.bench.setHandleHovered('left');
+          this.lastHoveredTarget = 'galileo-left-handle';
+          const angle = this.solver.leftAngleDeg.toFixed(1);
+          const h = this.solver.releaseHeightM.toFixed(2);
+          return {
+            id: 'galileo-left-handle',
+            label: `左上角调节端 · 倾角: ${angle}° · 释放高度: ${h}m (按住拖拽调节)`,
             cursor: 'grab',
           };
         }
         if (cur.name === 'galileo-ball' || cur.userData?.isBall) {
-          this.bench.setHandleHovered(false);
+          this.bench.setHandleHovered(null);
           this.lastHoveredTarget = 'galileo-ball';
           return {
             id: 'galileo-ball',
             label: '小球 · 点击立即重置回起点重新滑行',
-            cursor: 'pointer',
-          };
-        }
-        if (cur.name === 'galileo-left-gate' || cur.userData?.isLeftGate) {
-          this.bench.setHandleHovered(false);
-          this.lastHoveredTarget = 'galileo-left-gate';
-          return {
-            id: 'galileo-left-gate',
-            label: '左侧释放端 · 点击从此释放小球',
             cursor: 'pointer',
           };
         }
@@ -121,7 +134,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
     }
 
     if (this.lastHoveredTarget) {
-      this.bench.setHandleHovered(false);
+      this.bench.setHandleHovered(null);
       this.lastHoveredTarget = null;
     }
     return null;
@@ -137,36 +150,44 @@ export default class MechGalileoExperiment extends BaseExperiment {
   ): boolean | void {
     if (!hit) return false;
 
-    let targetType: 'direction_handle' | 'ball' | 'left_gate' | 'none' = 'none';
+    let targetType: 'right_handle' | 'left_handle' | 'ball' | 'none' = 'none';
     let obj: THREE.Object3D | null = hit.object;
 
     while (obj && obj !== this.bench.group) {
       if (obj.name === 'galileo-direction-handle' || obj.userData?.isDirectionHandle) {
-        targetType = 'direction_handle';
+        targetType = 'right_handle';
+        break;
+      }
+      if (obj.name === 'galileo-left-handle' || obj.userData?.isLeftHandle) {
+        targetType = 'left_handle';
         break;
       }
       if (obj.name === 'galileo-ball' || obj.userData?.isBall) {
         targetType = 'ball';
         break;
       }
-      if (obj.name === 'galileo-left-gate' || obj.userData?.isLeftGate) {
-        targetType = 'left_gate';
-        break;
-      }
       obj = obj.parent;
     }
 
-    if (targetType === 'direction_handle') {
-      this.is3DDragging = true;
-      // 设置垂直拖拽平面 (法向量指向 Z 轴，过实验台中心)
+    if (targetType === 'right_handle') {
+      this.is3DDragging = 'right';
       this.dragPlane.setFromNormalAndCoplanarPoint(
         new THREE.Vector3(0, 0, 1),
         this.rootGroup.position
       );
-      return true; // 拦截事件，触发 Engine.ts 锁定指针拖拽
+      return true;
     }
 
-    if (targetType === 'ball' || targetType === 'left_gate') {
+    if (targetType === 'left_handle') {
+      this.is3DDragging = 'left';
+      this.dragPlane.setFromNormalAndCoplanarPoint(
+        new THREE.Vector3(0, 0, 1),
+        this.rootGroup.position
+      );
+      return true;
+    }
+
+    if (targetType === 'ball') {
       this.currentReleaseSide = 'left';
       this.resetBall();
       return true;
@@ -176,7 +197,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
   }
 
   /**
-   * 鼠标/触控指针拖拽移动
+   * 鼠标/触控指针拖拽移动 (支持左右双向调节)
    */
   public override onPointerMove(
     event: PointerEvent,
@@ -185,10 +206,13 @@ export default class MechGalileoExperiment extends BaseExperiment {
   ): void {
     if (!this.is3DDragging || !context.camera) return;
 
-    const mouse = new THREE.Vector2(
-      (event.clientX / window.innerWidth) * 2 - 1,
-      -(event.clientY / window.innerHeight) * 2 + 1
-    );
+    const isLocked = typeof document !== 'undefined' && document.pointerLockElement !== null;
+    const mouse = isLocked
+      ? new THREE.Vector2(0, 0)
+      : new THREE.Vector2(
+          (event.clientX / window.innerWidth) * 2 - 1,
+          -(event.clientY / window.innerHeight) * 2 + 1
+        );
 
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, context.camera);
@@ -198,24 +222,42 @@ export default class MechGalileoExperiment extends BaseExperiment {
       this.rootGroup.position
     );
 
+    this.bench.setHandleHovered(this.is3DDragging);
+
     if (raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
-      // 转换至 rootGroup 局部坐标系
       const localPoint = this.rootGroup.worldToLocal(this.dragPlaneIntersection.clone());
       const halfFlat = this.solver.flatLengthM * 0.5;
 
-      const dx = localPoint.x - halfFlat;
-      const dy = localPoint.y;
+      if (this.is3DDragging === 'right') {
+        const dx = localPoint.x - halfFlat;
+        const dy = localPoint.y;
 
-      if (dx > 0) {
-        let angleRad = Math.atan2(Math.max(0, dy), dx);
-        let angleDeg = (angleRad * 180.0) / Math.PI;
-        angleDeg = Math.max(0.0, Math.min(60.0, angleDeg));
+        if (dx > 0) {
+          let angleRad = Math.atan2(Math.max(0, dy), dx);
+          let angleDeg = (angleRad * 180.0) / Math.PI;
+          angleDeg = Math.max(0.0, Math.min(60.0, angleDeg));
 
-        const lengthM = Math.max(0.30, Math.min(1.20, Math.sqrt(dx * dx + dy * dy)));
+          const lengthM = Math.max(0.30, Math.min(1.20, Math.sqrt(dx * dx + dy * dy)));
 
-        this.applyRightInclineTransform(angleDeg, lengthM, false);
-        context.setParameter?.('rightAngle', parseFloat(angleDeg.toFixed(1)));
-        context.setParameter?.('rightLength', parseFloat(lengthM.toFixed(2)));
+          this.applyRightInclineTransform(angleDeg, lengthM, false);
+          context.setParameter?.('rightAngle', parseFloat(angleDeg.toFixed(1)));
+          context.setParameter?.('rightLength', parseFloat(lengthM.toFixed(2)));
+        }
+      } else if (this.is3DDragging === 'left') {
+        const dx = -halfFlat - localPoint.x;
+        const dy = localPoint.y;
+
+        if (dx > 0) {
+          let angleRad = Math.atan2(Math.max(0.05, dy), dx);
+          let angleDeg = (angleRad * 180.0) / Math.PI;
+          angleDeg = Math.max(10.0, Math.min(60.0, angleDeg));
+
+          const lengthM = Math.max(0.25, Math.min(1.20, Math.sqrt(dx * dx + dy * dy)));
+          const heightM = Math.max(0.10, Math.min(0.50, lengthM * Math.sin(angleRad)));
+
+          this.applyLeftInclineTransform(angleDeg, lengthM, heightM, false);
+          context.setParameter?.('releaseHeight', parseFloat(heightM.toFixed(2)));
+        }
       }
     }
   }
@@ -225,10 +267,29 @@ export default class MechGalileoExperiment extends BaseExperiment {
    */
   public override onPointerUp(_event: PointerEvent, _context: ExperimentContext): void {
     if (this.is3DDragging) {
-      this.is3DDragging = false;
-      this.bench.setHandleHovered(false);
+      this.is3DDragging = null;
+      this.bench.setHandleHovered(null);
+      this.resetBall();
+    }
+  }
 
-      // 用户要求：“拖动右上角的方向标，改变右侧斜面的长度和高度后，小球自动回复到初始位置，观察小球的运动状况。”
+  /**
+   * 更新左侧斜面倾角与高度
+   */
+  public applyLeftInclineTransform(
+    angleDeg: number,
+    lengthM: number,
+    releaseHeightM: number,
+    autoReset = false
+  ): void {
+    this.solver.updateParameters({
+      leftAngleDeg: angleDeg,
+      releaseHeightM: releaseHeightM,
+    });
+    this.bench.updateLeftIncline(angleDeg, lengthM);
+    this.bench.updateHeightLine(releaseHeightM);
+
+    if (autoReset) {
       this.resetBall();
     }
   }

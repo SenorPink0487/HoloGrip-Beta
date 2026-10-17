@@ -1813,9 +1813,10 @@ export class Engine {
             if (handled) {
               e.stopPropagation();
               this.isExperimentInteracting = true;
-              this.inputManager.player.enabled = false;
-              this.inputManager.player.allowPointerLock = false;
-              this.inputManager.player.exitLock();
+              if (!isPointerLocked) {
+                this.inputManager.player.enabled = false;
+                this.inputManager.player.allowPointerLock = false;
+              }
               return;
             }
           }
@@ -1824,9 +1825,10 @@ export class Engine {
           if (handled) {
             e.stopPropagation();
             this.isExperimentInteracting = true;
-            this.inputManager.player.enabled = false;
-            this.inputManager.player.allowPointerLock = false;
-            this.inputManager.player.exitLock();
+            if (!isPointerLocked) {
+              this.inputManager.player.enabled = false;
+              this.inputManager.player.allowPointerLock = false;
+            }
             return;
           }
         }
@@ -1847,7 +1849,9 @@ export class Engine {
         (this.isExperimentInteracting || this.currentExperimentId === 'math-stereometry' || this.currentExperimentId === 'mech-galileo') &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
-        this.raycaster.setFromCamera(this.lastPointerPos, this.camera);
+        const isLocked = this.inputManager?.player?.isLocked ?? false;
+        const screenPos = isLocked ? this.centerScreen : this.lastPointerPos;
+        this.raycaster.setFromCamera(screenPos, this.camera);
         const hits = this.raycaster.intersectObjects(this.holoStage.activeExperiment.rootGroup.children, true);
         const hit = hits.length > 0 ? hits[0] : null;
         this.holoStage.activeExperiment.onPointerMove(e, hit, this.currentContext);
