@@ -36,7 +36,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: 'electromagnetism',
     name: '电磁学',
     icon: 'physics',
-    description: '霍尔效应、载流子动力学、质谱仪与电磁相互作用精密实验台',
+    description: '霍尔效应、载流子动力学与静电场高斯定理精密实验台',
   },
   {
     id: 'mechanics',

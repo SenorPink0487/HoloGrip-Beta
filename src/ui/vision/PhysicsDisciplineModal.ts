@@ -21,6 +21,34 @@ export class PhysicsDisciplineModal {
 
   public static readonly MECHANICS_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
     {
+      id: 'mech-free-fall',
+      name: '自由落体与牛顿管实验',
+      category: '自由落体与空气阻力对比',
+      formula: 'h = \\frac{1}{2}gt^2 · v = gt',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Newton Tube Body -->
+          <rect x="7" y="3" width="9" height="30" rx="3.5" stroke-width="2.2" fill="currentColor" fill-opacity="0.08"/>
+          <!-- Falling Coin -->
+          <circle cx="11.5" cy="28" r="2.2" fill="#facc15" stroke="currentColor" stroke-width="1.2"/>
+          <!-- Falling Cork -->
+          <rect x="10" y="20" width="3" height="4" rx="1" fill="#b45309" stroke="currentColor" stroke-width="1"/>
+          <!-- Falling Feather -->
+          <path d="M11.5 8 C13.5 10 13.5 13 11.5 15 C9.5 13 9.5 10 11.5 8 Z" fill="#38bdf8" fill-opacity="0.9" stroke="currentColor" stroke-width="1"/>
+          <line x1="11.5" y1="7" x2="11.5" y2="16" stroke="currentColor" stroke-width="1"/>
+          <!-- Connecting Hose to Pump -->
+          <path d="M11.5 33 Q18 34 22 28 Q24 24 25 21" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+          <!-- Vacuum Pump -->
+          <rect x="23" y="16" width="10" height="9" rx="1.5" stroke-width="2.0" fill="currentColor" fill-opacity="0.12"/>
+          <circle cx="28" cy="20.5" r="2.4" stroke="#ef4444" stroke-width="1.2" fill="#ef4444" fill-opacity="0.2"/>
+          <line x1="28" y1="20.5" x2="29.5" y2="19.5" stroke="#ef4444" stroke-width="1.4"/>
+          <!-- Rotation Symbol -->
+          <path d="M19 8 A 4 4 0 0 1 23 12" stroke="#a855f7" stroke-width="1.8" stroke-linecap="round"/>
+          <polyline points="23,9.5 23,12 20.5,12" stroke="#a855f7" stroke-width="1.5"/>
+        </svg>
+      `,
+    },
+    {
       id: 'mech-galileo',
       name: '伽利略理想斜面实验',
       category: '惯性定律与理想实验',
@@ -33,6 +61,30 @@ export class PhysicsDisciplineModal {
           <path d="M9 22 L15 26" stroke="#38bdf8" stroke-width="1.8"/>
           <polyline points="13,24 15,26 13,28" stroke="#38bdf8" stroke-width="1.5"/>
           <circle cx="28" cy="20" r="2.2" fill="#facc15" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'mech-center-of-gravity',
+      name: '悬挂法测物体重心',
+      category: '二力平衡与重心测定',
+      formula: '\\vec{\\tau}_{net} = 0 \\implies G \\in \\text{Line}_1 \\cap \\text{Line}_2',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Retort Stand & Cord -->
+          <line x1="18" y1="3" x2="18" y2="13" stroke="#94a3b8" stroke-width="2"/>
+          <circle cx="18" cy="13" r="1.8" fill="#facc15" stroke="currentColor" stroke-width="1"/>
+          <!-- Acrylic Irregular Plate Outline -->
+          <polygon points="11,13 26,11 28,25 16,31 8,24" stroke="#38bdf8" stroke-width="2" fill="#38bdf8" fill-opacity="0.18"/>
+          <!-- Holes -->
+          <circle cx="18" cy="13" r="1.4" fill="#f59e0b"/>
+          <circle cx="24" cy="15" r="1.4" fill="#f59e0b"/>
+          <circle cx="12" cy="22" r="1.4" fill="#f59e0b"/>
+          <!-- Intersecting Red Plumb Lines -->
+          <line x1="18" y1="13" x2="17" y2="30" stroke="#ef4444" stroke-width="1.8"/>
+          <line x1="24" y1="15" x2="10" y2="25" stroke="#ef4444" stroke-width="1.8"/>
+          <!-- Center of Gravity G -->
+          <circle cx="17.2" cy="20.5" r="2.4" fill="#ef4444" stroke="#facc15" stroke-width="1.5"/>
         </svg>
       `,
     },
@@ -59,40 +111,6 @@ export class PhysicsDisciplineModal {
       `,
     },
     {
-      id: 'em-induction',
-      name: '法拉第电磁感应与楞次定律',
-      category: '电磁感应与螺线管',
-      formula: 'ℰ_{感} = -N (ΔΦ/Δt)',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="15" width="18" height="16" rx="2" stroke-width="2" fill="currentColor" fill-opacity="0.08"/>
-          <line x1="9" y1="19" x2="27" y2="19" stroke="#ca8a04" stroke-width="2"/>
-          <line x1="9" y1="23" x2="27" y2="23" stroke="#ca8a04" stroke-width="2"/>
-          <line x1="9" y1="27" x2="27" y2="27" stroke="#ca8a04" stroke-width="2"/>
-          <rect x="15" y="3" width="6" height="6" rx="1" fill="#ef4444"/>
-          <rect x="15" y="9" width="6" height="6" rx="1" fill="#2563eb"/>
-          <path d="M18 10 L18 15" stroke="#38bdf8" stroke-width="2"/>
-          <polyline points="15,13 18,15 21,13" stroke="#38bdf8" stroke-width="1.8"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'em-generator',
-      name: '旋转线圈发电机与交直流输出',
-      category: '动生电动势与发电机',
-      formula: 'ℰ_{动} = NBSω sin(ωt)',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6 10 C6 18 10 22 10 26" stroke="#ef4444" stroke-width="3" stroke-linecap="round"/>
-          <path d="M30 10 C30 18 26 22 26 26" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
-          <rect x="13" y="12" width="10" height="12" rx="2" stroke="#ca8a04" stroke-width="2" fill="none"/>
-          <circle cx="18" cy="18" r="3" stroke="#38bdf8" stroke-width="1.8"/>
-          <path d="M18 6 L18 12" stroke="#e2e8f0" stroke-width="2"/>
-          <path d="M18 24 L18 30" stroke="#e2e8f0" stroke-width="2"/>
-        </svg>
-      `,
-    },
-    {
       id: 'em-field',
       name: '静电场探索与电力线叠加',
       category: '静电场与高斯定理',
@@ -110,34 +128,6 @@ export class PhysicsDisciplineModal {
           <polyline points="19,8.5 21,8.5 20,10.5" stroke="#facc15" stroke-width="1.5"/>
           <path d="M13 22 C15 29 21 29 23 22" stroke="#facc15" stroke-width="1.8"/>
           <polyline points="19,27.5 21,27.5 20,25.5" stroke="#facc15" stroke-width="1.5"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'em-mass-spec',
-      name: '磁聚焦与带电粒子质谱仪',
-      category: '带电粒子运动',
-      formula: 'r = mv / (qB) · q/m',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="18" cy="18" r="13" stroke-width="2" stroke-dasharray="2 2" opacity="0.4"/>
-          <path d="M9 27 A11 11 0 0 1 27 15" stroke="#facc15" stroke-width="2.2"/>
-          <polyline points="25,12 27,15 24,17" stroke="#facc15" stroke-width="2"/>
-          <circle cx="9" cy="27" r="2.2" fill="#38bdf8"/>
-          <rect x="24" y="23" width="8" height="3" fill="#64748b"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'em-hysteresis',
-      name: '铁磁材料磁化与磁滞回线',
-      category: '磁介质物理',
-      formula: 'B = μ₀ (H + M)',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="18" x2="31" y2="18" stroke-width="1.5" opacity="0.5"/>
-          <line x1="18" y1="5" x2="18" y2="31" stroke-width="1.5" opacity="0.5"/>
-          <path d="M8 24 C14 24 16 12 28 12 C22 12 20 24 8 24 Z" stroke="#a855f7" stroke-width="2.2" fill="currentColor" fill-opacity="0.08"/>
         </svg>
       `,
     },

@@ -328,17 +328,18 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(html.includes('physics-level-2'), 'Must render Level 2 container');
   assert(html.includes('力学实验'), 'Header must contain 力学实验');
 
-  // Verify Galileo ideal inclined plane experiment is present and is the sole experiment in mechanics
+  // Verify Galileo ideal inclined plane and Free Fall experiments are present
   assert(html.includes('伽利略理想斜面实验'), 'Must contain 伽利略理想斜面实验');
+  assert(html.includes('自由落体与牛顿管实验'), 'Must contain 自由落体与牛顿管实验');
   assert(html.includes('h_1 = h_2'), 'Must contain Galileo ideal experiment formula');
-  assert.strictEqual(PhysicsDisciplineModal.MECHANICS_EXPERIMENTS.length, 1, 'Mechanics branch should contain exactly 1 experiment');
+  assert(PhysicsDisciplineModal.MECHANICS_EXPERIMENTS.length >= 2, 'Mechanics branch should contain at least 2 experiments');
 
   // Go back to Level 1
   assert.strictEqual(modal.canGoBack(), true);
   modal.goBack();
   assert.strictEqual(modal.getCurrentLevel(), 1, 'Should return to Level 1 from mechanics Level 2');
 
-  console.log('✓ Test 6 passed: Mechanics branch accurately presents Galileo ideal experiment\n');
+  console.log('✓ Test 6 passed: Mechanics branch accurately presents mechanics experiments\n');
 }
 
 // Test 7: Current discipline query & state retention across navigation
@@ -372,7 +373,64 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   console.log('✓ Test 7 passed: Discipline state and query verified\n');
 }
 
+// Test 8: Electromagnetism branch Level 2 presents ONLY Hall Effect and Electrostatic Field
+{
+  console.log('Test 8: Electromagnetism branch Level 2 presents ONLY Hall Effect and Electrostatic Field');
+  let levelReported: number = 0;
+  let titleReported: string = '';
+
+  const modal = new PhysicsDisciplineModal({
+    onBackToDisciplines: () => {},
+    onLevelChange: (lvl, title) => {
+      levelReported = lvl;
+      titleReported = title;
+    },
+  });
+
+  // Level 1 EM tile check
+  const l1Html = modal.element.innerHTML;
+  assert(l1Html.includes('id="branch-tile-em"'), 'Must have EM branch tile');
+  assert(l1Html.includes('class="physics-branch-tile ready" id="branch-tile-em"'), 'EM tile must have ready class');
+
+  // Enter Level 2 Electromagnetism
+  modal.showLevel2('em');
+
+  assert.strictEqual(modal.getCurrentLevel(), 2, 'Must be Level 2 after entering em');
+  assert.strictEqual(levelReported, 2, 'Should report Level 2 to callback');
+  assert.strictEqual(titleReported, '电磁学实验', 'Should report 电磁学实验 title');
+
+  const html = modal.element.innerHTML;
+  assert(html.includes('physics-level-2'), 'Must render Level 2 container');
+  assert(html.includes('电磁学实验'), 'Header must contain 电磁学实验');
+
+  // Verify EXACTLY 2 EM experiments present
+  assert.strictEqual(PhysicsDisciplineModal.EM_EXPERIMENTS.length, 2, 'EM branch must contain exactly 2 experiments');
+  assert(html.includes('霍尔效应原理'), 'Must contain 霍尔效应原理');
+  assert(html.includes('静电场探索与电力线叠加'), 'Must contain 静电场探索与电力线叠加');
+
+  // Verify deleted experiments are NOT present
+  assert(!html.includes('em-induction'), 'Must NOT contain em-induction');
+  assert(!html.includes('法拉第电磁感应'), 'Must NOT contain 法拉第电磁感应');
+  assert(!html.includes('em-generator'), 'Must NOT contain em-generator');
+  assert(!html.includes('旋转线圈发电机'), 'Must NOT contain 旋转线圈发电机');
+  assert(!html.includes('em-mass-spec'), 'Must NOT contain em-mass-spec');
+  assert(!html.includes('质谱仪'), 'Must NOT contain 质谱仪');
+  assert(!html.includes('em-hysteresis'), 'Must NOT contain em-hysteresis');
+  assert(!html.includes('磁滞回线'), 'Must NOT contain 磁滞回线');
+
+  // Verify formulas
+  assert(html.includes('V_H = R_H · (I B / d)'), 'Must contain Hall voltage formula');
+  assert(html.includes('E = ∑ k q_i / r_i² · r̂_i'), 'Must contain Coulomb superposition formula');
+
+  // Go back to Level 1
+  assert.strictEqual(modal.canGoBack(), true);
+  modal.goBack();
+  assert.strictEqual(modal.getCurrentLevel(), 1, 'Should return to Level 1 from EM Level 2');
+
+  console.log('✓ Test 8 passed: Electromagnetism branch strictly presents only Hall Effect & Electrostatic Field\n');
+}
+
 console.log('========================================================');
-console.log('All Physics Discipline Modal Tests Passed (7/7)!');
+console.log('All Physics Discipline Modal Tests Passed (8/8)!');
 console.log('========================================================\n');
 

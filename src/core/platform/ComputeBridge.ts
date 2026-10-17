@@ -14,8 +14,6 @@ import type {
   TextureBakeTaskResponse,
   ChemistryCompositionStepResponse,
   HallCarrierStepResponse,
-  MassSpecStepResponse,
-  HysteresisStepResponse,
 } from '../../workers/workerMessages';
 
 export interface ComputeMetrics {
@@ -473,55 +471,6 @@ export class ComputeBridge {
       baseOffsetsY: res.baseOffsetsY,
       computeTimeMs: res.computeTimeMs,
     };
-  }
-
-  /**
-   * 在 Worker 中运行质谱仪离子轨迹与质谱图谱模拟
-   */
-  public async simulateMassSpec(params: {
-    sampleId: string;
-    accelVoltage: number;
-    analyzerBz: number;
-    selectorBz: number;
-    plateVoltage: number;
-    gapM: number;
-    jawOpening: number;
-    probeX: number;
-    phases: number[];
-    dt: number;
-  }): Promise<MassSpecStepResponse> {
-    const res = await this.workerPool.execute<MassSpecStepResponse>({
-      action: 'MASS_SPEC_STEP',
-      ...params,
-    });
-
-    this.recordMetrics(res.computeTimeMs);
-    return res;
-  }
-
-  /**
-   * 在 Worker 中运行铁磁磁滞回线与磁畴模拟
-   */
-  public async simulateHysteresis(params: {
-    materialId: string;
-    H: number;
-    B: number;
-    direction: 1 | -1;
-    major: boolean;
-    sawPositive: boolean;
-    sawNegative: boolean;
-    auto: boolean;
-    phase: number;
-    probeAxial: number;
-    dt: number;
-  }): Promise<HysteresisStepResponse> {
-    const res = await this.workerPool.execute<HysteresisStepResponse>({
-      action: 'HYSTERESIS_STEP',
-      ...params,
-    });
-
-    this.recordMetrics(res.computeTimeMs);
-    return res;
   }
 }
 

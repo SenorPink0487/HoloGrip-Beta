@@ -338,7 +338,7 @@ export class GalileoBenchMesh {
   }
 
   /**
-   * 5. 极简全息微光等高虚线 (精细点划线段，优雅非实线，不喧宾夺主)
+   * 5. 经典极简等高虚线辅助线 (精细黑色点划线段，清晰醒目指示初始释放高度)
    */
   private createHeightReferenceLine(): void {
     const dashCount = 23;
@@ -349,9 +349,9 @@ export class GalileoBenchMesh {
     dashGeom.rotateZ(Math.PI / 2);
 
     const dashMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8, // 柔和科技冰蓝
+      color: 0x000000, // 黑色经典物理辅助线
       transparent: true,
-      opacity: 0.65,
+      opacity: 0.85,
     });
 
     const instancedDashes = new THREE.InstancedMesh(dashGeom, dashMat, dashCount);

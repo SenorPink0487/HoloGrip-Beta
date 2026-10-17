@@ -1084,41 +1084,6 @@ export class Engine {
           }
         }
       },
-      onMassSpecCommand: (cmd) => {
-        if (this.currentExperimentId !== 'em-mass-spec') return;
-        const exp = this.holoStage?.activeExperiment as any;
-        if (!exp) return;
-        if (cmd.type === 'sample') {
-          this.currentContext.setParameter('sample', cmd.id);
-          exp.setSample?.(cmd.id);
-        } else if (cmd.type === 'accel') {
-          this.currentContext.setParameter('accelVoltage', cmd.voltage);
-          exp.setAccel?.(cmd.voltage);
-        } else if (cmd.type === 'field') {
-          this.currentContext.setParameter('analyzerField', cmd.tesla);
-          exp.setAnalyzerMagnitude?.(cmd.tesla);
-        } else if (cmd.type === 'jaw') {
-          this.currentContext.setParameter('jaw', cmd.opening);
-          exp.setJaw?.(cmd.opening);
-        } else if (cmd.type === 'plate') {
-          this.currentContext.setParameter('plateVoltage', cmd.voltage);
-          exp.setPlate?.(cmd.voltage);
-        } else if (cmd.type === 'flip') exp.flipAnalyzer?.();
-        else if (cmd.type === 'reset') exp.resetGolden?.();
-      },
-      onHysteresisCommand: (cmd) => {
-        if (this.currentExperimentId !== 'em-hysteresis') return;
-        const exp = this.holoStage?.activeExperiment as any;
-        if (!exp) return;
-        if (cmd.type === 'material') {
-          this.currentContext.setParameter('material', cmd.id);
-          exp.setMaterial?.(cmd.id);
-        } else if (cmd.type === 'field') {
-          this.currentContext.setParameter('fieldH', cmd.H);
-          exp.setH?.(cmd.H);
-        } else if (cmd.type === 'sweep') exp.setAuto?.(!exp.getTelemetry?.().auto);
-        else if (cmd.type === 'reset') exp.resetGolden?.();
-      },
       onFieldCommand: (cmd) => {
         if (this.currentExperimentId !== 'em-field') return;
         const exp = this.holoStage?.activeExperiment as any;
@@ -1133,51 +1098,6 @@ export class Engine {
         else if (cmd.type === 'toggleFlow') exp.setToggles?.(exp.showLines, cmd.show);
         else if (cmd.type === 'setDensity') exp.setDensity?.(cmd.density);
         else if (cmd.type === 'reset') exp.resetGolden?.();
-      },
-      onInductionCommand: (cmd) => {
-        if (this.currentExperimentId !== 'em-induction') return;
-        const exp = this.holoStage?.activeExperiment as any;
-        if (!exp) return;
-        if (cmd.type === 'turns') {
-          this.currentContext.setParameter('turns', cmd.turns);
-          exp.setTurns?.(cmd.turns);
-        } else if (cmd.type === 'resistance') {
-          this.currentContext.setParameter('resistance', cmd.ohm);
-          exp.setResistance?.(cmd.ohm);
-        } else if (cmd.type === 'axial') {
-          this.currentContext.setParameter('axial', cmd.axial);
-          exp.setAxial?.(cmd.axial);
-        } else if (cmd.type === 'probe') {
-          this.currentContext.setParameter('probe', cmd.axial);
-          exp.setProbe?.(cmd.axial);
-        } else if (cmd.type === 'flip') {
-          exp.flipPole?.();
-        } else if (cmd.type === 'pass') {
-          exp.startPass?.();
-        } else if (cmd.type === 'reset') {
-          exp.resetGolden?.();
-        }
-      },
-      onGeneratorCommand: (cmd) => {
-        if (this.currentExperimentId !== 'em-generator') return;
-        const exp = this.holoStage?.activeExperiment as any;
-        if (!exp) return;
-        if (cmd.type === 'outputType') {
-          this.currentContext.setParameter('outputType', cmd.outputType);
-          exp.setOutputType?.(cmd.outputType);
-        } else if (cmd.type === 'magField') {
-          this.currentContext.setParameter('magField', cmd.field);
-          exp.setMagField?.(cmd.field);
-        } else if (cmd.type === 'turns') {
-          this.currentContext.setParameter('turns', cmd.turns);
-          exp.setTurns?.(cmd.turns);
-        } else if (cmd.type === 'boost') {
-          exp.boostSpeed?.();
-        } else if (cmd.type === 'toggleBulb') {
-          exp.toggleBulb?.();
-        } else if (cmd.type === 'reset') {
-          exp.reset?.();
-        }
       },
       // 立体几何数学回调
       onMathModelChange: (type) => {
@@ -1845,7 +1765,11 @@ export class Engine {
 
       if (
         !this.visionModal?.visible &&
-        (this.isExperimentInteracting || this.currentExperimentId === 'math-stereometry' || this.currentExperimentId === 'mech-galileo') &&
+        (this.isExperimentInteracting ||
+          this.currentExperimentId === 'math-stereometry' ||
+          this.currentExperimentId === 'mech-galileo' ||
+          this.currentExperimentId === 'mech-free-fall' ||
+          this.currentExperimentId === 'mech-center-of-gravity') &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
         const isLocked = this.inputManager?.player?.isLocked ?? false;
@@ -2369,14 +2293,6 @@ export class Engine {
           const exp = this.holoStage.activeExperiment as any;
           if (this.currentExperimentId === 'em-hall' && typeof exp?.getTelemetryData === 'function') {
             this.visionModal.hallCard.updateTelemetry(exp.getTelemetryData());
-          } else if (this.currentExperimentId === 'em-induction' && typeof exp?.getTelemetry === 'function') {
-            this.visionModal.inductionCard.updateTelemetry(exp.getTelemetry());
-          } else if (this.currentExperimentId === 'em-generator' && typeof exp?.getTelemetry === 'function') {
-            this.visionModal.generatorCard.updateTelemetry(exp.getTelemetry());
-          } else if (this.currentExperimentId === 'em-mass-spec' && typeof exp?.getTelemetry === 'function') {
-            this.visionModal.massSpecCard.updateTelemetry(exp.getTelemetry());
-          } else if (this.currentExperimentId === 'em-hysteresis' && typeof exp?.getTelemetry === 'function') {
-            this.visionModal.hysteresisCard.updateTelemetry(exp.getTelemetry());
           } else if (this.currentExperimentId === 'em-field' && typeof exp?.getTelemetry === 'function') {
             this.visionModal.fieldCard.updateTelemetry(exp.getTelemetry());
           }

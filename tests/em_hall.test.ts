@@ -380,7 +380,7 @@ console.log('Test 6: Discipline Navigation & Electromagnetism Branch Level 1/2')
   assert.strictEqual(levelTitle, '电磁学实验');
   assert.ok(modal.element.innerHTML.includes('data-exp-id="em-hall"'), 'em-hall card exists in deck');
   assert.ok(modal.element.innerHTML.includes('霍尔效应原理'), 'em-hall name displayed');
-  assert.ok(modal.element.innerHTML.includes('data-exp-id="em-mass-spec"'), 'em-mass-spec exists in deck');
+  assert.ok(modal.element.innerHTML.includes('data-exp-id="em-field"'), 'em-field exists in deck');
 
   // Click on em-hall triggers experiment selection
   const emCard = modal.element.querySelectorAll('.optics-card')[0];
