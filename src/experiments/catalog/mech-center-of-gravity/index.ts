@@ -107,15 +107,15 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
       if (this.solver.state === 'swinging' || this.solver.state === 'stabilized') {
         return {
           id: 'plate-dragging-detach',
-          label: '向下拖拽塑料板即可从细线挂销上取下',
+          label: '向下拖拽塑料板即可从挂钩上取下',
           cursor: 'grabbing',
         };
       }
       return {
         id: 'plate-dragging',
         label: this.candidateHoleToSnap
-          ? `小孔 ${this.candidateHoleToSnap.label} 已对准细线 · 松手即可悬挂`
-          : '拖拽塑料板 · 靠近细线横销以悬挂小孔',
+          ? `小孔 ${this.candidateHoleToSnap.label} 已对准挂钩 · 松手即可悬挂`
+          : '拖拽塑料板 · 靠近挂钩以悬挂小孔',
         cursor: 'grabbing',
       };
     }
@@ -153,14 +153,14 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
           if (this.solver.currentHole?.id === holeId) {
             return {
               id: `hole-${holeId}`,
-              label: `小孔 ${holeLabel} · 当前正挂在细线上 (向下拖动塑料板可取下)`,
+              label: `小孔 ${holeLabel} · 当前正挂在挂钩上 (向下拖动塑料板可取下)`,
               cursor: 'grab',
             };
           }
 
           return {
             id: `hole-${holeId}`,
-            label: `待测孔 ${holeLabel} · 点击直接悬挂 / 或拖动套在细线上`,
+            label: `待测孔 ${holeLabel} · 点击直接悬挂 / 或拖动套在挂钩上`,
             cursor: 'pointer',
           };
         }
@@ -188,7 +188,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
 
           return {
             id: 'suspension-plate',
-            label: `待测塑料薄板 · 拖拽移动，或直接点击孔位套挂在细线上`,
+            label: `待测塑料薄板 · 拖拽移动，或直接点击孔位套挂在挂钩上`,
             cursor: 'grab',
           };
         }
@@ -333,12 +333,12 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
     this.plate.plateMesh.position.set(0, 0, 0);
     this.plate.group.rotation.set(0, 0, 0);
 
-    // 实时检测哪个孔与细线横销最近
+    // 实时检测哪个孔与挂钩最近
     this.checkHoleSnapping();
   }
 
   /**
-   * 检查各个小孔与细线横销的吸附距离
+   * 检查各个小孔与挂钩的吸附距离
    */
   private checkHoleSnapping(): void {
     const pinPos = this.stand.pinLocalPosition; // (0, 0.38, 0.04)
@@ -393,7 +393,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   }
 
   /**
-   * 将塑料板指定孔套挂在细线横销上
+   * 将塑料板指定孔套挂在挂钩上
    */
   public hangPlateOnHole(holeId: string): void {
     const success = this.solver.hangOnHole(holeId, 20);
@@ -443,7 +443,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   }
 
   /**
-   * 向下拖动将塑料板从挂销上取下
+   * 向下拖动将塑料板从挂钩上取下
    */
   public detachPlateFromPin(currentDragLocal?: THREE.Vector3): void {
     this.solver.detachPlate();

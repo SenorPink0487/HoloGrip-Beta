@@ -50,7 +50,7 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
       voltageSupply: this.model.voltageSupply,
       capacitanceUf: this.model.capacitanceMicroFarad,
       resistanceOhm: this.model.dischargeResistance,
-      showLabels: true,
+      showLabels: false,
     }));
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
