@@ -167,19 +167,18 @@ export class GalileoDynamicsSolver {
 
     let accel = 0;
 
-    const effMu = this.frictionMu * 2.5; // 真实综合摩擦与微阻力缩放
-    const airDrag = 0.15 * this.frictionMu;
+    const effMu = this.frictionMu;
 
     if (this.currentS < this.sFlatStart) {
       // 位于左侧斜面：向下为加速方向 (+s)
       accel = this.gravity * Math.sin(leftRad);
       if (this.frictionMu > 0 && Math.abs(this.currentV) > 1e-5) {
-        accel -= Math.sign(this.currentV) * (effMu * this.gravity * Math.cos(leftRad) + airDrag * this.currentV * this.currentV);
+        accel -= Math.sign(this.currentV) * (effMu * this.gravity * Math.cos(leftRad));
       }
     } else if (this.currentS <= this.sFlatEnd) {
       // 位于水平导轨：重力与支持力平衡，仅受摩擦力（理想无摩擦时 a = 0）
       if (this.frictionMu > 0 && Math.abs(this.currentV) > 1e-5) {
-        const fAccel = effMu * this.gravity + airDrag * this.currentV * this.currentV;
+        const fAccel = effMu * this.gravity;
         if (Math.abs(this.currentV) <= fAccel * dt) {
           this.currentV = 0;
           accel = 0;
@@ -193,7 +192,7 @@ export class GalileoDynamicsSolver {
       // 位于右侧斜面：向右为上坡减速方向 (-a)
       accel = -this.gravity * Math.sin(rightRad);
       if (this.frictionMu > 0 && Math.abs(this.currentV) > 1e-5) {
-        accel -= Math.sign(this.currentV) * (effMu * this.gravity * Math.cos(rightRad) + airDrag * this.currentV * this.currentV);
+        accel -= Math.sign(this.currentV) * (effMu * this.gravity * Math.cos(rightRad));
       }
     }
 
@@ -207,7 +206,7 @@ export class GalileoDynamicsSolver {
       this.currentS = 0;
       if (this.currentV < 0) {
         if (allowOscillation) {
-          this.currentV = -this.currentV * 0.998; // 极低耗散反弹
+          this.currentV = -this.currentV * (this.frictionMu === 0 ? 1.0 : 0.998); // 边界反弹
         } else {
           this.currentV = 0;
         }
