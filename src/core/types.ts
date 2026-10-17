@@ -72,6 +72,8 @@ export interface ExperimentContext {
   parameters: Record<string, any>;
   getParameter: <T = any>(id: string) => T;
   setParameter: <T = any>(id: string, value: T) => void;
+  css3dScene?: THREE.Scene;
+  css3dRenderer?: any;
 }
 
 export interface IExperiment {

@@ -422,6 +422,65 @@ console.log('=== Starting Free Fall & Newton Tube Experiment Analytical & Integr
   console.log('✓ Test 8 passed: mech-free-fall registered in Mechanics catalog with icon and formula\n');
 }
 
+// Test 9: Initial Resting Position & True Gravity Alignment during Inversion and Free Fall
+{
+  console.log('Test 9: Initial Resting Position & Physical Gravity Alignment');
+  const exp = new MechFreeFallExperiment();
+  exp.init(mockContext);
+
+  const feather = exp['mesh']['featherGroup'];
+  const coin = exp['mesh']['coinGroup'];
+  const cork = exp['mesh']['corkGroup'];
+  const halfH = exp['mesh'].FALL_DISTANCE_M / 2;
+
+  // 1. Initial State: Objects must be resting at the bottom of the tube (Y = -halfH), not suspended in mid-air
+  assert(Math.abs(feather.position.y - (-halfH)) < 0.05, `Feather initial position (${feather.position.y}) must be at bottom (-${halfH})`);
+  assert(Math.abs(coin.position.y - (-halfH)) < 0.05, `Coin initial position (${coin.position.y}) must be at bottom (-${halfH})`);
+  assert(Math.abs(cork.position.y - (-halfH)) < 0.05, `Cork initial position (${cork.position.y}) must be at bottom (-${halfH})`);
+
+  // 2. Trigger Inversion & step through rotation
+  exp.invertTube();
+  for (let i = 0; i < 50; i++) {
+    exp.update(0.016, i * 0.016, mockContext);
+  }
+
+  // Once flip completes, objects start at top (+halfH) and fall DOWNWARDS towards -halfH
+  const startY = coin.position.y;
+  assert(startY > 0.4, `After 180° flip, objects must be at top of tube (+${halfH}), got ${startY}`);
+
+  // Step downward free fall motion
+  exp.update(0.1, 1.0, mockContext);
+  const midY = coin.position.y;
+  assert(midY < startY, `Gravity must pull downward: midY (${midY}) < startY (${startY})`);
+
+  // Step until all landed
+  for (let i = 0; i < 200; i++) {
+    exp.update(0.016, 1.1 + i * 0.016, mockContext);
+  }
+
+  assert(Math.abs(coin.position.y - (-halfH)) < 0.05, `Coin landed position (${coin.position.y}) must be at bottom cushion (-${halfH})`);
+  assert(Math.abs(feather.position.y - (-halfH)) < 0.05, `Feather landed position (${feather.position.y}) must be at bottom cushion (-${halfH})`);
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 9 passed: Objects start resting at bottom, carried to top on flip, and fall strictly downward with gravity\n');
+}
+
+// Test 10: Optical Clarity Glass Invariant (No transmission downsampling blur)
+{
+  console.log('Test 10: Optical Clarity Glass Invariant');
+  const mesh = new NewtonTubeMesh();
+  const glassMat = mesh['glassMaterial'];
+
+  assert.strictEqual(glassMat.transparent, true, 'Glass must be transparent');
+  assert(glassMat.opacity <= 0.25, `Glass opacity (${glassMat.opacity}) must be <= 0.25 for crystal clarity`);
+  assert.strictEqual(glassMat.depthWrite, false, 'depthWrite must be false to avoid occluding interior objects');
+  assert.strictEqual(glassMat.clearcoat, 1.0, 'Clearcoat must be 1.0 for physical glass sheen');
+  assert(!('transmission' in glassMat) || (glassMat as any).transmission === undefined || (glassMat as any).transmission === 0, 'Must not use transmission buffer downsampling to prevent blurring interior objects');
+
+  mesh.dispose();
+  console.log('✓ Test 10 passed: Newton tube uses crystal-clear optical glass material with sharp interior resolution\n');
+}
+
 console.log('========================================================');
-console.log('All Free Fall & Newton Tube Experiment Tests Passed (8/8)!');
+console.log('All Free Fall & Newton Tube Experiment Tests Passed (10/10)!');
 console.log('========================================================\n');

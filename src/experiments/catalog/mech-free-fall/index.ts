@@ -63,6 +63,16 @@ export default class MechFreeFallExperiment extends BaseExperiment {
 
     // 同步初始状态
     this.syncVisuals();
+
+    // 浏览器交互环境下，首次进入 600ms 后自动执行一次倒转演示，使自由落体实验直观呈现
+    if (typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
+      const demoTimer = window.setTimeout(() => {
+        if (!this.isDisposed && !this.solver.isTubeRotating && !this.solver.isFalling) {
+          this.invertTube();
+        }
+      }, 600);
+      this.addDisposable(() => window.clearTimeout(demoTimer));
+    }
   }
 
   /**
@@ -130,7 +140,48 @@ export default class MechFreeFallExperiment extends BaseExperiment {
           };
         }
 
-        // 4. 牛顿管玻璃管体
+        // 4. 管内对比物体 (羽毛、硬币、软木塞)
+        if (cur.name === 'freefall-feather') {
+          this.mesh.setRotateButtonHovered(false);
+          this.lastHoveredTarget = 'freefall-feather';
+          const isVacuum = this.solver.airPressureKPa < 1.0;
+          return {
+            id: 'freefall-feather',
+            label: isVacuum
+              ? '纯白轻羽 [真空状态] · 完全摆脱空气阻力，与硬币、软木塞同步自由落体！'
+              : '纯白轻羽 [常压空气状态] · 质量极轻(0.15g)、受显著空气阻力，轻盈飘浮迟缓下落',
+            cursor: 'default',
+          };
+        }
+
+        if (cur.name === 'freefall-coin') {
+          this.mesh.setRotateButtonHovered(false);
+          this.lastHoveredTarget = 'freefall-coin';
+          return {
+            id: 'freefall-coin',
+            label: '硬币 (24K纯金) [6.2g 金属] · 密度高且空气阻力小，迅速冲向管底',
+            cursor: 'default',
+          };
+        }
+
+        if (cur.name === 'freefall-cork') {
+          this.mesh.setRotateButtonHovered(false);
+          this.lastHoveredTarget = 'freefall-cork';
+          return {
+            id: 'freefall-cork',
+            label: '软木塞 (天然软木) [3.5g 木质] · 密度中等，常压下略落后于硬币',
+            cursor: 'default',
+          };
+        }
+
+        cur = cur.parent;
+      }
+    }
+
+    // 次选：检测牛顿管玻璃管体
+    for (const hit of hits) {
+      let cur: THREE.Object3D | null = hit.object;
+      while (cur && cur !== this.mesh.group) {
         if (cur.name === 'freefall-tube' || cur.userData?.isNewtonTube) {
           this.mesh.setRotateButtonHovered(false);
           this.lastHoveredTarget = 'freefall-tube';
@@ -142,41 +193,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
             cursor: 'pointer',
           };
         }
-
-        // 5. 管内对比物体 (羽毛、硬币、软木塞)
-        if (cur.name === 'freefall-feather') {
-          this.mesh.setRotateButtonHovered(false);
-          this.lastHoveredTarget = 'freefall-feather';
-          const isVacuum = this.solver.airPressureKPa < 1.0;
-          return {
-            id: 'freefall-feather',
-            label: isVacuum
-              ? '羽毛 [真空状态] · 完全摆脱空气阻力，与硬币、软木塞同步下落！'
-              : '羽毛 [空气状态] · 质量轻、受显著空气阻力，轻盈飘浮迟缓下落',
-            cursor: 'default',
-          };
-        }
-
-        if (cur.name === 'freefall-coin') {
-          this.mesh.setRotateButtonHovered(false);
-          this.lastHoveredTarget = 'freefall-coin';
-          return {
-            id: 'freefall-coin',
-            label: '硬币 [6.2g 金属] · 密度高且空气阻力小，迅速冲向管底',
-            cursor: 'default',
-          };
-        }
-
-        if (cur.name === 'freefall-cork') {
-          this.mesh.setRotateButtonHovered(false);
-          this.lastHoveredTarget = 'freefall-cork';
-          return {
-            id: 'freefall-cork',
-            label: '软木塞 [3.5g 天然木质] · 密度中等，常压下略落后于硬币',
-            cursor: 'default',
-          };
-        }
-
         cur = cur.parent;
       }
     }
@@ -333,7 +349,10 @@ export default class MechFreeFallExperiment extends BaseExperiment {
       coin.yM,
       cork.yM,
       feather.flutterX,
-      feather.flutterAngleRad
+      feather.flutterAngleRad,
+      this.solver.isTubeRotating,
+      this.solver.tubeRotationAngleRad,
+      this.solver.tubeStartAngleRad
     );
 
     // 3. 同步抽气机指示灯与压力表指针

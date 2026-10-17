@@ -50,6 +50,8 @@ export interface FreeFallTelemetry {
   fallDistanceM: number;
   isTubeRotating: boolean;
   tubeRotationAngleRad: number;
+  tubeFlipProgress: number;
+  tubeStartAngleRad: number;
   isPumpRunning: boolean;
   isVenting: boolean;
   isFalling: boolean;
@@ -112,9 +114,9 @@ export class FreeFallDynamicsSolver {
   public tubeRotationAngleRad = 0;
   public targetTubeRotationAngleRad = 0;
   public isTubeRotating = false;
-  private tubeFlipProgress = 1.0;
-  private readonly tubeFlipDurationS = 0.65; // 0.65s 平滑翻转
-  private tubeStartAngleRad = 0;
+  public tubeFlipProgress = 1.0;
+  public readonly tubeFlipDurationS = 0.65; // 0.65s 平滑翻转
+  public tubeStartAngleRad = 0;
 
   // 下落状态
   public isFalling = false;
@@ -129,7 +131,8 @@ export class FreeFallDynamicsSolver {
     this.airPressureKPa = options.airPressureKPa ?? STANDARD_ATMOSPHERE_KPA;
     this.fallDistanceM = options.fallDistanceM ?? 1.05;
 
-    this.resetObjects();
+    // 初始状态：物体在重力作用下静止落在管底缓冲垫上，杜绝悬浮反常识
+    this.resetObjectsToBottom();
   }
 
   /**
@@ -149,7 +152,7 @@ export class FreeFallDynamicsSolver {
   }
 
   /**
-   * 重置物体状态到管顶
+   * 重置物体状态到管顶准备下落
    */
   public resetObjects(): void {
     this.isFalling = false;
@@ -173,6 +176,30 @@ export class FreeFallDynamicsSolver {
   }
 
   /**
+   * 重置物体到管底静止状态 (初始放置或落地停稳)
+   */
+  public resetObjectsToBottom(): void {
+    this.isFalling = false;
+    this.elapsedFallTimeS = 0;
+    this.flutterPhase = 0;
+
+    for (const key of ['feather', 'coin', 'cork'] as const) {
+      this.objectStates.set(key, {
+        id: key,
+        name: OBJECT_CONFIGS[key].name,
+        yM: this.fallDistanceM,
+        velocityM_S: 0,
+        accelerationM_S2: 0,
+        dragForceN: 0,
+        hasLanded: true,
+        landTimeS: 0,
+        flutterX: 0,
+        flutterAngleRad: 0,
+      });
+    }
+  }
+
+  /**
    * 触发旋转倒转牛顿管 (180°)
    * 点击后，牛顿管平滑翻转 180°，翻转完成后物体从顶部释放下落
    */
@@ -184,9 +211,8 @@ export class FreeFallDynamicsSolver {
     this.tubeStartAngleRad = this.tubeRotationAngleRad;
     this.targetTubeRotationAngleRad = this.tubeRotationAngleRad + Math.PI;
 
-    // 翻转开始时先重置下落计时与物体至管顶（准备新一轮下落）
+    // 翻转开始时暂停下落（物体将随管底端盖在旋转弧线上升至管顶）
     this.isFalling = false;
-    this.resetObjects();
   }
 
   /**
@@ -260,7 +286,8 @@ export class FreeFallDynamicsSolver {
         this.tubeRotationAngleRad = this.targetTubeRotationAngleRad;
         this.isTubeRotating = false;
 
-        // 翻转彻底就绪，释放物体开始下落！
+        // 翻转彻底就绪，重置物体至管顶并释放下落！
+        this.resetObjects();
         this.isFalling = true;
         this.elapsedFallTimeS = 0;
       } else {
@@ -362,6 +389,8 @@ export class FreeFallDynamicsSolver {
       fallDistanceM: this.fallDistanceM,
       isTubeRotating: this.isTubeRotating,
       tubeRotationAngleRad: this.tubeRotationAngleRad,
+      tubeFlipProgress: parseFloat(this.tubeFlipProgress.toFixed(3)),
+      tubeStartAngleRad: this.tubeStartAngleRad,
       isPumpRunning: this.isPumpRunning,
       isVenting: this.isVenting,
       isFalling: this.isFalling,

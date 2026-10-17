@@ -615,7 +615,13 @@ export class Engine {
       setParameter: <T = any>(id: string, value: T): void => {
         this.experimentParams.set(id, value);
       },
+      css3dScene: this.css3dScene,
+      css3dRenderer: this.css3dRenderer,
     };
+  }
+
+  private isFreeCursorExperiment(id: string | null): boolean {
+    return id === 'math-stereometry';
   }
 
   private initHUD(): void {
@@ -631,8 +637,8 @@ export class Engine {
         this.crosshair.setVisible(false);
       } else {
         if (!this.visionModal || !this.visionModal.visible) {
-          this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
-          if (!this.labEntryActive && !this.isWhiteboardMode && this.currentExperimentId !== 'math-stereometry') {
+          this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
+          if (!this.labEntryActive && !this.isWhiteboardMode && !this.isFreeCursorExperiment(this.currentExperimentId)) {
             this.crosshair.setVisible(true);
           }
         }
@@ -768,8 +774,8 @@ export class Engine {
         this.spatialWindowObject.visible = false;
         this.inputManager?.touch?.setVisionModalOpen(false);
         this.lab?.setObservationWindowVisible(true);
-        this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
-        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
+        this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
+        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !this.isFreeCursorExperiment(this.currentExperimentId)) {
           this.crosshair.setVisible(true);
         }
         this.isExperimentInteracting = false;
@@ -1099,6 +1105,53 @@ export class Engine {
         else if (cmd.type === 'setDensity') exp.setDensity?.(cmd.density);
         else if (cmd.type === 'reset') exp.resetGolden?.();
       },
+      // 电容器充放电与RC暂态电路回调
+      onCapacitorSwitchPosition: (pos) => {
+        if (this.currentExperimentId === 'em-capacitor-discharge') {
+          this.currentContext.setParameter('switchPosition', pos);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setSwitchPosition?.(pos);
+        }
+      },
+      onCapacitorVoltageChange: (v) => {
+        if (this.currentExperimentId === 'em-capacitor-discharge') {
+          this.currentContext.setParameter('voltage', v);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setVoltage?.(v);
+        }
+      },
+      onCapacitorCapacitanceChange: (c) => {
+        if (this.currentExperimentId === 'em-capacitor-discharge') {
+          this.currentContext.setParameter('capacitance', c);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setCapacitance?.(c);
+        }
+      },
+      onCapacitorResistanceChange: (r) => {
+        if (this.currentExperimentId === 'em-capacitor-discharge') {
+          this.currentContext.setParameter('resistance', r);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setResistance?.(r);
+        }
+      },
+      onCapacitorOpenWaveformWindow: () => {
+        if (this.currentExperimentId === 'em-capacitor-discharge') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.openWaveformWindow?.();
+        }
+      },
+      onCapacitorClearSamples: () => {
+        if (this.currentExperimentId === 'em-capacitor-discharge') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.clearSamples?.();
+        }
+      },
+      onCapacitorReset: () => {
+        if (this.currentExperimentId === 'em-capacitor-discharge') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.resetExperiment?.();
+        }
+      },
       // 立体几何数学回调
       onMathModelChange: (type) => {
         if (this.currentExperimentId === 'math-stereometry') {
@@ -1313,7 +1366,7 @@ export class Engine {
       }
 
       this.currentExperimentId = id;
-      if (id === 'math-stereometry') {
+      if (this.isFreeCursorExperiment(id)) {
         this.crosshair?.setVisible(false);
         if (this.inputManager?.player) {
           this.inputManager.player.allowPointerLock = false;
@@ -1322,6 +1375,15 @@ export class Engine {
       } else {
         if (this.inputManager?.player && !this.labEntryActive) {
           this.inputManager.player.allowPointerLock = true;
+        }
+        if (
+          this.crosshair &&
+          !this.labEntryActive &&
+          !this.isWhiteboardMode &&
+          (!this.visionModal || !this.visionModal.visible) &&
+          (!this.hud?.drawer || !this.hud.drawer.open)
+        ) {
+          this.crosshair.setVisible(true);
         }
       }
       this.inputManager?.touch?.setVisionLauncherVisible(true);
@@ -1830,8 +1892,8 @@ export class Engine {
           this.isExperimentInteracting = false;
           if (!this.labEntryActive) {
             this.inputManager.player.enabled = true;
-            this.inputManager.player.allowPointerLock = (this.currentExperimentId !== 'math-stereometry');
-            if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
+            this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
+            if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !this.isFreeCursorExperiment(this.currentExperimentId)) {
               this.crosshair.setVisible(true);
             }
           }
@@ -1999,9 +2061,9 @@ export class Engine {
       !this.crosshair ||
       !this.crosshair.getVisible() ||
       (this.visionModal && this.visionModal.visible) ||
-      this.currentExperimentId === 'math-stereometry'
+      this.isFreeCursorExperiment(this.currentExperimentId)
     ) {
-      if (this.currentExperimentId === 'math-stereometry' && this.crosshair?.getVisible()) {
+      if (this.isFreeCursorExperiment(this.currentExperimentId) && this.crosshair?.getVisible()) {
         this.crosshair.setVisible(false);
       }
       return;
@@ -2203,7 +2265,7 @@ export class Engine {
       if (this.renderer?.shadowMap?.enabled) {
         this.renderer.shadowMap.needsUpdate = true;
       }
-      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open) && this.currentExperimentId !== 'math-stereometry') {
+      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open) && !this.isFreeCursorExperiment(this.currentExperimentId)) {
         this.crosshair.setVisible(true);
       }
     } else if (this.isWhiteboardMode) {
@@ -2295,6 +2357,8 @@ export class Engine {
             this.visionModal.hallCard.updateTelemetry(exp.getTelemetryData());
           } else if (this.currentExperimentId === 'em-field' && typeof exp?.getTelemetry === 'function') {
             this.visionModal.fieldCard.updateTelemetry(exp.getTelemetry());
+          } else if (this.currentExperimentId === 'em-capacitor-discharge' && typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.capacitorCard.updateTelemetry(exp.getTelemetryData());
           }
         }
       }
@@ -2374,11 +2438,20 @@ export class Engine {
       this.hud.update(delta, renderDuration);
     }
 
-    // 仅在空间视窗打开/可见且变换发生改变时渲染 CSS3D 场景
-    const isCss3dVisible = Boolean(this.css3dRenderer && this.css3dScene && isModalOpen && this.spatialWindowObject?.visible);
+    // 空间视窗（主全息菜单视窗或二次独立 3D 浮动空间视窗）打开/可见时渲染 CSS3D 场景
+    const hasSecondarySpatialWindows = Boolean(
+      this.css3dScene?.children.some(
+        (obj) => obj !== this.spatialWindowObject && obj.visible
+      )
+    );
+    const isCss3dVisible = Boolean(
+      this.css3dRenderer &&
+      this.css3dScene &&
+      ((isModalOpen && this.spatialWindowObject?.visible) || hasSecondarySpatialWindows)
+    );
     if (isCss3dVisible) {
       const cam = this.camera;
-      const win = this.spatialWindowObject!;
+      const win = this.spatialWindowObject;
       const camMoved =
         cam.position.distanceToSquared(this.lastCss3dCamPos) > 1e-6 ||
         Math.abs(cam.quaternion.x - this.lastCss3dCamQuat.x) > 1e-4 ||
@@ -2387,20 +2460,24 @@ export class Engine {
         Math.abs(cam.quaternion.w - this.lastCss3dCamQuat.w) > 1e-4;
 
       const winMoved =
-        win.position.distanceToSquared(this.lastCss3dWinPos) > 1e-6 ||
-        Math.abs(win.rotation.x - this.lastCss3dWinRotX) > 1e-4 ||
-        Math.abs(win.rotation.y - this.lastCss3dWinRotY) > 1e-4 ||
-        Math.abs(win.scale.x - this.lastCss3dWinScale) > 1e-5;
+        win && win.visible
+          ? (win.position.distanceToSquared(this.lastCss3dWinPos) > 1e-6 ||
+             Math.abs(win.rotation.x - this.lastCss3dWinRotX) > 1e-4 ||
+             Math.abs(win.rotation.y - this.lastCss3dWinRotY) > 1e-4 ||
+             Math.abs(win.scale.x - this.lastCss3dWinScale) > 1e-5)
+          : false;
 
       const becameVisible = !this.lastCss3dVisible;
 
-      if (camMoved || winMoved || becameVisible) {
+      if (camMoved || winMoved || becameVisible || hasSecondarySpatialWindows) {
         this.lastCss3dCamPos.copy(cam.position);
         this.lastCss3dCamQuat.copy(cam.quaternion);
-        this.lastCss3dWinPos.copy(win.position);
-        this.lastCss3dWinRotX = win.rotation.x;
-        this.lastCss3dWinRotY = win.rotation.y;
-        this.lastCss3dWinScale = win.scale.x;
+        if (win && win.visible) {
+          this.lastCss3dWinPos.copy(win.position);
+          this.lastCss3dWinRotX = win.rotation.x;
+          this.lastCss3dWinRotY = win.rotation.y;
+          this.lastCss3dWinScale = win.scale.x;
+        }
         this.lastCss3dVisible = true;
         this.css3dRenderer!.render(this.css3dScene!, this.camera);
       }

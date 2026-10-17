@@ -24,7 +24,7 @@ export class SuspensionPlateMesh {
   private holeGrommets: THREE.Mesh[] = [];
   private holeSprites: THREE.Sprite[] = [];
 
-  // 已绘制的红线与重心标靶 (作为 plateMesh 的子节点，保证随板同步运动与旋转)
+  // 已绘制的红线与重心标靶 (作为 plateMesh 的子节点，随板同步运动与旋转)
   private lineObjects: THREE.Group[] = [];
   private cogMarkerGroup: THREE.Group | null = null;
 
@@ -83,30 +83,29 @@ export class SuspensionPlateMesh {
       shape.holes.push(holePath);
     }
 
-    // 2. 挤出 3D 实体 (厚度 4mm，带精致倒角)
+    // 2. 挤出 3D 实体 (厚度 5mm，带精致倒角)
     const extrudeSettings: THREE.ExtrudeGeometryOptions = {
-      depth: 0.004,
+      depth: 0.005,
       bevelEnabled: true,
       bevelSegments: 2,
       steps: 1,
-      bevelSize: 0.0012,
-      bevelThickness: 0.0012,
+      bevelSize: 0.0015,
+      bevelThickness: 0.0015,
     };
     const plateGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    // 居中 Z 轴厚度
-    plateGeo.translate(0, 0, -0.002);
+    plateGeo.translate(0, 0, -0.0025);
 
-    // 纯透/半透微磨砂丙烯酸亚克力塑料物理材质
+    // 优质高透微蓝丙烯酸亚克力塑料物理材质
     this.plateMaterial = new THREE.MeshPhysicalMaterial({
       color: 0x38bdf8,
       transparent: true,
-      opacity: 0.80,
-      transmission: 0.55,
-      roughness: 0.18,
-      metalness: 0.05,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.1,
-      reflectivity: 0.85,
+      opacity: 0.85,
+      transmission: 0.50,
+      roughness: 0.15,
+      metalness: 0.04,
+      clearcoat: 0.95,
+      clearcoatRoughness: 0.08,
+      reflectivity: 0.90,
       side: THREE.DoubleSide,
     });
 
@@ -120,10 +119,10 @@ export class SuspensionPlateMesh {
     // 边缘精细描边轮廓
     const edgesGeo = new THREE.EdgesGeometry(plateGeo, 25);
     const edgesMat = new THREE.LineBasicMaterial({
-      color: 0x7dd3fc,
+      color: 0xbae6fd,
       transparent: true,
-      opacity: 0.7,
-      linewidth: 1.2,
+      opacity: 0.85,
+      linewidth: 1.5,
     });
     this.plateEdgesLine = new THREE.LineSegments(edgesGeo, edgesMat);
     this.plateMesh.add(this.plateEdgesLine);
@@ -138,15 +137,15 @@ export class SuspensionPlateMesh {
    * 为小孔创建金属护圈、文字标牌和拾取碰撞体
    */
   private createHoleAssembly(hole: PlateHoleDef): void {
-    const grommetGeo = new THREE.TorusGeometry(hole.radius + 0.0015, 0.0012, 12, 24);
-    const grommetMat = mechMetal(0xf59e0b, 0.85, 0.2); // 黄铜金属加固扣环
+    const grommetGeo = new THREE.TorusGeometry(hole.radius + 0.002, 0.0016, 12, 24);
+    const grommetMat = mechMetal(0xf59e0b, 0.9, 0.2); // 黄铜金属加固扣环
     const grommet = new THREE.Mesh(grommetGeo, grommetMat);
-    grommet.position.set(hole.x, hole.y, 0.0022);
+    grommet.position.set(hole.x, hole.y, 0.0028);
     this.plateMesh.add(grommet);
     this.holeGrommets.push(grommet);
 
-    // 交互点击/悬停检测用透明圆柱 (略大于孔半径，方便精准拾取)
-    const hitGeo = new THREE.CylinderGeometry(hole.radius * 2.6, hole.radius * 2.6, 0.02, 16);
+    // 交互拾取检测用透明圆柱 (较大半径 2.6cm，方便轻松点选与拖拽)
+    const hitGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.03, 16);
     const hitMat = new THREE.MeshBasicMaterial({ visible: false });
     const hitMesh = new THREE.Mesh(hitGeo, hitMat);
     hitMesh.rotation.x = Math.PI / 2;
@@ -158,14 +157,14 @@ export class SuspensionPlateMesh {
 
     // 高清晰度孔位标牌 Sprite ("A", "B", "C", "D")
     const sprite = this.createHoleLabelSprite(hole.label);
-    sprite.position.set(hole.x, hole.y + hole.radius + 0.016, 0.004);
-    sprite.scale.set(0.026, 0.026, 1);
+    sprite.position.set(hole.x, hole.y + hole.radius + 0.022, 0.006);
+    sprite.scale.set(0.032, 0.032, 1);
     this.plateMesh.add(sprite);
     this.holeSprites.push(sprite);
   }
 
   /**
-   * 创建孔位圆底标牌纹理精灵
+   * 创建孔位标牌精灵
    */
   private createHoleLabelSprite(label: string): THREE.Sprite {
     const canvas = document.createElement('canvas');
@@ -174,31 +173,28 @@ export class SuspensionPlateMesh {
     const ctx = canvas.getContext('2d')!;
 
     // 绘制圆角胶囊底衬
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
     ctx.beginPath();
-    ctx.arc(64, 64, 52, 0, Math.PI * 2);
+    ctx.arc(64, 64, 54, 0, Math.PI * 2);
     ctx.fill();
 
-    // 边框高光
+    // 亮蓝边框高光
     ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 7;
     ctx.stroke();
 
     // 文字
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 56px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+    ctx.font = 'bold 64px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label, 64, 66);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
-    const spriteMat = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-    });
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.raycast = () => {};
+    sprite.raycast = () => {}; // 禁用射线检测，由 hitMesh 代理
     return sprite;
   }
 
@@ -211,44 +207,42 @@ export class SuspensionPlateMesh {
       const sprite = this.holeSprites[idx];
       if (hole.id === holeId) {
         (grommet.material as THREE.MeshStandardMaterial).color.setHex(0x22c55e); // 高亮绿
-        grommet.scale.setScalar(1.35);
-        sprite.scale.set(0.034, 0.034, 1);
+        grommet.scale.setScalar(1.4);
+        sprite.scale.set(0.042, 0.042, 1);
       } else {
         (grommet.material as THREE.MeshStandardMaterial).color.setHex(0xf59e0b); // 正常黄铜
         grommet.scale.setScalar(1.0);
-        sprite.scale.set(0.026, 0.026, 1);
+        sprite.scale.set(0.032, 0.032, 1);
       }
     });
   }
 
   /**
-   * 在薄板局部坐标系下绘制一条鲜明的红色铅垂线
-   * 该红线直接挂接在 plateMesh 下，随着薄板自由旋转、移动！
+   * 在薄板局部坐标系下绘制鲜艳红线
    */
   public addMarkedLine(line: Line2D, lineIndex: number, animated = true): void {
     const lineGroup = new THREE.Group();
     lineGroup.name = `marked-line-${line.holeId}`;
 
-    // 沿方向延长贯穿整个板 (前后各延伸 0.25m)
-    const lenBackward = 0.03;
-    const lenForward = 0.24;
+    const lenBackward = 0.04;
+    const lenForward = 0.28;
 
     const pStart = new THREE.Vector3(
       line.origin.x - line.direction.x * lenBackward,
       line.origin.y - line.direction.y * lenBackward,
-      0.0028 // 紧贴薄板表面
+      0.0032
     );
     const pEnd = new THREE.Vector3(
       line.origin.x + line.direction.x * lenForward,
       line.origin.y + line.direction.y * lenForward,
-      0.0028
+      0.0032
     );
 
-    // 1. 核心鲜红铅垂主线
+    // 1. 鲜红铅垂主线
     const lineGeo = new THREE.BufferGeometry().setFromPoints([pStart, pEnd]);
     const lineMat = new THREE.LineBasicMaterial({
-      color: 0xef4444, // 鲜艳警示红
-      linewidth: 2.5,
+      color: 0xef4444, // 鲜红
+      linewidth: 3.0,
       transparent: true,
       opacity: 0.95,
       depthTest: true,
@@ -256,9 +250,9 @@ export class SuspensionPlateMesh {
     const mainLine = new THREE.Line(lineGeo, lineMat);
     lineGroup.add(mainLine);
 
-    // 2. 微弱自发光红色光晕缎带 (增强 3D 视觉醒目度与实物描线质感)
+    // 2. 自发光红色光晕缎带
     const ribbonDir = new THREE.Vector2(line.direction.x, line.direction.y).normalize();
-    const ribbonNormal = new THREE.Vector2(-ribbonDir.y, ribbonDir.x).multiplyScalar(0.0016);
+    const ribbonNormal = new THREE.Vector2(-ribbonDir.y, ribbonDir.x).multiplyScalar(0.0022);
 
     const ribbonGeo = new THREE.BufferGeometry();
     const ribbonVertices = new Float32Array([
@@ -272,9 +266,9 @@ export class SuspensionPlateMesh {
     ]);
     ribbonGeo.setAttribute('position', new THREE.BufferAttribute(ribbonVertices, 3));
     const ribbonMat = new THREE.MeshBasicMaterial({
-      color: 0xff0033,
+      color: 0xff1e56,
       transparent: true,
-      opacity: 0.65,
+      opacity: 0.75,
       side: THREE.DoubleSide,
     });
     const ribbonMesh = new THREE.Mesh(ribbonGeo, ribbonMat);
@@ -283,12 +277,12 @@ export class SuspensionPlateMesh {
     // 3. 悬挂基准线标签 ("① 铅垂线 (A)")
     const labelSprite = this.createLineLabelSprite(`线 ${lineIndex + 1} (${line.holeLabel})`);
     const labelPos = new THREE.Vector3(
-      line.origin.x + line.direction.x * 0.14 + ribbonNormal.x * 4,
-      line.origin.y + line.direction.y * 0.14 + ribbonNormal.y * 4,
-      0.005
+      line.origin.x + line.direction.x * 0.16 + ribbonNormal.x * 5,
+      line.origin.y + line.direction.y * 0.16 + ribbonNormal.y * 5,
+      0.006
     );
     labelSprite.position.copy(labelPos);
-    labelSprite.scale.set(0.038, 0.019, 1);
+    labelSprite.scale.set(0.046, 0.023, 1);
     lineGroup.add(labelSprite);
 
     if (animated) {
@@ -312,8 +306,7 @@ export class SuspensionPlateMesh {
     canvas.height = 96;
     const ctx = canvas.getContext('2d')!;
 
-    // 红色半透明胶囊边框底衬
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.88)';
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.90)';
     ctx.beginPath();
     ctx.roundRect(8, 8, 240, 80, 20);
     ctx.fill();
@@ -344,10 +337,10 @@ export class SuspensionPlateMesh {
 
     this.cogMarkerGroup = new THREE.Group();
     this.cogMarkerGroup.name = 'center-of-gravity-marker';
-    this.cogMarkerGroup.position.set(cg.x, cg.y, 0.0035);
+    this.cogMarkerGroup.position.set(cg.x, cg.y, 0.004);
 
     // 1. 金色外环
-    const ringGeo = new THREE.RingGeometry(0.008, 0.011, 32);
+    const ringGeo = new THREE.RingGeometry(0.010, 0.014, 32);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xfacc15, // 明亮黄金
       side: THREE.DoubleSide,
@@ -358,7 +351,7 @@ export class SuspensionPlateMesh {
     this.cogMarkerGroup.add(ringMesh);
 
     // 2. 核心红点靶心
-    const dotGeo = new THREE.CircleGeometry(0.0032, 24);
+    const dotGeo = new THREE.CircleGeometry(0.004, 24);
     const dotMat = new THREE.MeshBasicMaterial({
       color: 0xef4444,
       side: THREE.DoubleSide,
@@ -368,29 +361,29 @@ export class SuspensionPlateMesh {
 
     // 3. 十字准心线
     const crossGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-0.015, 0, 0.001),
-      new THREE.Vector3(0.015, 0, 0.001),
-      new THREE.Vector3(0, -0.015, 0.001),
-      new THREE.Vector3(0, 0.015, 0.001),
+      new THREE.Vector3(-0.018, 0, 0.001),
+      new THREE.Vector3(0.018, 0, 0.001),
+      new THREE.Vector3(0, -0.018, 0.001),
+      new THREE.Vector3(0, 0.018, 0.001),
     ]);
     const crossMat = new THREE.LineBasicMaterial({
       color: 0xfacc15,
-      linewidth: 2,
+      linewidth: 2.5,
     });
     const crossLine = new THREE.LineSegments(crossGeo, crossMat);
     this.cogMarkerGroup.add(crossLine);
 
-    // 4. 重心文字标签精灵 ("重心 G")
+    // 4. 重心文字标签精灵 ("重心 G (CG)")
     const labelSprite = this.createCogLabelSprite();
-    labelSprite.position.set(0, 0.024, 0.004);
-    labelSprite.scale.set(0.052, 0.026, 1);
+    labelSprite.position.set(0, 0.028, 0.005);
+    labelSprite.scale.set(0.062, 0.031, 1);
     this.cogMarkerGroup.add(labelSprite);
 
     this.plateMesh.add(this.cogMarkerGroup);
   }
 
   /**
-   * 生成重心专用高光文字精灵
+   * 生成重心高光文字精灵
    */
   private createCogLabelSprite(): THREE.Sprite {
     const canvas = document.createElement('canvas');
@@ -445,7 +438,7 @@ export class SuspensionPlateMesh {
   }
 
   /**
-   * 动画更新 (画线展开动画与重心脉冲)
+   * 动画更新
    */
   public update(delta: number, elapsed: number): void {
     if (this.isDrawingLine && this.lineObjects.length > 0) {

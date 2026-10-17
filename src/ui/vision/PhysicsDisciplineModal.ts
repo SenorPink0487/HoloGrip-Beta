@@ -131,6 +131,30 @@ export class PhysicsDisciplineModal {
         </svg>
       `,
     },
+    {
+      id: 'em-capacitor-discharge',
+      name: '电容器充放电过程',
+      category: '电容储能与RC暂态电路',
+      formula: 'I(t) = (E/R) · e^{-t/RC}',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Capacitor Plates -->
+          <line x1="14" y1="8" x2="14" y2="28" stroke="#38bdf8" stroke-width="2.6"/>
+          <line x1="22" y1="8" x2="22" y2="28" stroke="#38bdf8" stroke-width="2.6"/>
+          <!-- Leads -->
+          <line x1="4" y1="18" x2="14" y2="18" stroke="#facc15" stroke-width="2.2"/>
+          <line x1="22" y1="18" x2="32" y2="18" stroke="#facc15" stroke-width="2.2"/>
+          <!-- SPDT Switch blade & contacts -->
+          <circle cx="6" cy="18" r="1.8" fill="#facc15"/>
+          <path d="M6 18 L11 11" stroke="#f59e0b" stroke-width="2"/>
+          <circle cx="12" cy="10" r="1.5" fill="#38bdf8"/>
+          <circle cx="12" cy="26" r="1.5" fill="#f59e0b"/>
+          <!-- Exponential decay curve -->
+          <path d="M16 11 Q 19 16 28 17" stroke="#34d399" stroke-width="1.8" stroke-dasharray="2 1.5"/>
+          <polyline points="26,15 28,17 26,19" stroke="#34d399" stroke-width="1.6"/>
+        </svg>
+      `,
+    },
   ];
 
   public static readonly THERMO_EXPERIMENTS: OpticsExperimentDef[] = [

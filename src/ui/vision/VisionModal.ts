@@ -9,6 +9,8 @@ import { PhaseStatusCard } from './PhaseStatusCard.ts';
 import { StereometryStatusCard } from './StereometryStatusCard.ts';
 import { HallStatusCard } from './HallStatusCard.ts';
 import { FieldStatusCard, type FieldCommand } from './FieldStatusCard.ts';
+import { CapacitorStatusCard } from './CapacitorStatusCard.ts';
+import type { SwitchPosition } from '../../physics/em/capacitorDischarge.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
@@ -59,6 +61,14 @@ export interface VisionModalCallbacks {
   onHallToggleVectors?: (show: boolean) => void;
   onHallToggleParticles?: (show: boolean) => void;
   onFieldCommand?: (cmd: FieldCommand) => void;
+  // 电容器充放电回调函数
+  onCapacitorSwitchPosition?: (pos: SwitchPosition) => void;
+  onCapacitorVoltageChange?: (v: number) => void;
+  onCapacitorCapacitanceChange?: (c: number) => void;
+  onCapacitorResistanceChange?: (r: number) => void;
+  onCapacitorOpenWaveformWindow?: () => void;
+  onCapacitorClearSamples?: () => void;
+  onCapacitorReset?: () => void;
   // 立体几何数学回调函数
   onMathModelChange?: (type: HighSchoolModelType) => void;
   onMathDimensionChange?: (dims: { a?: number; h?: number }) => void;
@@ -106,6 +116,7 @@ export class VisionModal {
   private stereometryStatusCard: StereometryStatusCard;
   private hallStatusCard: HallStatusCard;
   private fieldStatusCard: FieldStatusCard;
+  private capacitorStatusCard: CapacitorStatusCard;
   private currentExperimentId = '';
 
   private bodyContainer: HTMLElement;
@@ -430,6 +441,16 @@ export class VisionModal {
 
     this.fieldStatusCard = new FieldStatusCard((cmd) => this.callbacks.onFieldCommand?.(cmd));
 
+    this.capacitorStatusCard = new CapacitorStatusCard({
+      onSetSwitchPosition: (pos) => this.callbacks.onCapacitorSwitchPosition?.(pos),
+      onVoltageChange: (v) => this.callbacks.onCapacitorVoltageChange?.(v),
+      onCapacitanceChange: (c) => this.callbacks.onCapacitorCapacitanceChange?.(c),
+      onResistanceChange: (r) => this.callbacks.onCapacitorResistanceChange?.(r),
+      onOpenWaveformWindow: () => this.callbacks.onCapacitorOpenWaveformWindow?.(),
+      onClearSamples: () => this.callbacks.onCapacitorClearSamples?.(),
+      onResetExperiment: () => this.callbacks.onCapacitorReset?.(),
+    });
+
     // 挂载初始视窗视图
     this.switchTab('disciplines');
 
@@ -617,6 +638,10 @@ export class VisionModal {
     return this.fieldStatusCard;
   }
 
+  public get capacitorCard(): CapacitorStatusCard {
+    return this.capacitorStatusCard;
+  }
+
 
 
 
@@ -651,8 +676,18 @@ export class VisionModal {
     const isConduction = this.currentExperimentId === 'thermo-conduction';
     const isPhase = this.currentExperimentId === 'thermo-phase';
     const emId = this.currentExperimentId;
-    const emCard = emId === 'em-field' ? this.fieldStatusCard : this.hallStatusCard;
-    const emTitle = emId === 'em-field' ? '静电场探索' : '霍尔效应';
+    let emCard: { setVisible: (v: boolean) => void; element: HTMLElement };
+    let emTitle = '霍尔效应';
+    if (emId === 'em-field') {
+      emCard = this.fieldStatusCard;
+      emTitle = '静电场探索';
+    } else if (emId === 'em-capacitor-discharge') {
+      emCard = this.capacitorStatusCard;
+      emTitle = '电容器充放电';
+    } else {
+      emCard = this.hallStatusCard;
+      emTitle = '霍尔效应';
+    }
 
     let thermoTitle = '热力学';
     if (isCarnot) {
@@ -699,6 +734,7 @@ export class VisionModal {
     }
     if (this.hallStatusCard) this.hallStatusCard.setVisible(false);
     if (this.fieldStatusCard) this.fieldStatusCard.setVisible(false);
+    if (this.capacitorStatusCard) this.capacitorStatusCard.setVisible(false);
     if (tab === 'em') emCard.setVisible(true);
 
     if (tab === 'disciplines') {

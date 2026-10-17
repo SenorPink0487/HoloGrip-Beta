@@ -373,9 +373,9 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   console.log('✓ Test 7 passed: Discipline state and query verified\n');
 }
 
-// Test 8: Electromagnetism branch Level 2 presents ONLY Hall Effect and Electrostatic Field
+// Test 8: Electromagnetism branch Level 2 presents Hall Effect, Electrostatic Field and Capacitor Discharge
 {
-  console.log('Test 8: Electromagnetism branch Level 2 presents ONLY Hall Effect and Electrostatic Field');
+  console.log('Test 8: Electromagnetism branch Level 2 presents Hall Effect, Electrostatic Field and Capacitor Discharge');
   let levelReported: number = 0;
   let titleReported: string = '';
 
@@ -403,10 +403,11 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(html.includes('physics-level-2'), 'Must render Level 2 container');
   assert(html.includes('电磁学实验'), 'Header must contain 电磁学实验');
 
-  // Verify EXACTLY 2 EM experiments present
-  assert.strictEqual(PhysicsDisciplineModal.EM_EXPERIMENTS.length, 2, 'EM branch must contain exactly 2 experiments');
+  // Verify EM experiments present
+  assert.strictEqual(PhysicsDisciplineModal.EM_EXPERIMENTS.length, 3, 'EM branch must contain 3 experiments');
   assert(html.includes('霍尔效应原理'), 'Must contain 霍尔效应原理');
   assert(html.includes('静电场探索与电力线叠加'), 'Must contain 静电场探索与电力线叠加');
+  assert(html.includes('电容器充放电过程'), 'Must contain 电容器充放电过程');
 
   // Verify deleted experiments are NOT present
   assert(!html.includes('em-induction'), 'Must NOT contain em-induction');
@@ -421,13 +422,14 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   // Verify formulas
   assert(html.includes('V_H = R_H · (I B / d)'), 'Must contain Hall voltage formula');
   assert(html.includes('E = ∑ k q_i / r_i² · r̂_i'), 'Must contain Coulomb superposition formula');
+  assert(html.includes('I(t) = (E/R) · e^{-t/RC}'), 'Must contain Capacitor discharge formula');
 
   // Go back to Level 1
   assert.strictEqual(modal.canGoBack(), true);
   modal.goBack();
   assert.strictEqual(modal.getCurrentLevel(), 1, 'Should return to Level 1 from EM Level 2');
 
-  console.log('✓ Test 8 passed: Electromagnetism branch strictly presents only Hall Effect & Electrostatic Field\n');
+  console.log('✓ Test 8 passed: Electromagnetism branch presents Hall Effect, Electrostatic Field & Capacitor Discharge\n');
 }
 
 console.log('========================================================');

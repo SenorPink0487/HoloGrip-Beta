@@ -101,10 +101,13 @@ class MockElement {
 
 // Setup minimal globals for node
 if (typeof globalThis.document === 'undefined') {
+  const mockBody = new MockElement('BODY');
   (globalThis as any).document = {
     createElement: (tag: string) => new MockElement(tag),
-    body: new MockElement('BODY'),
+    body: mockBody,
     pointerLockElement: null,
+    querySelector: (sel: string) => mockBody.querySelector(sel),
+    querySelectorAll: (sel: string) => mockBody.querySelectorAll(sel),
   };
 }
 
@@ -447,6 +450,68 @@ console.log('Test 9: Mechanics Catalog Modal Registration Invariant');
   console.log('✓ Test 9 passed: Successfully registered in mechanics category\n');
 }
 
+// ---------------------------------------------------------------------------
+// Test 10: Strict Zero Floating Popups & Banners Invariant
+// ---------------------------------------------------------------------------
+console.log('Test 10: Strict Zero Floating Popups & Banners Invariant');
+{
+  const exp = new MechCenterOfGravityExperiment();
+  const mockContext: any = {
+    camera: new THREE.PerspectiveCamera(60, 1, 0.1, 100),
+    scene: new THREE.Scene(),
+  };
+  exp.init(mockContext);
+
+  const banner = document.body.querySelector('#suspension-guidance-banner');
+  assert(banner === null, 'CRITICAL: No guidance banner or floating popup allowed in 3D scene');
+
+  const expAny = exp as any;
+  assert(expAny.bannerEl === undefined || expAny.bannerEl === null, 'bannerEl must not exist');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 10 passed: Strict zero floating popups & banners rule enforced\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 11: Center Crosshair Activation & 3D Hover Raycast Invariant
+// ---------------------------------------------------------------------------
+console.log('Test 11: Center Crosshair Activation & Raycast Hover Detection');
+{
+  const exp = new MechCenterOfGravityExperiment();
+  const mockContext: any = {
+    camera: new THREE.PerspectiveCamera(60, 1, 0.1, 100),
+    scene: new THREE.Scene(),
+  };
+  exp.init(mockContext);
+  exp.rootGroup.updateMatrixWorld(true);
+
+  // 1. Ray pointing directly at the resting plate
+  const raycaster = new THREE.Raycaster();
+  const plateWorldPos = new THREE.Vector3();
+  exp['plate'].group.getWorldPosition(plateWorldPos);
+
+  raycaster.ray.origin.set(plateWorldPos.x, plateWorldPos.y, plateWorldPos.z + 1.0);
+  raycaster.ray.direction.set(0, 0, -1);
+
+  const hoverPlate = exp.getHoverTarget(raycaster);
+  assert(hoverPlate !== null, 'Center crosshair ray should detect hover target on suspension plate');
+  assert(typeof hoverPlate.label === 'string' && hoverPlate.label.length > 0, 'Hover target must have descriptive label');
+
+  // 2. Pointer lock coordinate conversion: when locked, getNormalizedMouse must return (0, 0) for center crosshair
+  const mockEvent = { clientX: 500, clientY: 300 } as PointerEvent;
+  (globalThis as any).document.pointerLockElement = (globalThis as any).document.body;
+  const lockedCoords = (exp as any).getNormalizedMouse(mockEvent);
+  assert.strictEqual(lockedCoords.x, 0, 'In pointer lock mode, NDC X must be 0 for center crosshair');
+  assert.strictEqual(lockedCoords.y, 0, 'In pointer lock mode, NDC Y must be 0 for center crosshair');
+
+  (globalThis as any).document.pointerLockElement = null;
+  const unlockedCoords = (exp as any).getNormalizedMouse(mockEvent);
+  assert(unlockedCoords.x !== 0 || unlockedCoords.y !== 0, 'In free cursor mode, NDC coords reflect mouse position');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 11 passed: Center crosshair activation and hover raycasting verified\n');
+}
+
 console.log('========================================================');
-console.log('All Suspension Center of Gravity Tests Passed (9/9)!');
+console.log('All Suspension Center of Gravity Tests Passed (11/11)!');
 console.log('========================================================\n');

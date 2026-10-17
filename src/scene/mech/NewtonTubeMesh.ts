@@ -35,6 +35,7 @@ export class NewtonTubeMesh {
   private valveHitBox: THREE.Mesh;
 
   // 3. 管内物体
+  private objectsGroup = new THREE.Group();
   private featherGroup = new THREE.Group();
   private featherVaneMesh: THREE.Mesh;
   private featherQuillMesh: THREE.Mesh;
@@ -93,36 +94,34 @@ export class NewtonTubeMesh {
     this.group.add(this.standGroup);
     this.group.add(this.tubePivot);
     this.group.add(this.pumpGroup);
+    this.group.add(this.objectsGroup);
 
     // 初始位置设定
     this.tubePivot.position.set(0, this.PIVOT_HEIGHT_Y, 0);
+    this.objectsGroup.position.set(0, this.PIVOT_HEIGHT_Y, 0);
     this.updateHose();
   }
 
   private initMaterials(): void {
-    // 高透光光学玻璃外管 (晶莹剔透，降低物理厚度与折射扰动，使管内物体如同悬浮在空中般清澈)
+    // 高透光光学物理玻璃外管 (晶莹透亮，全分辨率前向清漆层，彻底告别降采样模糊，管内物体高清晰锐利呈现)
     this.glassMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      transmission: 0.98,
-      opacity: 1.0,
-      transparent: true,
+      color: 0xf0f9ff,
       roughness: 0.015,
-      ior: 1.45,
-      thickness: 0.004,
-      specularIntensity: 0.9,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.02,
+      metalness: 0.02,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.015,
+      reflectivity: 0.95,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+      side: THREE.FrontSide,
     });
 
-    // 内部微发光玻璃腔体 (极微弱冰蓝漫射，depthWrite 为 false，杜绝遮挡管内物体深度)
+    // 内部微发光玻璃腔体 (设为透明免除遮挡和发雾，杜绝遮挡管内物体深度)
     this.innerGlassMaterial = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      roughness: 0.05,
-      metalness: 0.05,
       transparent: true,
-      opacity: 0.02,
-      side: THREE.BackSide,
-      depthWrite: false,
+      opacity: 0.0,
+      visible: false,
     });
 
     // 镜面液态铬金属
@@ -147,50 +146,40 @@ export class NewtonTubeMesh {
       opacity: 0.85,
     });
 
-    // 羽毛羽片材质 (经典教科书鲜艳绯红轻羽，自带柔和自发光，在白墙和玻璃下极其清晰醒目)
+    // 羽毛羽片材质 (经典教科书纯白轻羽，自然轻盈漫射，边缘锐利清晰，杜绝过曝自发光与糊片)
     this.featherMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf43f5e,
-      emissive: 0xbe123c,
-      emissiveIntensity: 0.35,
+      color: 0xffffff,
       roughness: 0.45,
-      metalness: 0.05,
+      metalness: 0.02,
       side: THREE.DoubleSide,
     });
 
-    // 羽毛羽轴材质 (高亮金色)
+    // 羽毛羽轴材质 (温润细金羽茎)
     this.featherQuillMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfde047,
-      emissive: 0xd97706,
-      emissiveIntensity: 0.40,
-      metalness: 0.5,
+      color: 0xfef08a,
+      metalness: 0.8,
       roughness: 0.2,
     });
 
-    // 硬币材质 (高亮 24K 纯金硬币，强化暖金底色与金光自发光，杜绝阴影反黑)
+    // 硬币材质 (真实纯金质感，高金属度与真实镜面高光，杜绝自发光糊成一团)
     this.coinMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffd700,
-      emissive: 0xd97706,
-      emissiveIntensity: 0.32,
-      metalness: 0.45,
-      roughness: 0.20,
+      color: 0xf59e0b,
+      metalness: 0.92,
+      roughness: 0.18,
     });
 
-    // 软木塞材质 (温暖天然蜜色琥珀软木，柔和自发光与木质漫射)
+    // 软木塞材质 (天然温暖软木橡树质感，哑光漫反射，真实实验器材外观)
     this.corkMaterial = new THREE.MeshStandardMaterial({
-      color: 0xd97706,
-      emissive: 0x78350f,
-      emissiveIntensity: 0.25,
-      roughness: 0.70,
-      metalness: 0.02,
+      color: 0xc89d66,
+      roughness: 0.85,
+      metalness: 0.0,
     });
 
     // 软木塞年轮深色条纹材质
     this.corkBandMaterial = new THREE.MeshStandardMaterial({
-      color: 0x92400e,
-      emissive: 0x451a03,
-      emissiveIntensity: 0.20,
+      color: 0x8b5a2b,
       roughness: 0.85,
-      metalness: 0.02,
+      metalness: 0.0,
     });
 
     // 旋转按钮发光材质 (纯净全息青蓝)
@@ -376,17 +365,17 @@ export class NewtonTubeMesh {
       true
     );
     this.glassInnerMesh = new THREE.Mesh(innerGeo, this.innerGlassMaterial);
+    this.glassInnerMesh.visible = false;
     this.glassInnerMesh.castShadow = false;
-    this.glassInnerMesh.renderOrder = 9;
     this.tubePivot.add(this.glassInnerMesh);
 
-    // 专属管内前置与后置透亮补光灯 (随管身同步转动，确保内部硬币、羽毛、软木塞永远光彩夺目、高反差清晰)
-    const frontFillLight = new THREE.PointLight(0xffffff, 2.4, 2.5);
-    frontFillLight.position.set(0, 0, 0.22);
+    // 专属管内柔和通透补光灯 (随管身同步转动，确保内部硬币、羽毛、软木塞立体分明，杜绝过曝与反白)
+    const frontFillLight = new THREE.PointLight(0xffffff, 0.65, 2.5);
+    frontFillLight.position.set(0, 0, 0.26);
     this.tubePivot.add(frontFillLight);
 
-    const backFillLight = new THREE.PointLight(0xfef08a, 1.4, 2.5);
-    backFillLight.position.set(0, 0, -0.22);
+    const backFillLight = new THREE.PointLight(0xdbeafe, 0.35, 2.5);
+    backFillLight.position.set(0, 0, -0.26);
     this.tubePivot.add(backFillLight);
 
     // 4. 上密封盖 (Top End Cap - 液态亮铬)
@@ -395,10 +384,10 @@ export class NewtonTubeMesh {
     const topCapMesh = new THREE.Mesh(capGeo, this.chromeMaterial);
     this.topCapGroup.add(topCapMesh);
 
-    // 上端晶透硅胶缓冲垫 (无黑橡胶)
-    const padGeo = new THREE.CylinderGeometry(this.TUBE_RADIUS_M - 0.006, this.TUBE_RADIUS_M - 0.006, 0.016, 32);
+    // 上端晶透硅胶缓冲垫 (厚度加实，与下落起点无缝衔接)
+    const padGeo = new THREE.CylinderGeometry(this.TUBE_RADIUS_M - 0.006, this.TUBE_RADIUS_M - 0.006, 0.05, 32);
     const topPad = new THREE.Mesh(padGeo, this.siliconeMaterial);
-    topPad.position.y = -0.02;
+    topPad.position.y = -0.045;
     this.topCapGroup.add(topPad);
 
     // 顶部金属圆顶螺帽 (液态铬)
@@ -413,9 +402,9 @@ export class NewtonTubeMesh {
     const botCapMesh = new THREE.Mesh(capGeo, this.chromeMaterial);
     this.bottomCapGroup.add(botCapMesh);
 
-    // 下端晶透硅胶缓冲垫
+    // 下端晶透硅胶缓冲垫 (坚实承托着陆物体，杜绝虚空悬浮)
     const botPad = new THREE.Mesh(padGeo, this.siliconeMaterial);
-    botPad.position.y = 0.02;
+    botPad.position.y = 0.045;
     this.bottomCapGroup.add(botPad);
 
     // 抽气阀门底座与旋塞 (Stopcock Valve - 金黄铜)
@@ -481,46 +470,44 @@ export class NewtonTubeMesh {
 
   /**
    * 创建管内的三件对比自由落体对象 (羽毛、硬币、软木塞)
-   * 尺寸加大、高饱和艳丽对比、双向自发光加持，落体过程一目了然
+   * 采用高拟真科研实验室级 3D 几何建模，纯白轻羽、抛光 24K 金币与天然暖木塞
    */
   private createObjects(): void {
-    // 1. 羽毛 (Feather) - 位于右侧 X = +0.042，经典教科书鲜艳绯红轻羽 + 亮金羽轴
+    // 1. 羽毛 (Feather) - 位于右侧，纯白轻羽 + 细金羽茎
     this.createFeatherMesh();
-    this.featherGroup.position.set(0.042, this.FALL_DISTANCE_M / 2, 0);
     this.featherGroup.name = 'freefall-feather';
     this.featherGroup.renderOrder = 2;
-    this.tubePivot.add(this.featherGroup);
+    this.objectsGroup.add(this.featherGroup);
 
-    // 2. 软木塞 (Cork) - 位于中央 X = 0，琥珀暖木质感 + 真实年轮深色横纹
-    const corkGeo = new THREE.CylinderGeometry(0.019, 0.025, 0.048, 24);
+    // 2. 软木塞 (Cork) - 位于中央，经典实验室圆台软木塞
+    const corkGeo = new THREE.CylinderGeometry(0.017, 0.023, 0.042, 32);
     this.corkMesh = new THREE.Mesh(corkGeo, this.corkMaterial);
     this.corkMesh.castShadow = false;
     this.corkGroup.add(this.corkMesh);
 
     // 软木塞深色年轮环带 (强化木塞分层纹理与立体辨识度)
-    const bandGeo = new THREE.CylinderGeometry(0.021, 0.023, 0.005, 24);
+    const bandGeo = new THREE.CylinderGeometry(0.0185, 0.0215, 0.005, 32);
     const band1 = new THREE.Mesh(bandGeo, this.corkBandMaterial);
-    band1.position.y = 0.009;
+    band1.position.y = 0.007;
     this.corkGroup.add(band1);
 
     const band2 = new THREE.Mesh(bandGeo, this.corkBandMaterial);
-    band2.position.y = -0.011;
+    band2.position.y = -0.009;
     this.corkGroup.add(band2);
 
-    this.corkGroup.position.set(0, this.FALL_DISTANCE_M / 2, 0);
     this.corkGroup.name = 'freefall-cork';
     this.corkGroup.renderOrder = 2;
-    this.tubePivot.add(this.corkGroup);
+    this.objectsGroup.add(this.corkGroup);
 
-    // 3. 硬币 (Coin) - 位于左侧 X = -0.042，闪耀 24K 纯金，双面立体边框与浮雕徽记
-    const coinOuterGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.0036, 32);
+    // 3. 硬币 (Coin) - 位于左侧，闪耀 24K 纯金，双面立体边框与浮雕徽记
+    const coinOuterGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.0035, 32);
     this.coinMesh = new THREE.Mesh(coinOuterGeo, this.coinMaterial);
     this.coinMesh.rotation.x = Math.PI / 2;
     this.coinMesh.castShadow = false;
     this.coinGroup.add(this.coinMesh);
 
     // 硬币凸起边框环 (增强 3D 浮雕与金币高光反差)
-    const coinRimGeo = new THREE.TorusGeometry(0.023, 0.0016, 12, 32);
+    const coinRimGeo = new THREE.TorusGeometry(0.021, 0.0016, 12, 32);
     const coinRimFront = new THREE.Mesh(coinRimGeo, this.coinMaterial);
     coinRimFront.position.z = 0.002;
     this.coinGroup.add(coinRimFront);
@@ -530,42 +517,61 @@ export class NewtonTubeMesh {
     this.coinGroup.add(coinRimBack);
 
     // 硬币中央浮雕五角星徽记
-    const starGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.0042, 5);
+    const starGeo = new THREE.CylinderGeometry(0.0075, 0.0075, 0.0042, 5);
     const starMesh = new THREE.Mesh(starGeo, this.coinMaterial);
     starMesh.rotation.x = Math.PI / 2;
     this.coinGroup.add(starMesh);
 
-    this.coinGroup.position.set(-0.042, this.FALL_DISTANCE_M / 2, 0);
     this.coinGroup.name = 'freefall-coin';
     this.coinGroup.renderOrder = 2;
-    this.tubePivot.add(this.coinGroup);
+    this.objectsGroup.add(this.coinGroup);
+
+    // 初始静止落在管底硅胶缓冲垫上
+    this.setObjectsState(this.FALL_DISTANCE_M, this.FALL_DISTANCE_M, this.FALL_DISTANCE_M);
   }
 
   /**
-   * 构造逼真的大羽毛网格 (金色羽轴 + 艳丽绯红双侧微曲轻羽羽面)
+   * 构造逼真的纯白轻羽网格 (温润细金羽茎 + 柔美微弧羽片 + 细致微羽支肌理)
    */
   private createFeatherMesh(): void {
-    // 羽轴 (Quill) - 亮金羽茎
+    // 羽轴 (Quill) - 金色/暖象牙羽茎，优美微弯
     const quillCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, -0.070, 0),
-      new THREE.Vector3(0.0015, -0.025, 0.001),
-      new THREE.Vector3(0.0035, 0.030, -0.001),
-      new THREE.Vector3(0.0010, 0.070, 0),
+      new THREE.Vector3(0, -0.065, 0),
+      new THREE.Vector3(0.001, -0.025, 0.001),
+      new THREE.Vector3(0.0025, 0.025, -0.001),
+      new THREE.Vector3(0.0005, 0.065, 0),
     ]);
-    const quillGeo = new THREE.TubeGeometry(quillCurve, 20, 0.0016, 8, false);
+    const quillGeo = new THREE.TubeGeometry(quillCurve, 24, 0.0015, 8, false);
     this.featherQuillMesh = new THREE.Mesh(quillGeo, this.featherQuillMaterial);
     this.featherGroup.add(this.featherQuillMesh);
 
-    // 羽片 (Vane) - 鲜艳绯红轻盈柳叶曲线，在任何实验室背景下清晰夺目
+    // 羽片 (Vane) - 经典纯白轻羽，优雅的羽毛外轮廓
     const shape = new THREE.Shape();
-    shape.moveTo(0, -0.060);
-    shape.bezierCurveTo(0.024, -0.040, 0.030, 0.035, 0.004, 0.070);
-    shape.bezierCurveTo(-0.022, 0.035, -0.020, -0.040, 0, -0.060);
+    shape.moveTo(0, -0.055);
+    shape.bezierCurveTo(0.020, -0.035, 0.026, 0.030, 0.002, 0.065);
+    shape.bezierCurveTo(-0.018, 0.030, -0.016, -0.035, 0, -0.055);
 
-    const vaneGeo = new THREE.ShapeGeometry(shape, 24);
+    const vaneGeo = new THREE.ShapeGeometry(shape, 32);
     this.featherVaneMesh = new THREE.Mesh(vaneGeo, this.featherMaterial);
     this.featherVaneMesh.castShadow = false;
     this.featherGroup.add(this.featherVaneMesh);
+
+    // 添加羽片微羽支肌理线，增强自然立体质感
+    const barbMat = new THREE.MeshBasicMaterial({
+      color: 0xe2e8f0,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+    });
+    for (let i = -4; i <= 4; i++) {
+      const y = i * 0.011;
+      const w = 0.032 * (1 - Math.abs(i) / 6);
+      const barbGeo = new THREE.PlaneGeometry(w, 0.001);
+      const barb = new THREE.Mesh(barbGeo, barbMat);
+      barb.position.set(0, y, 0.0008);
+      barb.rotation.z = i > 0 ? 0.25 : -0.25;
+      this.featherGroup.add(barb);
+    }
   }
 
   /**
@@ -786,26 +792,81 @@ export class NewtonTubeMesh {
   }
 
   /**
-   * 更新管内三物体在管内的下落空间位置
+   * 更新管内三物体在空间中的位置与姿态
+   *
+   * 物理原则：
+   * 1. 重力恒定垂直向下 (朝向实验台 -Y 方向)。
+   * 2. 初始或着陆后，物体稳固落在管底晶透硅胶垫上，杜绝悬浮反常识。
+   * 3. 倒转翻转过程中，物体跟随管底端盖在旋转圆弧上平滑上升至管顶。
+   * 4. 倒转完成后释放下落，各物体沿竖直管身从管顶 (+halfH) 垂直加速下落至管底 (-halfH)。
    */
   public setObjectsState(
     featherY: number,
     coinY: number,
     corkY: number,
     flutterX = 0,
-    flutterAngle = 0
+    flutterAngle = 0,
+    isRotating = false,
+    tubeRotationAngle = 0,
+    startAngle = 0
   ): void {
     const halfH = this.FALL_DISTANCE_M / 2;
 
-    const localFeatherY = halfH - featherY;
-    const localCoinY = halfH - coinY;
-    const localCorkY = halfH - corkY;
+    const coinRestX = -0.038;
+    const corkRestX = 0;
+    const featherRestX = 0.038;
 
-    this.featherGroup.position.set(0.042 + flutterX, localFeatherY, 0);
-    this.featherGroup.rotation.z = flutterAngle;
+    if (isRotating) {
+      // 翻转过程中：物体跟随管底端盖在旋转圆弧上平滑上升至管顶
+      const k = Math.round(startAngle / Math.PI);
+      const yEnd = (k % 2 === 0 ? -1 : 1) * halfH;
 
-    this.coinGroup.position.set(-0.042, localCoinY, 0);
-    this.corkGroup.position.set(0, localCorkY, 0);
+      const cosTheta = Math.cos(tubeRotationAngle);
+      const sinTheta = Math.sin(tubeRotationAngle);
+
+      // 硬币跟随旋转
+      this.coinGroup.position.set(
+        coinRestX * cosTheta - yEnd * sinTheta,
+        coinRestX * sinTheta + yEnd * cosTheta,
+        0
+      );
+      this.coinGroup.rotation.z = tubeRotationAngle;
+
+      // 软木塞跟随旋转
+      this.corkGroup.position.set(
+        corkRestX * cosTheta - yEnd * sinTheta,
+        corkRestX * sinTheta + yEnd * cosTheta,
+        0
+      );
+      this.corkGroup.rotation.z = tubeRotationAngle;
+
+      // 羽毛跟随旋转
+      this.featherGroup.position.set(
+        featherRestX * cosTheta - yEnd * sinTheta,
+        featherRestX * sinTheta + yEnd * cosTheta,
+        0
+      );
+      this.featherGroup.rotation.z = tubeRotationAngle;
+    } else {
+      // 竖直状态下：下落运动或管底静止
+      // y 从 0 (管顶) 到 fallDistanceM (管底)
+      // 空间 Y 坐标：halfH - y (从 +halfH 下落至 -halfH，重力恒定垂直向下！)
+      const localFeatherY = halfH - featherY;
+      const localCoinY = halfH - coinY;
+      const localCorkY = halfH - corkY;
+
+      // 硬币
+      this.coinGroup.position.set(coinRestX, localCoinY, 0);
+      this.coinGroup.rotation.z = 0;
+
+      // 软木塞
+      this.corkGroup.position.set(corkRestX, localCorkY, 0);
+      this.corkGroup.rotation.z = 0;
+
+      // 羽毛：带有空气阻力引发的左右飘舞与迎角
+      this.featherGroup.position.set(featherRestX + flutterX, localFeatherY, 0);
+      this.featherGroup.rotation.z = flutterAngle;
+    }
   }
 
   /**
