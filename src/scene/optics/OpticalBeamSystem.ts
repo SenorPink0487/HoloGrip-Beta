@@ -50,11 +50,18 @@ export class OpticalBeamSystem {
   // 衍射光强包络扇形网格
   private diffractionFanMesh: THREE.Mesh | null = null;
   private diffractionFanGeo: THREE.BufferGeometry | null = null;
-  private diffractionFanMat: THREE.MeshBasicMaterial | null = null;
+  private diffractionFanMat: THREE.Material | null = null;
   private lastFanZStart = -999;
   private lastFanZEnd = -999;
   private lastFanHalfWidth = -999;
   private cachedWorkerDispersionRays: DispersionRay[] = [];
+
+  // 3D 空间相干干涉波场剖面（PhET 波动叠加水波剖面）
+  private waveFieldMesh: THREE.Mesh | null = null;
+  private waveFieldGeo: THREE.PlaneGeometry | null = null;
+  private waveFieldMat: THREE.ShaderMaterial | null = null;
+  private lastWaveFieldZStart = -999;
+  private lastWaveFieldZEnd = -999;
 
   // 光栅各分立级次衍射光束
   private gratingOrderMeshes: THREE.Mesh[] = [];
@@ -309,7 +316,15 @@ export class OpticalBeamSystem {
       this.segmentHaloMats[i].color.copy(color);
     }
     if (this.diffractionFanMat) {
-      this.diffractionFanMat.color.copy(color);
+      if ((this.diffractionFanMat as any).color) {
+        (this.diffractionFanMat as any).color.copy(color);
+      }
+      if ((this.diffractionFanMat as any).uniforms?.uColor) {
+        (this.diffractionFanMat as any).uniforms.uColor.value.copy(color);
+      }
+    }
+    if (this.waveFieldMat?.uniforms?.uColor) {
+      this.waveFieldMat.uniforms.uColor.value.copy(color);
     }
     for (const mat of this.gratingOrderMats) {
       mat.color.copy(color);
@@ -692,9 +707,9 @@ export class OpticalBeamSystem {
   }
 
   /**
-   * 构建杨氏双缝干涉的 3D 空间相干柱面波前。
-   * 光波沿光轴（+Z 方向）从双缝向观测屏传播。
-   * 加法混合在波峰相交处自然产生相长干涉亮纹。
+   * 构建杨氏双缝干涉的 3D 空间相干柱面波前与相干波场剖面。
+   * 基于惠更斯-菲涅耳原理：双狭缝作为两列独立的相干次级波源 S1 与 S2 向后发散。
+   * 空间中两波叠加，形成严谨的相长干涉（腹线极值光束）与相消干涉（节线暗带通道）。
    */
   public updateDoubleSlitWavefronts(
     slitZ: number,
@@ -705,9 +720,10 @@ export class OpticalBeamSystem {
     const beamY = 0.186;
     const baseColor = OpticalPhysics.wavelengthToColor(this.wavelengthNm);
 
-    const numRingsPerSlit = 10;
-    const segmentsPerArc = 28;
-    const totalLines = numRingsPerSlit * 2 * segmentsPerArc;
+    const numRingsPerSlit = 12;
+    const segmentsPerArc = 36;
+    const yOffsets = [-0.007, 0, 0.007];
+    const totalLines = numRingsPerSlit * 2 * yOffsets.length * segmentsPerArc;
     const totalVertices = totalLines * 2;
 
     if (!this.wavefrontPositions || this.wavefrontPositions.length !== totalVertices * 3) {
@@ -727,7 +743,7 @@ export class OpticalBeamSystem {
       this.wavefrontMat = new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.90,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
@@ -742,60 +758,95 @@ export class OpticalBeamSystem {
     let vIdx = 0;
     let cIdx = 0;
 
-    // 视觉双缝间距（清晰展现两个相干点光源）
-    const dVis = Math.max(0.012, Math.min(0.024, slitSpacingMm * 0.06));
+    // 视觉双缝间距（随真实缝距连续且成比例响应，呈现两独立相干次级波源）
+    const safeSlitDistMm = typeof slitSpacingMm === 'number' && !isNaN(slitSpacingMm) ? slitSpacingMm : 0.25;
+    const dVis = Math.max(0.020, Math.min(0.045, 0.028 * (safeSlitDistMm / 0.25)));
     const slitPositions = [-dVis * 0.5, dVis * 0.5];
 
     const rMin = 0.02;
     const rMax = Math.max(0.08, screenZ - slitZ - 0.01);
     const rSpan = rMax - rMin;
     const ringSpacing = rSpan / numRingsPerSlit;
-    const waveSpeed = 0.16; // 16 cm/s 波纹传播速度
+    const waveSpeed = 0.16; // 16 cm/s 波纹向外传播速度
 
-    const thetaMax = 0.65; // 沿 X 方向向 +Z 展开约 37 度的弧度角
+    const thetaMax = 0.65; // 沿 X 方向向 +Z 展开约 37 度的半角范围
     const slitEmitterZ = slitZ + 0.008;
 
-    for (const sx of slitPositions) {
+    // 空间波纹的特征波长
+    const lambdaWave = ringSpacing;
+    const kWave = (Math.PI * 2) / lambdaWave;
+
+    for (let slitIdx = 0; slitIdx < slitPositions.length; slitIdx++) {
+      const sx = slitPositions[slitIdx];
+      const otherSx = slitPositions[1 - slitIdx];
+
       for (let ring = 0; ring < numRingsPerSlit; ring++) {
-        // 连续平滑向外传播
         const r = rMin + ((ring * ringSpacing + time * waveSpeed) % rSpan);
 
-        // 双缝附近平滑淡入，屏幕附近平滑淡出
+        // 沿光轴端点平滑渐变
         const normDist = (r - rMin) / rSpan;
-        const fade = Math.sin(Math.PI * normDist);
-        const alpha = Math.max(0.05, fade * 0.75);
+        const distFade = Math.sin(Math.PI * normDist);
 
-        const cr = baseColor.r * alpha;
-        const cg = baseColor.g * alpha;
-        const cb = baseColor.b * alpha;
+        for (const yOff of yOffsets) {
+          const curY = beamY + yOff;
+          const yWeight = yOff === 0 ? 1.0 : 0.68;
 
-        for (let s = 0; s < segmentsPerArc; s++) {
-          const tA = -thetaMax + (2 * thetaMax * s) / segmentsPerArc;
-          const tB = -thetaMax + (2 * thetaMax * (s + 1)) / segmentsPerArc;
+          for (let s = 0; s < segmentsPerArc; s++) {
+            const tA = -thetaMax + (2 * thetaMax * s) / segmentsPerArc;
+            const tB = -thetaMax + (2 * thetaMax * (s + 1)) / segmentsPerArc;
 
-          const xA = sx + r * Math.sin(tA);
-          const zA = slitEmitterZ + r * Math.cos(tA);
+            const xA = sx + r * Math.sin(tA);
+            const zA = slitEmitterZ + r * Math.cos(tA);
 
-          const xB = sx + r * Math.sin(tB);
-          const zB = slitEmitterZ + r * Math.cos(tB);
+            const xB = sx + r * Math.sin(tB);
+            const zB = slitEmitterZ + r * Math.cos(tB);
 
-          // 线段起点
-          pos[vIdx++] = xA;
-          pos[vIdx++] = beamY;
-          pos[vIdx++] = zA;
+            // 计算该弧段中点到两波源的光程差 Delta r
+            const midX = (xA + xB) * 0.5;
+            const midZ = (zA + zB) * 0.5;
+            const r1 = Math.sqrt((midX - sx) ** 2 + (midZ - slitEmitterZ) ** 2);
+            const r2 = Math.sqrt((midX - otherSx) ** 2 + (midZ - slitEmitterZ) ** 2);
+            const deltaR = Math.abs(r1 - r2);
 
-          col[cIdx++] = cr;
-          col[cIdx++] = cg;
-          col[cIdx++] = cb;
+            // 严格遵循波动叠加原理：cos^2(Delta phi / 2) = cos^2(pi * Delta r / lambdaWave)
+            const phaseDiff = kWave * deltaR;
+            const cosHalf = Math.cos(phaseDiff * 0.5);
+            const interfFactor = cosHalf * cosHalf;
 
-          // 线段终点
-          pos[vIdx++] = xB;
-          pos[vIdx++] = beamY;
-          pos[vIdx++] = zB;
+            // 单缝衍射包络调制
+            const sinTheta = midX / Math.sqrt(midX * midX + (midZ - slitEmitterZ) ** 2);
+            const beta = (Math.PI * 0.012 * sinTheta) / lambdaWave;
+            const sinc = Math.abs(beta) < 1e-4 ? 1.0 : Math.sin(beta) / beta;
+            const diffFactor = sinc * sinc;
 
-          col[cIdx++] = cr;
-          col[cIdx++] = cg;
-          col[cIdx++] = cb;
+            // 顶点物理光强：腹线处耀眼明亮，节线处相消暗淡
+            const alpha = Math.max(
+              0.02,
+              (0.08 + 0.92 * interfFactor) * (0.28 + 0.72 * diffFactor) * distFade * yWeight * 0.85
+            );
+
+            const cr = baseColor.r * alpha;
+            const cg = baseColor.g * alpha;
+            const cb = baseColor.b * alpha;
+
+            // 线段起点
+            pos[vIdx++] = xA;
+            pos[vIdx++] = curY;
+            pos[vIdx++] = zA;
+
+            col[cIdx++] = cr;
+            col[cIdx++] = cg;
+            col[cIdx++] = cb;
+
+            // 线段终点
+            pos[vIdx++] = xB;
+            pos[vIdx++] = curY;
+            pos[vIdx++] = zB;
+
+            col[cIdx++] = cr;
+            col[cIdx++] = cg;
+            col[cIdx++] = cb;
+          }
         }
       }
     }
@@ -803,7 +854,147 @@ export class OpticalBeamSystem {
     (this.wavefrontGeo!.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     (this.wavefrontGeo!.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
     this.wavefrontLines!.visible = this.intensity > 0.001;
+
+    // 同步更新 3D 空间相干波场剖面（Wave Field Ripple Plane）
+    this.updateWaveFieldMesh(slitEmitterZ, screenZ, dVis, lambdaWave, time, baseColor);
     this.waveFrontsGroup.visible = this.intensity > 0.001;
+  }
+
+  /**
+   * 更新或初始化 3D 空间相干波场剖面
+   */
+  private updateWaveFieldMesh(
+    slitZ: number,
+    screenZ: number,
+    slitSpacing: number,
+    wavelength: number,
+    time: number,
+    baseColor: THREE.Color
+  ): void {
+    const beamY = 0.186;
+    const startZ = slitZ;
+    const endZ = screenZ - 0.005;
+    const lengthZ = Math.max(0.05, endZ - startZ);
+    const planeWidth = 0.12;
+
+    if (!this.waveFieldMesh) {
+      this.waveFieldGeo = new THREE.PlaneGeometry(planeWidth, lengthZ, 32, 64);
+      this.waveFieldGeo.rotateX(-Math.PI * 0.5);
+
+      this.waveFieldMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: baseColor.clone() },
+          uTime: { value: time },
+          uSlitZ: { value: startZ },
+          uScreenZ: { value: endZ },
+          uSlitSpacing: { value: slitSpacing },
+          uWavelength: { value: wavelength },
+          uIntensity: { value: this.intensity },
+        },
+        vertexShader: `
+          varying vec3 vWorldPos;
+          void main() {
+            vec4 wp = modelMatrix * vec4(position, 1.0);
+            vWorldPos = wp.xyz;
+            gl_Position = projectionMatrix * viewMatrix * wp;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          uniform float uTime;
+          uniform float uSlitZ;
+          uniform float uScreenZ;
+          uniform float uSlitSpacing;
+          uniform float uWavelength;
+          uniform float uIntensity;
+
+          varying vec3 vWorldPos;
+
+          void main() {
+            float x = vWorldPos.x;
+            float z = vWorldPos.z;
+
+            // 位于双缝狭缝处的两相干次级波源 S1 与 S2
+            vec2 s1 = vec2(-uSlitSpacing * 0.5, uSlitZ);
+            vec2 s2 = vec2( uSlitSpacing * 0.5, uSlitZ);
+            vec2 p = vec2(x, z);
+
+            float r1 = length(p - s1);
+            float r2 = length(p - s2);
+
+            float k = 6.2831853 / max(0.002, uWavelength);
+            float omega = 14.0;
+
+            // 相干柱面波场瞬时电场（波动方程：振幅随 1/sqrt(r) 衰减）
+            float amp1 = 1.0 / sqrt(max(0.015, r1));
+            float amp2 = 1.0 / sqrt(max(0.015, r2));
+
+            float wave1 = amp1 * cos(k * r1 - omega * uTime);
+            float wave2 = amp2 * cos(k * r2 - omega * uTime);
+
+            float eTotal = wave1 + wave2;
+
+            // 空间相长/相消干涉强度包络
+            float deltaR = abs(r1 - r2);
+            float interfEnvelope = cos(0.5 * k * deltaR);
+            interfEnvelope = interfEnvelope * interfEnvelope;
+
+            // 正半周波峰高亮
+            float crest = max(0.0, eTotal * 0.35);
+
+            // 纵向端点衰减
+            float zDist = z - uSlitZ;
+            float totalZ = max(0.01, uScreenZ - uSlitZ);
+            float zFade = smoothstep(0.005, 0.04, zDist) * smoothstep(totalZ, totalZ - 0.02, zDist);
+
+            // 横向发散扇形约束
+            float halfSpread = 0.010 + (zDist / totalZ) * 0.048;
+            float xFade = smoothstep(halfSpread, halfSpread * 0.65, abs(x));
+
+            float brightness = (crest * 0.55 + interfEnvelope * 0.45) * zFade * xFade * uIntensity;
+            if (brightness < 0.005) discard;
+
+            vec3 col = uColor * (0.8 + 0.7 * crest + 0.5 * interfEnvelope);
+            gl_FragColor = vec4(col, brightness * 0.60);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+
+      this.waveFieldMesh = new THREE.Mesh(this.waveFieldGeo, this.waveFieldMat);
+      this.waveFieldMesh.position.set(0, beamY, startZ + lengthZ * 0.5);
+      this.waveFieldMesh.raycast = () => {};
+      this.waveFrontsGroup.add(this.waveFieldMesh);
+      this.lastWaveFieldZStart = startZ;
+      this.lastWaveFieldZEnd = endZ;
+    } else {
+      if (
+        Math.abs(this.lastWaveFieldZStart - startZ) > 1e-4 ||
+        Math.abs(this.lastWaveFieldZEnd - endZ) > 1e-4
+      ) {
+        this.lastWaveFieldZStart = startZ;
+        this.lastWaveFieldZEnd = endZ;
+        this.waveFieldGeo!.dispose();
+        this.waveFieldGeo = new THREE.PlaneGeometry(planeWidth, lengthZ, 32, 64);
+        this.waveFieldGeo.rotateX(-Math.PI * 0.5);
+        this.waveFieldMesh.geometry = this.waveFieldGeo;
+        this.waveFieldMesh.position.set(0, beamY, startZ + lengthZ * 0.5);
+      }
+
+      const uniforms = this.waveFieldMat!.uniforms;
+      uniforms.uColor.value.copy(baseColor);
+      uniforms.uTime.value = time;
+      uniforms.uSlitZ.value = startZ;
+      uniforms.uScreenZ.value = endZ;
+      uniforms.uSlitSpacing.value = slitSpacing;
+      uniforms.uWavelength.value = wavelength;
+      uniforms.uIntensity.value = this.intensity;
+    }
+
+    this.waveFieldMesh.visible = this.intensity > 0.001;
   }
 
   /**
@@ -811,16 +1002,21 @@ export class OpticalBeamSystem {
    */
   public updateSingleSlitWavefronts(
     slitZ: number,
-    _slitWidthMm: number,
+    slitWidthMm: number,
     time: number,
     screenZ = 0.48
   ): void {
+    if (this.waveFieldMesh) {
+      this.waveFieldMesh.visible = false;
+    }
+
     const beamY = 0.186;
     const baseColor = OpticalPhysics.wavelengthToColor(this.wavelengthNm);
 
     const numRings = 12;
-    const segmentsPerArc = 32;
-    const totalLines = numRings * segmentsPerArc;
+    const segmentsPerArc = 36;
+    const yOffsets = [-0.007, 0, 0.007];
+    const totalLines = numRings * yOffsets.length * segmentsPerArc;
     const totalVertices = totalLines * 2;
 
     if (!this.wavefrontPositions || this.wavefrontPositions.length !== totalVertices * 3) {
@@ -863,42 +1059,57 @@ export class OpticalBeamSystem {
 
     const thetaMax = 0.60;
     const slitEmitterZ = slitZ + 0.008;
+    const safeSlitWidthMm = typeof slitWidthMm === 'number' && !isNaN(slitWidthMm) ? slitWidthMm : 0.04;
+    const aVis = 0.012 * (safeSlitWidthMm / 0.04);
 
     for (let ring = 0; ring < numRings; ring++) {
       const r = rMin + ((ring * ringSpacing + time * waveSpeed) % rSpan);
       const normDist = (r - rMin) / rSpan;
       const fade = Math.sin(Math.PI * normDist);
-      const alpha = Math.max(0.05, fade * 0.70);
 
-      const cr = baseColor.r * alpha;
-      const cg = baseColor.g * alpha;
-      const cb = baseColor.b * alpha;
+      for (const yOff of yOffsets) {
+        const curY = beamY + yOff;
+        const yWeight = yOff === 0 ? 1.0 : 0.68;
 
-      for (let s = 0; s < segmentsPerArc; s++) {
-        const tA = -thetaMax + (2 * thetaMax * s) / segmentsPerArc;
-        const tB = -thetaMax + (2 * thetaMax * (s + 1)) / segmentsPerArc;
+        for (let s = 0; s < segmentsPerArc; s++) {
+          const tA = -thetaMax + (2 * thetaMax * s) / segmentsPerArc;
+          const tB = -thetaMax + (2 * thetaMax * (s + 1)) / segmentsPerArc;
 
-        const xA = r * Math.sin(tA);
-        const zA = slitEmitterZ + r * Math.cos(tA);
+          const xA = r * Math.sin(tA);
+          const zA = slitEmitterZ + r * Math.cos(tA);
 
-        const xB = r * Math.sin(tB);
-        const zB = slitEmitterZ + r * Math.cos(tB);
+          const xB = r * Math.sin(tB);
+          const zB = slitEmitterZ + r * Math.cos(tB);
 
-        pos[vIdx++] = xA;
-        pos[vIdx++] = beamY;
-        pos[vIdx++] = zA;
+          // 单缝衍射包络因子调制
+          const midX = (xA + xB) * 0.5;
+          const sinTheta = midX / Math.sqrt(midX * midX + (zA - slitEmitterZ) ** 2);
+          const beta = (Math.PI * aVis * sinTheta) / ringSpacing;
+          const sinc = Math.abs(beta) < 1e-4 ? 1.0 : Math.sin(beta) / beta;
+          const diffFactor = sinc * sinc;
 
-        col[cIdx++] = cr;
-        col[cIdx++] = cg;
-        col[cIdx++] = cb;
+          const alpha = Math.max(0.04, (0.15 + 0.85 * diffFactor) * fade * yWeight * 0.75);
 
-        pos[vIdx++] = xB;
-        pos[vIdx++] = beamY;
-        pos[vIdx++] = zB;
+          const cr = baseColor.r * alpha;
+          const cg = baseColor.g * alpha;
+          const cb = baseColor.b * alpha;
 
-        col[cIdx++] = cr;
-        col[cIdx++] = cg;
-        col[cIdx++] = cb;
+          pos[vIdx++] = xA;
+          pos[vIdx++] = curY;
+          pos[vIdx++] = zA;
+
+          col[cIdx++] = cr;
+          col[cIdx++] = cg;
+          col[cIdx++] = cb;
+
+          pos[vIdx++] = xB;
+          pos[vIdx++] = curY;
+          pos[vIdx++] = zB;
+
+          col[cIdx++] = cr;
+          col[cIdx++] = cg;
+          col[cIdx++] = cb;
+        }
       }
     }
 
@@ -912,18 +1123,38 @@ export class OpticalBeamSystem {
     if (this.wavefrontLines) {
       this.wavefrontLines.visible = false;
     }
+    if (this.waveFieldMesh) {
+      this.waveFieldMesh.visible = false;
+    }
     this.waveFrontsGroup.visible = false;
   }
 
   /**
-   * 连接光阑孔径与屏上干涉条纹轮廓的衍射光体积包络扇面
+   * 连接光阑孔径与屏上干涉条纹轮廓的衍射/干涉光体积包络扇面。
+   * 支持通过 Shader 实时呈现双缝明暗干涉条纹束或单缝衍射亮斑。
    */
-  public updateDiffractionFan(slitZ: number, screenZ: number, halfWidth: number, intensity = 1.0): void {
+  public updateDiffractionFan(
+    slitZ: number,
+    screenZ: number,
+    halfWidth: number,
+    intensity = 1.0,
+    mode: 'double_slit' | 'single_slit' | 'uniform' = 'double_slit',
+    slitDistanceMm = 0.25,
+    slitWidthMm = 0.04
+  ): void {
     const beamY = 0.186;
     const startZ = slitZ + 0.008;
     const endZ = screenZ - 0.006;
     const baseColor = OpticalPhysics.wavelengthToColor(this.wavelengthNm);
     const halfHeight = 0.010; // 20mm 垂直狭缝高度
+
+    const safeSlitDistMm = typeof slitDistanceMm === 'number' && !isNaN(slitDistanceMm) ? slitDistanceMm : 0.25;
+    const safeSlitWidthMm = typeof slitWidthMm === 'number' && !isNaN(slitWidthMm) ? slitWidthMm : 0.04;
+    const dVis = Math.max(0.020, Math.min(0.045, 0.028 * (safeSlitDistMm / 0.25)));
+    const aVis = 0.012 * (safeSlitWidthMm / 0.04);
+    const rSpan = Math.max(0.08, screenZ - slitZ - 0.01) - 0.02;
+    const lambdaWave = rSpan / 12;
+    const effIntensity = this.intensity * intensity;
 
     if (!this.diffractionFanMesh) {
       const geo = new THREE.BufferGeometry();
@@ -961,14 +1192,87 @@ export class OpticalBeamSystem {
       this.lastFanZEnd = endZ;
       this.lastFanHalfWidth = halfWidth;
 
-      this.diffractionFanMat = new THREE.MeshBasicMaterial({
-        color: baseColor,
+      const fanShaderMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: baseColor.clone() },
+          uSlitZ: { value: startZ },
+          uScreenZ: { value: endZ },
+          uSlitSpacing: { value: dVis },
+          uSlitWidth: { value: aVis },
+          uWavelength: { value: lambdaWave },
+          uBeamY: { value: beamY },
+          uHalfHeight: { value: halfHeight },
+          uIntensity: { value: effIntensity },
+          uMode: { value: mode === 'double_slit' ? 0 : (mode === 'single_slit' ? 1 : 2) },
+        },
+        vertexShader: `
+          varying vec3 vWorldPos;
+          void main() {
+            vec4 wp = modelMatrix * vec4(position, 1.0);
+            vWorldPos = wp.xyz;
+            gl_Position = projectionMatrix * viewMatrix * wp;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          uniform float uSlitZ;
+          uniform float uScreenZ;
+          uniform float uSlitSpacing;
+          uniform float uSlitWidth;
+          uniform float uWavelength;
+          uniform float uBeamY;
+          uniform float uHalfHeight;
+          uniform float uIntensity;
+          uniform int uMode;
+
+          varying vec3 vWorldPos;
+
+          void main() {
+            float dx = vWorldPos.x;
+            float dz = max(0.001, vWorldPos.z - uSlitZ);
+            float totalZ = max(0.01, uScreenZ - uSlitZ);
+            float sinTheta = dx / length(vec2(dx, dz));
+
+            float I = 1.0;
+            if (uMode == 0) { // 双缝干涉：相干叠加与单缝衍射包络
+              float alpha = 3.14159265 * uSlitSpacing * sinTheta / max(0.002, uWavelength);
+              float cosAlpha = cos(alpha);
+              float interf = cosAlpha * cosAlpha;
+
+              float beta = 3.14159265 * uSlitWidth * sinTheta / max(0.002, uWavelength);
+              float sinc = abs(beta) < 0.001 ? 1.0 : sin(beta) / beta;
+              float diff = sinc * sinc;
+
+              I = interf * diff;
+            } else if (uMode == 1) { // 精密单缝衍射
+              float beta = 3.14159265 * uSlitWidth * sinTheta / max(0.002, uWavelength);
+              float sinc = abs(beta) < 0.001 ? 1.0 : sin(beta) / beta;
+              I = sinc * sinc;
+            }
+
+            // 垂直厚度衰减
+            float dy = abs(vWorldPos.y - uBeamY);
+            float vFade = smoothstep(uHalfHeight * 1.15, 0.0, dy);
+
+            // 纵向两端平滑淡出
+            float zFade = smoothstep(0.0, 0.02, dz) * smoothstep(totalZ, totalZ - 0.015, dz);
+
+            float alphaVal = I * vFade * zFade * 0.38 * uIntensity;
+            if (alphaVal < 0.003) discard;
+
+            gl_FragColor = vec4(uColor * (0.75 + 0.5 * I), alphaVal);
+          }
+        `,
         transparent: true,
-        opacity: 0.16,
         blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide,
         depthWrite: false,
       });
+
+      // 保持向后兼容的 color 与 opacity 属性
+      (fanShaderMat as any).color = baseColor.clone();
+      (fanShaderMat as any).opacity = effIntensity * 0.16;
+      this.diffractionFanMat = fanShaderMat;
 
       this.diffractionFanMesh = new THREE.Mesh(geo, this.diffractionFanMat);
       this.diffractionFanMesh.raycast = () => {};
@@ -1012,11 +1316,24 @@ export class OpticalBeamSystem {
 
         this.diffractionFanGeo!.getAttribute('position').needsUpdate = true;
       }
-      this.diffractionFanMat!.color.copy(baseColor);
+
+      if ((this.diffractionFanMat as any).color) {
+        (this.diffractionFanMat as any).color.copy(baseColor);
+      }
+      if ((this.diffractionFanMat as any).uniforms) {
+        const u = (this.diffractionFanMat as any).uniforms;
+        u.uColor.value.copy(baseColor);
+        u.uSlitZ.value = startZ;
+        u.uScreenZ.value = endZ;
+        u.uSlitSpacing.value = dVis;
+        u.uSlitWidth.value = aVis;
+        u.uWavelength.value = lambdaWave;
+        u.uIntensity.value = effIntensity;
+        u.uMode.value = mode === 'double_slit' ? 0 : (mode === 'single_slit' ? 1 : 2);
+      }
     }
 
-    const effIntensity = this.intensity * intensity;
-    this.diffractionFanMat!.opacity = effIntensity * 0.16;
+    (this.diffractionFanMat as any).opacity = effIntensity * 0.16;
     const isFanVis = effIntensity > 0.001;
     this.diffractionFanMesh.visible = isFanVis;
     this.diffractionFanGroup.visible = isFanVis;
@@ -1133,6 +1450,14 @@ export class OpticalBeamSystem {
       this.wavefrontLines = null;
       this.wavefrontGeo = null;
       this.wavefrontMat = null;
+    }
+    if (this.waveFieldMesh) {
+      this.waveFrontsGroup.remove(this.waveFieldMesh);
+      this.waveFieldGeo?.dispose();
+      this.waveFieldMat?.dispose();
+      this.waveFieldMesh = null;
+      this.waveFieldGeo = null;
+      this.waveFieldMat = null;
     }
     this.clearDiffractionFan();
     if (this.diffractionFanMesh) {

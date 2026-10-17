@@ -55,15 +55,16 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
 
-    // 2. 交互管理器：支持直接点击 3D 闸刀开关、接线端与电源旋钮
+    // 2. 交互管理器：支持直接点击 3D 闸刀开关、接线端、电源旋钮与台面示波器小屏幕
     this.interactionManager = new CapacitorInteractionManager({
       bench: this.bench,
       onSetSwitchPosition: (pos) => this.setSwitchPosition(pos),
       onCycleSwitch: () => this.cycleSwitchPosition(),
       onAdjustVoltage: () => this.cycleVoltagePreset(),
+      onClearSamples: () => this.clearSamples(),
     });
 
-    // 3. 图像做成额外的 3D 空间悬浮窗口形式 (挂载至 CSS3D 空间视窗场景)
+    // 3. 悬浮波形视窗保持备用（默认关闭，桌面示波器小屏幕为台面原生呈现载体）
     this.waveformWindow = new CapacitorWaveformWindow({
       onSetSwitchPosition: (pos) => this.setSwitchPosition(pos),
       onClearSamples: () => this.model.clearSamples(),
@@ -71,9 +72,10 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
       css3dScene: context.css3dScene,
       camera: context.camera,
     });
-    this.addDisposable(() => this.waveformWindow.dispose());
+    this.waveformWindow.close();
+    this.addDisposable(() => this.waveformWindow?.dispose());
 
-    // 初始化遥测并推入浮窗
+    // 初始化遥测并推入示波器
     this.syncTelemetry();
   }
 
@@ -109,13 +111,13 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
     const telemetry = this.model.getTelemetry();
     this.cachedTelemetry = telemetry;
 
-    // 3. 3D 器材动画推进（闸刀平滑摆动、电流粒子流、电表数显、光晕）
+    // 3. 3D 器材动画推进（闸刀平滑摆动、电流粒子流、电表数显、光晕、台面数字示波器波形）
     if (this.bench) {
-      this.bench.update(delta, telemetry);
+      this.bench.update(delta, telemetry, this.model.getSamples());
     }
 
-    // 4. 实时 3D 悬浮波形视窗姿态推进与波形绘制
-    if (this.waveformWindow) {
+    // 4. 若开启了辅助悬浮视窗，同步推进
+    if (this.waveformWindow && this.waveformWindow.isVisible) {
       this.waveformWindow.update(delta, _context.camera);
       this.waveformWindow.updateTelemetry(telemetry, this.model.getSamples());
     }
@@ -213,7 +215,10 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   private syncTelemetry(): void {
     const telem = this.model.getTelemetry();
     this.cachedTelemetry = telem;
-    this.waveformWindow?.updateTelemetry(telem, this.model.getSamples());
+    this.bench?.renderOscilloscopeDisplay(telem, this.model.getSamples());
+    if (this.waveformWindow && this.waveformWindow.isVisible) {
+      this.waveformWindow.updateTelemetry(telem, this.model.getSamples());
+    }
   }
 
   public override dispose(context: ExperimentContext): void {

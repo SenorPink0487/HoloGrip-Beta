@@ -392,10 +392,10 @@ export class VisionModal {
           this.close();
         }
       },
-      onLevelChange: (level) => {
+      onLevelChange: (level, title) => {
         const titleEl = this.element.querySelector('#vision-window-title');
         if (titleEl && this.activeTab === 'physics') {
-          titleEl.textContent = '物理学';
+          titleEl.textContent = level === 2 && title ? title : '物理学';
         }
       },
     });
@@ -698,12 +698,24 @@ export class VisionModal {
       thermoTitle = '物态相变';
     }
 
+    let physicsTitle = '物理学';
+    if (this.physicsModal && this.physicsModal.getCurrentLevel() === 2) {
+      const disc = this.physicsModal.getCurrentDiscipline();
+      physicsTitle = disc === 'thermo'
+        ? '热学实验'
+        : disc === 'em'
+        ? '电磁学实验'
+        : disc === 'mechanics'
+        ? '力学实验'
+        : '光学实验';
+    }
+
     const titleEl = this.element.querySelector('#vision-window-title');
     const titles: Record<VisionTab, string> = {
       disciplines: '学科',
       chemistry: '常用试剂',
       beaker: '烧杯成分',
-      physics: '物理学',
+      physics: physicsTitle,
       math: '立体几何',
       thermo: thermoTitle,
       em: emTitle,

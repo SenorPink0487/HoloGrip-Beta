@@ -242,20 +242,41 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
     // 2. 启动 3D 平滑拖拽
     this.isDraggingPlate = true;
 
-    // 投影平面：法线始终正对相机视线，过击中点的世界坐标
     if (context.camera) {
-      const camDir = new THREE.Vector3();
-      context.camera.getWorldDirection(camDir);
-      this.dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), hit.point);
+      this.getPlateWorldPlane(this.dragPlane);
 
-      // 计算击中点在 rootGroup 局部坐标系中的位置
-      const hitLocal = this.rootGroup.worldToLocal(hit.point.clone());
-      this.dragStartPointerPosLocal.copy(hitLocal);
-      // 记录相对塑料板根节点的局部偏移
-      this.dragOffsetLocal.subVectors(this.plate.group.position, hitLocal);
+      const mouse = this.getNormalizedMouse(event);
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, context.camera);
+
+      if (raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
+        const hitLocal = this.rootGroup.worldToLocal(this.dragPlaneIntersection.clone());
+        this.dragStartPointerPosLocal.copy(hitLocal);
+
+        // 获取薄板当前在 rootGroup 坐标系下的实际中心坐标
+        const currentPlateCenter = new THREE.Vector3();
+        this.plate.plateMesh.getWorldPosition(currentPlateCenter);
+        const centerInRoot = this.rootGroup.worldToLocal(currentPlateCenter);
+        centerInRoot.z = 0.04;
+
+        this.dragOffsetLocal.subVectors(centerInRoot, hitLocal);
+      } else {
+        const hitLocal = this.rootGroup.worldToLocal(hit.point.clone());
+        this.dragStartPointerPosLocal.copy(hitLocal);
+        this.dragOffsetLocal.set(0, 0, 0);
+      }
     }
 
     return true;
+  }
+
+  /**
+   * 获取薄板工作平面的世界 3D 平面 (以 rootGroup 局部 Z=0.04 为基准)
+   */
+  private getPlateWorldPlane(targetPlane: THREE.Plane): THREE.Plane {
+    const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(this.rootGroup.quaternion).normalize();
+    const point = this.rootGroup.localToWorld(new THREE.Vector3(0, 0, 0.04));
+    return targetPlane.setFromNormalAndCoplanarPoint(normal, point);
   }
 
   /**
@@ -278,7 +299,9 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
       return;
     }
 
-    // 拖拽处理
+    this.getPlateWorldPlane(this.dragPlane);
+
+    // 拖拽处理：计算准星射线与薄板 3D 工作平面的精确交点
     if (!raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
       return;
     }
@@ -289,27 +312,26 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
     );
 
     // 1. 如果薄板正悬挂在销钉上：
-    // 用户需求：“然后再向下拖动塑料板，将塑料板取下”
     if (this.solver.state === 'swinging' || this.solver.state === 'stabilized') {
       const deltaY = currentDragLocal.y - this.dragStartPointerPosLocal.y;
-      // 只要向下拖动超过 0.015m，立即脱钩取下！
+      // 只要向下拖动超过 0.015m，立即脱钩取下并进入自由跟随拖拽状态！
       if (deltaY < -0.015) {
         this.detachPlateFromPin(currentDragLocal);
       }
       return;
     }
 
-    // 2. 自由拖拽薄板：
-    const targetPos = new THREE.Vector3().addVectors(
-      currentDragLocal,
-      this.dragOffsetLocal
-    );
+    // 2. 自由拖拽薄板：紧跟屏幕准星与鼠标
+    const targetX = currentDragLocal.x + this.dragOffsetLocal.x;
+    const targetY = currentDragLocal.y + this.dragOffsetLocal.y;
 
     // 安全视界约束：牢固限定在操作台可视空间内，绝不乱飞！
-    targetPos.x = Math.max(-0.35, Math.min(0.35, targetPos.x));
-    targetPos.y = Math.max(0.04, Math.min(0.48, targetPos.y));
-    targetPos.z = 0.04;
-    this.plate.group.position.copy(targetPos);
+    const clampedX = THREE.MathUtils.clamp(targetX, -0.55, 0.55);
+    const clampedY = THREE.MathUtils.clamp(targetY, 0.02, 0.55);
+
+    this.plate.group.position.set(clampedX, clampedY, 0.04);
+    this.plate.plateMesh.position.set(0, 0, 0);
+    this.plate.group.rotation.set(0, 0, 0);
 
     // 实时检测哪个孔与细线横销最近
     this.checkHoleSnapping();
@@ -385,7 +407,8 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
 
     const dx = this.solver.centroid.x - hole.x;
     const dy = this.solver.centroid.y - hole.y;
-    const equilibriumAngle = Math.atan2(dx, -dy);
+    // 物理平衡角：使 (hole -> centroid) 向量在重力作用下严格竖直向下 (-Y 方向)
+    const equilibriumAngle = -Math.PI / 2 - Math.atan2(dy, dx);
     this.plate.group.rotation.set(0, 0, equilibriumAngle + this.solver.angleRad);
 
     this.candidateHoleToSnap = null;
@@ -411,7 +434,8 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
 
     const dx = this.solver.centroid.x - hole.x;
     const dy = this.solver.centroid.y - hole.y;
-    this.animTargetRotZ = Math.atan2(dx, -dy) + 0.35; // 带有初始微倾角度
+    const equilibriumAngle = -Math.PI / 2 - Math.atan2(dy, dx);
+    this.animTargetRotZ = equilibriumAngle + 0.35; // 带有初始微倾角度
 
     this.animCallback = () => {
       this.hangPlateOnHole(holeId);
@@ -421,26 +445,21 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   /**
    * 向下拖动将塑料板从挂销上取下
    */
-  public detachPlateFromPin(currentWorldPos?: THREE.Vector3): void {
+  public detachPlateFromPin(currentDragLocal?: THREE.Vector3): void {
     this.solver.detachPlate();
 
-    // 保持当前板的世界位置，但解除孔位固定
-    const currentPlateCenter = new THREE.Vector3();
-    this.plate.plateMesh.getWorldPosition(currentPlateCenter);
-    const centerInRoot = this.rootGroup.worldToLocal(currentPlateCenter);
-
-    this.plate.group.position.copy(centerInRoot);
-    if (currentWorldPos) {
-      this.plate.group.position.y = Math.min(
-        this.stand.pinLocalPosition.y - 0.10,
-        currentWorldPos.y
-      );
+    if (currentDragLocal) {
+      const targetX = THREE.MathUtils.clamp(currentDragLocal.x + this.dragOffsetLocal.x, -0.55, 0.55);
+      const targetY = THREE.MathUtils.clamp(currentDragLocal.y + this.dragOffsetLocal.y, 0.02, 0.55);
+      this.plate.group.position.set(targetX, targetY, 0.04);
     } else {
-      this.plate.group.position.y = this.defaultRestPosition.y;
-      this.plate.group.position.x = this.defaultRestPosition.x;
+      this.plate.group.position.copy(this.defaultRestPosition);
     }
+
     this.plate.plateMesh.position.set(0, 0, 0);
     this.plate.group.rotation.set(0, 0, 0);
+    this.stand.setSnapAuraHighlighted(false);
+    this.candidateHoleToSnap = null;
   }
 
   /**
@@ -481,21 +500,22 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
     // 2. 更新铁架台
     this.stand.update(elapsed);
 
-    // 3. 如果塑料板正处于悬挂摆动状态
-    if (this.solver.state === 'swinging' && this.solver.currentHole) {
-      const prevState = this.solver.state;
-      this.solver.step(delta);
+    // 3. 如果塑料板正处于悬挂状态（摆动或稳定静止）
+    if ((this.solver.state === 'swinging' || this.solver.state === 'stabilized') && this.solver.currentHole) {
+      if (this.solver.state === 'swinging') {
+        const prevState = this.solver.state;
+        this.solver.step(delta);
+        if (prevState === 'swinging' && (this.solver.state as string) === 'stabilized') {
+          this.handleStabilizationVisuals();
+        }
+      }
 
       const hole = this.solver.currentHole;
       const dx = this.solver.centroid.x - hole.x;
       const dy = this.solver.centroid.y - hole.y;
-      const equilibriumAngle = Math.atan2(dx, -dy);
+      const equilibriumAngle = -Math.PI / 2 - Math.atan2(dy, dx);
 
       this.plate.group.rotation.z = equilibriumAngle + this.solver.angleRad;
-
-      if (prevState === 'swinging' && (this.solver.state as string) === 'stabilized') {
-        this.handleStabilizationVisuals();
-      }
     }
 
     // 4. 更新板的画线展开与重心脉冲动画
@@ -506,6 +526,14 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
    * 当塑料板稳定平衡时：在板表面绘制红色铅垂线，并在两线相交时显现重心！
    */
   private handleStabilizationVisuals(): void {
+    if (this.solver.currentHole) {
+      const hole = this.solver.currentHole;
+      const dx = this.solver.centroid.x - hole.x;
+      const dy = this.solver.centroid.y - hole.y;
+      const equilibriumAngle = -Math.PI / 2 - Math.atan2(dy, dx);
+      this.plate.group.rotation.z = equilibriumAngle;
+    }
+
     const lines = this.solver.markedLines;
     const lastIndex = lines.length - 1;
     if (lastIndex >= 0) {

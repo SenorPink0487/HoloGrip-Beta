@@ -8,6 +8,7 @@ export interface CapacitorInteractionCallbacks {
   onSetSwitchPosition: (pos: SwitchPosition) => void;
   onCycleSwitch: () => void;
   onAdjustVoltage?: () => void;
+  onClearSamples?: () => void;
 }
 
 export class CapacitorInteractionManager {
@@ -63,6 +64,18 @@ export class CapacitorInteractionManager {
             cursor: 'pointer',
           };
         }
+        if (
+          obj === this.callbacks.bench.scopeScreenMesh ||
+          obj === this.callbacks.bench.scopeClearBtnMesh ||
+          obj.name === 'scopeScreenMesh' ||
+          obj.name === 'scopeClearBtn'
+        ) {
+          return {
+            id: 'cap_scope_screen',
+            label: '台面示波器波形屏（点击清除历史波形并重新触发采样）',
+            cursor: 'pointer',
+          };
+        }
         obj = obj.parent;
       }
     }
@@ -98,6 +111,15 @@ export class CapacitorInteractionManager {
       }
       if (obj === this.callbacks.bench.powerSwitchMesh || obj.name === 'powerSwitchMesh') {
         this.callbacks.onAdjustVoltage?.();
+        return true;
+      }
+      if (
+        obj === this.callbacks.bench.scopeScreenMesh ||
+        obj === this.callbacks.bench.scopeClearBtnMesh ||
+        obj.name === 'scopeScreenMesh' ||
+        obj.name === 'scopeClearBtn'
+      ) {
+        this.callbacks.onClearSamples?.();
         return true;
       }
       obj = obj.parent;

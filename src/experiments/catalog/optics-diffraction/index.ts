@@ -159,7 +159,11 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
       this.beamSystem.updateDiffractionFan(
         this.slitSaddle.position.z,
         this.screenSaddle.position.z,
-        0.038
+        0.038,
+        1.0,
+        'single_slit',
+        undefined,
+        this.slitWidth
       );
     }
 

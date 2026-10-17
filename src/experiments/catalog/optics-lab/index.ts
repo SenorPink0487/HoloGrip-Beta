@@ -292,7 +292,11 @@ export default class OpticsLabExperiment extends BaseExperiment {
         this.beamSystem.updateDiffractionFan(
           this.centerSaddle.position.z,
           this.screenSaddle.position.z,
-          0.045
+          0.045,
+          1.0,
+          'double_slit',
+          this.slitDistance,
+          this.slitWidth
         );
       } else {
         this.beamSystem.clearWavefronts();
@@ -377,7 +381,11 @@ export default class OpticsLabExperiment extends BaseExperiment {
         this.beamSystem.updateDiffractionFan(
           this.centerSaddle.position.z,
           this.screenSaddle.position.z,
-          0.038
+          0.038,
+          1.0,
+          'single_slit',
+          undefined,
+          this.slitWidth
         );
       }
 

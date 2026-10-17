@@ -19,10 +19,6 @@ export class DisciplineSelector {
     this.element.className = 'vision-discipline-container';
 
     this.element.innerHTML = `
-      <div class="discipline-hero-header">
-        <h2 class="hero-title">学科</h2>
-      </div>
-
       <div class="discipline-cards-grid">
         <!-- 1. Chemistry Card -->
         <div class="discipline-card chemistry-card" id="card-discipline-chem" role="button" tabindex="0" aria-label="化学">

@@ -357,15 +357,10 @@ export class PhysicsDisciplineModal {
    */
   public showLevel1(): void {
     this.currentLevel = 1;
-    this.callbacks.onLevelChange?.(1, '物理学科');
+    this.callbacks.onLevelChange?.(1, '物理学');
 
     this.element.innerHTML = `
       <div class="physics-level-container physics-level-1">
-        <!-- Minimalist Navigation Header -->
-        <div class="physics-nav-bar">
-          <h2 class="physics-level-title">物理学</h2>
-        </div>
-
         <!-- 4 Physics Branches Grid (Pure Frosted Tiles) -->
         <div class="physics-branches-deck">
           <!-- 1. Optics (Ready -> Click to enter Level 2) -->
@@ -454,11 +449,6 @@ export class PhysicsDisciplineModal {
 
     this.element.innerHTML = `
       <div class="physics-level-container physics-level-2">
-        <!-- Minimalist Navigation Header -->
-        <div class="physics-nav-bar">
-          <h2 class="physics-level-title">${title}</h2>
-        </div>
-
         <!-- 4 Core Experiments 2x2 Spatial Grid -->
         <div class="optics-exp-deck">
           ${experiments.map(

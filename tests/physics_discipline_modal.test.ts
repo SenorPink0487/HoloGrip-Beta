@@ -149,6 +149,8 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(!html.includes('杨氏双缝干涉'), 'Young interference must NOT be visible on Level 1');
   assert(!html.includes('optics-card'), 'Optics experiment cards must not exist on Level 1');
   assert(!html.includes('btn-crumb-disciplines'), 'Blue return button btn-crumb-disciplines must be removed from Level 1');
+  assert(!html.includes('physics-level-title'), 'Level 1 must not contain redundant inner title physics-level-title');
+  assert(!html.includes('physics-nav-bar'), 'Level 1 must not contain redundant inner navigation bar');
 
   console.log('✓ Test 1 passed: Level 1 correctly displays branches and hides experiments before click\n');
 }
@@ -190,6 +192,8 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
 
   // Blue pill back button inside content area removed (relying on top-left window header back button)
   assert(!html.includes('btn-back-to-physics'), 'Internal blue back button must be removed in favor of top-left window back button');
+  assert(!html.includes('physics-level-title'), 'Level 2 must not contain redundant inner title physics-level-title');
+  assert(!html.includes('physics-nav-bar'), 'Level 2 must not contain redundant inner navigation bar');
 
   console.log('✓ Test 2 passed: Level 2 accurately reveals 4 core experiments and formulas\n');
 }
@@ -275,7 +279,8 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
 
   const html = modal.element.innerHTML;
   assert(html.includes('physics-level-2'), 'Must render Level 2 container');
-  assert(html.includes('热学实验'), 'Header must contain 热学实验');
+  assert(!html.includes('physics-level-title'), 'Level 2 thermo must not contain redundant inner title');
+  assert(!html.includes('physics-nav-bar'), 'Level 2 thermo must not contain redundant inner navigation bar');
 
   // Verify 4 core thermodynamics experiments
   assert(html.includes('理想气体状态与分子运动论'), 'Must contain 理想气体状态与分子运动论');
@@ -326,7 +331,8 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
 
   const html = modal.element.innerHTML;
   assert(html.includes('physics-level-2'), 'Must render Level 2 container');
-  assert(html.includes('力学实验'), 'Header must contain 力学实验');
+  assert(!html.includes('physics-level-title'), 'Level 2 mechanics must not contain redundant inner title');
+  assert(!html.includes('physics-nav-bar'), 'Level 2 mechanics must not contain redundant inner navigation bar');
 
   // Verify Galileo ideal inclined plane and Free Fall experiments are present
   assert(html.includes('伽利略理想斜面实验'), 'Must contain 伽利略理想斜面实验');
@@ -401,7 +407,8 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
 
   const html = modal.element.innerHTML;
   assert(html.includes('physics-level-2'), 'Must render Level 2 container');
-  assert(html.includes('电磁学实验'), 'Header must contain 电磁学实验');
+  assert(!html.includes('physics-level-title'), 'Level 2 EM must not contain redundant inner title');
+  assert(!html.includes('physics-nav-bar'), 'Level 2 EM must not contain redundant inner navigation bar');
 
   // Verify EM experiments present
   assert.strictEqual(PhysicsDisciplineModal.EM_EXPERIMENTS.length, 3, 'EM branch must contain 3 experiments');

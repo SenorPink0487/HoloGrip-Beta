@@ -292,17 +292,36 @@ console.log('=== Starting Capacitor Charge & Discharge Analytical & Integration 
 
   assert.ok(bench.group instanceof THREE.Group, 'Bench root must be THREE.Group');
 
-  // Verify all 5 key apparatus exist
+  // Verify all key apparatus exist including the desk oscilloscope screen
   assert.ok(bench.switchKnifeMesh, 'SPDT switch blade mesh must exist');
   assert.ok(bench.switchHandleMesh, 'SPDT switch handle mesh must exist');
   assert.ok(bench.switchLeftContactMesh, 'Switch Left contact (charge) must exist');
   assert.ok(bench.switchRightContactMesh, 'Switch Right contact (discharge) must exist');
   assert.ok(bench.powerKnobMesh, 'Power supply voltage knob must exist');
   assert.ok(bench.powerSwitchMesh, 'Power supply switch must exist');
+  assert.ok(bench.scopeScreenMesh, 'Desk oscilloscope waveform screen mesh must exist on table');
+  assert.ok(bench.scopeChassisMesh, 'Desk oscilloscope chassis mesh must exist');
 
-  // Test switch position motion
+  // Test switch position motion and oscilloscope waveform update
   bench.setSwitchPosition('charge', true);
-  bench.update(0.016);
+  bench.update(0.016, {
+    timeSeconds: 0.1,
+    voltageSupply: 10,
+    voltageCapacitor: 1.5,
+    currentAmperes: 0.0085,
+    currentMa: 8.5,
+    chargeCoulombs: 0.0015,
+    chargeMilliCoulombs: 1.5,
+    timeConstantTau: 1.0,
+    switchPosition: 'charge',
+    energyJoules: 0.001,
+    energyMilliJoule: 1.0,
+    peakChargeCurrentMa: 10,
+    peakDischargeCurrentMa: 0,
+  }, [
+    { time: 0, currentMa: 10, voltageCapacitor: 0, state: 'charge' },
+    { time: 0.1, currentMa: 8.5, voltageCapacitor: 1.5, state: 'charge' },
+  ]);
   bench.setSwitchPosition('discharge', false);
   bench.update(0.016);
   bench.setSwitchPosition('neutral', true);
@@ -310,7 +329,7 @@ console.log('=== Starting Capacitor Charge & Discharge Analytical & Integration 
 
   // Clean disposal test
   bench.dispose();
-  console.log('✓ Test 4 passed: 3D equipment assembly, SPDT knife switch and clean disposal verified\n');
+  console.log('✓ Test 4 passed: 3D equipment assembly, desk oscilloscope screen, SPDT knife switch and clean disposal verified\n');
 }
 
 // Test 5: 3D Raycast Hover Target & Click Interaction Management
@@ -320,12 +339,14 @@ console.log('=== Starting Capacitor Charge & Discharge Analytical & Integration 
   let switchPos: SwitchPosition = 'neutral';
   let cycled = false;
   let adjustedVolt = false;
+  let clearedSamples = false;
 
   const interaction = new CapacitorInteractionManager({
     bench,
     onSetSwitchPosition: (p) => { switchPos = p; },
     onCycleSwitch: () => { cycled = true; },
     onAdjustVoltage: () => { adjustedVolt = true; },
+    onClearSamples: () => { clearedSamples = true; },
   });
 
   // Test pointer down on knife handle
@@ -352,6 +373,12 @@ console.log('=== Starting Capacitor Charge & Discharge Analytical & Integration 
   const handledKnob = interaction.onPointerDown(mockEvt, knobHit, {} as any);
   assert.strictEqual(handledKnob, true);
   assert.strictEqual(adjustedVolt, true, 'Click on power knob triggers voltage adjustment');
+
+  // Test pointer down on desk oscilloscope screen (clears samples / reset trigger)
+  const scopeHit = { object: bench.scopeScreenMesh } as any;
+  const handledScope = interaction.onPointerDown(mockEvt, scopeHit, {} as any);
+  assert.strictEqual(handledScope, true);
+  assert.strictEqual(clearedSamples, true, 'Click on desk oscilloscope screen triggers sample reset');
 
   bench.dispose();
   console.log('✓ Test 5 passed: 3D interaction raycast and click events verified\n');

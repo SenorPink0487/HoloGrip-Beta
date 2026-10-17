@@ -223,20 +223,16 @@ export class SuspensionPlateMesh {
   public addMarkedLine(line: Line2D, lineIndex: number, animated = true): void {
     const lineGroup = new THREE.Group();
     lineGroup.name = `marked-line-${line.holeId}`;
+    lineGroup.position.set(line.origin.x, line.origin.y, 0.0032);
+
+    const dirAngle = Math.atan2(line.direction.y, line.direction.x);
+    lineGroup.rotation.z = dirAngle;
 
     const lenBackward = 0.04;
     const lenForward = 0.28;
 
-    const pStart = new THREE.Vector3(
-      line.origin.x - line.direction.x * lenBackward,
-      line.origin.y - line.direction.y * lenBackward,
-      0.0032
-    );
-    const pEnd = new THREE.Vector3(
-      line.origin.x + line.direction.x * lenForward,
-      line.origin.y + line.direction.y * lenForward,
-      0.0032
-    );
+    const pStart = new THREE.Vector3(-lenBackward, 0, 0);
+    const pEnd = new THREE.Vector3(lenForward, 0, 0);
 
     // 1. 鲜红铅垂主线
     const lineGeo = new THREE.BufferGeometry().setFromPoints([pStart, pEnd]);
@@ -251,18 +247,16 @@ export class SuspensionPlateMesh {
     lineGroup.add(mainLine);
 
     // 2. 自发光红色光晕缎带
-    const ribbonDir = new THREE.Vector2(line.direction.x, line.direction.y).normalize();
-    const ribbonNormal = new THREE.Vector2(-ribbonDir.y, ribbonDir.x).multiplyScalar(0.0022);
-
+    const ribbonHalfWidth = 0.0022;
     const ribbonGeo = new THREE.BufferGeometry();
     const ribbonVertices = new Float32Array([
-      pStart.x + ribbonNormal.x, pStart.y + ribbonNormal.y, pStart.z,
-      pStart.x - ribbonNormal.x, pStart.y - ribbonNormal.y, pStart.z,
-      pEnd.x + ribbonNormal.x, pEnd.y + ribbonNormal.y, pEnd.z,
+      -lenBackward,  ribbonHalfWidth, 0,
+      -lenBackward, -ribbonHalfWidth, 0,
+       lenForward,   ribbonHalfWidth, 0,
 
-      pStart.x - ribbonNormal.x, pStart.y - ribbonNormal.y, pStart.z,
-      pEnd.x - ribbonNormal.x, pEnd.y - ribbonNormal.y, pEnd.z,
-      pEnd.x + ribbonNormal.x, pEnd.y + ribbonNormal.y, pEnd.z,
+      -lenBackward, -ribbonHalfWidth, 0,
+       lenForward,  -ribbonHalfWidth, 0,
+       lenForward,   ribbonHalfWidth, 0,
     ]);
     ribbonGeo.setAttribute('position', new THREE.BufferAttribute(ribbonVertices, 3));
     const ribbonMat = new THREE.MeshBasicMaterial({
@@ -276,19 +270,14 @@ export class SuspensionPlateMesh {
 
     // 3. 悬挂基准线标签 ("① 铅垂线 (A)")
     const labelSprite = this.createLineLabelSprite(`线 ${lineIndex + 1} (${line.holeLabel})`);
-    const labelPos = new THREE.Vector3(
-      line.origin.x + line.direction.x * 0.16 + ribbonNormal.x * 5,
-      line.origin.y + line.direction.y * 0.16 + ribbonNormal.y * 5,
-      0.006
-    );
-    labelSprite.position.copy(labelPos);
+    labelSprite.position.set(0.14, 0.016, 0.003);
     labelSprite.scale.set(0.046, 0.023, 1);
     lineGroup.add(labelSprite);
 
     if (animated) {
       this.isDrawingLine = true;
       this.drawingProgress = 0;
-      lineGroup.scale.set(1, 0.01, 1);
+      lineGroup.scale.set(0.01, 1, 1);
     } else {
       lineGroup.scale.set(1, 1, 1);
     }
@@ -449,7 +438,7 @@ export class SuspensionPlateMesh {
         this.isDrawingLine = false;
         lastLine.scale.set(1, 1, 1);
       } else {
-        lastLine.scale.set(1, Math.max(0.01, this.drawingProgress), 1);
+        lastLine.scale.set(Math.max(0.01, this.drawingProgress), 1, 1);
       }
     }
 

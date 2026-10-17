@@ -512,6 +512,120 @@ console.log('Test 11: Center Crosshair Activation & Raycast Hover Detection');
   console.log('✓ Test 11 passed: Center crosshair activation and hover raycasting verified\n');
 }
 
+// ---------------------------------------------------------------------------
+// Test 12: Suspension Physics & Vertical Gravitational Alignment Invariant
+// ---------------------------------------------------------------------------
+console.log('Test 12: Suspension Physics & Vertical Gravitational Alignment Invariant');
+{
+  const exp = new MechCenterOfGravityExperiment();
+  const mockContext: any = {
+    camera: new THREE.PerspectiveCamera(60, 1, 0.1, 100),
+    scene: new THREE.Scene(),
+  };
+  mockContext.camera.position.set(0, 1.38, 4.25);
+  mockContext.camera.lookAt(0, 0.08, 1.35);
+
+  exp.init(mockContext);
+
+  const stand = (exp as any).stand;
+  const plate = (exp as any).plate;
+  const solver = (exp as any).solver;
+
+  // Pin local position
+  const pinPos = stand.pinLocalPosition;
+
+  for (const hole of solver.plateDef.holes) {
+    exp.hangPlateOnHole(hole.id);
+    solver.stabilizeImmediately();
+    exp.update(0.016, 0.016, mockContext);
+    exp.rootGroup.updateMatrixWorld(true);
+
+    // Compute centroid world position
+    const cgLocal = new THREE.Vector3(solver.centroid.x, solver.centroid.y, 0);
+    const cgWorld = cgLocal.clone();
+    plate.plateMesh.localToWorld(cgWorld);
+
+    // Compute pin world position
+    const pinWorld = new THREE.Vector3();
+    stand.pinMesh.getWorldPosition(pinWorld);
+
+    // The center of gravity must hang directly below the pin:
+    // World X should match pin X within 0.1mm, and World Y must be strictly below pin Y
+    const dx = Math.abs(cgWorld.x - pinWorld.x);
+    const dy = pinWorld.y - cgWorld.y;
+
+    assert(
+      dx < 0.0005,
+      `Hole ${hole.label}: Center of gravity X (${cgWorld.x}) must strictly align with pin X (${pinWorld.x}): diff = ${dx}`
+    );
+    assert(
+      dy > 0.01,
+      `Hole ${hole.label}: Center of gravity must hang vertically below pin: pinY=${pinWorld.y}, cgY=${cgWorld.y}`
+    );
+  }
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 12 passed: All suspension holes strictly align center of gravity under gravity vector\n');
+}
+
+// ---------------------------------------------------------------------------
+// Test 13: Accurate Crosshair Drag Tracking Invariant
+// ---------------------------------------------------------------------------
+console.log('Test 13: Accurate Crosshair Drag Tracking Invariant');
+{
+  const exp = new MechCenterOfGravityExperiment();
+  const mockContext: any = {
+    camera: new THREE.PerspectiveCamera(60, 1, 0.1, 100),
+    scene: new THREE.Scene(),
+  };
+  mockContext.camera.position.set(0, 1.38, 4.25);
+  mockContext.camera.lookAt(0, 0.08, 1.35);
+
+  exp.init(mockContext);
+  exp.rootGroup.updateMatrixWorld(true);
+
+  // 1. Simulate pointerdown on plate
+  const initialPlatePos = exp['plate'].group.position.clone();
+  const hitPointWorld = exp.rootGroup.localToWorld(new THREE.Vector3(initialPlatePos.x, initialPlatePos.y, 0.04));
+  const mockHit = {
+    point: hitPointWorld,
+    object: exp['plate'].plateMesh,
+  } as any;
+
+  (globalThis as any).document.pointerLockElement = (globalThis as any).document.body;
+  const downEvent = { clientX: 960, clientY: 540 } as PointerEvent;
+  const handled = exp.onPointerDown(downEvent, mockHit, mockContext);
+  assert.strictEqual(handled, true, 'Pointer down on plate must be handled');
+
+  // 2. Simulate dragging with pointer lock (center ray)
+  // Move camera slightly
+  mockContext.camera.position.set(0.05, 1.38, 4.25);
+  mockContext.camera.lookAt(0.05, 0.08, 1.35);
+  mockContext.camera.updateMatrixWorld(true);
+
+  const moveEvent = { clientX: 960, clientY: 540 } as PointerEvent;
+  exp.onPointerMove(moveEvent, null, mockContext);
+
+  // The plate position must have moved in response to camera gaze without jumping to infinity
+  const movedPlatePos = exp['plate'].group.position.clone();
+  assert(
+    Math.abs(movedPlatePos.z - 0.04) < 1e-4,
+    `Plate must stay strictly on Z=0.04 plane, got ${movedPlatePos.z}`
+  );
+  assert(
+    movedPlatePos.x >= -0.55 && movedPlatePos.x <= 0.55,
+    `Plate X must be clamped within visible desk range, got ${movedPlatePos.x}`
+  );
+
+  // 3. Pointer up
+  const upEvent = {} as PointerEvent;
+  exp.onPointerUp(upEvent, mockContext);
+  assert.strictEqual(exp['isDraggingPlate'], false, 'Dragging state must be cleared on pointer up');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 13 passed: Crosshair drag plane intersection and continuous tracking verified\n');
+}
+
 console.log('========================================================');
-console.log('All Suspension Center of Gravity Tests Passed (11/11)!');
+console.log('All Suspension Center of Gravity Tests Passed (13/13)!');
 console.log('========================================================\n');

@@ -149,7 +149,11 @@ export default class OpticsInterferenceExperiment extends BaseExperiment {
       this.beamSystem.updateDiffractionFan(
         this.slitSaddle.position.z,
         this.screenSaddle.position.z,
-        0.045
+        0.045,
+        1.0,
+        'double_slit',
+        this.slitDistance,
+        this.slitWidth
       );
     } else {
       this.beamSystem.clearWavefronts();

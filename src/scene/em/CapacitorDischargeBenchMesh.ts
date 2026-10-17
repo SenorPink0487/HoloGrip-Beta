@@ -8,7 +8,7 @@ import {
   paintTexture,
 } from './labKit.ts';
 import { disposeObjectTree } from './disposeObject.ts';
-import type { SwitchPosition, CapacitorTelemetry } from '../../physics/em/capacitorDischarge.ts';
+import type { SwitchPosition, CapacitorTelemetry, WaveformSample } from '../../physics/em/capacitorDischarge.ts';
 
 export interface CapacitorDischargeBenchMeshOptions {
   voltageSupply?: number;
@@ -48,6 +48,17 @@ export class CapacitorDischargeBenchMesh {
   // 电流传感器心跳指示灯
   private sensorLedMaterial!: THREE.MeshStandardMaterial;
 
+  // 桌面台式数字示波器（桌上独立波形小屏幕）
+  public scopeScreenMesh!: THREE.Mesh;
+  public scopeChassisMesh!: THREE.Mesh;
+  public scopeClearBtnMesh!: THREE.Mesh;
+  public scopeRunBtnMesh!: THREE.Mesh;
+  private scopeDisplayTexture!: THREE.CanvasTexture;
+  private scopeDisplayCanvas!: HTMLCanvasElement;
+  private scopeLastSampleCount = -1;
+  private scopeLastCurrent = -99999;
+  private scopeLastPos: SwitchPosition = 'neutral';
+
   // 导线粒子流动态系统
   private chargeParticles!: THREE.Points;
   private dischargeParticles!: THREE.Points;
@@ -84,6 +95,7 @@ export class CapacitorDischargeBenchMesh {
     this.buildCapacitor(options.capacitanceUf ?? 1000.0);
     this.buildResistor(options.resistanceOhm ?? 1000.0);
     this.buildCurrentSensor();
+    this.buildOscilloscope();
     this.buildWiresAndParticles();
     this.buildLabels();
 
@@ -93,15 +105,15 @@ export class CapacitorDischargeBenchMesh {
 
   // ================= 1. 实验底板与丝印电路原理图 =================
   private buildBaseboard(): void {
-    // 洁净现代实验室高精密绝缘台面（银白微磨砂高强度陶瓷复合底板）
-    const baseGeo = new THREE.BoxGeometry(0.82, 0.024, 0.54);
+    // 洁净现代实验室高精密绝缘台面（银白微磨砂高强度陶瓷复合底板，容纳全套电路与台式示波器）
+    const baseGeo = new THREE.BoxGeometry(0.98, 0.024, 0.54);
     const baseMat = new THREE.MeshStandardMaterial({
       color: 0xf1f5f9,
       metalness: 0.15,
       roughness: 0.28,
     });
     const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-    baseMesh.position.y = 0.012;
+    baseMesh.position.set(0.06, 0.012, 0);
     baseMesh.receiveShadow = true;
     this.group.add(baseMesh);
 
@@ -109,10 +121,10 @@ export class CapacitorDischargeBenchMesh {
     const footGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.012, 16);
     const footMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5 });
     const footOffsets = [
-      [-0.38, 0.006, -0.24],
-      [0.38, 0.006, -0.24],
-      [-0.38, 0.006, 0.24],
-      [0.38, 0.006, 0.24],
+      [-0.39, 0.006, -0.24],
+      [0.51, 0.006, -0.24],
+      [-0.39, 0.006, 0.24],
+      [0.51, 0.006, 0.24],
     ];
     for (const [fx, fy, fz] of footOffsets) {
       const foot = new THREE.Mesh(footGeo, footMat);
@@ -121,7 +133,7 @@ export class CapacitorDischargeBenchMesh {
     }
 
     // 表面高分辨率物理丝印电路原理图（洁净白底配鲜艳科技蓝与琥珀金双回路走线）
-    const schematicTexture = paintTexture(1024, 768, (ctx, w, h) => {
+    const schematicTexture = paintTexture(1200, 768, (ctx, w, h) => {
       ctx.fillStyle = '#f8fafc';
       ctx.fillRect(0, 0, w, h);
 
@@ -153,45 +165,50 @@ export class CapacitorDischargeBenchMesh {
         ctx.fillText('← 充电回路 (CHARGE LOOP)', 80, 280);
 
         ctx.fillStyle = '#d97706';
-        ctx.fillText('放电回路 (DISCHARGE LOOP) →', w - 320, 280);
+        ctx.fillText('放电回路 (DISCHARGE LOOP) →', w * 0.44, 280);
 
         // 单刀双掷开关节点标识
         ctx.fillStyle = '#ca8a04';
         ctx.textAlign = 'center';
         ctx.font = '700 16px monospace';
-        ctx.fillText('① 电源侧 (CHARGE)', w * 0.36, h * 0.72);
-        ctx.fillText('② 放电侧 (DISCHARGE)', w * 0.60, h * 0.72);
-        ctx.fillText('Ⓞ 动触刀公共极 (COMMON)', w * 0.48, h * 0.84);
+        ctx.fillText('① 电源侧 (CHARGE)', w * 0.32, h * 0.72);
+        ctx.fillText('② 放电侧 (DISCHARGE)', w * 0.52, h * 0.72);
+        ctx.fillText('Ⓞ 动触刀公共极 (COMMON)', w * 0.42, h * 0.84);
+
+        ctx.fillStyle = '#0284c7';
+        ctx.textAlign = 'right';
+        ctx.font = '700 15px monospace';
+        ctx.fillText('台式数字示波器实时采样输入 CH1 →', w - 50, h * 0.72);
       }
 
       // 绘制丝印原理走线
       ctx.beginPath();
       // 电源侧到开关触点1
-      ctx.moveTo(w * 0.22, h * 0.42);
-      ctx.lineTo(w * 0.36, h * 0.66);
+      ctx.moveTo(w * 0.20, h * 0.42);
+      ctx.lineTo(w * 0.32, h * 0.66);
       // 开关动刀端到电流传感器
-      ctx.moveTo(w * 0.48, h * 0.78);
-      ctx.lineTo(w * 0.65, h * 0.78);
+      ctx.moveTo(w * 0.42, h * 0.78);
+      ctx.lineTo(w * 0.56, h * 0.78);
       // 电流传感器到电容正极
-      ctx.moveTo(w * 0.65, h * 0.78);
-      ctx.lineTo(w * 0.52, h * 0.42);
+      ctx.moveTo(w * 0.56, h * 0.78);
+      ctx.lineTo(w * 0.46, h * 0.42);
       // 开关触点2到放电电阻
-      ctx.moveTo(w * 0.60, h * 0.66);
-      ctx.lineTo(w * 0.80, h * 0.42);
+      ctx.moveTo(w * 0.52, h * 0.66);
+      ctx.lineTo(w * 0.68, h * 0.42);
       // 接地公共回路线
-      ctx.moveTo(w * 0.22, h * 0.32);
-      ctx.lineTo(w * 0.80, h * 0.32);
+      ctx.moveTo(w * 0.20, h * 0.32);
+      ctx.lineTo(w * 0.68, h * 0.32);
       ctx.stroke();
     });
 
-    const schemPlaneGeo = new THREE.PlaneGeometry(0.80, 0.52);
+    const schemPlaneGeo = new THREE.PlaneGeometry(0.96, 0.52);
     const schemPlaneMat = new THREE.MeshBasicMaterial({
       map: schematicTexture,
       toneMapped: false,
     });
     const schemMesh = new THREE.Mesh(schemPlaneGeo, schemPlaneMat);
     schemMesh.rotation.x = -Math.PI / 2;
-    schemMesh.position.y = 0.0242;
+    schemMesh.position.set(0.06, 0.0242, 0);
     this.group.add(schemMesh);
   }
 
@@ -786,7 +803,344 @@ export class CapacitorDischargeBenchMesh {
     this.sensorDisplayTexture.needsUpdate = true;
   }
 
-  // ================= 7. 回路导线与电流动态粒子流系统 =================
+  // ================= 7. 台式数字存储示波器 (Desktop Oscilloscope Screen) =================
+  private buildOscilloscope(): void {
+    const oGroup = new THREE.Group();
+    // 放置在底板右侧，微微内偏朝向学生视线
+    oGroup.position.set(0.38, 0.024, 0.00);
+    oGroup.rotation.y = -Math.PI * 0.09; // 向内偏转约 16° 面向摄像机
+
+    // 倾斜机身总成（前倾仰角约 20°，使得平视或微俯视时完全无透视梯形畸变）
+    const chassisGroup = new THREE.Group();
+    chassisGroup.rotation.x = -Math.PI * 0.11; // 仰角约 20°
+    chassisGroup.position.y = 0.055;
+
+    // 1. 示波器机壳（现代科研实验室白色哑光高级工程塑料外壳，微圆角）
+    const bodyGeo = new THREE.BoxGeometry(0.19, 0.125, 0.075);
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc,
+      metalness: 0.15,
+      roughness: 0.28,
+    });
+    this.scopeChassisMesh = new THREE.Mesh(bodyGeo, bodyMat);
+    this.scopeChassisMesh.castShadow = true;
+    this.scopeChassisMesh.receiveShadow = true;
+    chassisGroup.add(this.scopeChassisMesh);
+
+    // 侧边防撞包角 (Light slate / cyan accent)
+    const bumperGeo = new THREE.BoxGeometry(0.008, 0.128, 0.078);
+    const bumperMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      metalness: 0.1,
+      roughness: 0.35,
+    });
+    const leftBumper = new THREE.Mesh(bumperGeo, bumperMat);
+    leftBumper.position.set(-0.095, 0, 0);
+    chassisGroup.add(leftBumper);
+    const rightBumper = new THREE.Mesh(bumperGeo, bumperMat);
+    rightBumper.position.set(0.095, 0, 0);
+    chassisGroup.add(rightBumper);
+
+    // 顶部便携折叠手柄
+    const handleCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.06, 0.062, 0),
+      new THREE.Vector3(-0.05, 0.088, 0),
+      new THREE.Vector3(0.05, 0.088, 0),
+      new THREE.Vector3(0.06, 0.062, 0),
+    ]);
+    const handleGeo = new THREE.TubeGeometry(handleCurve, 16, 0.004, 8, false);
+    const handleMat = anodizedAluminum(0x94a3b8);
+    chassisGroup.add(new THREE.Mesh(handleGeo, handleMat));
+
+    // 2. 屏幕外框与高屏占比液晶屏（深色内陷边框）
+    const bezelGeo = new THREE.PlaneGeometry(0.142, 0.094);
+    const bezelMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.2,
+      metalness: 0.8,
+    });
+    const bezel = new THREE.Mesh(bezelGeo, bezelMat);
+    bezel.position.set(-0.016, 0.004, 0.038);
+    chassisGroup.add(bezel);
+
+    // 动态波形高分辨率 Canvas 纹理屏 (1024 x 640 超清物理纹理)
+    this.scopeDisplayCanvas = document.createElement('canvas');
+    this.scopeDisplayCanvas.width = 1024;
+    this.scopeDisplayCanvas.height = 640;
+    this.scopeDisplayTexture = new THREE.CanvasTexture(this.scopeDisplayCanvas);
+    this.scopeDisplayTexture.colorSpace = THREE.SRGBColorSpace;
+    this.scopeDisplayTexture.minFilter = THREE.LinearFilter;
+    this.scopeDisplayTexture.magFilter = THREE.LinearFilter;
+    this.renderOscilloscopeDisplay(undefined, []);
+
+    const screenGeo = new THREE.PlaneGeometry(0.138, 0.090);
+    const screenMat = new THREE.MeshBasicMaterial({
+      map: this.scopeDisplayTexture,
+      toneMapped: false,
+    });
+    this.scopeScreenMesh = new THREE.Mesh(screenGeo, screenMat);
+    this.scopeScreenMesh.position.set(-0.016, 0.004, 0.0385);
+    this.scopeScreenMesh.name = 'scopeScreenMesh';
+    chassisGroup.add(this.scopeScreenMesh);
+
+    // 高抗反光微透保护镜片（提升真实仪器玻璃质感）
+    const glassGeo = new THREE.PlaneGeometry(0.138, 0.090);
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.05,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.08,
+      depthWrite: false,
+    });
+    const glassMesh = new THREE.Mesh(glassGeo, glassMat);
+    glassMesh.position.set(-0.016, 0.004, 0.0388);
+    chassisGroup.add(glassMesh);
+
+    // 3. 右侧控制区面板 (快捷按键与旋钮)
+    // 旋钮1：水平时基 TIME/DIV 旋钮
+    const knobGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.012, 20);
+    const knobMat = anodizedAluminum(0x64748b, 0.2);
+    const timeKnob = new THREE.Mesh(knobGeo, knobMat);
+    timeKnob.rotation.x = Math.PI / 2;
+    timeKnob.position.set(0.068, 0.032, 0.042);
+    chassisGroup.add(timeKnob);
+
+    // 旋钮2：垂直电压/电流 SCALE 旋钮
+    const voltKnob = new THREE.Mesh(knobGeo, knobMat);
+    voltKnob.rotation.x = Math.PI / 2;
+    voltKnob.position.set(0.068, 0.004, 0.042);
+    chassisGroup.add(voltKnob);
+
+    // 运行/停止状态按键 (RUN / STOP)
+    const runBtnGeo = new THREE.BoxGeometry(0.014, 0.010, 0.008);
+    const runBtnMat = labGlow(0x10b981, 0.8);
+    this.scopeRunBtnMesh = new THREE.Mesh(runBtnGeo, runBtnMat);
+    this.scopeRunBtnMesh.position.set(0.068, -0.022, 0.041);
+    this.scopeRunBtnMesh.name = 'scopeRunBtn';
+    chassisGroup.add(this.scopeRunBtnMesh);
+
+    // 清除波形按键 (CLEAR)
+    const clearBtnGeo = new THREE.BoxGeometry(0.014, 0.008, 0.008);
+    const clearBtnMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+    this.scopeClearBtnMesh = new THREE.Mesh(clearBtnGeo, clearBtnMat);
+    this.scopeClearBtnMesh.position.set(0.068, -0.036, 0.041);
+    this.scopeClearBtnMesh.name = 'scopeClearBtn';
+    chassisGroup.add(this.scopeClearBtnMesh);
+
+    // CH1 输入 BNC 镀金插座
+    const bncOuterGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.014, 16);
+    const bncOuterMat = anodizedAluminum(0x94a3b8);
+    const bncMesh = new THREE.Mesh(bncOuterGeo, bncOuterMat);
+    bncMesh.rotation.x = Math.PI / 2;
+    bncMesh.position.set(0.068, -0.050, 0.042);
+    chassisGroup.add(bncMesh);
+
+    const bncPinGeo = new THREE.CylinderGeometry(0.0018, 0.0018, 0.016, 12);
+    const bncPinMat = polishedGold();
+    const bncPin = new THREE.Mesh(bncPinGeo, bncPinMat);
+    bncPin.rotation.x = Math.PI / 2;
+    bncPin.position.copy(bncMesh.position);
+    chassisGroup.add(bncPin);
+
+    // 4. 台式支撑支架与防滑橡胶垫
+    const standGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.06, 12);
+    const standMat = anodizedAluminum(0x64748b);
+    const leftStand = new THREE.Mesh(standGeo, standMat);
+    leftStand.rotation.z = Math.PI * 0.25;
+    leftStand.position.set(-0.06, -0.035, -0.03);
+    chassisGroup.add(leftStand);
+
+    const rightStand = new THREE.Mesh(standGeo, standMat);
+    rightStand.rotation.z = -Math.PI * 0.25;
+    rightStand.position.set(0.06, -0.035, -0.03);
+    chassisGroup.add(rightStand);
+
+    oGroup.add(chassisGroup);
+    this.group.add(oGroup);
+
+    // 5. 探头同轴信号引线（自电流传感器输出端优雅连接至示波器 CH1 输入端）
+    const bncCablePts = [
+      new THREE.Vector3(0.225, 0.05, 0.10),
+      new THREE.Vector3(0.275, 0.08, 0.08),
+      new THREE.Vector3(0.33, 0.07, 0.05),
+      new THREE.Vector3(0.448, 0.045, 0.02),
+    ];
+    this.addJumperTube(bncCablePts, 0x0284c7); // 钴蓝专用探头线
+  }
+
+  public renderOscilloscopeDisplay(telemetry?: CapacitorTelemetry, samples: readonly WaveformSample[] = []): void {
+    if (!this.scopeDisplayCanvas) return;
+    const ctx = this.scopeDisplayCanvas.getContext('2d');
+    if (!ctx) return;
+    const w = this.scopeDisplayCanvas.width;
+    const h = this.scopeDisplayCanvas.height;
+
+    // 清屏与深邃高对比度示波器底色
+    ctx.fillStyle = '#020b14';
+    ctx.fillRect(0, 0, w, h);
+
+    const padLeft = 70;
+    const padRight = 30;
+    const padTop = 50;
+    const padBottom = 45;
+    const plotW = w - padLeft - padRight;
+    const plotH = h - padTop - padBottom;
+
+    // 1. 示波器专业暗青荧光网格 (10 竖格 x 8 横格)
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
+    ctx.lineWidth = 1.2;
+    const cols = 10;
+    for (let c = 0; c <= cols; c++) {
+      const x = padLeft + (plotW * c) / cols;
+      ctx.beginPath();
+      ctx.moveTo(x, padTop);
+      ctx.lineTo(x, h - padBottom);
+      ctx.stroke();
+    }
+    const rows = 8;
+    for (let r = 0; r <= rows; r++) {
+      const y = padTop + (plotH * r) / rows;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(w - padRight, y);
+      ctx.stroke();
+    }
+
+    // 2. 坐标极值计算
+    const tMin = samples.length > 0 ? samples[0].time : 0;
+    const tLatest = samples.length > 0 ? samples[samples.length - 1].time : 5;
+    const tWindow = Math.max(5.0, tLatest - tMin);
+
+    const peak = Math.max(12.0, telemetry?.peakChargeCurrentMa ?? 0, telemetry?.peakDischargeCurrentMa ?? 0);
+    const limit = Math.ceil(peak * 1.25);
+    const yMin = -limit;
+    const yMax = limit;
+
+    const toScreenX = (t: number) => padLeft + ((t - tMin) / tWindow) * plotW;
+    const toScreenY = (val: number) => padTop + plotH - ((val - yMin) / (yMax - yMin)) * plotH;
+
+    // 3. 零基线 (I = 0 虚线)
+    const zeroY = toScreenY(0);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
+    ctx.lineWidth = 1.6;
+    if (typeof ctx.setLineDash === 'function') {
+      ctx.setLineDash([6, 5]);
+    }
+    ctx.beginPath();
+    ctx.moveTo(padLeft, zeroY);
+    ctx.lineTo(w - padRight, zeroY);
+    ctx.stroke();
+    if (typeof ctx.setLineDash === 'function') {
+      ctx.setLineDash([]);
+    }
+
+    // 4. 坐标刻度文字
+    ctx.fillStyle = '#64748b';
+    ctx.font = '600 16px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+
+    const yTicks = [yMin, yMin * 0.5, 0, yMax * 0.5, yMax];
+    if (typeof ctx.fillText === 'function') {
+      for (const val of yTicks) {
+        const y = toScreenY(val);
+        ctx.fillText(`${val > 0 ? '+' : ''}${val.toFixed(0)}`, padLeft - 10, y);
+      }
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('I (mA)', padLeft - 60, padTop - 20);
+      ctx.textAlign = 'right';
+      ctx.fillText('t (s)', w - padRight + 10, h - padBottom + 26);
+
+      // X 轴时间刻度
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      for (let c = 0; c <= cols; c += 2) {
+        const t = tMin + (tWindow * c) / cols;
+        const x = padLeft + (plotW * c) / cols;
+        ctx.fillText(`${t.toFixed(1)}`, x, h - padBottom + 10);
+      }
+
+      // 顶部仪器状态条
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = '700 18px monospace';
+      const pos = telemetry?.switchPosition ?? 'neutral';
+      if (pos === 'charge') {
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText('⚡ TRIG · 充电中 (I > 0)', padLeft, padTop - 20);
+      } else if (pos === 'discharge') {
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillText('🔄 TRIG · 放电中 (I < 0)', padLeft, padTop - 20);
+      } else {
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('⚪ READY · 断开 (I = 0)', padLeft, padTop - 20);
+      }
+
+      // 实时遥测读数 HUD (右上角)
+      if (telemetry) {
+        const cur = telemetry.currentMa;
+        const vol = telemetry.voltageCapacitor;
+        ctx.textAlign = 'right';
+        ctx.font = '700 18px monospace';
+        ctx.fillStyle = cur > 0.01 ? '#38bdf8' : cur < -0.01 ? '#f59e0b' : '#94a3b8';
+        const sign = cur > 0 ? '+' : '';
+        ctx.fillText(`I: ${sign}${cur.toFixed(2)} mA   Uc: ${vol.toFixed(2)} V`, w - padRight, padTop - 20);
+      }
+    }
+
+    // 5. 绘制连续连续电流曲线 (I-t)
+    if (samples.length >= 2) {
+      for (let i = 0; i < samples.length - 1; i++) {
+        const s0 = samples[i];
+        const s1 = samples[i + 1];
+        const x0 = toScreenX(s0.time);
+        const y0 = toScreenY(s0.currentMa);
+        const x1 = toScreenX(s1.time);
+        const y1 = toScreenY(s1.currentMa);
+
+        const isCharging = s0.state === 'charge';
+        const isDischarging = s0.state === 'discharge';
+
+        ctx.strokeStyle = isCharging ? '#38bdf8' : isDischarging ? '#f59e0b' : '#64748b';
+        ctx.lineWidth = 3.8;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+
+        // 积分发光阴影面积
+        if (isCharging || isDischarging) {
+          ctx.fillStyle = isCharging ? 'rgba(56, 189, 248, 0.12)' : 'rgba(245, 158, 11, 0.12)';
+          ctx.beginPath();
+          ctx.moveTo(x0, zeroY);
+          ctx.lineTo(x0, y0);
+          ctx.lineTo(x1, y1);
+          ctx.lineTo(x1, zeroY);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
+      // 扫描头亮点
+      const last = samples[samples.length - 1];
+      const lx = toScreenX(last.time);
+      const ly = toScreenY(last.currentMa);
+      ctx.fillStyle = last.state === 'charge' ? '#38bdf8' : last.state === 'discharge' ? '#f59e0b' : '#4ade80';
+      ctx.beginPath();
+      ctx.arc(lx, ly, 6.0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
+    }
+
+    this.scopeDisplayTexture.needsUpdate = true;
+  }
+
+  // ================= 8. 回路导线与电流动态粒子流系统 =================
   private buildWiresAndParticles(): void {
     // 充电回路导线路径点（CatmullRom 曲线）
     // 导线1 (红): 电源正极 -> 开关触点1 (电源侧)
@@ -941,6 +1295,7 @@ export class CapacitorDischargeBenchMesh {
       { text: '储能电容器 (1000µF)', pos: new THREE.Vector3(0.05, 0.19, -0.12), color: '#0284c7' },
       { text: '放电电阻 (1000Ω)', pos: new THREE.Vector3(0.26, 0.12, -0.12), color: '#d97706' },
       { text: '高灵敏度电流传感器', pos: new THREE.Vector3(0.18, 0.11, 0.10), color: '#059669' },
+      { text: '台式数字示波器 (波形屏)', pos: new THREE.Vector3(0.38, 0.16, 0.00), color: '#0284c7' },
     ];
 
     for (const item of labels) {
@@ -1007,7 +1362,7 @@ export class CapacitorDischargeBenchMesh {
     }
   }
 
-  public update(delta: number, telemetry?: CapacitorTelemetry): void {
+  public update(delta: number, telemetry?: CapacitorTelemetry, samples?: readonly WaveformSample[]): void {
     this.pulsePhase += delta * 6.0;
 
     // 1. 动触刀物理平滑摆动 (弹性阻尼平滑插值)
@@ -1098,6 +1453,20 @@ export class CapacitorDischargeBenchMesh {
           dischargeMat.opacity = Math.max(0, dischargeMat.opacity - delta * 4.0);
         }
       }
+
+      // 7. 实时更新桌面示波器小屏幕波形
+      if (samples) {
+        if (
+          samples.length !== this.scopeLastSampleCount ||
+          Math.abs(cur - this.scopeLastCurrent) > 0.02 ||
+          telemetry.switchPosition !== this.scopeLastPos
+        ) {
+          this.scopeLastSampleCount = samples.length;
+          this.scopeLastCurrent = cur;
+          this.scopeLastPos = telemetry.switchPosition;
+          this.renderOscilloscopeDisplay(telemetry, samples);
+        }
+      }
     }
   }
 
@@ -1109,6 +1478,18 @@ export class CapacitorDischargeBenchMesh {
   }
 
   public dispose(): void {
+    if (this.scopeDisplayTexture) {
+      this.scopeDisplayTexture.dispose();
+    }
+    if (this.powerDisplayTexture) {
+      this.powerDisplayTexture.dispose();
+    }
+    if (this.sensorDisplayTexture) {
+      this.sensorDisplayTexture.dispose();
+    }
+    if (this.capDisplayTexture) {
+      this.capDisplayTexture.dispose();
+    }
     disposeObjectTree(this.group);
   }
 }
