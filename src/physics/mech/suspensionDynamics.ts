@@ -385,7 +385,7 @@ export class SuspensionDynamicsSolver {
   /**
    * 触发稳定状态并生成铅垂线记录
    */
-  private triggerStabilization(): void {
+  public triggerStabilization(): void {
     this.state = 'stabilized';
     this.angleRad = 0;
     this.angularVelocity = 0;

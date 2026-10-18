@@ -18,11 +18,16 @@ export class PerfOverlay {
 
   private frameCount = 0;
   private lastTime = performance.now();
-  private fps = 120;
-  private frameTime = 1.2;
+  private fps = 60;
+  private frameTime = 16.6;
   private renderTimeSum = 0;
   private renderCount = 0;
   private lastRenderTimeMs = 1.2;
+  private detectedRefreshRate = 60;
+  private lastFrameInstant = performance.now();
+  private highRefreshStreak120 = 0;
+  private highRefreshStreak144 = 0;
+  private stable60Count = 0;
 
   private computeBridge: ComputeBridge;
   private platform: PlatformBridge;
@@ -48,31 +53,31 @@ export class PerfOverlay {
         <span class="perf-status-dot" id="perf-status-dot"></span>
         <div class="perf-pill-item">
           <span class="perf-pill-label">帧率</span>
-          <span class="perf-pill-val perf-fps" id="perf-fps-val">120</span>
+          <span class="perf-pill-val perf-fps" id="perf-fps-val">--</span>
           <span class="perf-pill-unit">FPS</span>
         </div>
         <div class="perf-pill-divider"></div>
         <div class="perf-pill-item">
           <span class="perf-pill-label">延迟</span>
-          <span class="perf-pill-val" id="perf-latency-val">1.2 ms</span>
+          <span class="perf-pill-val" id="perf-latency-val">-- ms</span>
         </div>
       </div>
       <div class="perf-details-popover" id="perf-details-popover">
         <div class="perf-detail-row">
-          <span class="perf-detail-label">3D 渲染耗时</span>
-          <span class="perf-detail-val perf-render" id="perf-render-val">1.2 ms</span>
+          <span class="perf-detail-label">3D 渲染耗时 (GPU)</span>
+          <span class="perf-detail-val perf-render" id="perf-render-val">-- ms</span>
         </div>
         <div class="perf-detail-row">
           <span class="perf-detail-label">渲染算力天花板</span>
-          <span class="perf-detail-val perf-fps" id="perf-headroom-val">800+ FPS</span>
+          <span class="perf-detail-val perf-fps" id="perf-headroom-val">-- FPS</span>
         </div>
         <div class="perf-detail-row">
-          <span class="perf-detail-label">屏幕垂直同步</span>
-          <span class="perf-detail-val perf-vsync" id="perf-vsync-val">60 Hz</span>
+          <span class="perf-detail-label">屏幕硬件刷新率</span>
+          <span class="perf-detail-val perf-vsync" id="perf-vsync-val">-- Hz</span>
         </div>
         <div class="perf-detail-row">
           <span class="perf-detail-label">多核算力耗时</span>
-          <span class="perf-detail-val perf-compute" id="perf-compute-val">-- ms</span>
+          <span class="perf-detail-val perf-compute" id="perf-compute-val">空闲 (待机)</span>
         </div>
         <div class="perf-detail-row">
           <span class="perf-detail-label">计算后端</span>
@@ -149,31 +154,77 @@ export class PerfOverlay {
       this.renderCount++;
     }
     const now = performance.now();
+    const frameDeltaMs = now - this.lastFrameInstant;
+    this.lastFrameInstant = now;
+
+    // 基于多帧连击防抖嗅探高刷时间槽（连续多帧 <= 10.2ms 确认 120Hz，<= 7.8ms 确认 144Hz，避免单帧偶发抖动误判）
+    if (frameDeltaMs > 0) {
+      if (frameDeltaMs <= 7.8) {
+        this.highRefreshStreak144++;
+        this.highRefreshStreak120++;
+      } else if (frameDeltaMs <= 10.2) {
+        this.highRefreshStreak120++;
+        this.highRefreshStreak144 = 0;
+      } else {
+        this.highRefreshStreak120 = 0;
+        this.highRefreshStreak144 = 0;
+      }
+
+      if (this.highRefreshStreak144 >= 6 && this.detectedRefreshRate < 144) {
+        this.detectedRefreshRate = 144;
+      } else if (this.highRefreshStreak120 >= 6 && this.detectedRefreshRate < 120) {
+        this.detectedRefreshRate = 120;
+      }
+    }
+
     const elapsed = now - this.lastTime;
 
     if (elapsed >= 500) {
-      const displayFps = Math.round((this.frameCount * 1000) / elapsed);
+      const realFps = Math.max(1, Math.round((this.frameCount * 1000) / elapsed));
       const avgRenderMs = this.renderCount > 0 ? this.renderTimeSum / this.renderCount : this.lastRenderTimeMs;
       this.lastRenderTimeMs = avgRenderMs;
       const headroomFps = avgRenderMs > 0 ? Math.round(1000 / avgRenderMs) : 1000;
+      const realFrameIntervalMs = Number((elapsed / this.frameCount).toFixed(1));
 
-      // 当 3D 引擎渲染耗时 < 8.33ms（120 FPS 帧预算）或显示器支持高刷时，
-      // 报告 120 FPS / 余量 FPS，使遥测数据反映完整硬件性能（>= 100 FPS）。
-      if (avgRenderMs <= 8.33 || displayFps >= 100) {
-        this.fps = Math.max(100, Math.min(120, headroomFps));
-      } else {
-        this.fps = displayFps;
+      // 动态采样识别显示器的硬件最高刷新率（如 60Hz, 120Hz ProMotion, 144Hz 等）
+      if (realFps >= 135) {
+        this.detectedRefreshRate = 144;
+        this.stable60Count = 0;
+      } else if (realFps >= 105) {
+        this.detectedRefreshRate = 120;
+        this.stable60Count = 0;
+      } else if (realFps >= 75) {
+        if (this.detectedRefreshRate < 90) this.detectedRefreshRate = 90;
+        this.stable60Count = 0;
+      } else if (this.detectedRefreshRate > 60) {
+        // 如果显示器处于 60Hz（或系统低电量模式），连续 3 个采样窗口（1.5秒）帧率稳定在 65 以下，自动校准回 60Hz 避免红字假阳性
+        if (realFps <= 65) {
+          this.stable60Count++;
+          if (this.stable60Count >= 3) {
+            this.detectedRefreshRate = 60;
+            this.stable60Count = 0;
+          }
+        } else {
+          this.stable60Count = 0;
+        }
       }
-      this.frameTime = Number(avgRenderMs.toFixed(1));
+
+      // 铁律：帧率必须真实呈现浏览器 rAF 实际递交至显示器的帧率，绝不造假
+      this.fps = realFps;
+      this.frameTime = realFrameIntervalMs;
 
       this.frameCount = 0;
       this.renderTimeSum = 0;
       this.renderCount = 0;
       this.lastTime = now;
 
-      let color = '#34c759';
-      if (this.fps < 60) {
-        color = '#ff9f0a';
+      // 帧率状态颜色与警示（适配当前屏幕的实际目标刷新率）
+      const targetFps = this.detectedRefreshRate;
+      let color = '#34c759'; // 绿（平稳跑满硬件刷新率）
+      if (this.fps < targetFps * 0.7) {
+        color = '#ff453a'; // 严重掉帧（低于标称刷新率 70%）
+      } else if (this.fps < targetFps - 4) {
+        color = '#ff9f0a'; // 轻度波动
       }
 
       if (this.fpsEl) {
@@ -199,13 +250,19 @@ export class PerfOverlay {
       }
 
       if (this.vsyncEl) {
-        this.vsyncEl.textContent = `${displayFps} Hz`;
+        this.vsyncEl.textContent = `${this.detectedRefreshRate} Hz`;
       }
 
       if (this.computeEl) {
-        const metrics = this.computeBridge.currentMetrics;
-        const computeMs = metrics.avgComputeTimeMs.toFixed(2);
-        this.computeEl.textContent = `${computeMs} ms`;
+        const metrics = this.computeBridge.currentMetrics as any;
+        if (metrics.isIdle || metrics.avgComputeTimeMs === 0) {
+          this.computeEl.textContent = '空闲 (待机)';
+          this.computeEl.style.color = '#94a3b8';
+        } else {
+          const computeMs = metrics.avgComputeTimeMs.toFixed(2);
+          this.computeEl.textContent = `${computeMs} ms (活跃)`;
+          this.computeEl.style.color = '#38bdf8';
+        }
       }
     }
   }

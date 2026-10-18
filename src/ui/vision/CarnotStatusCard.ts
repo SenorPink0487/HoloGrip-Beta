@@ -1,21 +1,21 @@
 import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
 
 export interface CarnotTelemetryData {
-  tempHigh: number;      // 开尔文 (K)
-  tempLow: number;       // 开尔文 (K)
-  currentTemp: number;   // 开尔文 (K)
-  currentVol: number;    // 升 (L)
-  currentPress: number;  // 千帕 (kPa)
-  currentEntropy: number;// 焦耳/开尔文 (J/K)
-  efficiency: number;    // 百分比 (%)
-  qHigh: number;         // 焦耳 (J)
-  qLow: number;          // 焦耳 (J)
-  netWork: number;       // 焦耳 (J)
-  mechPower: number;     // 瓦特 (W)
-  flywheelRpm: number;   // 转速 (RPM)
-  currentStage: 1 | 2 | 3 | 4;
+  tempHigh: number;
+  tempLow: number;
+  currentTemp: number;
+  currentVol: number;
+  currentPress: number;
+  currentEntropy: number;
+  efficiency: number;
+  qHigh: number;
+  qLow: number;
+  netWork: number;
+  mechPower: number;
+  flywheelRpm: number;
+  currentStage: number;
   stageName: string;
-  stageProgress: number; // 阶段进度 (0..1)
+  stageProgress: number;
   isReversed: boolean;
   isRunning: boolean;
   v1: number;
@@ -33,10 +33,12 @@ export interface CarnotTelemetryData {
 export interface CarnotStatusCardCallbacks {
   onTempHighChange?: (tempK: number) => void;
   onTempLowChange?: (tempK: number) => void;
+  onTogglePlay?: (playing: boolean) => void;
   onToggleRunning?: () => void;
   onToggleDirection?: () => void;
-  onStepStage?: (step: 1 | -1) => void;
-  onApplyPreset?: (preset: 'steam' | 'extreme' | 'stirling' | 'refrig') => void;
+  onStepStage?: (step?: any) => void;
+  onPresetChange?: (preset: string) => void;
+  onApplyPreset?: (preset: any) => void;
 }
 
 export class CarnotStatusCard {
@@ -76,16 +78,15 @@ export class CarnotStatusCard {
     s2: 1.66,
   };
 
-  // 缓存的 DOM 元素
   private valTempHEl: HTMLElement | null = null;
   private valTempCEl: HTMLElement | null = null;
   private valEffEl: HTMLElement | null = null;
-  private valWorkEl: HTMLElement | null = null;
+  private valStageEl: HTMLElement | null = null;
   private stageBadgeEl: HTMLElement | null = null;
-  private valPressVolEl: HTMLElement | null = null;
-  private valPowerRpmEl: HTMLElement | null = null;
   private btnPlayPause: HTMLButtonElement | null = null;
   private btnDirection: HTMLButtonElement | null = null;
+  private btnStep: HTMLButtonElement | null = null;
+  private selectPreset: HTMLSelectElement | null = null;
   private sliderTempH: HTMLInputElement | null = null;
   private sliderTempC: HTMLInputElement | null = null;
   private activeSliders = new Set<string>();
@@ -101,116 +102,341 @@ export class CarnotStatusCard {
     this.createUI();
   }
 
+  private updateSliderTrackFill(slider: HTMLInputElement | null, min: number, max: number, value: number): void {
+    if (!slider) return;
+    const ratio = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    const pct = (ratio * 100).toFixed(1);
+    slider.style.background = `linear-gradient(to right, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.85) ${pct}%, rgba(255, 255, 255, 0.14) ${pct}%, rgba(255, 255, 255, 0.14) 100%)`;
+  }
+
   private createUI(): void {
     this.element = document.createElement('div');
     this.element.className = 'vision-thermo-status-card hud-interactive';
 
     this.element.innerHTML = `
-      <div class="thermo-card-container">
-        <!-- 1. Top Metrics Deck -->
-        <div class="thermo-metrics-deck">
-          <div class="thermo-metric-card" id="card-temp-high">
-            <span class="thermo-metric-label">高温热源 T_H</span>
-            <div class="thermo-metric-value" id="val-temp-h" style="color: #ef4444;">600 K</div>
-            <span class="thermo-metric-sub">吸热恒温热源</span>
-            <input type="range" class="thermo-mini-slider" id="slider-temp-h" min="400" max="1000" step="10" value="600" style="accent-color: #ef4444;" />
-          </div>
+      <style>
+        .vision-thermo-status-card {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          height: 100%;
+          min-height: 480px;
+          padding: 24px;
+          box-sizing: border-box;
+        }
 
-          <div class="thermo-metric-card" id="card-temp-low">
-            <span class="thermo-metric-label">低温冷源 T_C</span>
-            <div class="thermo-metric-value" id="val-temp-c" style="color: #38bdf8;">300 K</div>
-            <span class="thermo-metric-sub">放热恒温冷源</span>
-            <input type="range" class="thermo-mini-slider" id="slider-temp-c" min="150" max="380" step="5" value="300" style="accent-color: #38bdf8;" />
-          </div>
+        .apple-physics-layout {
+          width: 100%;
+          max-width: 1040px;
+          display: grid;
+          grid-template-columns: 390px 1fr;
+          gap: 20px;
+          align-items: start;
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+          user-select: none;
+          -webkit-user-select: none;
+        }
 
-          <div class="thermo-metric-card" id="card-efficiency">
-            <span class="thermo-metric-label">卡诺理论极限效率 η</span>
-            <div class="thermo-metric-value" id="val-eff" style="color: #22c55e;">50.0%</div>
-            <span class="thermo-metric-sub" id="sub-eff-formula">η = 1 - T_C / T_H</span>
-            <div class="thermo-gauge-bar"><div class="thermo-gauge-fill" id="bar-eff-fill" style="width: 50%;"></div></div>
-          </div>
+        .apple-physics-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
 
-          <div class="thermo-metric-card" id="card-work">
-            <span class="thermo-metric-label">循环净功 W_net</span>
-            <div class="thermo-metric-value" id="val-work" style="color: #f59e0b;">197.6 J</div>
-            <span class="thermo-metric-sub" id="sub-heat-ratio">Q_H: 395J · Q_C: 198J</span>
-            <div class="thermo-metric-caption" id="sub-power-rpm">功率: 16.5 W · 50 RPM</div>
-          </div>
-        </div>
+        .apple-physics-group {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-top: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 18px;
+          overflow: hidden;
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+        }
 
-        <!-- 2. Dual Analytics Charts Deck (PV & TS) -->
-        <div class="thermo-charts-deck">
-          <!-- Left: P-V Indicator Diagram -->
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header">
-              <span class="thermo-chart-title">P-V 示功闭合图 (W = ∮ P dV)</span>
-              <div class="thermo-chart-legend">
-                <span class="legend-line line-carnot-iso-h"></span><span>等温吸热</span>
-                <span class="legend-line line-carnot-adi-exp"></span><span>绝热做功</span>
-                <span class="legend-line line-carnot-iso-c"></span><span>等温放热</span>
-                <span class="legend-line line-carnot-adi-comp"></span><span>绝热压缩</span>
+        .apple-physics-row {
+          padding: 13px 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .apple-physics-row:last-child {
+          border-bottom: none;
+        }
+
+        .apple-physics-row-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+        }
+
+        .apple-physics-label {
+          font-size: 13.5px;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.68);
+          letter-spacing: -0.15px;
+        }
+
+        .apple-physics-readout {
+          font-size: 14.5px;
+          font-weight: 600;
+          color: #ffffff;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: -0.2px;
+        }
+
+        .apple-physics-slider {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 100%;
+          height: 5px;
+          border-radius: 9999px;
+          outline: none;
+          cursor: pointer;
+          margin: 6px 0 2px 0;
+          background: rgba(255, 255, 255, 0.14);
+          transition: background 0.08s ease;
+        }
+
+        .apple-physics-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #ffffff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.2);
+          cursor: pointer;
+          transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s ease;
+          border: none;
+        }
+
+        .apple-physics-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.12);
+          box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+        }
+
+        .apple-physics-slider::-webkit-slider-thumb:active {
+          transform: scale(0.96);
+        }
+
+        .apple-physics-slider::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #ffffff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+          cursor: pointer;
+          border: none;
+        }
+
+        .apple-physics-scale {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.3);
+          font-variant-numeric: tabular-nums;
+          font-weight: 400;
+        }
+
+        .apple-actions-group {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .apple-select {
+          width: 100%;
+          height: 38px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          font-size: 13px;
+          padding: 0 12px;
+          outline: none;
+          cursor: pointer;
+          font-family: inherit;
+        }
+
+        .apple-select option {
+          background: #181c24;
+          color: #ffffff;
+        }
+
+        .apple-btn-row {
+          display: flex;
+          gap: 8px;
+        }
+
+        .apple-btn-primary {
+          flex: 1.2;
+          height: 42px;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.14);
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 600;
+          letter-spacing: -0.2px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          border-top: 1px solid rgba(255, 255, 255, 0.32);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .apple-btn-primary:hover {
+          background: rgba(255, 255, 255, 0.22);
+          border-color: rgba(255, 255, 255, 0.28);
+          border-top-color: rgba(255, 255, 255, 0.45);
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+          transform: translateY(-1px);
+        }
+
+        .apple-btn-primary:active {
+          background: rgba(255, 255, 255, 0.08);
+          transform: translateY(0.5px) scale(0.99);
+        }
+
+        .apple-btn-secondary {
+          flex: 1;
+          height: 42px;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.06);
+          color: rgba(255, 255, 255, 0.88);
+          font-size: 13px;
+          font-weight: 500;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          transition: all 0.18s ease;
+        }
+
+        .apple-btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+        }
+
+        .apple-charts-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .apple-chart-card {
+          background: rgba(255, 255, 255, 0.045);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-top: 1px solid rgba(255, 255, 255, 0.16);
+          border-radius: 16px;
+          padding: 12px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .apple-chart-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.85);
+          letter-spacing: -0.1px;
+        }
+
+        .apple-chart-canvas {
+          width: 100%;
+          height: auto;
+          max-height: 190px;
+          border-radius: 8px;
+        }
+      </style>
+
+      <div class="apple-physics-layout">
+        <!-- 1. 左侧：参数调节与状态卡片 -->
+        <div class="apple-physics-panel">
+          <div class="apple-physics-group">
+            <!-- 高温热源 T_H -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">高温热源 T_H</span>
+                <span id="val-temp-h" class="apple-physics-readout">600 K</span>
+              </div>
+              <input type="range" class="apple-physics-slider" id="slider-temp-h" min="400" max="1000" step="10" value="600" />
+              <div class="apple-physics-scale">
+                <span>400 K</span>
+                <span>1000 K</span>
               </div>
             </div>
-            <div class="thermo-canvas-wrap">
-              <canvas id="canvas-carnot-pv" width="480" height="250"></canvas>
-            </div>
-          </div>
 
-          <!-- Right: T-S Entropy Diagram -->
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header">
-              <span class="thermo-chart-title">T-S 温-熵图 (理想矩形热机循环)</span>
-              <div class="thermo-chart-legend">
-                <span class="legend-dot" style="background: #22c55e;"></span><span>面积 = (T_H-T_C)ΔS</span>
-                <span class="legend-dot" style="background: #f59e0b;"></span><span>实时状态点</span>
+            <!-- 低温冷源 T_C -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">低温冷源 T_C</span>
+                <span id="val-temp-c" class="apple-physics-readout">300 K</span>
+              </div>
+              <input type="range" class="apple-physics-slider" id="slider-temp-c" min="150" max="380" step="5" value="300" />
+              <div class="apple-physics-scale">
+                <span>150 K</span>
+                <span>380 K</span>
               </div>
             </div>
-            <div class="thermo-canvas-wrap">
-              <canvas id="canvas-carnot-ts" width="480" height="250"></canvas>
+
+            <!-- 理论极限效率 η -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">卡诺理论极限效率 η</span>
+                <span id="val-eff" class="apple-physics-readout">50.0% · 197.6 J</span>
+              </div>
+            </div>
+
+            <!-- 循环冲程状态 -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">当前循环冲程</span>
+                <span id="badge-stage-text" class="apple-physics-readout">等温膨胀</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 3. Control Deck & Mode Toolbar -->
-        <div class="carnot-control-deck">
-          <div class="carnot-btn-group">
-            <div class="carnot-stage-badge" id="badge-stage">
-              <span class="stage-dot" style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b;"></span>
-              <span id="badge-stage-text">冲程 1: 等温膨胀 (吸热做功)</span>
-            </div>
-            <span style="font-size: 11px; color: #94a3b8; font-family: monospace;" id="txt-press-vol">P: 332.6 kPa · V: 1.50 L · T: 600 K</span>
-          </div>
-
-          <div class="carnot-btn-group">
-            <select class="carnot-select" id="select-preset" title="快速载入经典热力学工况">
-              <option value="steam">工况预设: 经典工业蒸汽热机 (650K/300K)</option>
-              <option value="extreme">工况预设: 极限超高温差热机 (950K/200K)</option>
-              <option value="stirling">工况预设: 近环境低品位热机 (360K/290K)</option>
-              <option value="refrig">工况预设: 深冷逆卡诺制冷机 (320K/240K)</option>
+          <!-- 操作按钮组 -->
+          <div class="apple-actions-group">
+            <select class="apple-select" id="select-preset">
+              <option value="steam">经典蒸汽热机 (650K / 300K)</option>
+              <option value="extreme">极限超高温差 (950K / 200K)</option>
+              <option value="stirling">近环境温差 (360K / 290K)</option>
+              <option value="refrig">逆卡诺制冷机 (320K / 240K)</option>
             </select>
 
-            <button class="carnot-btn" id="btn-carnot-dir" title="切换正向热机 / 逆向热泵">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"/>
-              </svg>
-              <span id="txt-carnot-dir">正向热机</span>
-            </button>
+            <div class="apple-btn-row">
+              <button class="apple-btn-primary" id="btn-carnot-play" type="button">
+                <span id="txt-carnot-play">运行中</span>
+              </button>
+              <button class="apple-btn-secondary" id="btn-carnot-dir" type="button">
+                <span id="txt-carnot-dir">正向热机</span>
+              </button>
+              <button class="apple-btn-secondary" id="btn-carnot-step" type="button">
+                <span>单步</span>
+              </button>
+            </div>
+          </div>
+        </div>
 
-            <button class="carnot-btn" id="btn-carnot-step" title="分步推进下一个冲程">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="5 4 15 12 5 20 5 4"></polygon>
-                <line x1="19" y1="5" x2="19" y2="19"></line>
-              </svg>
-              <span>单步冲程</span>
-            </button>
+        <!-- 2. 右侧：双分析图表 -->
+        <div class="apple-charts-grid">
+          <div class="apple-chart-card">
+            <span class="apple-chart-title">P-V 示功图 (W_net = ∮ P dV)</span>
+            <canvas id="canvas-carnot-pv" class="apple-chart-canvas" width="480" height="210"></canvas>
+          </div>
 
-            <button class="carnot-btn active" id="btn-carnot-play" title="启动 / 暂停动力飞轮">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-                <rect x="6" y="4" width="4" height="16"></rect>
-                <rect x="14" y="4" width="4" height="16"></rect>
-              </svg>
-              <span id="txt-carnot-play">运行中</span>
-            </button>
+          <div class="apple-chart-card">
+            <span class="apple-chart-title">T-S 温-熵图 (理想可逆循环)</span>
+            <canvas id="canvas-carnot-ts" class="apple-chart-canvas" width="480" height="210"></canvas>
           </div>
         </div>
       </div>
@@ -222,14 +448,16 @@ export class CarnotStatusCard {
     this.valTempHEl = this.element.querySelector('#val-temp-h');
     this.valTempCEl = this.element.querySelector('#val-temp-c');
     this.valEffEl = this.element.querySelector('#val-eff');
-    this.valWorkEl = this.element.querySelector('#val-work');
     this.stageBadgeEl = this.element.querySelector('#badge-stage-text');
-    this.valPressVolEl = this.element.querySelector('#txt-press-vol');
-    this.valPowerRpmEl = this.element.querySelector('#sub-power-rpm');
     this.btnPlayPause = this.element.querySelector('#btn-carnot-play');
     this.btnDirection = this.element.querySelector('#btn-carnot-dir');
+    this.btnStep = this.element.querySelector('#btn-carnot-step');
+    this.selectPreset = this.element.querySelector('#select-preset');
     this.sliderTempH = this.element.querySelector('#slider-temp-h');
     this.sliderTempC = this.element.querySelector('#slider-temp-c');
+
+    this.updateSliderTrackFill(this.sliderTempH, 400, 1000, 600);
+    this.updateSliderTrackFill(this.sliderTempC, 150, 380, 300);
 
     this.bindEvents();
   }
@@ -237,65 +465,82 @@ export class CarnotStatusCard {
   private bindEvents(): void {
     bindVisionSlider(this.sliderTempH, {
       activeSet: this.activeSliders,
-      onChange: (val) => this.callbacks.onTempHighChange?.(val),
+      onChange: (val) => {
+        this.updateSliderTrackFill(this.sliderTempH, 400, 1000, val);
+        this.callbacks.onTempHighChange?.(val);
+      },
       onScrub: (val) => {
         if (this.valTempHEl) this.valTempHEl.textContent = `${Math.round(val)} K`;
+        this.updateSliderTrackFill(this.sliderTempH, 400, 1000, val);
       },
     });
 
     bindVisionSlider(this.sliderTempC, {
       activeSet: this.activeSliders,
-      onChange: (val) => this.callbacks.onTempLowChange?.(val),
+      onChange: (val) => {
+        this.updateSliderTrackFill(this.sliderTempC, 150, 380, val);
+        this.callbacks.onTempLowChange?.(val);
+      },
       onScrub: (val) => {
         if (this.valTempCEl) this.valTempCEl.textContent = `${Math.round(val)} K`;
+        this.updateSliderTrackFill(this.sliderTempC, 150, 380, val);
       },
     });
 
     this.btnPlayPause?.addEventListener('click', () => {
+      const nextRunning = !this.currentData.isRunning;
+      this.currentData.isRunning = nextRunning;
+      this.callbacks.onTogglePlay?.(nextRunning);
       this.callbacks.onToggleRunning?.();
     });
 
     this.btnDirection?.addEventListener('click', () => {
+      const nextReversed = !this.currentData.isReversed;
+      this.currentData.isReversed = nextReversed;
       this.callbacks.onToggleDirection?.();
     });
 
-    this.element.querySelector('#btn-carnot-step')?.addEventListener('click', () => {
-      this.callbacks.onStepStage?.(1);
+    this.btnStep?.addEventListener('click', () => {
+      this.callbacks.onStepStage?.();
     });
 
-    const selectPreset = this.element.querySelector('#select-preset') as HTMLSelectElement;
-    selectPreset?.addEventListener('change', () => {
-      const p = selectPreset.value as 'steam' | 'extreme' | 'stirling' | 'refrig';
-      this.callbacks.onApplyPreset?.(p);
+    this.selectPreset?.addEventListener('change', (e) => {
+      const val = (e.target as HTMLSelectElement).value;
+      this.callbacks.onPresetChange?.(val);
+      this.callbacks.onApplyPreset?.(val);
     });
   }
 
-  public setVisible(visible: boolean): void {
-    this.isVisible = visible;
-    if (visible) {
-      this.lastChartRenderTime = 0;
-      this.lastRenderedTempH = -1;
+  public setVisible(show: boolean): void {
+    this.isVisible = show;
+    this.element.style.display = show ? 'flex' : 'none';
+    if (show) {
+      this.lastRenderedVol = -1;
       this.renderCharts();
     }
+  }
+
+  public get visible(): boolean {
+    return this.isVisible;
   }
 
   public updateTelemetry(data: CarnotTelemetryData): void {
     this.currentData = data;
 
-    if (this.valTempHEl) this.valTempHEl.textContent = `${Math.round(data.tempHigh)} K`;
-    if (this.valTempCEl) this.valTempCEl.textContent = `${Math.round(data.tempLow)} K`;
-    if (this.valEffEl) this.valEffEl.textContent = `${data.efficiency.toFixed(1)}%`;
-    if (this.valWorkEl) this.valWorkEl.textContent = `${data.netWork.toFixed(1)} J`;
-    if (this.stageBadgeEl) this.stageBadgeEl.textContent = `冲程 ${data.currentStage}: ${data.stageName}`;
-    if (this.valPressVolEl) {
-      this.valPressVolEl.textContent = `P: ${data.currentPress.toFixed(1)} kPa · V: ${data.currentVol.toFixed(2)} L · T: ${Math.round(data.currentTemp)} K`;
+    if (this.valTempHEl) {
+      this.valTempHEl.textContent = `${Math.round(data.tempHigh)} K`;
     }
-    if (this.valPowerRpmEl) {
-      this.valPowerRpmEl.textContent = `功率: ${data.mechPower.toFixed(1)} W · ${Math.round(data.flywheelRpm)} RPM`;
+    if (this.valTempCEl) {
+      this.valTempCEl.textContent = `${Math.round(data.tempLow)} K`;
+    }
+    if (this.valEffEl) {
+      this.valEffEl.textContent = `${data.efficiency.toFixed(1)}% · ${data.netWork.toFixed(0)} J`;
+    }
+    if (this.stageBadgeEl) {
+      this.stageBadgeEl.textContent = data.stageName.split(' ')[0] || data.stageName;
     }
 
     if (this.btnPlayPause) {
-      this.btnPlayPause.classList.toggle('active', data.isRunning);
       const txt = this.btnPlayPause.querySelector('#txt-carnot-play');
       if (txt) txt.textContent = data.isRunning ? '运行中' : '已暂停';
     }
@@ -307,9 +552,11 @@ export class CarnotStatusCard {
 
     if (this.sliderTempH && !isSliderActive(this.sliderTempH, this.activeSliders)) {
       this.sliderTempH.value = String(data.tempHigh);
+      this.updateSliderTrackFill(this.sliderTempH, 400, 1000, data.tempHigh);
     }
     if (this.sliderTempC && !isSliderActive(this.sliderTempC, this.activeSliders)) {
       this.sliderTempC.value = String(data.tempLow);
+      this.updateSliderTrackFill(this.sliderTempC, 150, 380, data.tempLow);
     }
 
     if (this.isVisible) {
@@ -331,9 +578,6 @@ export class CarnotStatusCard {
     }
   }
 
-  /**
-   * P-V 与 T-S 曲线的高清 Canvas 渲染
-   */
   private renderCharts(): void {
     this.renderPVChart();
     this.renderTSChart();
@@ -349,19 +593,17 @@ export class CarnotStatusCard {
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // 坐标边距
-    const padL = 44, padR = 16, padT = 16, padB = 30;
+    const padL = 40, padR = 14, padT = 14, padB = 26;
     const chartW = w - padL - padR;
     const chartH = h - padT - padB;
 
-    // 网格边界：V 为 1.0 至 7.0 L，P 为 0 至 450 kPa
     const vMin = 0.8, vMax = 6.8;
     const pMin = 0, pMax = 440;
 
     const mapX = (v: number) => padL + ((v - vMin) / (vMax - vMin)) * chartW;
     const mapY = (p: number) => padT + chartH - ((p - pMin) / (pMax - pMin)) * chartH;
 
-    // 绘制背景网格线
+    // 网格线
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     for (let p = 100; p <= 400; p += 100) {
@@ -371,10 +613,10 @@ export class CarnotStatusCard {
       ctx.lineTo(w - padR, y);
       ctx.stroke();
 
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.font = '10px -apple-system, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText(`${p}`, padL - 6, y + 3);
+      ctx.fillText(`${p}`, padL - 5, y + 3);
     }
 
     for (let v = 2; v <= 6; v += 1) {
@@ -384,15 +626,15 @@ export class CarnotStatusCard {
       ctx.lineTo(x, padT + chartH);
       ctx.stroke();
 
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.font = '10px -apple-system, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(`${v}L`, x, h - 12);
+      ctx.fillText(`${v}L`, x, h - 8);
     }
 
     // 坐标轴
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.moveTo(padL, padT);
     ctx.lineTo(padL, padT + chartH);
@@ -404,47 +646,37 @@ export class CarnotStatusCard {
     const n = 0.10;
     const gamma = 1.40;
 
-    // 曲线方程辅助函数
-    // 1 -> 2：高温 Th 等温线
     const pIsoH = (v: number) => (n * R_GAS * d.tempHigh) / v;
-    // 3 -> 4：低温 Tc 等温线
     const pIsoC = (v: number) => (n * R_GAS * d.tempLow) / v;
-    // 2 -> 3：绝热膨胀：P = P2 * (V2/V)^gamma
     const pAdiExp = (v: number) => d.p2 * Math.pow(d.v2 / v, gamma);
-    // 4 -> 1：绝热压缩：P = P4 * (V4/V)^gamma
     const pAdiComp = (v: number) => d.p4 * Math.pow(d.v4 / v, gamma);
 
-    // 1. 填充闭合净功区域 (W_net = ∮ P dV)
+    // 填充循环面积 (经典蓝微透)
     ctx.beginPath();
-    // 冲程 1 -> 2
     for (let i = 0; i <= 20; i++) {
       const v = d.v1 + (d.v2 - d.v1) * (i / 20);
       const x = mapX(v), y = mapY(pIsoH(v));
       if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
-    // 冲程 2 -> 3
     for (let i = 0; i <= 20; i++) {
       const v = d.v2 + (d.v3 - d.v2) * (i / 20);
       ctx.lineTo(mapX(v), mapY(pAdiExp(v)));
     }
-    // 冲程 3 -> 4
     for (let i = 0; i <= 20; i++) {
       const v = d.v3 - (d.v3 - d.v4) * (i / 20);
       ctx.lineTo(mapX(v), mapY(pIsoC(v)));
     }
-    // 冲程 4 -> 1
     for (let i = 0; i <= 20; i++) {
       const v = d.v4 - (d.v4 - d.v1) * (i / 20);
       ctx.lineTo(mapX(v), mapY(pAdiComp(v)));
     }
     ctx.closePath();
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.16)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.fill();
 
-    // 2. 绘制 4 段不同路径
-    // 路径 1 -> 2：等温膨胀（红色）
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 2.4;
+    // 轮廓线条（纯白，克制高雅）
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 2.0;
     ctx.beginPath();
     for (let i = 0; i <= 20; i++) {
       const v = d.v1 + (d.v2 - d.v1) * (i / 20);
@@ -453,76 +685,44 @@ export class CarnotStatusCard {
     }
     ctx.stroke();
 
-    // 路径 2 -> 3：绝热膨胀（黄色）
-    ctx.strokeStyle = '#eab308';
-    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
     for (let i = 0; i <= 20; i++) {
       const v = d.v2 + (d.v3 - d.v2) * (i / 20);
-      const x = mapX(v), y = mapY(pAdiExp(v));
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      ctx.lineTo(mapX(v), mapY(pAdiExp(v)));
     }
     ctx.stroke();
 
-    // 路径 3 -> 4：等温压缩（蓝色）
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.beginPath();
     for (let i = 0; i <= 20; i++) {
       const v = d.v3 - (d.v3 - d.v4) * (i / 20);
-      const x = mapX(v), y = mapY(pIsoC(v));
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      ctx.lineTo(mapX(v), mapY(pIsoC(v)));
     }
     ctx.stroke();
 
-    // 路径 4 -> 1：绝热压缩（紫色）
-    ctx.strokeStyle = '#a855f7';
-    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
     ctx.beginPath();
     for (let i = 0; i <= 20; i++) {
       const v = d.v4 - (d.v4 - d.v1) * (i / 20);
-      const x = mapX(v), y = mapY(pAdiComp(v));
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      ctx.lineTo(mapX(v), mapY(pAdiComp(v)));
     }
     ctx.stroke();
 
-    // 绘制 4 个状态顶点圆圈 (1, 2, 3, 4)
-    const pts = [
-      { v: d.v1, p: d.p1, label: '1 (Th)' },
-      { v: d.v2, p: d.p2, label: '2' },
-      { v: d.v3, p: d.p3, label: '3 (Tc)' },
-      { v: d.v4, p: d.p4, label: '4' },
-    ];
-    pts.forEach((pt) => {
-      const px = mapX(pt.v), py = mapY(pt.p);
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(px, py, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#cbd5e1';
-      ctx.font = '10px -apple-system, sans-serif';
-      ctx.fillText(pt.label, px + 5, py - 4);
-    });
-
-    // 3. 实时当前状态点
+    // 当前工作点
     const liveX = mapX(d.currentVol);
     const liveY = mapY(d.currentPress);
 
-    // 发光光晕
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
+    ctx.fillStyle = 'rgba(10, 132, 255, 0.4)';
     ctx.beginPath();
-    ctx.arc(liveX, liveY, 9, 0, Math.PI * 2);
+    ctx.arc(liveX, liveY, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    // 中心圆点
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(liveX, liveY, 4.5, 0, Math.PI * 2);
+    ctx.arc(liveX, liveY, 4, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
   }
 
   private renderTSChart(): void {
@@ -535,18 +735,16 @@ export class CarnotStatusCard {
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const padL = 44, padR = 16, padT = 16, padB = 30;
+    const padL = 40, padR = 14, padT = 14, padB = 26;
     const chartW = w - padL - padR;
     const chartH = h - padT - padB;
 
-    const d = this.currentData;
-    const sMin = 0.5, sMax = 2.5;
-    const tMin = 100, tMax = 1100;
+    const sMin = 0.8, sMax = 1.9;
+    const tMin = 100, tMax = 1050;
 
     const mapX = (s: number) => padL + ((s - sMin) / (sMax - sMin)) * chartW;
     const mapY = (t: number) => padT + chartH - ((t - tMin) / (tMax - tMin)) * chartH;
 
-    // Grid
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     for (let t = 200; t <= 1000; t += 200) {
@@ -556,103 +754,44 @@ export class CarnotStatusCard {
       ctx.lineTo(w - padR, y);
       ctx.stroke();
 
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.font = '10px -apple-system, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText(`${t}K`, padL - 6, y + 3);
+      ctx.fillText(`${t}K`, padL - 5, y + 3);
     }
 
-    for (let s = 1.0; s <= 2.0; s += 0.5) {
-      const x = mapX(s);
-      ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT + chartH);
-      ctx.stroke();
-
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${s.toFixed(1)}`, x, h - 12);
-    }
-
-    // Axes
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.moveTo(padL, padT);
     ctx.lineTo(padL, padT + chartH);
     ctx.lineTo(w - padR, padT + chartH);
     ctx.stroke();
 
-    const x1 = mapX(d.s1);
-    const x2 = mapX(d.s2);
-    const yH = mapY(d.tempHigh);
-    const yC = mapY(d.tempLow);
+    const d = this.currentData;
+    const x1 = mapX(d.s1), x2 = mapX(d.s2);
+    const yH = mapY(d.tempHigh), yC = mapY(d.tempLow);
 
-    // 1. 填充卡诺循环 T-S 矩形区域
-    ctx.fillStyle = 'rgba(34, 197, 94, 0.18)';
+    // 理想卡诺矩形
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.fillRect(x1, yH, x2 - x1, yC - yH);
 
-    // 2. 绘制卡诺循环四条边
-    // 顶边：Th（等温膨胀过程）
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    ctx.moveTo(x1, yH);
-    ctx.lineTo(x2, yH);
-    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 2.0;
+    ctx.strokeRect(x1, yH, x2 - x1, yC - yH);
 
-    // 右边：S2（等熵/绝热膨胀过程）
-    ctx.strokeStyle = '#eab308';
-    ctx.beginPath();
-    ctx.moveTo(x2, yH);
-    ctx.lineTo(x2, yC);
-    ctx.stroke();
-
-    // 底边：Tc（等温压缩过程）
-    ctx.strokeStyle = '#38bdf8';
-    ctx.beginPath();
-    ctx.moveTo(x2, yC);
-    ctx.lineTo(x1, yC);
-    ctx.stroke();
-
-    // 左边：S1（等熵/绝热压缩过程）
-    ctx.strokeStyle = '#a855f7';
-    ctx.beginPath();
-    ctx.moveTo(x1, yC);
-    ctx.lineTo(x1, yH);
-    ctx.stroke();
-
-    // Th 与 Tc 温度标注文本
-    ctx.fillStyle = '#ef4444';
-    ctx.font = 'bold 10px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`T_H = ${Math.round(d.tempHigh)}K`, x2 + 6, yH + 4);
-
-    ctx.fillStyle = '#38bdf8';
-    ctx.fillText(`T_C = ${Math.round(d.tempLow)}K`, x2 + 6, yC + 4);
-
-    // 中央理论效率公式
-    ctx.fillStyle = '#22c55e';
-    ctx.font = '11px -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(`ΔS = ${(d.s2 - d.s1).toFixed(2)} J/K`, (x1 + x2) * 0.5, (yH + yC) * 0.5);
-
-    // 3. 当前实时工作点在 T-S 图上的位置
+    // 实时状态点
     const liveX = mapX(d.currentEntropy);
     const liveY = mapY(d.currentTemp);
 
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
+    ctx.fillStyle = 'rgba(10, 132, 255, 0.4)';
     ctx.beginPath();
-    ctx.arc(liveX, liveY, 9, 0, Math.PI * 2);
+    ctx.arc(liveX, liveY, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(liveX, liveY, 4.5, 0, Math.PI * 2);
+    ctx.arc(liveX, liveY, 4, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
   }
 }

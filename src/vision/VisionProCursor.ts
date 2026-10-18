@@ -96,10 +96,6 @@ export class VisionProCursor {
 
     this.setRightVisible(false);
     this.setLeftVisible(false);
-
-    if (typeof requestAnimationFrame === 'function') {
-      this.startRenderLoop();
-    }
   }
 
   private injectStyles(): void {
@@ -146,10 +142,9 @@ export class VisionProCursor {
         width: 32px;
         height: 32px;
         border-radius: 50%;
-        background: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.20);
         border: 1.5px solid rgba(255, 255, 255, 0.72);
         box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38), 0 0 10px rgba(255, 255, 255, 0.28);
-        backdrop-filter: blur(8px);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -293,6 +288,7 @@ export class VisionProCursor {
     if (visible) {
       this.rightContainer.classList.remove('hidden');
       this.rightContainer.classList.add('visible');
+      this.startRenderLoop();
     } else {
       this.rightContainer.classList.add('hidden');
       this.rightContainer.classList.remove('visible');
@@ -308,6 +304,9 @@ export class VisionProCursor {
       this.targetRightY = -100;
       this.renderRightX = -100;
       this.renderRightY = -100;
+      if (!this.isLeftVisible) {
+        this.stopRenderLoop();
+      }
     }
   }
 
@@ -317,6 +316,7 @@ export class VisionProCursor {
     if (visible) {
       this.leftContainer.classList.remove('hidden');
       this.leftContainer.classList.add('visible');
+      this.startRenderLoop();
     } else {
       this.leftContainer.classList.add('hidden');
       this.leftContainer.classList.remove('visible');
@@ -325,18 +325,34 @@ export class VisionProCursor {
       this.targetLeftY = -100;
       this.renderLeftX = -100;
       this.renderLeftY = -100;
+      if (!this.isRightVisible) {
+        this.stopRenderLoop();
+      }
     }
   }
 
   private startRenderLoop(): void {
+    if (this.animFrameId !== null) return;
     const loop = () => {
-      if (this.isDestroyed) return;
+      if (this.isDestroyed || (!this.isRightVisible && !this.isLeftVisible)) {
+        this.animFrameId = null;
+        return;
+      }
       this.renderTick();
       if (typeof requestAnimationFrame === 'function') {
         this.animFrameId = requestAnimationFrame(loop);
       }
     };
-    this.animFrameId = requestAnimationFrame(loop);
+    if (typeof requestAnimationFrame === 'function') {
+      this.animFrameId = requestAnimationFrame(loop);
+    }
+  }
+
+  private stopRenderLoop(): void {
+    if (this.animFrameId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this.animFrameId);
+    }
+    this.animFrameId = null;
   }
 
   private renderTick(): void {

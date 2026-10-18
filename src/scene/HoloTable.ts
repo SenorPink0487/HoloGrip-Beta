@@ -32,10 +32,10 @@ export class HoloTable {
 
   private createTableStructure(): void {
     const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0xdbe3e8, metalness: 0.12, roughness: 0.38, side: THREE.DoubleSide,
+      color: 0xdbe3e8, metalness: 0.12, roughness: 0.38, side: THREE.FrontSide,
     });
     const seamMat = new THREE.MeshStandardMaterial({
-      color: 0x90a2ac, metalness: 0.22, roughness: 0.40, side: THREE.DoubleSide,
+      color: 0x90a2ac, metalness: 0.22, roughness: 0.40, side: THREE.FrontSide,
     });
     // 纯白缎面复合材质台面，具备高光反射质感
     const whiteMat = new THREE.MeshPhysicalMaterial({
@@ -45,13 +45,13 @@ export class HoloTable {
       clearcoat: 0.70,
       clearcoatRoughness: 0.16,
       reflectivity: 0.82,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
     });
     const edgeMat = new THREE.MeshStandardMaterial({
-      color: 0xdde5ec, metalness: 0.25, roughness: 0.28, side: THREE.DoubleSide,
+      color: 0xdde5ec, metalness: 0.25, roughness: 0.28, side: THREE.FrontSide,
     });
     const basePlinthMat = new THREE.MeshStandardMaterial({
-      color: 0x1e2428, metalness: 0.65, roughness: 0.35, side: THREE.DoubleSide,
+      color: 0x1e2428, metalness: 0.65, roughness: 0.35, side: THREE.FrontSide,
     });
 
     // 贴地深色内凹阴影基座
@@ -106,7 +106,7 @@ export class HoloTable {
     this.emitterAssembly.visible = false;
 
     const emitterBaseMat = new THREE.MeshStandardMaterial({
-      color: 0xd4dde1, metalness: 0.7, roughness: 0.26, side: THREE.DoubleSide,
+      color: 0xd4dde1, metalness: 0.7, roughness: 0.26, side: THREE.FrontSide,
     });
     const emitterBase = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.025, 64), emitterBaseMat);
     emitterBase.position.y = 1.0;
@@ -118,7 +118,7 @@ export class HoloTable {
 
     this.emitterLensMat = new THREE.MeshStandardMaterial({
       color: 0xb8eaff, metalness: 0.42, roughness: 0.2, emissive: 0x8bdfff,
-      emissiveIntensity: 0, side: THREE.DoubleSide,
+      emissiveIntensity: 0, side: THREE.FrontSide,
     });
     this.emitterLens = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.36, 64), this.emitterLensMat);
     this.emitterLens.rotation.x = -Math.PI / 2;

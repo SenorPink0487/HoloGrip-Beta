@@ -17,7 +17,7 @@ export class Laboratory {
 
   constructor() {
     this.materials = {
-      wallTitanium: new THREE.MeshStandardMaterial({ color: 0xeaf0f4, roughness: 0.58, metalness: 0.02, side: THREE.DoubleSide }),
+      wallTitanium: new THREE.MeshStandardMaterial({ color: 0xeaf0f4, roughness: 0.58, metalness: 0.02, side: THREE.FrontSide }),
       obsidianGlass: new THREE.MeshPhysicalMaterial({
         color: 0xd8eaf4,
         roughness: 0.06,
@@ -30,10 +30,10 @@ export class Laboratory {
         depthWrite: false,
         side: THREE.DoubleSide,
       }),
-      wallWhite: new THREE.MeshStandardMaterial({ color: 0xe6edf2, roughness: 0.65, metalness: 0.02, side: THREE.DoubleSide }),
-      wallTrim: new THREE.MeshStandardMaterial({ color: 0xc4d2dc, roughness: 0.35, metalness: 0.22, side: THREE.DoubleSide }),
-      wallSeamDark: new THREE.MeshStandardMaterial({ color: 0x8ea2af, roughness: 0.5, metalness: 0.15, side: THREE.DoubleSide }),
-      aluminumTrim: new THREE.MeshStandardMaterial({ color: 0xdce4eb, roughness: 0.22, metalness: 0.50, side: THREE.DoubleSide }),
+      wallWhite: new THREE.MeshStandardMaterial({ color: 0xe6edf2, roughness: 0.65, metalness: 0.02, side: THREE.FrontSide }),
+      wallTrim: new THREE.MeshStandardMaterial({ color: 0xc4d2dc, roughness: 0.35, metalness: 0.22, side: THREE.FrontSide }),
+      wallSeamDark: new THREE.MeshStandardMaterial({ color: 0x8ea2af, roughness: 0.5, metalness: 0.15, side: THREE.FrontSide }),
+      aluminumTrim: new THREE.MeshStandardMaterial({ color: 0xdce4eb, roughness: 0.22, metalness: 0.50, side: THREE.FrontSide }),
       coveLight: new THREE.MeshBasicMaterial({ color: 0xfffcf7, side: THREE.DoubleSide }),
       hairlineLightSlot: new THREE.MeshBasicMaterial({ color: 0x56d4f5, side: THREE.DoubleSide, toneMapped: false }),
       wallWashCove: new THREE.MeshBasicMaterial({ color: 0xd2edfa, side: THREE.DoubleSide }),
@@ -41,12 +41,12 @@ export class Laboratory {
         color: 0x8eddf5, transparent: true, opacity: 0.45, side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending, depthWrite: false,
       }),
-      nicheInterior: new THREE.MeshStandardMaterial({ color: 0xd4dee5, roughness: 0.65, metalness: 0.02, side: THREE.DoubleSide }),
+      nicheInterior: new THREE.MeshStandardMaterial({ color: 0xd4dee5, roughness: 0.65, metalness: 0.02, side: THREE.FrontSide }),
       nicheWarmLight: new THREE.MeshBasicMaterial({ color: 0xffeed8, side: THREE.DoubleSide, toneMapped: false }),
-      ceilingWhite: new THREE.MeshStandardMaterial({ color: 0xeef3f7, roughness: 0.60, metalness: 0.02, side: THREE.DoubleSide }),
-      ceilingTrim: new THREE.MeshStandardMaterial({ color: 0xcbd8e2, roughness: 0.30, metalness: 0.22, side: THREE.DoubleSide }),
+      ceilingWhite: new THREE.MeshStandardMaterial({ color: 0xeef3f7, roughness: 0.60, metalness: 0.02, side: THREE.FrontSide }),
+      ceilingTrim: new THREE.MeshStandardMaterial({ color: 0xcbd8e2, roughness: 0.30, metalness: 0.22, side: THREE.FrontSide }),
       ceilingGroove: new THREE.MeshBasicMaterial({ color: 0xa4b8c6, transparent: true, opacity: 0.45, side: THREE.DoubleSide }),
-      flutedPanel: new THREE.MeshStandardMaterial({ color: 0xe4ebf0, roughness: 0.62, metalness: 0.02, side: THREE.DoubleSide }),
+      flutedPanel: new THREE.MeshStandardMaterial({ color: 0xe4ebf0, roughness: 0.62, metalness: 0.02, side: THREE.FrontSide }),
     };
 
     this.createFloor();
@@ -248,7 +248,7 @@ export class Laboratory {
     const cross = new THREE.Group();
     cross.name = 'skylight-cross';
     const mullionMat = new THREE.MeshStandardMaterial({
-      color: 0xecf2f7, roughness: 0.28, metalness: 0.35, side: THREE.DoubleSide,
+      color: 0xecf2f7, roughness: 0.28, metalness: 0.35, side: THREE.FrontSide,
     });
 
     // 中央圆形立柱轮毂核心
@@ -344,9 +344,11 @@ export class Laboratory {
     walls.name = 'reference-walls';
 
     const shellHeight = 3.9;
+    const shellMat = (this.materials.wallWhite as THREE.MeshStandardMaterial).clone();
+    shellMat.side = THREE.BackSide;
     const shell = new THREE.Mesh(
       new THREE.CylinderGeometry(this.roomRadius, this.roomRadius, shellHeight, 160, 1, true),
-      this.materials.wallWhite,
+      shellMat,
     );
     shell.position.y = shellHeight / 2;
     shell.receiveShadow = true;
@@ -356,9 +358,11 @@ export class Laboratory {
     this.createPanelJoints(walls);
     this.createRibbedWallPanels(walls);
 
+    const cyanSlotMat = (this.materials.hairlineLightSlot as THREE.MeshBasicMaterial).clone();
+    cyanSlotMat.side = THREE.BackSide;
     const cyanSlot = new THREE.Mesh(
       new THREE.CylinderGeometry(this.roomRadius - 0.02, this.roomRadius - 0.02, 0.02, 160, 1, true),
-      this.materials.hairlineLightSlot,
+      cyanSlotMat,
     );
     cyanSlot.position.y = 3.42;
     cyanSlot.name = 'upper-cyan-light-slot';
@@ -465,19 +469,23 @@ export class Laboratory {
     const slatMat = this.materials.flutedPanel || this.materials.wallWhite;
     const slatGeom = new THREE.BoxGeometry(slatW, slatH, slatD);
 
+    const dummy = new THREE.Object3D();
     for (const p of panels) {
       const mount = this.mountOnWall(p.phi, 2.15, this.roomRadius - 0.04);
       mount.name = `ribbed-panel-phi-${Math.round(p.phi * 100)}`;
 
       const step = p.width / (p.count - 1);
       const startX = -p.width / 2;
+      const instMesh = new THREE.InstancedMesh(slatGeom, slatMat, p.count);
+      instMesh.castShadow = false;
+      instMesh.receiveShadow = true;
       for (let i = 0; i < p.count; i++) {
-        const slat = new THREE.Mesh(slatGeom, slatMat);
-        slat.position.set(startX + i * step, 0, 0.012);
-        slat.castShadow = true;
-        slat.receiveShadow = true;
-        mount.add(slat);
+        dummy.position.set(startX + i * step, 0, 0.012);
+        dummy.updateMatrix();
+        instMesh.setMatrixAt(i, dummy.matrix);
       }
+      instMesh.instanceMatrix.needsUpdate = true;
+      mount.add(instMesh);
       walls.add(mount);
     }
   }
@@ -547,7 +555,7 @@ export class Laboratory {
       mount.add(frame);
 
       const interior = this.roundedPanel(width - 0.2, height - 0.18, 0.14, new THREE.MeshStandardMaterial({
-        color: 0xc5d3dc, roughness: 0.7, metalness: 0.02, side: THREE.DoubleSide,
+        color: 0xc5d3dc, roughness: 0.7, metalness: 0.02, side: THREE.FrontSide,
       }));
       interior.position.z = -0.16;
       mount.add(interior);
@@ -594,12 +602,6 @@ export class Laboratory {
       lowerGlow.position.set(0, -0.08, -0.045);
       lowerGlow.name = `side-niche-warm-shelf-${label}`;
       mount.add(lowerGlow);
-
-      const upperLight = new THREE.PointLight(0xfff0d2, 1.25, 2.8, 2);
-      upperLight.position.set(0, 0.34, 0.02);
-      const lowerLight = new THREE.PointLight(0xffe4b8, 0.9, 2.4, 2);
-      lowerLight.position.set(0, -0.22, 0.02);
-      mount.add(upperLight, lowerLight);
 
       walls.add(mount);
     });

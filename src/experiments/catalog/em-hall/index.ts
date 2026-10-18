@@ -180,7 +180,9 @@ export default class EmHallExperiment extends BaseExperiment {
       showParticles: this.showParticles,
     };
 
-    this.telemetryCallback?.(this.cachedTelemetry);
+    if (this.cachedTelemetry) {
+      this.telemetryCallback?.(this.cachedTelemetry);
+    }
   }
 
   // ================= 公共 API 与参数设置器 =================

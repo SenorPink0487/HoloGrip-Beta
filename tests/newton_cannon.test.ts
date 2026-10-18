@@ -400,23 +400,21 @@ console.log('\nTest 6: RealisticEarthMesh Assembly & Disposal Invariant');
 }
 
 // -----------------------------------------------------------------------------
-// Test 7: 3D 控制台按键与液晶遥测监视大屏装配 (NewtonCannonBenchMesh Invariant)
+// Test 7: 3D 控制台按键与精简精密导轨装配 (NewtonCannonBenchMesh Invariant)
 // -----------------------------------------------------------------------------
 console.log('\nTest 7: NewtonCannonBenchMesh 3D Command Console & Visuals');
 {
   const bench = new NewtonCannonBenchMesh(0.52, EARTH_RADIUS_M);
 
   assert(bench.launchButtonMesh !== undefined, 'Launch trigger button must exist');
-  assert(bench.btnCountMinus !== undefined, 'Particle count minus button must exist');
-  assert(bench.btnCountPlus !== undefined, 'Particle count plus button must exist');
-  assert(bench.btnVMinMinus !== undefined, 'Vmin minus button must exist');
-  assert(bench.btnVMinPlus !== undefined, 'Vmin plus button must exist');
-  assert(bench.btnVMaxMinus !== undefined, 'Vmax minus button must exist');
-  assert(bench.btnVMaxPlus !== undefined, 'Vmax plus button must exist');
-  assert(bench.vernierSliderMin !== undefined, 'Vmin vernier slider must exist');
-  assert(bench.vernierSliderMax !== undefined, 'Vmax vernier slider must exist');
-  assert(bench.particleDialKnob !== undefined, 'Particle count handwheel must exist');
-  assert(bench.btnClearTrails !== undefined, 'Clear trails button must exist');
+  assert(bench.sliderVMin !== undefined, 'Vmin precision slider must exist');
+  assert(bench.sliderVMax !== undefined, 'Vmax precision slider must exist');
+  assert(bench.sliderParticleCount !== undefined, 'Particle count precision slider must exist');
+  assert(bench.trackVMin !== undefined, 'Vmin track hit mesh must exist');
+  assert(bench.trackVMax !== undefined, 'Vmax track hit mesh must exist');
+  assert(bench.trackParticleCount !== undefined, 'Particle count track hit mesh must exist');
+  assert(bench.vernierSliderMin !== undefined, 'Vmin vernier slider alias must exist');
+  assert(bench.vernierSliderMax !== undefined, 'Vmax vernier slider alias must exist');
 
   // 联动测试
   bench.setSliderPositions(4.5, 12.0);
@@ -427,22 +425,8 @@ console.log('\nTest 7: NewtonCannonBenchMesh 3D Command Console & Visuals');
   bench.setLaunchButtonHovered(true);
   bench.update(0.016);
 
-  // 液晶屏幕刷新
-  bench.updateLcdScreen(
-    { particleCount: 8, minVelocityKmS: 3.5, maxVelocityKmS: 11.2 },
-    {
-      firstCosmicVelocityKmS: 7.7,
-      secondCosmicVelocityKmS: 10.9,
-      totalParticles: 8,
-      flyingCount: 4,
-      landedCount: 2,
-      orbitingCount: 2,
-      escapedCount: 0,
-      fastestSpeedKmS: 11.2,
-      slowestSpeedKmS: 3.5,
-      maxAltitudeKm: 500,
-    }
-  );
+  // 控制台参数更新
+  bench.updateValues({ particleCount: 8, minVelocityKmS: 3.5, maxVelocityKmS: 11.2 });
 
   // 安全销毁
   bench.dispose();

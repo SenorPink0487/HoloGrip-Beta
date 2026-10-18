@@ -26,10 +26,10 @@ export class Lighting {
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.near = 0.5;
     key.shadow.camera.far = 18;
-    key.shadow.camera.left = -8;
-    key.shadow.camera.right = 8;
-    key.shadow.camera.top = 8;
-    key.shadow.camera.bottom = -8;
+    key.shadow.camera.left = -3.6;
+    key.shadow.camera.right = 3.6;
+    key.shadow.camera.top = 3.6;
+    key.shadow.camera.bottom = -3.6;
     key.shadow.bias = -0.0002;
     key.shadow.normalBias = 0.03;
     this.scene.add(key);

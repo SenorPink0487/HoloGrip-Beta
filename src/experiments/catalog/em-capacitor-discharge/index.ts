@@ -13,7 +13,7 @@ import type { ExperimentContext } from '../../../core/types.ts';
 
 export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   public readonly metadata = metadata;
-  public override targetScale = 3.6;
+  public override targetScale = 3.0;
   public override hideCenterEmitter = true;
 
   // 物理求解引擎
@@ -30,7 +30,7 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   constructor() {
     super();
     this.model = new CapacitorDischargeModel({
-      voltageSupply: 6.0,
+      voltageSupply: 3.0,
       capacitanceMicroFarad: 1000.0,
       dischargeResistance: 1000.0,
       chargeResistance: 1000.0,
@@ -38,8 +38,8 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   }
 
   public init(context: ExperimentContext): void {
-    // 将实验台放置于操作者视线前方正中央
-    this.rootGroup.position.set(0, 0.16, 1.55);
+    // 将实验器材直接放置于全息实验台桌面上 (y = 0.082 与桌面绝对贴合)
+    this.rootGroup.position.set(0, 0.082, 1.48);
 
     // 1. 3D 器材装配
     this.bench = this.track(new CapacitorDischargeBenchMesh({
@@ -123,14 +123,14 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   }
 
   /**
-   * 循环调节电源电压预设：5V -> 10V -> 15V -> 5V
+   * 循环调节电源电压预设：3.0V (双节串联) -> 4.5V (三节串联) -> 6.0V (四节串联) -> 3.0V (双节串联)
    */
   public cycleVoltagePreset(): void {
     const cur = this.model.voltageSupply;
-    let next = 10.0;
-    if (cur < 7.0) next = 10.0;
-    else if (cur < 12.0) next = 15.0;
-    else next = 5.0;
+    let next = 3.0;
+    if (cur < 3.5) next = 4.5;
+    else if (cur < 5.0) next = 6.0;
+    else next = 3.0;
     this.setVoltage(next);
   }
 

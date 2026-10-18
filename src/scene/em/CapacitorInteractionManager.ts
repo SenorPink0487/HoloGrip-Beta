@@ -56,7 +56,7 @@ export class CapacitorInteractionManager {
         ) {
           return {
             id: 'cap_power_knob',
-            label: '稳压电源旋钮（点击调节输出电压：5V ➔ 10V ➔ 15V）',
+            label: '电池组紧固旋钮（点击调节串联电池电压预设：3.0V ➔ 4.5V ➔ 6.0V）',
             cursor: 'pointer',
           };
         }
@@ -67,7 +67,7 @@ export class CapacitorInteractionManager {
         ) {
           return {
             id: 'cap_power_supply',
-            label: '台式直流稳压电源（提供稳定直流电动势）',
+            label: '双节干电池串联组（两节1.5V干电池串联，输出 3.0V 直流电压）',
             cursor: 'default',
           };
         }

@@ -40,7 +40,6 @@ export class ThermoStatusCard {
 
   private isVisible = false;
   private animFrameId: number | null = null;
-  private lastDrawTime = 0;
   private lastTelemetryTime = 0;
   private lastMaxwellDraw = 0;
   private lastRenderedVol = -1;
@@ -49,32 +48,29 @@ export class ThermoStatusCard {
 
   // 缓存的 DOM 元素
   private valTempEl: HTMLElement | null = null;
-  private subTempEl: HTMLElement | null = null;
   private valVolEl: HTMLElement | null = null;
-  private subVolEl: HTMLElement | null = null;
   private valPressEl: HTMLElement | null = null;
-  private subPressEl: HTMLElement | null = null;
-  private barPressFillEl: HTMLElement | null = null;
   private valEnergyEl: HTMLElement | null = null;
-  private subVrmsEl: HTMLElement | null = null;
   private sliderTempEl: HTMLInputElement | null = null;
   private sliderVolEl: HTMLInputElement | null = null;
   private activeSliders = new Set<string>();
 
   // 缓存的文本字符串，消除频繁重排
   private lastTempStr = '';
-  private lastSubTempStr = '';
   private lastVolStr = '';
-  private lastSubVolStr = '';
   private lastPressStr = '';
-  private lastSubPressStr = '';
-  private lastBarWidthStr = '';
   private lastEnergyStr = '';
-  private lastVrmsStr = '';
 
   constructor(callbacks: ThermoStatusCardCallbacks = {}) {
     this.callbacks = callbacks;
     this.createUI();
+  }
+
+  private updateSliderTrackFill(slider: HTMLInputElement | null, min: number, max: number, value: number): void {
+    if (!slider) return;
+    const ratio = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    const pct = (ratio * 100).toFixed(1);
+    slider.style.background = `linear-gradient(to right, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.85) ${pct}%, rgba(255, 255, 255, 0.14) ${pct}%, rgba(255, 255, 255, 0.14) 100%)`;
   }
 
   private createUI(): void {
@@ -82,67 +78,222 @@ export class ThermoStatusCard {
     this.element.className = 'vision-thermo-status-card hud-interactive';
 
     this.element.innerHTML = `
-      <div class="thermo-card-container">
-        <!-- 1. Top Metrics Grid -->
-        <div class="thermo-metrics-deck">
-          <div class="thermo-metric-card" id="card-temp">
-            <span class="thermo-metric-label">系统温度 T</span>
-            <div class="thermo-metric-value" id="val-temp" style="color: #00f5ff;">300 K</div>
-            <span class="thermo-metric-sub" id="sub-temp">26.9 °C</span>
-            <input type="range" class="thermo-mini-slider" id="slider-temp" min="100" max="800" step="5" value="300" />
-          </div>
+      <style>
+        .vision-thermo-status-card {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          height: 100%;
+          min-height: 480px;
+          padding: 24px;
+          box-sizing: border-box;
+        }
 
-          <div class="thermo-metric-card" id="card-vol">
-            <span class="thermo-metric-label">气缸容积 V</span>
-            <div class="thermo-metric-value" id="val-vol" style="color: #38bdf8;">2.50 L</div>
-            <span class="thermo-metric-sub" id="sub-vol">2500 cm³</span>
-            <input type="range" class="thermo-mini-slider" id="slider-vol" min="1.0" max="5.0" step="0.1" value="2.5" />
-          </div>
+        .apple-physics-layout {
+          width: 100%;
+          max-width: 1040px;
+          display: grid;
+          grid-template-columns: 380px 1fr;
+          gap: 20px;
+          align-items: start;
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+          user-select: none;
+          -webkit-user-select: none;
+        }
 
-          <div class="thermo-metric-card" id="card-press">
-            <span class="thermo-metric-label">气体压强 P</span>
-            <div class="thermo-metric-value" id="val-press" style="color: #f59e0b;">99.8 kPa</div>
-            <span class="thermo-metric-sub" id="sub-press">0.98 atm</span>
-            <div class="thermo-gauge-bar"><div class="thermo-gauge-fill" id="bar-press-fill" style="width: 25%;"></div></div>
-          </div>
+        .apple-physics-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
 
-          <div class="thermo-metric-card" id="card-energy">
-            <span class="thermo-metric-label">气体总内能 U</span>
-            <div class="thermo-metric-value" id="val-energy" style="color: #a855f7;">374.1 J</div>
-            <span class="thermo-metric-sub" id="sub-vrms">v_rms: 517 m/s</span>
-            <div class="thermo-metric-caption">U = 3/2 nRT</div>
+        .apple-physics-group {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-top: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 18px;
+          overflow: hidden;
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+        }
+
+        .apple-physics-row {
+          padding: 14px 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .apple-physics-row:last-child {
+          border-bottom: none;
+        }
+
+        .apple-physics-row-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+        }
+
+        .apple-physics-label {
+          font-size: 13.5px;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.68);
+          letter-spacing: -0.15px;
+        }
+
+        .apple-physics-readout {
+          font-size: 14.5px;
+          font-weight: 600;
+          color: #ffffff;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: -0.2px;
+        }
+
+        .apple-physics-slider {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 100%;
+          height: 5px;
+          border-radius: 9999px;
+          outline: none;
+          cursor: pointer;
+          margin: 6px 0 2px 0;
+          background: rgba(255, 255, 255, 0.14);
+          transition: background 0.08s ease;
+        }
+
+        .apple-physics-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #ffffff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.2);
+          cursor: pointer;
+          transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s ease;
+          border: none;
+        }
+
+        .apple-physics-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.12);
+          box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+        }
+
+        .apple-physics-slider::-webkit-slider-thumb:active {
+          transform: scale(0.96);
+        }
+
+        .apple-physics-slider::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #ffffff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+          cursor: pointer;
+          border: none;
+        }
+
+        .apple-physics-scale {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.3);
+          font-variant-numeric: tabular-nums;
+          font-weight: 400;
+        }
+
+        .apple-charts-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .apple-chart-card {
+          background: rgba(255, 255, 255, 0.045);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-top: 1px solid rgba(255, 255, 255, 0.16);
+          border-radius: 16px;
+          padding: 12px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .apple-chart-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.85);
+          letter-spacing: -0.1px;
+        }
+
+        .apple-chart-canvas {
+          width: 100%;
+          height: auto;
+          max-height: 190px;
+          border-radius: 8px;
+        }
+      </style>
+
+      <div class="apple-physics-layout">
+        <!-- 1. 左侧：苹果 Inset Grouped 参数与核心指标卡片 -->
+        <div class="apple-physics-panel">
+          <div class="apple-physics-group">
+            <!-- 系统温度 T -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">系统温度 T</span>
+                <span id="val-temp" class="apple-physics-readout">300 K · 26.9 °C</span>
+              </div>
+              <input type="range" class="apple-physics-slider" id="slider-temp" min="100" max="800" step="5" value="300" />
+              <div class="apple-physics-scale">
+                <span>100 K</span>
+                <span>800 K</span>
+              </div>
+            </div>
+
+            <!-- 气缸容积 V -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">气缸容积 V</span>
+                <span id="val-vol" class="apple-physics-readout">2.50 L · 2500 cm³</span>
+              </div>
+              <input type="range" class="apple-physics-slider" id="slider-vol" min="1.0" max="5.0" step="0.1" value="2.5" />
+              <div class="apple-physics-scale">
+                <span>1.0 L</span>
+                <span>5.0 L</span>
+              </div>
+            </div>
+
+            <!-- 气体压强 P -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">气体压强 P</span>
+                <span id="val-press" class="apple-physics-readout">99.8 kPa · 0.98 atm</span>
+              </div>
+            </div>
+
+            <!-- 气体总内能 U -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">气体总内能 U (3/2 nRT)</span>
+                <span id="val-energy" class="apple-physics-readout">374.1 J · 517 m/s</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- 2. Dual Analytics Charts Deck -->
-        <div class="thermo-charts-deck">
-          <!-- Left: Maxwell-Boltzmann Distribution -->
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header">
-              <span class="thermo-chart-title">麦克斯韦-玻尔兹曼速率分布</span>
-              <div class="thermo-chart-legend">
-                <span class="legend-dot dot-freq"></span><span>频数直方图</span>
-                <span class="legend-line line-theory"></span><span>理论曲线</span>
-              </div>
-            </div>
-            <div class="thermo-canvas-wrap">
-              <canvas id="canvas-maxwell" width="480" height="260"></canvas>
-            </div>
+        <!-- 2. 右侧：精简高对比分析图表 (去除杂乱色彩) -->
+        <div class="apple-charts-grid">
+          <div class="apple-chart-card">
+            <span class="apple-chart-title">麦克斯韦-玻尔兹曼速率分布</span>
+            <canvas id="canvas-maxwell" class="apple-chart-canvas" width="480" height="210"></canvas>
           </div>
 
-          <!-- Right: PV Indicator Diagram -->
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header">
-              <span class="thermo-chart-title">P-V 状态示功图与等温线</span>
-              <div class="thermo-chart-legend">
-                <span class="legend-line line-t200"></span><span>200K</span>
-                <span class="legend-line line-t400"></span><span>400K</span>
-                <span class="legend-line line-t600"></span><span>600K</span>
-              </div>
-            </div>
-            <div class="thermo-canvas-wrap">
-              <canvas id="canvas-pv" width="480" height="260"></canvas>
-            </div>
+          <div class="apple-chart-card">
+            <span class="apple-chart-title">P-V 状态示功图与等温线</span>
+            <canvas id="canvas-pv" class="apple-chart-canvas" width="480" height="210"></canvas>
           </div>
         </div>
       </div>
@@ -151,18 +302,15 @@ export class ThermoStatusCard {
     this.canvasMaxwell = this.element.querySelector('#canvas-maxwell') as HTMLCanvasElement;
     this.canvasPV = this.element.querySelector('#canvas-pv') as HTMLCanvasElement;
 
-    // 缓存 DOM 引用
     this.valTempEl = this.element.querySelector('#val-temp');
-    this.subTempEl = this.element.querySelector('#sub-temp');
     this.valVolEl = this.element.querySelector('#val-vol');
-    this.subVolEl = this.element.querySelector('#sub-vol');
     this.valPressEl = this.element.querySelector('#val-press');
-    this.subPressEl = this.element.querySelector('#sub-press');
-    this.barPressFillEl = this.element.querySelector('#bar-press-fill');
     this.valEnergyEl = this.element.querySelector('#val-energy');
-    this.subVrmsEl = this.element.querySelector('#sub-vrms');
     this.sliderTempEl = this.element.querySelector('#slider-temp');
     this.sliderVolEl = this.element.querySelector('#slider-vol');
+
+    this.updateSliderTrackFill(this.sliderTempEl, 100, 800, 300);
+    this.updateSliderTrackFill(this.sliderVolEl, 1.0, 5.0, 2.5);
 
     this.bindControls();
   }
@@ -170,19 +318,25 @@ export class ThermoStatusCard {
   private bindControls(): void {
     bindVisionSlider(this.sliderTempEl, {
       activeSet: this.activeSliders,
-      onChange: (val) => this.callbacks.onTemperatureChange?.(val),
+      onChange: (val) => {
+        this.updateSliderTrackFill(this.sliderTempEl, 100, 800, val);
+        this.callbacks.onTemperatureChange?.(val);
+      },
       onScrub: (val) => {
-        if (this.valTempEl) this.valTempEl.textContent = `${Math.round(val)} K`;
-        if (this.subTempEl) this.subTempEl.textContent = `${(val - 273.15).toFixed(1)} °C`;
+        if (this.valTempEl) this.valTempEl.textContent = `${Math.round(val)} K · ${(val - 273.15).toFixed(1)} °C`;
+        this.updateSliderTrackFill(this.sliderTempEl, 100, 800, val);
       },
     });
 
     bindVisionSlider(this.sliderVolEl, {
       activeSet: this.activeSliders,
-      onChange: (val) => this.callbacks.onVolumeChange?.(val),
+      onChange: (val) => {
+        this.updateSliderTrackFill(this.sliderVolEl, 1.0, 5.0, val);
+        this.callbacks.onVolumeChange?.(val);
+      },
       onScrub: (val) => {
-        if (this.valVolEl) this.valVolEl.textContent = `${val.toFixed(2)} L`;
-        if (this.subVolEl) this.subVolEl.textContent = `${(val * 1000).toFixed(0)} cm³`;
+        if (this.valVolEl) this.valVolEl.textContent = `${val.toFixed(2)} L · ${(val * 1000).toFixed(0)} cm³`;
+        this.updateSliderTrackFill(this.sliderVolEl, 1.0, 5.0, val);
       },
     });
   }
@@ -201,7 +355,6 @@ export class ThermoStatusCard {
       Math.abs(this.currentData.volume - prevVol) > 0.02 ||
       Math.abs(this.currentData.pressure - prevPress) > 0.5;
 
-    // 节流 DOM 文本与 Canvas 重绘：用户变更时立即响应，稳态时 400ms
     const interval = hasSignificantChange ? 60 : 400;
     if (now - this.lastTelemetryTime >= interval || hasSignificantChange) {
       this.lastTelemetryTime = now;
@@ -213,76 +366,46 @@ export class ThermoStatusCard {
   private updateDOMText(): void {
     const d = this.currentData;
 
-    const tempStr = `${Math.round(d.temperature)} K`;
+    const tempStr = `${Math.round(d.temperature)} K · ${(d.temperature - 273.15).toFixed(1)} °C`;
     if (this.lastTempStr !== tempStr && this.valTempEl) {
       this.valTempEl.textContent = tempStr;
       this.lastTempStr = tempStr;
     }
 
-    const subTempStr = `${(d.temperature - 273.15).toFixed(1)} °C`;
-    if (this.lastSubTempStr !== subTempStr && this.subTempEl) {
-      this.subTempEl.textContent = subTempStr;
-      this.lastSubTempStr = subTempStr;
-    }
-
-    const volStr = `${d.volume.toFixed(2)} L`;
+    const volStr = `${d.volume.toFixed(2)} L · ${(d.volume * 1000).toFixed(0)} cm³`;
     if (this.lastVolStr !== volStr && this.valVolEl) {
       this.valVolEl.textContent = volStr;
       this.lastVolStr = volStr;
     }
 
-    const subVolStr = `${(d.volume * 1000).toFixed(0)} cm³`;
-    if (this.lastSubVolStr !== subVolStr && this.subVolEl) {
-      this.subVolEl.textContent = subVolStr;
-      this.lastSubVolStr = subVolStr;
-    }
-
-    const pressStr = `${d.pressure.toFixed(1)} kPa`;
+    const pressStr = `${d.pressure.toFixed(1)} kPa · ${(d.pressure / 101.325).toFixed(2)} atm`;
     if (this.lastPressStr !== pressStr && this.valPressEl) {
       this.valPressEl.textContent = pressStr;
       this.lastPressStr = pressStr;
     }
 
-    const subPressStr = `${(d.pressure / 101.325).toFixed(2)} atm`;
-    if (this.lastSubPressStr !== subPressStr && this.subPressEl) {
-      this.subPressEl.textContent = subPressStr;
-      this.lastSubPressStr = subPressStr;
-    }
-
-    const pct = Math.min(100, Math.max(0, (d.pressure / 400) * 100));
-    const barWidthStr = `${pct.toFixed(0)}%`;
-    if (this.lastBarWidthStr !== barWidthStr && this.barPressFillEl) {
-      this.barPressFillEl.style.width = barWidthStr;
-      this.lastBarWidthStr = barWidthStr;
-    }
-
-    const u = 1.5 * d.moles * 8.314 * d.temperature;
-    const energyStr = `${u.toFixed(1)} J`;
+    const u = 1.5 * (d.moles || 0.1) * 8.314 * d.temperature;
+    const energyStr = `${u.toFixed(1)} J · ${d.vRms.toFixed(0)} m/s`;
     if (this.lastEnergyStr !== energyStr && this.valEnergyEl) {
       this.valEnergyEl.textContent = energyStr;
       this.lastEnergyStr = energyStr;
     }
 
-    const vrmsStr = `v_rms: ${d.vRms.toFixed(0)} m/s`;
-    if (this.lastVrmsStr !== vrmsStr && this.subVrmsEl) {
-      this.subVrmsEl.textContent = vrmsStr;
-      this.lastVrmsStr = vrmsStr;
-    }
-
-    // 若滑块当前未处于活跃/聚焦状态，则同步其数值
     if (this.sliderTempEl && !isSliderActive(this.sliderTempEl, this.activeSliders)) {
       this.sliderTempEl.value = String(Math.round(d.temperature));
+      this.updateSliderTrackFill(this.sliderTempEl, 100, 800, d.temperature);
     }
     if (this.sliderVolEl && !isSliderActive(this.sliderVolEl, this.activeSliders)) {
       this.sliderVolEl.value = d.volume.toFixed(2);
+      this.updateSliderTrackFill(this.sliderVolEl, 1.0, 5.0, d.volume);
     }
   }
 
   public setVisible(visible: boolean): void {
     this.isVisible = visible;
+    this.element.style.display = visible ? 'flex' : 'none';
     if (visible) {
       this.updateDOMText();
-      // 变为可见时强制重绘图表
       this.lastRenderedVol = -1;
       this.lastMaxwellDraw = 0;
       this.drawCharts();
@@ -308,14 +431,14 @@ export class ThermoStatusCard {
     ctx.clearRect(0, 0, w, h);
 
     const padLeft = 36;
-    const padBottom = 28;
-    const padTop = 16;
-    const padRight = 16;
+    const padBottom = 24;
+    const padTop = 14;
+    const padRight = 14;
     const chartW = w - padLeft - padRight;
     const chartH = h - padTop - padBottom;
 
     // 网格线
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     for (let i = 0; i <= 3; i++) {
       const y = padTop + (i / 3) * chartH;
@@ -329,21 +452,21 @@ export class ThermoStatusCard {
     const maxBin = Math.max(...bins, 10);
     const barWidth = chartW / (bins.length || 1);
 
-    // 直方图柱条
+    // 统一苹果系统蓝直方图
     for (let i = 0; i < bins.length; i++) {
       const barH = (bins[i] / maxBin) * chartH * 0.9;
       const bx = padLeft + i * barWidth;
       const by = padTop + chartH - barH;
 
-      ctx.fillStyle = 'rgba(14, 165, 233, 0.45)';
+      ctx.fillStyle = 'rgba(10, 132, 255, 0.35)';
       ctx.fillRect(bx + 1, by, barWidth - 2, barH);
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
+      ctx.strokeStyle = 'rgba(10, 132, 255, 0.7)';
       ctx.strokeRect(bx + 1, by, barWidth - 2, barH);
     }
 
-    // 麦克斯韦-玻尔兹曼理论分布曲线
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 2.5;
+    // 纯白理论分布曲线
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.0;
     ctx.beginPath();
 
     const R = 8.314;
@@ -373,12 +496,12 @@ export class ThermoStatusCard {
     ctx.stroke();
 
     // 坐标轴标签
-    ctx.fillStyle = '#64748b';
-    ctx.font = '11px monospace';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.font = '10px -apple-system, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText('v (m/s)', w - 8, h - 8);
-    ctx.fillText('0', padLeft, h - 8);
-    ctx.fillText(`${maxSpeed.toFixed(0)}`, padLeft + chartW, h - 8);
+    ctx.fillText('v (m/s)', w - 8, h - 6);
+    ctx.fillText('0', padLeft, h - 6);
+    ctx.fillText(`${maxSpeed.toFixed(0)}`, padLeft + chartW, h - 6);
   }
 
   private drawPVChart(): void {
@@ -392,7 +515,7 @@ export class ThermoStatusCard {
       Math.abs(curTemp - this.lastRenderedTemp) < 0.2 &&
       Math.abs(curPress - this.lastRenderedPress) < 0.1
     ) {
-      return; // 若热力学状态点静止则跳过重绘
+      return;
     }
     this.lastRenderedVol = curVol;
     this.lastRenderedTemp = curTemp;
@@ -406,37 +529,37 @@ export class ThermoStatusCard {
     ctx.clearRect(0, 0, w, h);
 
     const padLeft = 40;
-    const padBottom = 28;
-    const padTop = 16;
-    const padRight = 16;
+    const padBottom = 24;
+    const padTop = 14;
+    const padRight = 14;
     const chartW = w - padLeft - padRight;
     const chartH = h - padTop - padBottom;
 
     // 坐标轴
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(padLeft, padTop);
     ctx.lineTo(padLeft, padTop + chartH);
     ctx.lineTo(padLeft + chartW, padTop + chartH);
     ctx.stroke();
 
-    ctx.fillStyle = '#64748b';
-    ctx.font = '11px monospace';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.font = '10px -apple-system, sans-serif';
     ctx.fillText('P(kPa)', padLeft - 2, padTop - 4);
-    ctx.fillText('V(L)', padLeft + chartW - 10, padTop + chartH + 20);
+    ctx.fillText('V(L)', padLeft + chartW - 10, padTop + chartH + 18);
 
-    // 等温线
+    // 简约白色/浅灰阶等温线
     const isotherms = [
-      { T: 200, color: 'rgba(56, 189, 248, 0.6)' },
-      { T: 400, color: 'rgba(34, 197, 94, 0.6)' },
-      { T: 600, color: 'rgba(239, 68, 68, 0.6)' },
+      { T: 200, color: 'rgba(255, 255, 255, 0.25)' },
+      { T: 400, color: 'rgba(255, 255, 255, 0.45)' },
+      { T: 600, color: 'rgba(255, 255, 255, 0.70)' },
     ];
     const moles = this.currentData.moles || 0.10;
 
     for (const iso of isotherms) {
       ctx.strokeStyle = iso.color;
-      ctx.lineWidth = 1.4;
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       for (let s = 0; s <= 30; s++) {
         const v = 0.8 + (s / 30) * 4.4;
@@ -449,24 +572,23 @@ export class ThermoStatusCard {
       ctx.stroke();
     }
 
-    // 当前工作状态点
+    // 当前工作状态点（经典系统蓝）
     const curX = padLeft + ((curVol - 0.8) / 4.4) * chartW;
     const curY = padTop + chartH - (curPress / 400) * chartH;
 
-    // 发光光晕
-    ctx.fillStyle = 'rgba(255, 59, 48, 0.35)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.beginPath();
-    ctx.arc(curX, curY, 9, 0, Math.PI * 2);
+    ctx.arc(curX, curY, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#ff3b30';
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(curX, curY, 4.5, 0, Math.PI * 2);
+    ctx.arc(curX, curY, 4, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText(`(${curVol.toFixed(1)}L, ${curPress.toFixed(0)}kPa)`, curX + 8, curY - 5);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 11px -apple-system, sans-serif';
+    ctx.fillText(`(${curVol.toFixed(1)}L, ${curPress.toFixed(0)}kPa)`, curX + 7, curY - 4);
   }
 
   public dispose(): void {

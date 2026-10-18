@@ -661,11 +661,16 @@ console.log('Test 11: Optics Optical Disk Apparatus 120 FPS Real-Time Ray Tracin
   assert(!diskCode.includes('putImageData'), 'OpticalDiskApparatusMesh must NOT use putImageData');
   assert(diskCode.includes('generateDialCanvas'), 'OpticalDiskApparatusMesh must pre-render dial on canvas texture');
 
-  // 2. Verify Vision window CSS optimizations (no nested backdrop-filters and lightweight window blur)
+  // 2. Verify Vision window CSS optimizations (eliminate backdrop-filter on large CSS3D window to prevent compositor readback stalls)
   const indexPath = path.resolve(process.cwd(), 'index.html');
   const indexHtml = fs.readFileSync(indexPath, 'utf-8');
-  assert(indexHtml.includes('blur(12px)'), 'index.html .vision-window-frame must use lightweight blur(12px) to guarantee 120 FPS compositor throughput');
+  assert(!indexHtml.includes('backdrop-filter: blur(12px)'), 'index.html .vision-window-frame must eliminate backdrop-filter to prevent CSS3D compositor readback stalls');
   assert(!indexHtml.includes('.metric-box {\n      background: rgba(255, 255, 255, 0.05);\n      border: 1px solid rgba(255, 255, 255, 0.08);\n      border-top: 1px solid rgba(255, 255, 255, 0.16);\n      border-radius: 14px;\n      padding: 9px 14px;\n      display: flex;\n      flex-direction: column;\n      gap: 4px;\n      backdrop-filter:'), 'Nested metric-box must not contain backdrop-filter');
+
+  // Verify nested status cards inside CSS3D VisionModal eliminate backdrop-filter blur
+  const thermoPath = path.resolve(process.cwd(), 'src/ui/vision/ThermoStatusCard.ts');
+  const thermoCode = fs.readFileSync(thermoPath, 'utf-8');
+  assert(!thermoCode.includes('backdrop-filter: blur'), 'ThermoStatusCard must eliminate backdrop-filter blur to prevent CSS3D compositor stalls');
 
   // 3. Verify CarnotStatusCard, ConductionStatusCard, PhaseStatusCard chart throttling and dirty checking
   const carnotPath = path.resolve(process.cwd(), 'src/ui/vision/CarnotStatusCard.ts');

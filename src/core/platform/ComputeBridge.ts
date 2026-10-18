@@ -10,12 +10,15 @@ import type {
   TextureBakeTaskResponse,
   ChemistryCompositionStepResponse,
   HallCarrierStepResponse,
+  MechSuspensionStepResponse,
+  MechPolygonAnalysisResponse,
 } from '../../workers/workerMessages';
 
 export interface ComputeMetrics {
   lastComputeTimeMs: number;
   avgComputeTimeMs: number;
   mode: 'rust-rayon' | 'web-worker' | 'main-thread';
+  isIdle?: boolean;
 }
 
 export class ComputeBridge {
@@ -24,6 +27,7 @@ export class ComputeBridge {
     lastComputeTimeMs: 0,
     avgComputeTimeMs: 0,
     mode: 'web-worker',
+    isIdle: true,
   };
   private computeTimeSamples: number[] = [];
   private lastComputeTimestamp: number = 0;
@@ -36,12 +40,12 @@ export class ComputeBridge {
   }
 
   public get currentMetrics(): ComputeMetrics {
-    if (this.lastComputeTimestamp > 0 && Date.now() - this.lastComputeTimestamp > 1500) {
-      this.metrics.lastComputeTimeMs = 0;
-      this.metrics.avgComputeTimeMs = 0;
-      this.computeTimeSamples = [];
-    }
-    return this.metrics;
+    const isIdle = this.lastComputeTimestamp === 0 || Date.now() - this.lastComputeTimestamp > 1800;
+    return {
+      ...this.metrics,
+      isIdle,
+      avgComputeTimeMs: isIdle ? 0 : this.metrics.avgComputeTimeMs,
+    };
   }
 
   private recordMetrics(ms: number): void {
@@ -362,6 +366,50 @@ export class ComputeBridge {
       baseOffsetsY: res.baseOffsetsY,
       computeTimeMs: res.computeTimeMs,
     };
+  }
+
+  /**
+   * 悬挂法测重心多核并行物理动力学步进
+   */
+  public async simulateSuspensionStep(params: {
+    angleRad: number;
+    angularVelocity: number;
+    damping: number;
+    gravity: number;
+    totalMassKg: number;
+    inertiaCg: number;
+    centroidX: number;
+    centroidY: number;
+    holeX: number;
+    holeY: number;
+    dt: number;
+    substeps?: number;
+  }): Promise<{ angleRad: number; angularVelocity: number; isStationary: boolean }> {
+    const start = performance.now();
+    const res = await this.workerPool.execute<MechSuspensionStepResponse>({
+      action: 'MECH_SUSPENSION_STEP',
+      ...params,
+      substeps: params.substeps ?? 8,
+    });
+    this.recordMetrics(res.computeTimeMs || (performance.now() - start));
+    return res;
+  }
+
+  /**
+   * 异形多边形格林定理多核几何质心与转动惯量解算
+   */
+  public async computePolygonGeometry(
+    vertices: [number, number][],
+    totalMassKg: number
+  ): Promise<{ area: number; centroid: { x: number; y: number }; inertiaCg: number }> {
+    const start = performance.now();
+    const res = await this.workerPool.execute<MechPolygonAnalysisResponse>({
+      action: 'MECH_POLYGON_ANALYSIS',
+      vertices,
+      totalMassKg,
+    });
+    this.recordMetrics(res.computeTimeMs || (performance.now() - start));
+    return res;
   }
 }
 

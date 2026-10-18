@@ -40,13 +40,11 @@ export class StereometryTouchZoomWidget {
           gap: 3px;
           padding: 4px;
           border-radius: 980px;
-          background: radial-gradient(circle at 40% 30%, rgba(18, 30, 48, 0.78) 0%, rgba(8, 16, 28, 0.90) 100%);
+          background: radial-gradient(circle at 40% 30%, rgba(18, 30, 48, 0.94) 0%, rgba(8, 16, 28, 0.98) 100%);
           border: 1.5px solid rgba(255, 255, 255, 0.18);
           box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45),
                       inset 0 1px 1.5px rgba(255, 255, 255, 0.28),
                       0 0 24px rgba(0, 240, 255, 0.12);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
           z-index: 950;
           pointer-events: auto;
           user-select: none;

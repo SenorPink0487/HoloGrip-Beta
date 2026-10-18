@@ -10,13 +10,14 @@ import { StereometryStatusCard } from './StereometryStatusCard.ts';
 import { HallStatusCard } from './HallStatusCard.ts';
 import { FieldStatusCard, type FieldCommand } from './FieldStatusCard.ts';
 import { CapacitorStatusCard } from './CapacitorStatusCard.ts';
+import { NewtonCannonStatusCard } from './NewtonCannonStatusCard.ts';
 import type { SwitchPosition } from '../../physics/em/capacitorDischarge.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 import { blurActiveInput, isTextInputActive } from '../../core/focus.ts';
 
-export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo' | 'em';
+export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'thermo' | 'em' | 'mechanics';
 
 export interface VisionModalCallbacks {
   onClose: () => void;
@@ -91,6 +92,14 @@ export interface VisionModalCallbacks {
   onMathZoom?: (direction: 1 | -1) => void;
   onMathResetScale?: () => void;
   onMathRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string }>;
+  // 牛顿大炮天体轨道回调
+  onNewtonLaunch?: () => void;
+  onNewtonClear?: () => void;
+  onNewtonReset?: () => void;
+  onNewtonMinVelocityChange?: (v: number) => void;
+  onNewtonMaxVelocityChange?: (v: number) => void;
+  onNewtonParticleCountChange?: (count: number) => void;
+  onNewtonPreset?: (preset: 'suborbital' | 'orbital' | 'escape' | 'spectrum') => void;
 }
 
 export class VisionModal {
@@ -117,6 +126,7 @@ export class VisionModal {
   private hallStatusCard: HallStatusCard;
   private fieldStatusCard: FieldStatusCard;
   private capacitorStatusCard: CapacitorStatusCard;
+  private newtonStatusCard: NewtonCannonStatusCard;
   private currentExperimentId = '';
 
   private bodyContainer: HTMLElement;
@@ -327,28 +337,28 @@ export class VisionModal {
       onToggleDirection: () => {
         this.callbacks.onCarnotToggleDirection?.();
       },
-      onStepStage: (step) => {
-        this.callbacks.onCarnotStepStage?.(step);
+      onStepStage: () => {
+        this.callbacks.onCarnotStepStage?.(1);
       },
-      onApplyPreset: (preset) => {
-        this.callbacks.onCarnotApplyPreset?.(preset);
+      onApplyPreset: (preset: string) => {
+        this.callbacks.onCarnotApplyPreset?.(preset as any);
       },
     });
 
     this.conductionStatusCard = new ConductionStatusCard({
-      onHeatSourceTempChange: (tempK) => {
+      onHeatSourceTempChange: (tempK: number) => {
         this.callbacks.onCondTempHChange?.(tempK);
       },
-      onColdSourceTempChange: (tempK) => {
+      onColdSourceTempChange: (tempK: number) => {
         this.callbacks.onCondTempCChange?.(tempK);
       },
-      onMaterialChange: (material) => {
+      onMaterialChange: (material: string) => {
         this.callbacks.onCondMaterialChange?.(material);
       },
-      onLateralInsulationChange: (insulated) => {
+      onLateralInsulationChange: (insulated: boolean) => {
         this.callbacks.onCondInsulationChange?.(insulated);
       },
-      onProbePositionChange: (normX) => {
+      onProbePositionChange: (normX: number) => {
         this.callbacks.onCondProbeChange?.(normX);
       },
       onResetTransient: () => {
@@ -357,10 +367,10 @@ export class VisionModal {
     });
 
     this.phaseStatusCard = new PhaseStatusCard({
-      onHeatPowerChange: (powerW) => {
+      onHeatPowerChange: (powerW: number) => {
         this.callbacks.onPhasePowerChange?.(powerW);
       },
-      onMassChange: (massG) => {
+      onMassChange: (massG: number) => {
         this.callbacks.onPhaseMassChange?.(massG);
       },
       onToggleHeating: () => {
@@ -369,7 +379,7 @@ export class VisionModal {
       onResetExperiment: () => {
         this.callbacks.onPhaseReset?.();
       },
-      onTimeAccelerationChange: (scale) => {
+      onTimeAccelerationChange: (scale: number) => {
         this.callbacks.onPhaseAccelChange?.(scale);
       },
     });
@@ -384,10 +394,14 @@ export class VisionModal {
         } else if (id.startsWith('em-')) {
           this.switchTab('em');
         } else if (id.startsWith('mech-')) {
-          // 伽利略理想斜面实验不需要悬浮窗口状态卡片（参考光学板块：选择后关闭浮窗，打开时显示力学目录）
-          this.activeTab = 'physics';
-          this.physicsModal.showLevel2('mechanics');
-          this.close();
+          if (id === 'mech-newton-cannon') {
+            this.switchTab('mechanics');
+          } else {
+            // 伽利略理想斜面实验不需要悬浮窗口状态卡片（参考光学板块：选择后关闭浮窗，打开时显示力学目录）
+            this.activeTab = 'physics';
+            this.physicsModal.showLevel2('mechanics');
+            this.close();
+          }
         } else {
           this.close();
         }
@@ -426,17 +440,17 @@ export class VisionModal {
     });
 
     this.hallStatusCard = new HallStatusCard({
-      onMagFieldChange: (b) => this.callbacks.onHallMagFieldChange?.(b),
-      onCurrentChange: (i) => this.callbacks.onHallCurrentChange?.(i),
-      onThicknessChange: (d) => this.callbacks.onHallThicknessChange?.(d),
-      onMaterialChange: (m) => this.callbacks.onHallMaterialChange?.(m),
-      onCarrierConcentrationChange: (n) => this.callbacks.onHallCarrierConcentrationChange?.(n),
+      onMagFieldChange: (b: number) => this.callbacks.onHallMagFieldChange?.(b),
+      onCurrentChange: (i: number) => this.callbacks.onHallCurrentChange?.(i),
+      onThicknessChange: (d: number) => this.callbacks.onHallThicknessChange?.(d),
+      onMaterialChange: (m: string) => this.callbacks.onHallMaterialChange?.(m),
+      onCarrierConcentrationChange: (n: number) => this.callbacks.onHallCarrierConcentrationChange?.(n),
       onCarrierChargeToggle: () => this.callbacks.onHallCarrierChargeToggle?.(),
-      onMobilityChange: (mu) => this.callbacks.onHallMobilityChange?.(mu),
+      onMobilityChange: (mu: number) => this.callbacks.onHallMobilityChange?.(mu),
       onToggleFieldPolarity: () => this.callbacks.onHallToggleFieldPolarity?.(),
       onToggleCurrentPolarity: () => this.callbacks.onHallToggleCurrentPolarity?.(),
-      onToggleVectors: (v) => this.callbacks.onHallToggleVectors?.(v),
-      onToggleParticles: (p) => this.callbacks.onHallToggleParticles?.(p),
+      onToggleVectors: (v: boolean) => this.callbacks.onHallToggleVectors?.(v),
+      onToggleParticles: (p: boolean) => this.callbacks.onHallToggleParticles?.(p),
     });
 
     this.fieldStatusCard = new FieldStatusCard((cmd) => this.callbacks.onFieldCommand?.(cmd));
@@ -449,6 +463,16 @@ export class VisionModal {
       onOpenWaveformWindow: () => this.callbacks.onCapacitorOpenWaveformWindow?.(),
       onClearSamples: () => this.callbacks.onCapacitorClearSamples?.(),
       onResetExperiment: () => this.callbacks.onCapacitorReset?.(),
+    });
+
+    this.newtonStatusCard = new NewtonCannonStatusCard({
+      onLaunch: () => this.callbacks.onNewtonLaunch?.(),
+      onClear: () => this.callbacks.onNewtonClear?.(),
+      onReset: () => this.callbacks.onNewtonReset?.(),
+      onMinVelocityChange: (v) => this.callbacks.onNewtonMinVelocityChange?.(v),
+      onMaxVelocityChange: (v) => this.callbacks.onNewtonMaxVelocityChange?.(v),
+      onParticleCountChange: (count) => this.callbacks.onNewtonParticleCountChange?.(count),
+      onPreset: (preset) => this.callbacks.onNewtonPreset?.(preset),
     });
 
     // 挂载初始视窗视图
@@ -505,6 +529,9 @@ export class VisionModal {
         this.switchTab('physics');
       } else if (this.activeTab === 'em') {
         this.physicsModal.showLevel2('em');
+        this.switchTab('physics');
+      } else if (this.activeTab === 'mechanics') {
+        this.physicsModal.showLevel2('mechanics');
         this.switchTab('physics');
       } else if (this.activeTab === 'chemistry' || this.activeTab === 'math') {
         this.switchTab('disciplines');
@@ -642,8 +669,9 @@ export class VisionModal {
     return this.capacitorStatusCard;
   }
 
-
-
+  public get newtonCard(): NewtonCannonStatusCard {
+    return this.newtonStatusCard;
+  }
 
   public setCurrentExperimentId(id: string): void {
     this.currentExperimentId = id;
@@ -660,9 +688,13 @@ export class VisionModal {
         this.activeTab = 'em';
       }
     } else if (id.startsWith('mech-')) {
-      // 伽利略理想斜面实验不需要悬浮窗口的状态卡片（参考光学板块：打开视窗时呈现力学实验列表，不呈现状态卡片）
-      this.activeTab = 'physics';
-      this.physicsModal.showLevel2('mechanics');
+      if (id === 'mech-newton-cannon') {
+        this.activeTab = 'mechanics';
+      } else {
+        // 伽利略理想斜面实验不需要悬浮窗口的状态卡片（参考光学板块：打开视窗时呈现力学实验列表，不呈现状态卡片）
+        this.activeTab = 'physics';
+        this.physicsModal.showLevel2('mechanics');
+      }
     } else if (id.startsWith('optics-')) {
       this.activeTab = 'physics';
       this.physicsModal.showLevel2('optics');
@@ -725,6 +757,7 @@ export class VisionModal {
       math: '立体几何',
       thermo: thermoTitle,
       em: emTitle,
+      mechanics: '牛顿大炮',
     };
     if (titleEl) {
       titleEl.textContent = titles[tab] || '实验视窗';
@@ -753,6 +786,7 @@ export class VisionModal {
     if (this.hallStatusCard) this.hallStatusCard.setVisible(false);
     if (this.fieldStatusCard) this.fieldStatusCard.setVisible(false);
     if (this.capacitorStatusCard) this.capacitorStatusCard.setVisible(false);
+    if (this.newtonStatusCard) this.newtonStatusCard.setVisible(tab === 'mechanics');
     if (tab === 'em' && emId !== 'em-capacitor-discharge') emCard.setVisible(true);
 
     if (tab === 'disciplines') {
@@ -790,6 +824,9 @@ export class VisionModal {
     } else if (tab === 'em') {
       emCard.setVisible(true);
       this.bodyContainer.appendChild(emCard.element);
+    } else if (tab === 'mechanics') {
+      this.newtonStatusCard.setVisible(true);
+      this.bodyContainer.appendChild(this.newtonStatusCard.element);
     }
   }
 
@@ -830,6 +867,8 @@ export class VisionModal {
     this.stereometryStatusCard?.setVisible(false);
     this.hallStatusCard?.setVisible(false);
     this.fieldStatusCard?.setVisible(false);
+    this.capacitorStatusCard?.setVisible(false);
+    this.newtonStatusCard?.setVisible(false);
     this.callbacks.onClose();
   }
 

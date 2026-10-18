@@ -8,7 +8,9 @@ export type WorkerAction =
   | 'STREAM_TUBE_STEP'
   | 'TEXTURE_BAKE_TASK'
   | 'CHEMISTRY_COMPOSITION_STEP'
-  | 'HALL_CARRIER_STEP';
+  | 'HALL_CARRIER_STEP'
+  | 'MECH_SUSPENSION_STEP'
+  | 'MECH_POLYGON_ANALYSIS';
 
 export interface BaseWorkerRequest {
   id: number;
@@ -123,6 +125,28 @@ export interface HallCarrierStepRequest extends BaseWorkerRequest {
   delta: number;
 }
 
+export interface MechSuspensionStepRequest extends BaseWorkerRequest {
+  action: 'MECH_SUSPENSION_STEP';
+  angleRad: number;
+  angularVelocity: number;
+  damping: number;
+  gravity: number;
+  totalMassKg: number;
+  inertiaCg: number;
+  centroidX: number;
+  centroidY: number;
+  holeX: number;
+  holeY: number;
+  substeps: number;
+  dt: number;
+}
+
+export interface MechPolygonAnalysisRequest extends BaseWorkerRequest {
+  action: 'MECH_POLYGON_ANALYSIS';
+  vertices: [number, number][];
+  totalMassKg: number;
+}
+
 export type WorkerRequest =
   | NBodyStepRequest
   | WaveStepRequest
@@ -132,7 +156,9 @@ export type WorkerRequest =
   | StreamTubeStepRequest
   | TextureBakeTaskRequest
   | ChemistryCompositionStepRequest
-  | HallCarrierStepRequest;
+  | HallCarrierStepRequest
+  | MechSuspensionStepRequest
+  | MechPolygonAnalysisRequest;
 
 export type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
 
@@ -217,6 +243,24 @@ export interface HallCarrierStepResponse {
   computeTimeMs: number;
 }
 
+export interface MechSuspensionStepResponse {
+  id: number;
+  action: 'MECH_SUSPENSION_STEP';
+  angleRad: number;
+  angularVelocity: number;
+  isStationary: boolean;
+  computeTimeMs: number;
+}
+
+export interface MechPolygonAnalysisResponse {
+  id: number;
+  action: 'MECH_POLYGON_ANALYSIS';
+  area: number;
+  centroid: { x: number; y: number };
+  inertiaCg: number;
+  computeTimeMs: number;
+}
+
 export type WorkerResponse =
   | NBodyStepResponse
   | WaveStepResponse
@@ -226,4 +270,6 @@ export type WorkerResponse =
   | StreamTubeStepResponse
   | TextureBakeTaskResponse
   | ChemistryCompositionStepResponse
-  | HallCarrierStepResponse;
+  | HallCarrierStepResponse
+  | MechSuspensionStepResponse
+  | MechPolygonAnalysisResponse;

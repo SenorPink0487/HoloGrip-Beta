@@ -175,6 +175,30 @@ export class OpticalDiskApparatusMesh {
   private lastReflectedKey = '';
   private lastRefractedKey = '';
 
+  // 预分配角度弧线网格与材质（避免每帧重建 RingGeometry 与材质造成的 GPU 内存分配与丢帧）
+  private fanMesh1!: THREE.Mesh;
+  private arcMesh1!: THREE.Mesh;
+  private fanMeshR!: THREE.Mesh;
+  private arcMeshR!: THREE.Mesh;
+  private fanMesh2!: THREE.Mesh;
+  private arcMesh2!: THREE.Mesh;
+  private lastArcTheta1 = -999;
+  private lastArcTheta2 = -999;
+  private lastArcTIR = false;
+  private lastArcNormalRad = -999;
+  private lastArcSign = 0;
+
+  // 静态复用计算向量（避免每秒数百次频繁垃圾回收）
+  private static readonly _DIR = new THREE.Vector3();
+  private static readonly _MID = new THREE.Vector3();
+  private static readonly _X_AXIS = new THREE.Vector3(1, 0, 0);
+  private static readonly _P_LASER = new THREE.Vector3();
+  private static readonly _P_ORIGIN = new THREE.Vector3(0, 0, 0);
+  private static readonly _P_REFL = new THREE.Vector3();
+  private static readonly _P_REFR = new THREE.Vector3();
+  private static readonly _P_TANK_EXIT = new THREE.Vector3();
+  private static readonly _P_TANK_ENTRY = new THREE.Vector3();
+
   constructor() {
     this.group.name = 'OpticalDiskApparatusMesh';
     this.createStandAndBase();
@@ -854,7 +878,29 @@ export class OpticalDiskApparatusMesh {
     this.normalLineGroup.add(normalLine);
     auxGroup.add(this.normalLineGroup);
 
-    // 角度弧线组
+    // 角度弧线组预装配 (预创建 6 个专用材质与网格节点，避免每帧反复构造/销毁材质引起掉帧)
+    const fanMat1 = new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthTest: false });
+    const arcMat1 = new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide, depthTest: false });
+    this.fanMesh1 = new THREE.Mesh(new THREE.BufferGeometry(), fanMat1);
+    this.fanMesh1.renderOrder = 24;
+    this.arcMesh1 = new THREE.Mesh(new THREE.BufferGeometry(), arcMat1);
+    this.arcMesh1.renderOrder = 25;
+
+    const fanMatR = new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthTest: false });
+    const arcMatR = new THREE.MeshBasicMaterial({ color: 0x06b6d4, side: THREE.DoubleSide, depthTest: false });
+    this.fanMeshR = new THREE.Mesh(new THREE.BufferGeometry(), fanMatR);
+    this.fanMeshR.renderOrder = 24;
+    this.arcMeshR = new THREE.Mesh(new THREE.BufferGeometry(), arcMatR);
+    this.arcMeshR.renderOrder = 25;
+
+    const fanMat2 = new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthTest: false });
+    const arcMat2 = new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide, depthTest: false });
+    this.fanMesh2 = new THREE.Mesh(new THREE.BufferGeometry(), fanMat2);
+    this.fanMesh2.renderOrder = 24;
+    this.arcMesh2 = new THREE.Mesh(new THREE.BufferGeometry(), arcMat2);
+    this.arcMesh2.renderOrder = 25;
+
+    this.angleArcsGroup.add(this.fanMesh1, this.arcMesh1, this.fanMeshR, this.arcMeshR, this.fanMesh2, this.arcMesh2);
     auxGroup.add(this.angleArcsGroup);
 
     // 3D 浮空角度标注组 (位于水槽前表面前向 Z = 0.035，彻底杜绝深度遮挡)
@@ -1023,95 +1069,91 @@ export class OpticalDiskApparatusMesh {
     texture.needsUpdate = true;
   }
 
+  private updateArcPair(fanMesh: THREE.Mesh, arcMesh: THREE.Mesh, r: number, thickness: number, startAng: number, spanAng: number): void {
+    if (spanAng < 0.005) {
+      fanMesh.visible = false;
+      arcMesh.visible = false;
+      return;
+    }
+    fanMesh.visible = true;
+    arcMesh.visible = true;
+    const innerR = r - thickness / 2;
+    const outerR = r + thickness / 2;
+    if (fanMesh.geometry) fanMesh.geometry.dispose();
+    fanMesh.geometry = new THREE.RingGeometry(0.002, innerR, 32, 1, startAng, spanAng);
+    if (arcMesh.geometry) arcMesh.geometry.dispose();
+    arcMesh.geometry = new THREE.RingGeometry(innerR, outerR, 48, 1, startAng, spanAng);
+  }
+
   /**
    * 动态刷新角度测量弧线与大尺寸纯文字角度标注
    */
   private updateAngleArcs(theta1Rad: number, theta2Rad: number, isTIR: boolean): void {
-    // 清空上一帧旧弧线几何体
-    while (this.angleArcsGroup.children.length > 0) {
-      const child = this.angleArcsGroup.children[0] as any;
-      if (child.geometry) child.geometry.dispose();
-      this.angleArcsGroup.remove(child);
-    }
-
     if (!this.showAngleArcs) {
       this.angleLabelsGroup.visible = false;
+      this.angleArcsGroup.visible = false;
       return;
     }
     this.angleLabelsGroup.visible = true;
+    this.angleArcsGroup.visible = true;
 
-    // 实体圆弧带与半透明角度扇形构造器 (彻底突破 WebGL 1px 线宽无法加粗的底层限制)
-    const addAngleArcMesh = (
-      r: number,
-      thickness: number,
-      startAng: number,
-      spanAng: number,
-      color: number,
-      fanOpacity = 0.16
-    ) => {
-      if (spanAng < 0.005) return;
-      const innerR = r - thickness / 2;
-      const outerR = r + thickness / 2;
-
-      // 1. 半透明扇形区域 (角度张角扇面，直观展示角的范围)
-      const fanGeo = new THREE.RingGeometry(0.002, innerR, 32, 1, startAng, spanAng);
-      const fanMat = new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: fanOpacity,
-        side: THREE.DoubleSide,
-        depthTest: false,
-      });
-      const fanMesh = new THREE.Mesh(fanGeo, fanMat);
-      fanMesh.renderOrder = 24;
-      this.angleArcsGroup.add(fanMesh);
-
-      // 2. 醒目大线宽圆弧测量带 (5.5mm 实体网格，清晰醒目绝不模糊)
-      const arcGeo = new THREE.RingGeometry(innerR, outerR, 48, 1, startAng, spanAng);
-      const arcMat = new THREE.MeshBasicMaterial({
-        color,
-        side: THREE.DoubleSide,
-        depthTest: false,
-      });
-      const arcMesh = new THREE.Mesh(arcGeo, arcMat);
-      arcMesh.renderOrder = 25;
-      this.angleArcsGroup.add(arcMesh);
-    };
-
-    // 1. 入射角圆弧与扇形 (翡翠高光绿)
     const normalAngleRad = this.isAirToWater ? Math.PI / 2 : -Math.PI / 2;
+    const sign = this.incidentAngleDeg >= 0 ? 1 : -1;
+
+    // 1. 入射角几何范围 (翡翠高光绿)
     const incidentRayAngleRad = this.isAirToWater
       ? normalAngleRad + (this.incidentAngleDeg >= 0 ? -Math.abs(theta1Rad) : Math.abs(theta1Rad))
       : normalAngleRad + (this.incidentAngleDeg >= 0 ? Math.abs(theta1Rad) : -Math.abs(theta1Rad));
-
     const minAng1 = Math.min(normalAngleRad, incidentRayAngleRad);
     const maxAng1 = Math.max(normalAngleRad, incidentRayAngleRad);
     const span1 = maxAng1 - minAng1;
-    addAngleArcMesh(0.095, 0.0055, minAng1, span1, 0x10b981, 0.16);
 
-    // 2. 反射角圆弧与扇形 (电光亮青色，半径略收以防法线处叠压)
+    // 2. 反射角几何范围 (电光亮青色)
     const reflRayAngleRad = this.isAirToWater
       ? normalAngleRad + (this.incidentAngleDeg >= 0 ? Math.abs(theta1Rad) : -Math.abs(theta1Rad))
       : normalAngleRad + (this.incidentAngleDeg >= 0 ? -Math.abs(theta1Rad) : Math.abs(theta1Rad));
-
     const minAngR = Math.min(normalAngleRad, reflRayAngleRad);
     const maxAngR = Math.max(normalAngleRad, reflRayAngleRad);
     const spanR = maxAngR - minAngR;
-    addAngleArcMesh(0.078, 0.0055, minAngR, spanR, 0x06b6d4, 0.16);
 
-    // 3. 折射角圆弧与扇形 (未发生全反射时，金黄琥珀色在水槽中具极高反差)
+    // 3. 折射角几何范围 (未发生全反射时)
     const oppositeNormalAngleRad = this.isAirToWater ? -Math.PI / 2 : Math.PI / 2;
     let minAng2 = 0;
     let maxAng2 = 0;
+    let span2 = 0;
     if (!isTIR) {
       const refrRayAngleRad = this.isAirToWater
         ? oppositeNormalAngleRad + (this.incidentAngleDeg >= 0 ? Math.abs(theta2Rad) : -Math.abs(theta2Rad))
         : oppositeNormalAngleRad + (this.incidentAngleDeg >= 0 ? -Math.abs(theta2Rad) : Math.abs(theta2Rad));
-
       minAng2 = Math.min(oppositeNormalAngleRad, refrRayAngleRad);
       maxAng2 = Math.max(oppositeNormalAngleRad, refrRayAngleRad);
-      const span2 = maxAng2 - minAng2;
-      addAngleArcMesh(0.095, 0.0055, minAng2, span2, 0xf59e0b, 0.22);
+      span2 = maxAng2 - minAng2;
+    }
+
+    // 检查角度弧线几何体是否脏变（若未变化直接跳过昂贵的 RingGeometry 重构）
+    const arcsDirty =
+      Math.abs(theta1Rad - this.lastArcTheta1) > 1e-4 ||
+      Math.abs(theta2Rad - this.lastArcTheta2) > 1e-4 ||
+      isTIR !== this.lastArcTIR ||
+      normalAngleRad !== this.lastArcNormalRad ||
+      sign !== this.lastArcSign;
+
+    if (arcsDirty) {
+      this.lastArcTheta1 = theta1Rad;
+      this.lastArcTheta2 = theta2Rad;
+      this.lastArcTIR = isTIR;
+      this.lastArcNormalRad = normalAngleRad;
+      this.lastArcSign = sign;
+
+      this.updateArcPair(this.fanMesh1, this.arcMesh1, 0.095, 0.0055, minAng1, span1);
+      this.updateArcPair(this.fanMeshR, this.arcMeshR, 0.078, 0.0055, minAngR, spanR);
+
+      if (!isTIR) {
+        this.updateArcPair(this.fanMesh2, this.arcMesh2, 0.095, 0.0055, minAng2, span2);
+      } else {
+        this.fanMesh2.visible = false;
+        this.arcMesh2.visible = false;
+      }
     }
 
     // 4. 纯文字加清晰角度符号 (°) 实时标注刷新 (精确到整数)
@@ -1258,15 +1300,15 @@ export class OpticalDiskApparatusMesh {
     // 旋转让激光筒精准对准圆心 (0, diskCenterY)
     this.laserCarriageGroup.rotation.z = laserAngleRad + Math.PI;
 
-    // 5. 光束端点几何计算 (以圆心 O 为局部原点)
-    const pLaser = new THREE.Vector3(laserX, laserY, 0);
-    const pOrigin = new THREE.Vector3(0, 0, 0);
+    // 5. 光束端点几何计算 (以圆心 O 为局部原点，复用静态向量避免频繁内存分配)
+    const pLaser = OpticalDiskApparatusMesh._P_LASER.set(laserX, laserY, 0);
+    const pOrigin = OpticalDiskApparatusMesh._P_ORIGIN.set(0, 0, 0);
 
     // 反射光线：角度关于法线对称
     const reflAngleRad = this.isAirToWater
       ? Math.PI / 2 - sign * theta1Rad
       : -Math.PI / 2 + sign * theta1Rad;
-    const pRefl = new THREE.Vector3(
+    const pRefl = OpticalDiskApparatusMesh._P_REFL.set(
       Math.cos(reflAngleRad) * this.diskRadius,
       Math.sin(reflAngleRad) * this.diskRadius,
       0
@@ -1277,7 +1319,7 @@ export class OpticalDiskApparatusMesh {
     const refrAngleRad = this.isAirToWater
       ? -Math.PI / 2 - sign * theta2Rad
       : Math.PI / 2 + sign * theta2Rad;
-    const pRefr = new THREE.Vector3(
+    const pRefr = OpticalDiskApparatusMesh._P_REFR.set(
       Math.cos(refrAngleRad) * this.diskRadius,
       Math.sin(refrAngleRad) * this.diskRadius,
       0
@@ -1310,7 +1352,7 @@ export class OpticalDiskApparatusMesh {
     if (showScatter) {
       if (this.isAirToWater) {
         // 空气到水：光线从圆心 O 射入水槽，在 tankRadius 处穿出水体
-        const pTankExit = new THREE.Vector3(
+        const pTankExit = OpticalDiskApparatusMesh._P_TANK_EXIT.set(
           Math.cos(refrAngleRad) * (this.tankRadius - 0.003),
           Math.sin(refrAngleRad) * (this.tankRadius - 0.003),
           0
@@ -1318,7 +1360,7 @@ export class OpticalDiskApparatusMesh {
         this.orientBeam(this.tyndallScatterMesh, pOrigin, pTankExit, 0.010);
       } else {
         // 水到空气：激光自外环射出，在 tankRadius 处垂直射入水槽并传播至圆心 O
-        const pTankEntry = new THREE.Vector3(
+        const pTankEntry = OpticalDiskApparatusMesh._P_TANK_ENTRY.set(
           Math.cos(laserAngleRad) * (this.tankRadius - 0.003),
           Math.sin(laserAngleRad) * (this.tankRadius - 0.003),
           0
@@ -1359,21 +1401,21 @@ export class OpticalDiskApparatusMesh {
   }
 
   /**
-   * 将圆柱光束在两点间进行定向与缩放
+   * 将圆柱光束在两点间进行定向与缩放 (复用静态计算对象)
    */
   private orientBeam(mesh: THREE.Mesh, pStart: THREE.Vector3, pEnd: THREE.Vector3, radius: number): void {
-    const dir = new THREE.Vector3().subVectors(pEnd, pStart);
+    const dir = OpticalDiskApparatusMesh._DIR.subVectors(pEnd, pStart);
     const length = dir.length();
     if (length < 1e-4) {
       mesh.scale.set(0.0001, 0.0001, 0.0001);
       return;
     }
 
-    const mid = new THREE.Vector3().addVectors(pStart, pEnd).multiplyScalar(0.5);
+    const mid = OpticalDiskApparatusMesh._MID.addVectors(pStart, pEnd).multiplyScalar(0.5);
     mesh.position.copy(mid);
 
     mesh.scale.set(length, radius, radius);
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.normalize());
+    mesh.quaternion.setFromUnitVectors(OpticalDiskApparatusMesh._X_AXIS, dir.normalize());
   }
 
   /**

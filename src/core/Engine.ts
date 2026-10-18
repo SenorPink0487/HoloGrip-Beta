@@ -52,6 +52,8 @@ import { HandGestureService, VisionProCursor, HandTrackingHUD } from '../vision/
 
 const _BEAKER_DRAG_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.10);
 const _BEAKER_HIT_POINT = new THREE.Vector3();
+const _BEAKER_CENTER = new THREE.Vector3();
+const _BEAKER_SPHERE = new THREE.Sphere(_BEAKER_CENTER, 0.25);
 
 export class Engine {
   public container: HTMLElement;
@@ -139,6 +141,7 @@ export class Engine {
   private lastThermoTelemetrySync = 0;
   private lastMathTelemetrySync = 0;
   private lastEmTelemetrySync = 0;
+  private lastMechTelemetrySync = 0;
   private lastCss3dCamPos = new THREE.Vector3(Infinity, Infinity, Infinity);
   private lastCss3dCamQuat = new THREE.Quaternion(Infinity, Infinity, Infinity, Infinity);
   private lastCss3dWinPos = new THREE.Vector3(Infinity, Infinity, Infinity);
@@ -153,6 +156,7 @@ export class Engine {
   private lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
   private startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
   private lastCrosshairCheck = 0;
+  private lastPointerRaycastTime = 0;
   public experimentParams = new Map<string, any>();
   private currentContext: ExperimentContext;
   private currentSwitchRequestId = 0;
@@ -187,6 +191,7 @@ export class Engine {
       powerPreference: 'high-performance',
       antialias: true,
       alpha: false,
+      stencil: false,
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     // 在高分屏上将像素比限制为 1.5，避免 GPU 填充率耗尽
@@ -687,6 +692,8 @@ export class Engine {
         pos.x = THREE.MathUtils.lerp(pos.x, targetX, lerpSpeed);
         pos.y = THREE.MathUtils.lerp(pos.y, targetY, lerpSpeed);
         pos.z = THREE.MathUtils.lerp(pos.z, targetZ, lerpSpeed);
+      } else {
+        pos.copy(this.spatialWindowTargetPos);
       }
 
       // 处理俯仰角平滑过渡（消除上下梯形畸变）
@@ -695,6 +702,8 @@ export class Engine {
       while (diffX > Math.PI) diffX -= Math.PI * 2;
       if (Math.abs(diffX) > 1e-4) {
         rot.x += diffX * lerpSpeed;
+      } else {
+        rot.x = targetRotX;
       }
 
       // 处理角度循环跨越（Wrap-around），确保平滑旋转
@@ -703,6 +712,8 @@ export class Engine {
       while (diffY > Math.PI) diffY -= Math.PI * 2;
       if (Math.abs(diffY) > 1e-4) {
         rot.y += diffY * lerpSpeed;
+      } else {
+        rot.y = targetRotY;
       }
       rot.z = 0;
     }
@@ -1280,6 +1291,49 @@ export class Engine {
         }
         return exp.recognizeProblemImage(dataUrl);
       },
+      // 牛顿大炮天体轨道控制台回调
+      onNewtonLaunch: () => {
+        if (this.currentExperimentId === 'mech-newton-cannon') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.triggerLaunch?.();
+        }
+      },
+      onNewtonClear: () => {
+        if (this.currentExperimentId === 'mech-newton-cannon') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.clearTrails?.();
+        }
+      },
+      onNewtonReset: () => {
+        if (this.currentExperimentId === 'mech-newton-cannon') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.applyPreset?.('spectrum');
+        }
+      },
+      onNewtonMinVelocityChange: (v: number) => {
+        if (this.currentExperimentId === 'mech-newton-cannon') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setMinVelocity?.(v);
+        }
+      },
+      onNewtonMaxVelocityChange: (v: number) => {
+        if (this.currentExperimentId === 'mech-newton-cannon') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setMaxVelocity?.(v);
+        }
+      },
+      onNewtonParticleCountChange: (count: number) => {
+        if (this.currentExperimentId === 'mech-newton-cannon') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setParticleCount?.(count);
+        }
+      },
+      onNewtonPreset: (preset: 'suborbital' | 'orbital' | 'escape' | 'spectrum') => {
+        if (this.currentExperimentId === 'mech-newton-cannon') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.applyPreset?.(preset);
+        }
+      },
     });
 
     this.visionModal.setEngines(this.chemistryEngineLeft, this.chemistryEngineRight, 'left');
@@ -1388,6 +1442,9 @@ export class Engine {
       }
       this.inputManager?.touch?.setVisionLauncherVisible(true);
       this.visionModal.setCurrentExperimentId(id);
+      if (id === 'mech-newton-cannon') {
+        this.visionModal.open('mechanics');
+      }
       this.hud.setActiveExperiment(experiment, this.currentContext);
       this.holoStage.setStageVisible(true);
       if (this.renderer?.shadowMap?.enabled) {
@@ -1475,9 +1532,11 @@ export class Engine {
     const ray = this.raycaster.ray;
 
     if (this.beakerLeft && this.beakerLeft.isInteractive()) {
-      const center = this.beakerLeft.group.position.clone().add(new THREE.Vector3(0, this.beakerLeft.beakerHeight * 0.5, 0));
-      const sphere = new THREE.Sphere(center, 0.25);
-      if (ray.intersectsSphere(sphere)) {
+      _BEAKER_CENTER.copy(this.beakerLeft.group.position);
+      _BEAKER_CENTER.y += this.beakerLeft.beakerHeight * 0.5;
+      _BEAKER_SPHERE.center = _BEAKER_CENTER;
+      _BEAKER_SPHERE.radius = 0.25;
+      if (ray.intersectsSphere(_BEAKER_SPHERE)) {
         const leftHits = this.raycaster.intersectObjects(this.beakerLeft.getInteractiveMeshes(), true);
         if (leftHits.length > 0 && leftHits[0].distance < 8.0) {
           return 'left';
@@ -1486,9 +1545,11 @@ export class Engine {
     }
 
     if (this.beakerRight && this.beakerRight.isInteractive()) {
-      const center = this.beakerRight.group.position.clone().add(new THREE.Vector3(0, this.beakerRight.beakerHeight * 0.5, 0));
-      const sphere = new THREE.Sphere(center, 0.25);
-      if (ray.intersectsSphere(sphere)) {
+      _BEAKER_CENTER.copy(this.beakerRight.group.position);
+      _BEAKER_CENTER.y += this.beakerRight.beakerHeight * 0.5;
+      _BEAKER_SPHERE.center = _BEAKER_CENTER;
+      _BEAKER_SPHERE.radius = 0.25;
+      if (ray.intersectsSphere(_BEAKER_SPHERE)) {
         const rightHits = this.raycaster.intersectObjects(this.beakerRight.getInteractiveMeshes(), true);
         if (rightHits.length > 0 && rightHits[0].distance < 8.0) {
           return 'right';
@@ -1825,8 +1886,12 @@ export class Engine {
         -(e.clientY / window.innerHeight) * 2 + 1
       );
 
+      const now = performance.now();
+      const shouldThrottleRaycast = (now - this.lastPointerRaycastTime) < 7.5;
+
       if (
         !this.visionModal?.visible &&
+        !shouldThrottleRaycast &&
         (this.isExperimentInteracting ||
           this.currentExperimentId === 'math-stereometry' ||
           this.currentExperimentId === 'mech-galileo' ||
@@ -1836,6 +1901,7 @@ export class Engine {
           this.currentExperimentId === 'optics-reflection-refraction') &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
+        this.lastPointerRaycastTime = now;
         const isLocked = this.inputManager?.player?.isLocked ?? false;
         const screenPos = isLocked ? this.centerScreen : this.lastPointerPos;
         this.raycaster.setFromCamera(screenPos, this.camera);
@@ -2107,7 +2173,10 @@ export class Engine {
         this.currentHoveredTarget = expHover.id;
         this.crosshair.setHovered(true, expHover.label);
         if (this.renderer?.domElement) {
-          this.renderer.domElement.style.cursor = expHover.cursor || 'pointer';
+          const nextCursor = expHover.cursor || 'pointer';
+          if (this.renderer.domElement.style.cursor !== nextCursor) {
+            this.renderer.domElement.style.cursor = nextCursor;
+          }
         }
         return;
       }
@@ -2129,7 +2198,10 @@ export class Engine {
 
     // 交互目标的光标反馈
     if (this.renderer?.domElement) {
-      this.renderer.domElement.style.cursor = hovered && !isPointerLocked ? 'pointer' : 'default';
+      const nextCursor = hovered && !isPointerLocked ? 'pointer' : 'default';
+      if (this.renderer.domElement.style.cursor !== nextCursor) {
+        this.renderer.domElement.style.cursor = nextCursor;
+      }
     }
   }
 
@@ -2363,6 +2435,15 @@ export class Engine {
             this.visionModal.capacitorCard.updateTelemetry(exp.getTelemetryData());
           }
         }
+      } else if (isModalOpen && this.visionModal.currentTab === 'mechanics') {
+        const nowMs = performance.now();
+        if (nowMs - this.lastMechTelemetrySync >= 50) {
+          this.lastMechTelemetrySync = nowMs;
+          const exp = this.holoStage.activeExperiment as any;
+          if (this.currentExperimentId === 'mech-newton-cannon' && typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.newtonCard.updateTelemetry(exp.getTelemetryData(), exp.getLaunchConfig?.());
+          }
+        }
       }
     }
 
@@ -2469,9 +2550,33 @@ export class Engine {
              Math.abs(win.scale.x - this.lastCss3dWinScale) > 1e-5)
           : false;
 
+      let secondaryMoved = false;
+      if (hasSecondarySpatialWindows && this.css3dScene) {
+        for (const child of this.css3dScene.children) {
+          if (child !== this.spatialWindowObject && child.visible) {
+            const lastPos: THREE.Vector3 | undefined = child.userData.__lastPos;
+            const lastRotY: number | undefined = child.userData.__lastRotY;
+            if (
+              !lastPos ||
+              child.position.distanceToSquared(lastPos) > 1e-6 ||
+              lastRotY === undefined ||
+              Math.abs(child.rotation.y - lastRotY) > 1e-4
+            ) {
+              secondaryMoved = true;
+              if (!child.userData.__lastPos) {
+                child.userData.__lastPos = new THREE.Vector3();
+              }
+              child.userData.__lastPos.copy(child.position);
+              child.userData.__lastRotY = child.rotation.y;
+              break;
+            }
+          }
+        }
+      }
+
       const becameVisible = !this.lastCss3dVisible;
 
-      if (camMoved || winMoved || becameVisible || hasSecondarySpatialWindows) {
+      if (camMoved || winMoved || secondaryMoved || becameVisible) {
         this.lastCss3dCamPos.copy(cam.position);
         this.lastCss3dCamQuat.copy(cam.quaternion);
         if (win && win.visible) {

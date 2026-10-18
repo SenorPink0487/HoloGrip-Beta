@@ -12,6 +12,7 @@ import { BaseExperiment } from '../../base/BaseExperiment.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 import { RetortStandMesh } from '../../../scene/mech/RetortStandMesh.ts';
 import { SuspensionPlateMesh } from '../../../scene/mech/SuspensionPlateMesh.ts';
+import type { ComputeBridge } from '../../../core/platform/ComputeBridge.ts';
 import {
   SuspensionDynamicsSolver,
   type PlateHoleDef,
@@ -29,6 +30,8 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   private stand!: RetortStandMesh;
   private plate!: SuspensionPlateMesh;
   private solver!: SuspensionDynamicsSolver;
+  private computeBridge?: ComputeBridge;
+  private isWorkerBusy = false;
   private isDisposed = false;
 
   // 交互拖拽状态
@@ -59,6 +62,8 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   public init(context: ExperimentContext): void {
     // 根节点定位至台前近景工作台区域 (Y=0.08, Z=1.35)
     this.rootGroup.position.set(0, 0.08, 1.35);
+
+    this.computeBridge = context.computeBridge;
 
     // 1. 实例化动力学求解器 (默认不规则多边形薄板)
     this.solver = new SuspensionDynamicsSolver('irregular');
@@ -503,11 +508,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
     // 3. 如果塑料板正处于悬挂状态（摆动或稳定静止）
     if ((this.solver.state === 'swinging' || this.solver.state === 'stabilized') && this.solver.currentHole) {
       if (this.solver.state === 'swinging') {
-        const prevState = this.solver.state;
-        this.solver.step(delta);
-        if (prevState === 'swinging' && (this.solver.state as string) === 'stabilized') {
-          this.handleStabilizationVisuals();
-        }
+        this.stepSwingingDynamics(delta);
       }
 
       const hole = this.solver.currentHole;
@@ -520,6 +521,61 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
 
     // 4. 更新板的画线展开与重心脉冲动画
     this.plate.update(delta, elapsed);
+  }
+
+  /**
+   * 驱动摆动动力学步进 (优先调度 Worker 线程池)
+   */
+  private stepSwingingDynamics(delta: number): void {
+    if (this.computeBridge && !this.isWorkerBusy && this.solver.currentHole) {
+      this.isWorkerBusy = true;
+      const hole = this.solver.currentHole;
+      this.computeBridge
+        .simulateSuspensionStep({
+          angleRad: this.solver.angleRad,
+          angularVelocity: this.solver.angularVelocity,
+          damping: this.solver.damping,
+          gravity: this.solver.gravity,
+          totalMassKg: this.solver.totalMassKg,
+          inertiaCg: this.solver.inertiaCg,
+          centroidX: this.solver.centroid.x,
+          centroidY: this.solver.centroid.y,
+          holeX: hole.x,
+          holeY: hole.y,
+          dt: delta,
+          substeps: 8,
+        })
+        .then((res) => {
+          this.isWorkerBusy = false;
+          if (this.solver.state === 'swinging') {
+            this.solver.angleRad = res.angleRad;
+            this.solver.angularVelocity = res.angularVelocity;
+            if (res.isStationary) {
+              this.solver.stableTimeAccum += delta;
+              if (this.solver.stableTimeAccum >= this.solver.requiredStableDuration) {
+                this.solver.triggerStabilization();
+                this.handleStabilizationVisuals();
+              }
+            } else {
+              this.solver.stableTimeAccum = 0;
+            }
+          }
+        })
+        .catch(() => {
+          this.isWorkerBusy = false;
+          const prevState = this.solver.state;
+          this.solver.step(delta);
+          if (prevState === 'swinging' && (this.solver.state as string) === 'stabilized') {
+            this.handleStabilizationVisuals();
+          }
+        });
+    } else if (!this.computeBridge) {
+      const prevState = this.solver.state;
+      this.solver.step(delta);
+      if (prevState === 'swinging' && (this.solver.state as string) === 'stabilized') {
+        this.handleStabilizationVisuals();
+      }
+    }
   }
 
   /**

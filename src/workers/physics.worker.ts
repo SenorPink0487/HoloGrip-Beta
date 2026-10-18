@@ -548,7 +548,103 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
       break;
     }
 
+    case 'MECH_SUSPENSION_STEP': {
+      const {
+        id,
+        angleRad: startAngle,
+        angularVelocity: startOmega,
+        damping,
+        gravity,
+        totalMassKg,
+        inertiaCg,
+        centroidX,
+        centroidY,
+        holeX,
+        holeY,
+        dt,
+        substeps = 8,
+      } = req;
 
+      let angle = startAngle;
+      let omega = startOmega;
+      const safeDt = Math.min(dt, 0.05);
+      const subDt = safeDt / Math.max(1, substeps);
+
+      const dx = centroidX - holeX;
+      const dy = centroidY - holeY;
+      const d = Math.max(1e-4, Math.hypot(dx, dy));
+      const iPivot = inertiaCg + totalMassKg * d * d;
+
+      for (let s = 0; s < substeps; s++) {
+        const restoringTorque = -totalMassKg * gravity * d * Math.sin(angle);
+        const dampingTorque = -damping * omega;
+        const alpha = (restoringTorque + dampingTorque) / iPivot;
+        omega += alpha * subDt;
+        angle += omega * subDt;
+      }
+
+      const isStationary = Math.abs(angle) < 0.0035 && Math.abs(omega) < 0.008;
+      const computeTimeMs = performance.now() - startTime;
+
+      const resp: WorkerResponse = {
+        id,
+        action: 'MECH_SUSPENSION_STEP',
+        angleRad: angle,
+        angularVelocity: omega,
+        isStationary,
+        computeTimeMs,
+      };
+      ctx.postMessage(resp);
+      break;
+    }
+
+    case 'MECH_POLYGON_ANALYSIS': {
+      const { id, vertices, totalMassKg } = req;
+      const n = vertices.length;
+      let totalSignedArea = 0;
+      let cxSum = 0;
+      let cySum = 0;
+      let totalIO = 0;
+
+      for (let i = 0; i < n; i++) {
+        const x0 = vertices[i][0];
+        const y0 = vertices[i][1];
+        const x1 = vertices[(i + 1) % n][0];
+        const y1 = vertices[(i + 1) % n][1];
+
+        const cross = x0 * y1 - x1 * y0;
+        totalSignedArea += 0.5 * cross;
+        cxSum += (x0 + x1) * cross;
+        cySum += (y0 + y1) * cross;
+
+        const triArea = 0.5 * cross;
+        totalIO +=
+          (triArea / 6.0) *
+          (x0 * x0 + x0 * x1 + x1 * x1 + y0 * y0 + y0 * y1 + y1 * y1);
+      }
+
+      const area = Math.abs(totalSignedArea) || 0.01;
+      const centroid = {
+        x: (1 / (6 * (totalSignedArea || 1e-6))) * cxSum,
+        y: (1 / (6 * (totalSignedArea || 1e-6))) * cySum,
+      };
+      const sigma = totalMassKg / area;
+      const IO = Math.abs(totalIO) * sigma;
+      const distSq = centroid.x * centroid.x + centroid.y * centroid.y;
+      const inertiaCg = Math.max(1e-5, IO - totalMassKg * distSq);
+
+      const computeTimeMs = performance.now() - startTime;
+      const resp: WorkerResponse = {
+        id,
+        action: 'MECH_POLYGON_ANALYSIS',
+        area,
+        centroid,
+        inertiaCg,
+        computeTimeMs,
+      };
+      ctx.postMessage(resp);
+      break;
+    }
   }
 };
 

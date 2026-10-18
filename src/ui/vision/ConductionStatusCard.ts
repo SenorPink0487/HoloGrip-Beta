@@ -1,30 +1,34 @@
 import { bindVisionSlider, isSliderActive } from './sliderGestureHelper.ts';
 
 export interface ConductionTelemetryData {
-  heatSourceTemp: number; // K
-  coldSourceTemp: number; // K
-  material: string;       // 'copper' | 'aluminum' | 'steel' | 'composite'
-  materialName: string;
-  kValue: number;         // W/(m·K)
-  diffusivity: number;    // 10^-6 m^2/s
-  lateralInsulation: boolean;
-  probePositionNorm: number; // 0..1
-  probePositionMm: number;   // mm
-  probeTempK: number;        // K
-  probeGradient: number;     // K/m
-  localHeatFlux: number;     // W/m^2
-  totalHeatFlowW: number;    // W
-  timeElapsed: number;       // s
-  isSteadyState: boolean;
-  tempProfile: number[];     // 例如：沿金属棒分布的 33 个网格点
+  heatSourceTemp: number; // 热端温度 (K)
+  coldSourceTemp: number; // 冷端温度 (K)
+  probePositionNorm: number; // 探针归一化位置 [0, 1]
+  probeTempK: number; // 探针处实测温度 (K)
+  probeGradient: number; // 探针处温度梯度 dT/dx (K/m)
+  totalHeatFlowW: number; // 稳态/瞬态截面热流率 (W)
+  localHeatFlux: number; // 局部热通量 q = -k dT/dx (W/m^2)
+  material: string; // 材质标识 ('copper' | 'aluminum' | 'steel' | 'composite')
+  materialName?: string;
+  probePositionMm?: number;
+  tempProfile?: number[];
+  kValue: number; // 热导率 (W/m·K)
+  diffusivity: number; // 热扩散系数 α (mm^2/s)
+  lateralInsulation: boolean; // 是否侧向完全绝热
+  isSteadyState: boolean; // 是否已进入一维稳态
+  timeElapsed: number; // 热传导演化时间 (s)
+  profileSamples?: { x: number; tK: number }[]; // 空间温度场采样
 }
 
 export interface ConductionStatusCardCallbacks {
+  onTempHighChange?: (tempK: number) => void;
   onHeatSourceTempChange?: (tempK: number) => void;
+  onTempLowChange?: (tempK: number) => void;
   onColdSourceTempChange?: (tempK: number) => void;
-  onMaterialChange?: (material: string) => void;
-  onLateralInsulationChange?: (insulated: boolean) => void;
   onProbePositionChange?: (normX: number) => void;
+  onMaterialChange?: (material: string) => void;
+  onToggleInsulation?: (enabled: boolean) => void;
+  onLateralInsulationChange?: (insulated: boolean) => void;
   onResetTransient?: () => void;
 }
 
@@ -38,36 +42,32 @@ export class ConductionStatusCard {
   private currentData: ConductionTelemetryData = {
     heatSourceTemp: 450,
     coldSourceTemp: 295,
+    probePositionNorm: 0.5,
+    probeTempK: 372.5,
+    probeGradient: -484.0,
+    totalHeatFlowW: 85.5,
+    localHeatFlux: 189000,
     material: 'copper',
-    materialName: '高纯紫铜 (k = 390 W/m·K)',
     kValue: 390,
     diffusivity: 111,
     lateralInsulation: true,
-    probePositionNorm: 0.5,
-    probePositionMm: 160,
-    probeTempK: 372.5,
-    probeGradient: -484.4,
-    localHeatFlux: 188916,
-    totalHeatFlowW: 85.5,
-    timeElapsed: 12.4,
     isSteadyState: true,
-    tempProfile: new Array(33).fill(372.5),
+    timeElapsed: 25.0,
+    profileSamples: [],
   };
 
-  // 缓存的 DOM 节点集合
   private valTempHEl: HTMLElement | null = null;
   private valTempCEl: HTMLElement | null = null;
-  private valFluxEl: HTMLElement | null = null;
   private valProbeEl: HTMLElement | null = null;
   private valPowerEl: HTMLElement | null = null;
-  private subGradientEl: HTMLElement | null = null;
-  private badgeSteadyEl: HTMLElement | null = null;
   private sliderTempH: HTMLInputElement | null = null;
   private sliderTempC: HTMLInputElement | null = null;
   private sliderProbe: HTMLInputElement | null = null;
   private selectMaterial: HTMLSelectElement | null = null;
-  private activeSliders = new Set<string>();
   private btnInsulation: HTMLButtonElement | null = null;
+  private btnResetTransient: HTMLButtonElement | null = null;
+  private activeSliders = new Set<string>();
+
   private lastChartRenderTime = 0;
   private lastRenderedNormX = -1;
   private lastRenderedTempH = -1;
@@ -81,104 +81,317 @@ export class ConductionStatusCard {
     this.createUI();
   }
 
+  private updateSliderTrackFill(slider: HTMLInputElement | null, min: number, max: number, value: number): void {
+    if (!slider) return;
+    const ratio = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    const pct = (ratio * 100).toFixed(1);
+    slider.style.background = `linear-gradient(to right, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.85) ${pct}%, rgba(255, 255, 255, 0.14) ${pct}%, rgba(255, 255, 255, 0.14) 100%)`;
+  }
+
   private createUI(): void {
     this.element = document.createElement('div');
     this.element.className = 'vision-thermo-status-card hud-interactive';
 
     this.element.innerHTML = `
-      <div class="thermo-card-container">
-        <!-- 1. Top Metrics Deck -->
-        <div class="thermo-metrics-deck">
-          <div class="thermo-metric-card" id="card-th">
-            <span class="thermo-metric-label">热端温度 T_H</span>
-            <div class="thermo-metric-value" id="val-th" style="color: #ef4444;">450 K</div>
-            <span class="thermo-metric-sub">176.9 °C · 恒温电热夹具</span>
-            <input type="range" class="thermo-mini-slider" id="slider-cond-th" min="320" max="650" step="5" value="450" style="accent-color: #ef4444;" />
-          </div>
+      <style>
+        .vision-thermo-status-card {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          height: 100%;
+          min-height: 480px;
+          padding: 24px;
+          box-sizing: border-box;
+        }
 
-          <div class="thermo-metric-card" id="card-tc">
-            <span class="thermo-metric-label">冷端温度 T_C</span>
-            <div class="thermo-metric-value" id="val-tc" style="color: #38bdf8;">295 K</div>
-            <span class="thermo-metric-sub">21.9 °C · 循环制冷恒温阱</span>
-            <input type="range" class="thermo-mini-slider" id="slider-cond-tc" min="250" max="330" step="5" value="295" style="accent-color: #38bdf8;" />
-          </div>
+        .apple-physics-layout {
+          width: 100%;
+          max-width: 1040px;
+          display: grid;
+          grid-template-columns: 390px 1fr;
+          gap: 20px;
+          align-items: start;
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+          user-select: none;
+          -webkit-user-select: none;
+        }
 
-          <div class="thermo-metric-card" id="card-probe">
-            <span class="thermo-metric-label">探针温度 T_probe</span>
-            <div class="thermo-metric-value" id="val-probe" style="color: #00f5ff;">372.5 K</div>
-            <span class="thermo-metric-sub" id="sub-gradient">梯度: -484 K/m</span>
-            <input type="range" class="thermo-mini-slider" id="slider-cond-probe" min="0" max="1" step="0.01" value="0.5" style="accent-color: #00f5ff;" />
-          </div>
+        .apple-physics-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
 
-          <div class="thermo-metric-card" id="card-heatflow">
-            <span class="thermo-metric-label">稳态传热功率 Q</span>
-            <div class="thermo-metric-value" id="val-heatflow" style="color: #f59e0b;">85.5 W</div>
-            <span class="thermo-metric-sub" id="sub-flux">热通量: 189 kW/m²</span>
-            <div class="thermo-metric-caption" id="sub-k-prop">k: 390 W/m·K · α: 111 mm²/s</div>
-          </div>
-        </div>
+        .apple-physics-group {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-top: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 18px;
+          overflow: hidden;
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+        }
 
-        <!-- 2. Dual Analytics Charts Deck -->
-        <div class="thermo-charts-deck">
-          <!-- Left: T(x) Temperature Distribution Curve -->
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header">
-              <span class="thermo-chart-title">T(x) 轴向温度分布曲线 (Fourier: q = -k dT/dx)</span>
-              <div class="thermo-chart-legend">
-                <span class="legend-line" style="background: #38bdf8; height: 2px;"></span><span>实时曲线</span>
-                <span class="legend-line" style="background: #94a3b8; height: 1px; border-top: 1px dashed;"></span><span>理论稳态</span>
-                <span class="legend-dot" style="background: #00f5ff;"></span><span>探针测温点</span>
+        .apple-physics-row {
+          padding: 13px 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .apple-physics-row:last-child {
+          border-bottom: none;
+        }
+
+        .apple-physics-row-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+        }
+
+        .apple-physics-label {
+          font-size: 13.5px;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.68);
+          letter-spacing: -0.15px;
+        }
+
+        .apple-physics-readout {
+          font-size: 14.5px;
+          font-weight: 600;
+          color: #ffffff;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: -0.2px;
+        }
+
+        .apple-physics-slider {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 100%;
+          height: 5px;
+          border-radius: 9999px;
+          outline: none;
+          cursor: pointer;
+          margin: 6px 0 2px 0;
+          background: rgba(255, 255, 255, 0.14);
+          transition: background 0.08s ease;
+        }
+
+        .apple-physics-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #ffffff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.2);
+          cursor: pointer;
+          transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s ease;
+          border: none;
+        }
+
+        .apple-physics-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.12);
+          box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+        }
+
+        .apple-physics-slider::-webkit-slider-thumb:active {
+          transform: scale(0.96);
+        }
+
+        .apple-physics-slider::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #ffffff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+          cursor: pointer;
+          border: none;
+        }
+
+        .apple-physics-scale {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.3);
+          font-variant-numeric: tabular-nums;
+          font-weight: 400;
+        }
+
+        .apple-actions-group {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .apple-select {
+          width: 100%;
+          height: 38px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          font-size: 13px;
+          padding: 0 12px;
+          outline: none;
+          cursor: pointer;
+          font-family: inherit;
+        }
+
+        .apple-select option {
+          background: #181c24;
+          color: #ffffff;
+        }
+
+        .apple-btn-row {
+          display: flex;
+          gap: 8px;
+        }
+
+        .apple-btn-secondary {
+          flex: 1;
+          height: 40px;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.06);
+          color: rgba(255, 255, 255, 0.88);
+          font-size: 13px;
+          font-weight: 500;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          transition: all 0.18s ease;
+        }
+
+        .apple-btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+        }
+
+        .apple-btn-secondary.active {
+          background: rgba(255, 255, 255, 0.18);
+          border-color: rgba(255, 255, 255, 0.30);
+          color: #ffffff;
+        }
+
+        .apple-charts-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .apple-chart-card {
+          background: rgba(255, 255, 255, 0.045);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-top: 1px solid rgba(255, 255, 255, 0.16);
+          border-radius: 16px;
+          padding: 12px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .apple-chart-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.85);
+          letter-spacing: -0.1px;
+        }
+
+        .apple-chart-canvas {
+          width: 100%;
+          height: auto;
+          max-height: 190px;
+          border-radius: 8px;
+        }
+      </style>
+
+      <div class="apple-physics-layout">
+        <!-- 1. 左侧：边界条件、探针与材质 -->
+        <div class="apple-physics-panel">
+          <div class="apple-physics-group">
+            <!-- 热端温度 T_H -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">热端温度 T_H</span>
+                <span id="val-th" class="apple-physics-readout">450 K</span>
+              </div>
+              <input type="range" class="apple-physics-slider" id="slider-cond-th" min="320" max="650" step="5" value="450" />
+              <div class="apple-physics-scale">
+                <span>320 K</span>
+                <span>650 K</span>
               </div>
             </div>
-            <div class="thermo-canvas-wrap">
-              <canvas id="canvas-cond-tx" width="480" height="250"></canvas>
-            </div>
-          </div>
 
-          <!-- Right: FLIR False-Color Thermal Gradient & Heat Flux -->
-          <div class="thermo-chart-box">
-            <div class="thermo-chart-header">
-              <span class="thermo-chart-title">FLIR 红外热成像伪彩与热通量场分布</span>
-              <div class="thermo-chart-legend">
-                <span class="legend-dot" style="background: #ef4444;"></span><span>热端</span>
-                <span class="legend-dot" style="background: #38bdf8;"></span><span>冷端</span>
+            <!-- 冷端温度 T_C -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">冷端温度 T_C</span>
+                <span id="val-tc" class="apple-physics-readout">295 K</span>
+              </div>
+              <input type="range" class="apple-physics-slider" id="slider-cond-tc" min="250" max="330" step="5" value="295" />
+              <div class="apple-physics-scale">
+                <span>250 K</span>
+                <span>330 K</span>
               </div>
             </div>
-            <div class="thermo-canvas-wrap">
-              <canvas id="canvas-cond-flir" width="480" height="250"></canvas>
+
+            <!-- 探针位置与温度 -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">探针位置 x (归一化)</span>
+                <span id="val-probe" class="apple-physics-readout">372.5 K</span>
+              </div>
+              <input type="range" class="apple-physics-slider" id="slider-cond-probe" min="0" max="1" step="0.01" value="0.5" />
+              <div class="apple-physics-scale">
+                <span>0.0 (热端)</span>
+                <span id="sub-gradient">梯度: -484 K/m</span>
+                <span>1.0 (冷端)</span>
+              </div>
+            </div>
+
+            <!-- 传热功率 -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">稳态传热功率 Q</span>
+                <span id="val-heatflow" class="apple-physics-readout">85.5 W</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 3. Control Deck -->
-        <div class="carnot-control-deck">
-          <div class="carnot-btn-group">
-            <div class="carnot-stage-badge" id="badge-steady-state">
-              <span class="stage-dot" style="width: 7px; height: 7px; border-radius: 50%; background: #22c55e;"></span>
-              <span id="txt-steady-state">一维稳态热传导已建立</span>
-            </div>
-            <button class="carnot-btn" id="btn-insulation" title="切换完全绝热 / 自然空气对流散热">
-              <span>侧向绝热: 开启</span>
-            </button>
-          </div>
-
-          <div class="carnot-btn-group">
-            <select class="carnot-select" id="select-cond-material" title="切换不同热导率材料或复合棒">
+          <!-- 材质与边界选项 -->
+          <div class="apple-actions-group">
+            <select class="apple-select" id="select-cond-material">
               <option value="copper">试样材质: 高纯紫铜 (k = 390 W/m·K)</option>
               <option value="aluminum">试样材质: 硬铝合金 (k = 210 W/m·K)</option>
               <option value="steel">试样材质: 304不锈钢 (k = 16 W/m·K)</option>
-              <option value="composite">试样材质: 铜-钢串联复合棒 (Cu+Steel 界面斜率突变)</option>
+              <option value="composite">试样材质: 铜-钢串联复合棒 (Cu+Steel)</option>
             </select>
 
-            <button class="carnot-btn" id="btn-reset-transient" title="重新触发热扰动观察瞬态热波扩散">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-                <path d="M21 3v5h-5"/>
-                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-                <path d="M3 21v-5h5"/>
-              </svg>
-              <span>瞬态热扩散重演</span>
-            </button>
+            <div class="apple-btn-row">
+              <button class="apple-btn-secondary active" id="btn-insulation" type="button">
+                <span>侧向绝热: 开启</span>
+              </button>
+              <button class="apple-btn-secondary" id="btn-reset-transient" type="button">
+                <span>瞬态热扩散重演</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 右侧：T(x) 分布曲线与红外热成像 -->
+        <div class="apple-charts-grid">
+          <div class="apple-chart-card">
+            <span class="apple-chart-title">T(x) 轴向温度分布曲线 (Fourier 导热)</span>
+            <canvas id="canvas-cond-tx" class="apple-chart-canvas" width="480" height="210"></canvas>
+          </div>
+
+          <div class="apple-chart-card">
+            <span class="apple-chart-title">热通量场与温度梯度伪彩</span>
+            <canvas id="canvas-cond-flir" class="apple-chart-canvas" width="480" height="210"></canvas>
           </div>
         </div>
       </div>
@@ -190,16 +403,17 @@ export class ConductionStatusCard {
     this.valTempHEl = this.element.querySelector('#val-th');
     this.valTempCEl = this.element.querySelector('#val-tc');
     this.valProbeEl = this.element.querySelector('#val-probe');
-    this.subGradientEl = this.element.querySelector('#sub-gradient');
     this.valPowerEl = this.element.querySelector('#val-heatflow');
-    this.valFluxEl = this.element.querySelector('#sub-flux');
-    this.badgeSteadyEl = this.element.querySelector('#txt-steady-state');
-
     this.sliderTempH = this.element.querySelector('#slider-cond-th');
     this.sliderTempC = this.element.querySelector('#slider-cond-tc');
     this.sliderProbe = this.element.querySelector('#slider-cond-probe');
     this.selectMaterial = this.element.querySelector('#select-cond-material');
     this.btnInsulation = this.element.querySelector('#btn-insulation');
+    this.btnResetTransient = this.element.querySelector('#btn-reset-transient');
+
+    this.updateSliderTrackFill(this.sliderTempH, 320, 650, 450);
+    this.updateSliderTrackFill(this.sliderTempC, 250, 330, 295);
+    this.updateSliderTrackFill(this.sliderProbe, 0, 1, 0.5);
 
     this.bindEvents();
   }
@@ -207,55 +421,69 @@ export class ConductionStatusCard {
   private bindEvents(): void {
     bindVisionSlider(this.sliderTempH, {
       activeSet: this.activeSliders,
-      onChange: (val) => this.callbacks.onHeatSourceTempChange?.(val),
+      onChange: (val) => {
+        this.updateSliderTrackFill(this.sliderTempH, 320, 650, val);
+        this.callbacks.onTempHighChange?.(val);
+        this.callbacks.onHeatSourceTempChange?.(val);
+      },
       onScrub: (val) => {
         if (this.valTempHEl) this.valTempHEl.textContent = `${Math.round(val)} K`;
+        this.updateSliderTrackFill(this.sliderTempH, 320, 650, val);
       },
     });
 
     bindVisionSlider(this.sliderTempC, {
       activeSet: this.activeSliders,
-      onChange: (val) => this.callbacks.onColdSourceTempChange?.(val),
+      onChange: (val) => {
+        this.updateSliderTrackFill(this.sliderTempC, 250, 330, val);
+        this.callbacks.onTempLowChange?.(val);
+        this.callbacks.onColdSourceTempChange?.(val);
+      },
       onScrub: (val) => {
         if (this.valTempCEl) this.valTempCEl.textContent = `${Math.round(val)} K`;
+        this.updateSliderTrackFill(this.sliderTempC, 250, 330, val);
       },
     });
 
     bindVisionSlider(this.sliderProbe, {
       activeSet: this.activeSliders,
-      onChange: (val) => this.callbacks.onProbePositionChange?.(val),
+      onChange: (val) => {
+        this.updateSliderTrackFill(this.sliderProbe, 0, 1, val);
+        this.callbacks.onProbePositionChange?.(val);
+      },
       onScrub: (val) => {
-        if (this.valProbeEl) this.valProbeEl.textContent = `${(val * 100).toFixed(0)}%`;
+        this.updateSliderTrackFill(this.sliderProbe, 0, 1, val);
       },
     });
 
-    this.selectMaterial?.addEventListener('change', () => {
-      const mat = this.selectMaterial?.value || 'copper';
-      this.callbacks.onMaterialChange?.(mat);
+    this.selectMaterial?.addEventListener('change', (e) => {
+      const val = (e.target as HTMLSelectElement).value;
+      this.callbacks.onMaterialChange?.(val);
     });
 
     this.btnInsulation?.addEventListener('click', () => {
-      const next = !this.currentData.lateralInsulation;
-      this.callbacks.onLateralInsulationChange?.(next);
+      const nextInsul = !this.currentData.lateralInsulation;
+      this.currentData.lateralInsulation = nextInsul;
+      this.callbacks.onToggleInsulation?.(nextInsul);
+      this.callbacks.onLateralInsulationChange?.(nextInsul);
     });
 
-    this.element.querySelector('#btn-reset-transient')?.addEventListener('click', () => {
+    this.btnResetTransient?.addEventListener('click', () => {
       this.callbacks.onResetTransient?.();
     });
   }
 
-  public setVisible(visible: boolean): void {
-    this.isVisible = visible;
-    if (visible) {
-      this.lastChartRenderTime = 0;
+  public setVisible(show: boolean): void {
+    this.isVisible = show;
+    this.element.style.display = show ? 'flex' : 'none';
+    if (show) {
       this.lastRenderedNormX = -1;
-      this.lastRenderedTempH = -1;
-      this.lastRenderedTempC = -1;
-      this.lastRenderedMaterial = '';
-      this.lastRenderedInsulation = null;
-      this.lastRenderedSteadyState = null;
       this.renderCharts();
     }
+  }
+
+  public get visible(): boolean {
+    return this.isVisible;
   }
 
   public updateTelemetry(data: ConductionTelemetryData): void {
@@ -264,34 +492,27 @@ export class ConductionStatusCard {
     if (this.valTempHEl) this.valTempHEl.textContent = `${Math.round(data.heatSourceTemp)} K`;
     if (this.valTempCEl) this.valTempCEl.textContent = `${Math.round(data.coldSourceTemp)} K`;
     if (this.valProbeEl) this.valProbeEl.textContent = `${data.probeTempK.toFixed(1)} K`;
-    if (this.subGradientEl) this.subGradientEl.textContent = `梯度: ${Math.round(data.probeGradient)} K/m`;
     if (this.valPowerEl) this.valPowerEl.textContent = `${data.totalHeatFlowW.toFixed(1)} W`;
-    if (this.valFluxEl) this.valFluxEl.textContent = `热通量: ${(data.localHeatFlux / 1000).toFixed(1)} kW/m²`;
 
-    const subK = this.element.querySelector('#sub-k-prop');
-    if (subK) {
-      subK.textContent = `k: ${data.kValue} W/m·K · α: ${data.diffusivity} mm²/s`;
-    }
-
-    if (this.badgeSteadyEl) {
-      this.badgeSteadyEl.textContent = data.isSteadyState
-        ? `一维稳态热传导 (t = ${data.timeElapsed.toFixed(1)}s)`
-        : `非稳态热波扩散中 (${data.timeElapsed.toFixed(1)}s)`;
-    }
+    const subGrad = this.element.querySelector('#sub-gradient');
+    if (subGrad) subGrad.textContent = `梯度: ${Math.round(data.probeGradient)} K/m`;
 
     if (this.btnInsulation) {
-      this.btnInsulation.textContent = data.lateralInsulation ? '侧向绝热: 开启' : '空气自然对流散热';
+      this.btnInsulation.textContent = data.lateralInsulation ? '侧向绝热: 开启' : '空气自然对流';
       this.btnInsulation.classList.toggle('active', data.lateralInsulation);
     }
 
     if (this.sliderTempH && !isSliderActive(this.sliderTempH, this.activeSliders)) {
       this.sliderTempH.value = String(data.heatSourceTemp);
+      this.updateSliderTrackFill(this.sliderTempH, 320, 650, data.heatSourceTemp);
     }
     if (this.sliderTempC && !isSliderActive(this.sliderTempC, this.activeSliders)) {
       this.sliderTempC.value = String(data.coldSourceTemp);
+      this.updateSliderTrackFill(this.sliderTempC, 250, 330, data.coldSourceTemp);
     }
     if (this.sliderProbe && !isSliderActive(this.sliderProbe, this.activeSliders)) {
       this.sliderProbe.value = String(data.probePositionNorm);
+      this.updateSliderTrackFill(this.sliderProbe, 0, 1, data.probePositionNorm);
     }
     if (this.selectMaterial && document.activeElement !== this.selectMaterial) {
       this.selectMaterial.value = data.material;
@@ -337,7 +558,7 @@ export class ConductionStatusCard {
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const padL = 48, padR = 16, padT = 16, padB = 30;
+    const padL = 44, padR = 14, padT = 14, padB = 26;
     const chartW = w - padL - padR;
     const chartH = h - padT - padB;
 
@@ -347,7 +568,7 @@ export class ConductionStatusCard {
     const mapX = (normX: number) => padL + normX * chartW;
     const mapY = (tK: number) => padT + chartH - ((tK - tMin) / (tMax - tMin)) * chartH;
 
-    // 图表网格参考线
+    // 参考网格
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     for (let t = 300; t <= 600; t += 100) {
@@ -357,104 +578,61 @@ export class ConductionStatusCard {
       ctx.lineTo(w - padR, y);
       ctx.stroke();
 
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.font = '10px -apple-system, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText(`${t}K`, padL - 6, y + 3);
+      ctx.fillText(`${t}K`, padL - 5, y + 3);
     }
 
-    for (let xNorm = 0.25; xNorm <= 1.0; xNorm += 0.25) {
-      const x = mapX(xNorm);
-      ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT + chartH);
-      ctx.stroke();
-
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${Math.round(xNorm * 320)}mm`, x, h - 12);
-    }
-
-    // Axes
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.moveTo(padL, padT);
     ctx.lineTo(padL, padT + chartH);
     ctx.lineTo(w - padR, padT + chartH);
     ctx.stroke();
 
-    // 1. 理论稳态温度参考曲线
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
+    // 理论稳态虚线
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(mapX(0), mapY(d.heatSourceTemp));
+    ctx.lineTo(mapX(1), mapY(d.coldSourceTemp));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 实际温度分布曲线 (纯净纯白)
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
 
-    if (d.material === 'composite') {
-      // Junction at x = 0.5: k_cu = 390, k_steel = 16
-      // R1 = L1 / k1 = 0.5 / 390; R2 = L2 / k2 = 0.5 / 16
-      const r1 = 0.5 / 390;
-      const r2 = 0.5 / 16;
-      const deltaT1 = (d.heatSourceTemp - d.coldSourceTemp) * (r1 / (r1 + r2));
-      const tJunction = d.heatSourceTemp - deltaT1;
-
-      ctx.moveTo(mapX(0), mapY(d.heatSourceTemp));
-      ctx.lineTo(mapX(0.5), mapY(tJunction));
-      ctx.lineTo(mapX(1), mapY(d.coldSourceTemp));
+    const samples = d.profileSamples && d.profileSamples.length > 0 ? d.profileSamples : [];
+    if (samples.length > 0) {
+      for (let i = 0; i < samples.length; i++) {
+        const sx = mapX(samples[i].x);
+        const sy = mapY(samples[i].tK);
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      }
     } else {
       ctx.moveTo(mapX(0), mapY(d.heatSourceTemp));
       ctx.lineTo(mapX(1), mapY(d.coldSourceTemp));
     }
     ctx.stroke();
-    ctx.setLineDash([]);
 
-    // 2. 实时动态瞬态温度分布曲线 T(x)
-    const pts = d.tempProfile;
-    if (pts && pts.length > 1) {
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      for (let i = 0; i < pts.length; i++) {
-        const norm = i / (pts.length - 1);
-        const px = mapX(norm);
-        const py = mapY(pts[i]);
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      }
-      ctx.stroke();
-    }
-
-    // 3. 标记测温探头所在空间位置
+    // 探针点
     const probeX = mapX(d.probePositionNorm);
     const probeY = mapY(d.probeTempK);
 
-    ctx.strokeStyle = 'rgba(0, 245, 255, 0.4)';
-    ctx.lineWidth = 1.2;
-    ctx.setLineDash([2, 2]);
-    ctx.beginPath();
-    ctx.moveTo(probeX, padT);
-    ctx.lineTo(probeX, padT + chartH);
-    ctx.moveTo(padL, probeY);
-    ctx.lineTo(w - padR, probeY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // 探头位置高亮发光光晕
-    ctx.fillStyle = 'rgba(0, 245, 255, 0.35)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.beginPath();
     ctx.arc(probeX, probeY, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    // 探头中心定位点
-    ctx.fillStyle = '#00f5ff';
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(probeX, probeY, 4, 0, Math.PI * 2);
     ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`${d.probeTempK.toFixed(1)}K`, probeX + 8, probeY - 4);
   }
 
   private renderFLIRChart(): void {
@@ -467,90 +645,47 @@ export class ConductionStatusCard {
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const padL = 36, padR = 24, padT = 24, padB = 40;
+    const padL = 20, padR = 20, padT = 30, padB = 40;
     const barW = w - padL - padR;
-    const barH = 44;
-    const barY = padT + 20;
+    const barH = 50;
+    const barY = padT + (h - padT - padB - barH) / 2;
 
     const d = this.currentData;
-
-    // 1. 绘制 FLIR 伪彩色红外热谱色带
     const grad = ctx.createLinearGradient(padL, 0, padL + barW, 0);
-    grad.addColorStop(0.0, '#ffffff'); // Hottest
-    grad.addColorStop(0.2, '#ef4444'); // Red
-    grad.addColorStop(0.5, '#eab308'); // Yellow
-    grad.addColorStop(0.75, '#06b6d4'); // Cyan
-    grad.addColorStop(1.0, '#1e1b4b'); // 深蓝（最低温）
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    grad.addColorStop(0.5, '#0a84ff');
+    grad.addColorStop(1, 'rgba(10, 132, 255, 0.25)');
 
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.roundRect(padL, barY, barW, barH, 6);
+    ctx.roundRect(padL, barY, barW, barH, 10);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-    ctx.lineWidth = 1.5;
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(padL, barY, barW, barH, 10);
     ctx.stroke();
 
-    // 冷热两端温度标注
-    ctx.fillStyle = '#ef4444';
-    ctx.font = 'bold 12px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`热端 T_H: ${Math.round(d.heatSourceTemp)}K`, padL, barY - 8);
-
-    ctx.fillStyle = '#38bdf8';
-    ctx.textAlign = 'right';
-    ctx.fillText(`冷端 T_C: ${Math.round(d.coldSourceTemp)}K`, padL + barW, barY - 8);
-
-    // 热流通量方向箭头矢量 (--> --> -->)
-    const arrowCount = 7;
-    ctx.fillStyle = '#ffffff';
+    // 探针指示线
+    const probeX = padL + d.probePositionNorm * barW;
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
-
-    for (let i = 1; i <= arrowCount; i++) {
-      const ax = padL + (i / (arrowCount + 1)) * barW;
-      const ay = barY + barH * 0.5;
-
-      ctx.beginPath();
-      ctx.moveTo(ax - 10, ay);
-      ctx.lineTo(ax + 10, ay);
-      ctx.lineTo(ax + 4, ay - 4);
-      ctx.moveTo(ax + 10, ay);
-      ctx.lineTo(ax + 4, ay + 4);
-      ctx.stroke();
-    }
-
-    // 2. 方向指示器与热流密度数值标注
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = '11px -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(`导热方向: 热端 -> 冷端 (q = -k dT/dx = ${(d.localHeatFlux / 1000).toFixed(1)} kW/m²)`, w * 0.5, barY + barH + 24);
-
-    // 复合导热棒中心结合界面标记
-    if (d.material === 'composite') {
-      const jx = padL + barW * 0.5;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([3, 2]);
-      ctx.beginPath();
-      ctx.moveTo(jx, barY - 4);
-      ctx.lineTo(jx, barY + barH + 4);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = '#f59e0b';
-      ctx.font = 'bold 11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('铜-钢过渡交界面', jx, barY + barH + 40);
-    }
-
-    // 热谱色带上的探头位置指示箭头
-    const px = padL + d.probePositionNorm * barW;
-    ctx.fillStyle = '#00f5ff';
     ctx.beginPath();
-    ctx.moveTo(px, barY + barH + 2);
-    ctx.lineTo(px - 6, barY + barH + 12);
-    ctx.lineTo(px + 6, barY + barH + 12);
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(probeX, barY - 6);
+    ctx.lineTo(probeX, barY + barH + 6);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 11px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${d.probeTempK.toFixed(1)} K`, probeX, barY - 10);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`热端 ${d.heatSourceTemp}K`, padL, barY + barH + 20);
+    ctx.textAlign = 'right';
+    ctx.fillText(`冷端 ${d.coldSourceTemp}K`, padL + barW, barY + barH + 20);
   }
 }

@@ -218,6 +218,7 @@ export default class ThermoConductionExperiment extends BaseExperiment {
       timeElapsed: this.timeElapsed,
       isSteadyState: this.isSteadyState,
       tempProfile: Array.from(this.tempGrid),
+      profileSamples: Array.from(this.tempGrid).map((tK, i) => ({ x: i / (this.numPoints - 1), tK })),
     };
   }
 
