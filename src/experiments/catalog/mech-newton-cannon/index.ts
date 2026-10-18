@@ -30,6 +30,11 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
   private lastHoveredTarget: string | null = null;
   private keydownListener: ((e: KeyboardEvent) => void) | null = null;
 
+  // 速度导轨双游标拖拽交互状态
+  private draggingSlider: 'vmin' | 'vmax' | null = null;
+  private dragStartClientX = 0;
+  private dragStartVelocity = 0;
+
   public init(context: ExperimentContext): void {
     // 将实验根节点平稳放置于全息实验台桌子正中心 (X=0, Y=0.08, Z=0)
     this.rootGroup.position.set(0, 0.08, 0);
@@ -273,7 +278,16 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
           };
         }
 
-        // 2. 粒子数量调节按键 [-] / [+]
+        // 2. 粒子数量调节：步进手轮与 [-] / [+] 实体按键
+        if (cur.name === 'cannon-dial-count' || cur.userData?.isDial) {
+          this.bench.setLaunchButtonHovered(false);
+          this.lastHoveredTarget = 'cannon-dial-count';
+          return {
+            id: 'cannon-dial-count',
+            label: `[粒子个数步进手轮 N] 当前设定: ${this.particleCount} 颗 (点击步进 +2 · 范围 1~32 颗)`,
+            cursor: 'pointer',
+          };
+        }
         if (cur.name === 'cannon-btn-count-minus') {
           this.bench.setLaunchButtonHovered(false);
           this.lastHoveredTarget = 'cannon-btn-count-minus';
@@ -293,7 +307,25 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
           };
         }
 
-        // 3. 初速度调节按键
+        // 3. 初速度调节：双游标微米导轨滑块与微调按键
+        if (cur.name === 'cannon-slider-vmin' || cur.userData?.sliderType === 'vmin') {
+          this.bench.setLaunchButtonHovered(false);
+          this.lastHoveredTarget = 'cannon-slider-vmin';
+          return {
+            id: 'cannon-slider-vmin',
+            label: `[Vmin 初速下限游标滑块] 当前: ${this.minVelocityKmS.toFixed(1)} km/s (可左右拖拽或点击微调)`,
+            cursor: 'ew-resize',
+          };
+        }
+        if (cur.name === 'cannon-slider-vmax' || cur.userData?.sliderType === 'vmax') {
+          this.bench.setLaunchButtonHovered(false);
+          this.lastHoveredTarget = 'cannon-slider-vmax';
+          return {
+            id: 'cannon-slider-vmax',
+            label: `[Vmax 初速上限游标滑块] 当前: ${this.maxVelocityKmS.toFixed(1)} km/s (可左右拖拽或点击微调)`,
+            cursor: 'ew-resize',
+          };
+        }
         if (cur.name === 'cannon-btn-vmin-minus') {
           this.bench.setLaunchButtonHovered(false);
           this.lastHoveredTarget = 'cannon-btn-vmin-minus';
@@ -439,7 +471,13 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
         return true;
       }
 
-      // 2. 粒子数量增减
+      // 2. 粒子数量调节：手轮与步进按键
+      if (cur.name === 'cannon-dial-count' || cur.userData?.isDial) {
+        const next = this.particleCount >= 32 ? 1 : Math.min(32, this.particleCount + 2);
+        this.particleCount = next;
+        this.syncLcd();
+        return true;
+      }
       if (cur.name === 'cannon-btn-count-minus') {
         this.adjustParticleCount(-1);
         return true;
@@ -449,7 +487,19 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
         return true;
       }
 
-      // 3. 初速度调节
+      // 3. 初速度范围调节：双游标微米导轨滑块拖拽与按键微调
+      if (cur.name === 'cannon-slider-vmin' || cur.userData?.sliderType === 'vmin') {
+        this.draggingSlider = 'vmin';
+        this.dragStartClientX = _event.clientX;
+        this.dragStartVelocity = this.minVelocityKmS;
+        return true;
+      }
+      if (cur.name === 'cannon-slider-vmax' || cur.userData?.sliderType === 'vmax') {
+        this.draggingSlider = 'vmax';
+        this.dragStartClientX = _event.clientX;
+        this.dragStartVelocity = this.maxVelocityKmS;
+        return true;
+      }
       if (cur.name === 'cannon-btn-vmin-minus') {
         this.adjustMinVelocity(-0.5);
         return true;
@@ -493,6 +543,47 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
 
       cur = cur.parent;
     }
+  }
+
+  /**
+   * 指针滑动事件：驱动双游标微米导轨滑块无级调节初速度范围
+   */
+  public override onPointerMove(
+    event: PointerEvent,
+    _hit: THREE.Intersection | null,
+    _context: ExperimentContext
+  ): void {
+    if (this.isDisposed || !this.draggingSlider) return;
+
+    const deltaPixels = event.clientX - this.dragStartClientX;
+    const deltaV = deltaPixels * 0.05; // 20px 对应 1.0 km/s
+
+    if (this.draggingSlider === 'vmin') {
+      const newV = Math.max(
+        1.0,
+        Math.min(this.maxVelocityKmS - 0.2, Number((this.dragStartVelocity + deltaV).toFixed(1)))
+      );
+      if (newV !== this.minVelocityKmS) {
+        this.minVelocityKmS = newV;
+        this.syncLcd();
+      }
+    } else if (this.draggingSlider === 'vmax') {
+      const newV = Math.max(
+        this.minVelocityKmS + 0.2,
+        Math.min(16.0, Number((this.dragStartVelocity + deltaV).toFixed(1)))
+      );
+      if (newV !== this.maxVelocityKmS) {
+        this.maxVelocityKmS = newV;
+        this.syncLcd();
+      }
+    }
+  }
+
+  /**
+   * 指针抬起事件：释放滑块拖拽
+   */
+  public override onPointerUp(_event: PointerEvent, _context: ExperimentContext): void {
+    this.draggingSlider = null;
   }
 
   /**

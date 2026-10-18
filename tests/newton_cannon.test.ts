@@ -411,7 +411,16 @@ console.log('\nTest 7: NewtonCannonBenchMesh 3D Command Console & Visuals');
   assert(bench.btnCountPlus !== undefined, 'Particle count plus button must exist');
   assert(bench.btnVMinMinus !== undefined, 'Vmin minus button must exist');
   assert(bench.btnVMinPlus !== undefined, 'Vmin plus button must exist');
+  assert(bench.btnVMaxMinus !== undefined, 'Vmax minus button must exist');
+  assert(bench.btnVMaxPlus !== undefined, 'Vmax plus button must exist');
+  assert(bench.vernierSliderMin !== undefined, 'Vmin vernier slider must exist');
+  assert(bench.vernierSliderMax !== undefined, 'Vmax vernier slider must exist');
+  assert(bench.particleDialKnob !== undefined, 'Particle count handwheel must exist');
   assert(bench.btnClearTrails !== undefined, 'Clear trails button must exist');
+
+  // 联动测试
+  bench.setSliderPositions(4.5, 12.0);
+  bench.setParticleDialAngle(16);
 
   // 机械按下与更新
   bench.triggerLaunchButtonPress();
