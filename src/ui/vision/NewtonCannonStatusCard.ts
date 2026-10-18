@@ -69,6 +69,17 @@ export class NewtonCannonStatusCard {
           box-sizing: border-box;
         }
 
+        @keyframes iosPanelFadeIn {
+          0% {
+            opacity: 0;
+            transform: translate3d(0, 16px, 0) scale(0.985);
+          }
+          100% {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+        }
+
         .apple-newton-panel {
           width: 100%;
           max-width: 480px;
@@ -78,6 +89,7 @@ export class NewtonCannonStatusCard {
           font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
           user-select: none;
           -webkit-user-select: none;
+          animation: iosPanelFadeIn 0.38s cubic-bezier(0.25, 1, 0.5, 1) both;
         }
 
         .apple-newton-group {
@@ -144,17 +156,18 @@ export class NewtonCannonStatusCard {
           background: #ffffff;
           box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.2);
           cursor: pointer;
-          transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s ease;
+          transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
           border: none;
         }
 
         .apple-newton-slider::-webkit-slider-thumb:hover {
-          transform: scale(1.12);
+          transform: scale(1.14);
           box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
         }
 
         .apple-newton-slider::-webkit-slider-thumb:active {
-          transform: scale(0.96);
+          transform: scale(1.25);
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4), 0 0 0 4px rgba(10, 132, 255, 0.28);
         }
 
         .apple-newton-slider::-moz-range-thumb {
@@ -194,7 +207,7 @@ export class NewtonCannonStatusCard {
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: all 0.16s ease;
+          transition: transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.3s ease, filter 0.12s ease;
           outline: none;
           user-select: none;
           -webkit-user-select: none;
@@ -205,13 +218,15 @@ export class NewtonCannonStatusCard {
           border-color: rgba(255, 255, 255, 0.16);
           border-top-color: rgba(255, 255, 255, 0.35);
           box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
-          transform: translateY(-1px);
+          transform: translate3d(0, -1px, 0) scale(1.015);
         }
 
         .apple-newton-launch-btn:active {
           background: rgba(14, 18, 28, 0.85);
-          transform: translateY(0.5px);
-          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+          transform: translate3d(0, 0, 0) scale(0.95);
+          filter: brightness(0.92);
+          transition: transform 0.10s cubic-bezier(0.2, 0, 0, 1), filter 0.10s ease;
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
         }
 
         .apple-newton-launch-btn.firing {

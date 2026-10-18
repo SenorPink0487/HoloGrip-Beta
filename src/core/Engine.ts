@@ -626,7 +626,11 @@ export class Engine {
   }
 
   private isFreeCursorExperiment(id: string | null): boolean {
-    return id === 'math-stereometry';
+    return (
+      id === 'math-stereometry' ||
+      id === 'mech-center-of-gravity' ||
+      id === 'mech-newton-third'
+    );
   }
 
   private initHUD(): void {
@@ -1897,6 +1901,7 @@ export class Engine {
           this.currentExperimentId === 'mech-galileo' ||
           this.currentExperimentId === 'mech-free-fall' ||
           this.currentExperimentId === 'mech-center-of-gravity' ||
+          this.currentExperimentId === 'mech-newton-third' ||
           this.currentExperimentId === 'optics-diffraction' ||
           this.currentExperimentId === 'optics-reflection-refraction') &&
         this.holoStage.activeExperiment?.onPointerMove
