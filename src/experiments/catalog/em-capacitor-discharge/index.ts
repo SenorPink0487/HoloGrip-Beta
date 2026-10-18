@@ -8,7 +8,6 @@ import {
   type CapacitorTelemetry,
   type WaveformSample,
 } from '../../../physics/em/capacitorDischarge.ts';
-import { CapacitorWaveformWindow } from '../../../ui/vision/CapacitorWaveformWindow.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 
@@ -24,9 +23,6 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   public bench!: CapacitorDischargeBenchMesh;
   public interactionManager!: CapacitorInteractionManager;
 
-  // 独立悬浮分析窗口
-  public waveformWindow!: CapacitorWaveformWindow;
-
   // 缓存与遥测回调
   private cachedTelemetry: CapacitorTelemetry | null = null;
   private telemetryCallback: ((data: CapacitorTelemetry) => void) | null = null;
@@ -34,7 +30,7 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   constructor() {
     super();
     this.model = new CapacitorDischargeModel({
-      voltageSupply: 10.0,
+      voltageSupply: 6.0,
       capacitanceMicroFarad: 1000.0,
       dischargeResistance: 1000.0,
       chargeResistance: 1000.0,
@@ -55,25 +51,13 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
 
-    // 2. 交互管理器：支持直接点击 3D 闸刀开关、接线端、电源旋钮与台面示波器小屏幕
+    // 2. 交互管理器：支持直接点击 3D 闸刀开关、接线端与台面示波器小屏幕
     this.interactionManager = new CapacitorInteractionManager({
       bench: this.bench,
       onSetSwitchPosition: (pos) => this.setSwitchPosition(pos),
       onCycleSwitch: () => this.cycleSwitchPosition(),
-      onAdjustVoltage: () => this.cycleVoltagePreset(),
       onClearSamples: () => this.clearSamples(),
     });
-
-    // 3. 悬浮波形视窗保持备用（默认关闭，桌面示波器小屏幕为台面原生呈现载体）
-    this.waveformWindow = new CapacitorWaveformWindow({
-      onSetSwitchPosition: (pos) => this.setSwitchPosition(pos),
-      onClearSamples: () => this.model.clearSamples(),
-      onResetExperiment: () => this.resetExperiment(),
-      css3dScene: context.css3dScene,
-      camera: context.camera,
-    });
-    this.waveformWindow.close();
-    this.addDisposable(() => this.waveformWindow?.dispose());
 
     // 初始化遥测并推入示波器
     this.syncTelemetry();
@@ -81,17 +65,9 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
 
   public override mount(context: ExperimentContext): void {
     super.mount?.(context);
-    if (this.waveformWindow && context.css3dScene && this.waveformWindow.css3dObject) {
-      if (!context.css3dScene.children.includes(this.waveformWindow.css3dObject)) {
-        context.css3dScene.add(this.waveformWindow.css3dObject);
-      }
-    }
   }
 
   public override unmount(context: ExperimentContext): void {
-    if (this.waveformWindow && context.css3dScene && this.waveformWindow.css3dObject) {
-      context.css3dScene.remove(this.waveformWindow.css3dObject);
-    }
     super.unmount?.(context);
   }
 
@@ -116,13 +92,7 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
       this.bench.update(delta, telemetry, this.model.getSamples());
     }
 
-    // 4. 若开启了辅助悬浮视窗，同步推进
-    if (this.waveformWindow && this.waveformWindow.isVisible) {
-      this.waveformWindow.update(delta, _context.camera);
-      this.waveformWindow.updateTelemetry(telemetry, this.model.getSamples());
-    }
-
-    // 5. 触发外部 UI 监听器
+    // 4. 触发外部监听器
     if (this.telemetryCallback) {
       this.telemetryCallback(telemetry);
     }
@@ -194,7 +164,7 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   }
 
   public openWaveformWindow(): void {
-    this.waveformWindow?.open();
+    // 桌面示波器为原生内建 3D 实体呈现
   }
 
   public getTelemetryData(): CapacitorTelemetry {
@@ -216,13 +186,9 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
     const telem = this.model.getTelemetry();
     this.cachedTelemetry = telem;
     this.bench?.renderOscilloscopeDisplay(telem, this.model.getSamples());
-    if (this.waveformWindow && this.waveformWindow.isVisible) {
-      this.waveformWindow.updateTelemetry(telem, this.model.getSamples());
-    }
   }
 
   public override dispose(context: ExperimentContext): void {
     super.dispose(context);
-    this.waveformWindow?.dispose();
   }
 }

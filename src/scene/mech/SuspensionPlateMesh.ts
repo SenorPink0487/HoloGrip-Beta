@@ -381,52 +381,9 @@ export class SuspensionPlateMesh {
     crossLine.renderOrder = 100;
     this.cogMarkerGroup.add(crossLine);
 
-    // 4. 重心文字标签精灵 ("重心 G (CG)")
-    const labelSprite = this.createCogLabelSprite();
-    labelSprite.position.set(0, 0.026, 0.002);
-    labelSprite.scale.set(0.058, 0.029, 1);
-    labelSprite.renderOrder = 101;
-    this.cogMarkerGroup.add(labelSprite);
-
+    this.cogMarkerGroup.userData = { isCogMarker: true };
     this.cogMarkerGroup.renderOrder = 100;
     this.plateMesh.add(this.cogMarkerGroup);
-  }
-
-  /**
-   * 生成重心高光文字精灵
-   */
-  private createCogLabelSprite(): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 110;
-    const ctx = canvas.getContext('2d')!;
-
-    // 金色圆角胶囊底衬
-    ctx.fillStyle = 'rgba(234, 179, 8, 0.95)';
-    ctx.beginPath();
-    ctx.roundRect(6, 6, 244, 98, 24);
-    ctx.fill();
-
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 5;
-    ctx.stroke();
-
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('重心 G (CG)', 128, 55);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    const spriteMat = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      depthTest: false,
-    });
-    const sprite = new THREE.Sprite(spriteMat);
-    sprite.raycast = () => {};
-    return sprite;
   }
 
   /**

@@ -48,7 +48,7 @@ if (typeof (globalThis as any).PointerEvent === 'undefined') {
 }
 
 import { HologramStage } from '../src/core/HologramStage.ts';
-import OpticsLabExperiment from '../src/experiments/catalog/optics-lab/index.ts';
+import OpticsReflectionRefractionExperiment from '../src/experiments/catalog/optics-reflection-refraction/index.ts';
 import type { ExperimentContext } from '../src/core/types.ts';
 
 console.log('=== Starting Empty Table On Startup Verification ===\n');
@@ -60,7 +60,7 @@ assert.strictEqual(stage.activeExperiment, null, 'No experiment must be active o
 console.log('✓ Test 1 passed: HologramStage is hidden by default with no active experiment');
 
 // 2. Verify stage becomes visible when experiment is explicitly mounted
-const exp = new OpticsLabExperiment();
+const exp = new OpticsReflectionRefractionExperiment();
 const mockContext: ExperimentContext = {
   scene: new THREE.Scene(),
   camera: new THREE.PerspectiveCamera(),
@@ -78,7 +78,7 @@ const mockContext: ExperimentContext = {
 
 await stage.switchExperiment(exp, mockContext);
 assert.strictEqual(stage.group.visible, true, 'Stage must become visible when an experiment is selected and mounted');
-assert.strictEqual(stage.activeExperiment, exp, 'Active experiment must be set to OpticsLab');
+assert.strictEqual(stage.activeExperiment, exp, 'Active experiment must be set to OpticsReflectionRefraction');
 console.log('✓ Test 2 passed: HologramStage becomes visible only after switchExperiment is invoked');
 
 // 3. Verify clearExperiment safely unmounts, disposes, and hides stage

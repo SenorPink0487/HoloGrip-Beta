@@ -1,12 +1,5 @@
 import * as THREE from 'three';
 
-export interface DispersionRay {
-  wavelengthNm: number;
-  color: THREE.Color;
-  refractiveIndex: number;
-  deviationAngleRad: number;
-  points: THREE.Vector3[];
-}
 
 export interface RayRefractionResult {
   refracted: boolean;
@@ -121,139 +114,221 @@ export class OpticalPhysics {
   }
 
   /**
-   * 马吕斯定律计算透射光强（经检偏器后）：
-   * I = I_0 * cos^2(theta2 - theta1)
+   * 一阶第一类贝塞尔函数 J1(x) 高精度多项式数值逼近（Abramowitz & Stegun 规范）
+   * 绝对误差 < 1.3e-7
    */
-  public static calculateMalusIntensity(polarizerAngleDeg: number, analyzerAngleDeg: number, initialIntensity = 1.0): number {
-    const deltaRad = THREE.MathUtils.degToRad(analyzerAngleDeg - polarizerAngleDeg);
-    const cosVal = Math.cos(deltaRad);
-    return initialIntensity * cosVal * cosVal;
+  public static besselJ1(x: number): number {
+    const ax = Math.abs(x);
+    if (ax < 1e-7) return 0.5 * x;
+
+    if (ax < 3.75) {
+      const y = (x / 3.75) * (x / 3.75);
+      const ans = x * (0.5 + y * (-0.56249985 + y * (0.21093573 + y * (-0.03954289 + y * (0.00443319 + y * (-0.00031761 + y * 0.00001109))))));
+      return ans;
+    } else {
+      const y = 3.75 / ax;
+      const f1 = 0.79788456 + y * (-0.00000077 + y * (-0.00552740 + y * (0.00009512 + y * (0.00137237 + y * (-0.00072805 + y * 0.00014476)))));
+      const theta1 = ax - 2.35619449 + y * (0.04687499 + y * (-0.00020096 + y * (-0.00320246 + y * (0.00018952 + y * (0.00142694 - y * 0.00067672)))));
+      const ans = (1.0 / Math.sqrt(ax)) * f1 * Math.cos(theta1);
+      return x < 0 ? -ans : ans;
+    }
+  }
+
+  /**
+   * 将激光波长转换为 HEX / RGB 及 CSS 颜色
+   */
+  public static wavelengthToRGB(wavelengthNm: number): { r: number; g: number; b: number; hex: number; css: string } {
+    const c = this.wavelengthToColor(wavelengthNm);
+    const rInt = Math.round(c.r * 255);
+    const gInt = Math.round(c.g * 255);
+    const bInt = Math.round(c.b * 255);
+    const hex = (rInt << 16) | (gInt << 8) | bInt;
+    const css = `rgb(${rInt}, ${gInt}, ${bInt})`;
+    return { r: c.r, g: c.g, b: c.b, hex, css };
+  }
+
+  /**
+   * 单缝夫琅禾费衍射相对光强分布：
+   * I(x) = I_0 * [sin(beta) / beta]^2，其中 beta = (pi * a / lambda) * sin(theta)
+   */
+  public static calculateSingleSlitIntensity(
+    xM: number,
+    wavelengthNm: number,
+    slitWidthMm: number,
+    screenDistM: number
+  ): number {
+    const lambda = wavelengthNm * 1e-9;
+    const a = Math.max(1e-6, slitWidthMm * 1e-3);
+    const L = Math.max(0.01, screenDistM);
+    const sinTheta = xM / Math.sqrt(xM * xM + L * L);
+    const beta = (Math.PI * a / lambda) * sinTheta;
+
+    if (Math.abs(beta) < 1e-6) return 1.0;
+    const sinc = Math.sin(beta) / beta;
+    return sinc * sinc;
+  }
+
+  /**
+   * 双缝干涉与单缝衍射综合光强分布：
+   * I(x) = I_0 * [sin(beta) / beta]^2 * cos^2(alpha)
+   */
+  public static calculateDoubleSlitIntensity(
+    xM: number,
+    wavelengthNm: number,
+    slitWidthMm: number,
+    slitDistanceMm: number,
+    screenDistM: number
+  ): number {
+    const lambda = wavelengthNm * 1e-9;
+    const a = Math.max(1e-6, slitWidthMm * 1e-3);
+    const d = Math.max(a, slitDistanceMm * 1e-3);
+    const L = Math.max(0.01, screenDistM);
+    const sinTheta = xM / Math.sqrt(xM * xM + L * L);
+
+    const beta = (Math.PI * a / lambda) * sinTheta;
+    const alpha = (Math.PI * d / lambda) * sinTheta;
+
+    const diffFactor = Math.abs(beta) < 1e-6 ? 1.0 : Math.pow(Math.sin(beta) / beta, 2);
+    const cosVal = Math.cos(alpha);
+    return diffFactor * cosVal * cosVal;
+  }
+
+  /**
+   * 圆孔夫琅禾费衍射与艾里斑相对光强分布：
+   * I(r) = I_0 * [2 J1(v) / v]^2，其中 v = (pi * D / lambda) * sin(theta)
+   */
+  public static calculateCircularApertureIntensity(
+    rM: number,
+    wavelengthNm: number,
+    apertureDiameterMm: number,
+    screenDistM: number
+  ): number {
+    const lambda = wavelengthNm * 1e-9;
+    const D = Math.max(1e-6, apertureDiameterMm * 1e-3);
+    const L = Math.max(0.01, screenDistM);
+    const sinTheta = Math.abs(rM) / Math.sqrt(rM * rM + L * L);
+    const v = (Math.PI * D / lambda) * sinTheta;
+
+    if (Math.abs(v) < 1e-6) return 1.0;
+    const j1 = this.besselJ1(v);
+    const airy = (2.0 * j1) / v;
+    return airy * airy;
+  }
+
+  /**
+   * 衍射光栅多缝干涉与单缝调制相对光强分布：
+   * I(x) = I_0 * [sin(beta) / beta]^2 * [sin(N * alpha) / (N * sin(alpha))]^2
+   */
+  public static calculateGratingIntensity(
+    xM: number,
+    wavelengthNm: number,
+    gratingLinesPerMm: number,
+    screenDistM: number,
+    numSlits = 14
+  ): number {
+    const lambda = wavelengthNm * 1e-9;
+    const density = Math.max(10, gratingLinesPerMm);
+    const d = (1.0 / density) * 1e-3;
+    const a = d * 0.35; // 单条缝宽约为周期的 35%
+    const L = Math.max(0.01, screenDistM);
+    const sinTheta = xM / Math.sqrt(xM * xM + L * L);
+
+    const beta = (Math.PI * a / lambda) * sinTheta;
+    const alpha = (Math.PI * d / lambda) * sinTheta;
+
+    const diffFactor = Math.abs(beta) < 1e-6 ? 1.0 : Math.pow(Math.sin(beta) / beta, 2);
+
+    const sinAlpha = Math.sin(alpha);
+    let gratingFactor = 1.0;
+    if (Math.abs(sinAlpha) < 1e-5) {
+      gratingFactor = 1.0;
+    } else {
+      const g = Math.sin(numSlits * alpha) / (numSlits * sinAlpha);
+      gratingFactor = g * g;
+    }
+
+    return diffFactor * gratingFactor;
+  }
+
+  /**
+   * 单缝衍射条纹物理尺寸计算：
+   * 中央明纹总宽度 Delta x_0 = 2 * lambda * L / a
+   * 次级条纹间距 Delta x = lambda * L / a
+   */
+  public static getSingleSlitFringeWidth(
+    wavelengthNm: number,
+    slitWidthMm: number,
+    screenDistM: number
+  ): { centralWidthMm: number; secondarySpacingMm: number } {
+    const lambda = wavelengthNm * 1e-9;
+    const a = Math.max(1e-6, slitWidthMm * 1e-3);
+    const L = Math.max(0.01, screenDistM);
+
+    const spacingM = (lambda * L) / a;
+    return {
+      centralWidthMm: (2.0 * spacingM) * 1e3,
+      secondarySpacingMm: spacingM * 1e3,
+    };
   }
 
   /**
    * 双缝干涉条纹间距计算：
-   * Delta y = (lambda * L) / d
+   * Delta y = lambda * L / d
    */
-  public static calculateDoubleSlitFringeSpacing(wavelengthNm: number, slitDistanceMm: number, screenDistanceM: number): number {
+  public static getDoubleSlitFringeSpacing(
+    wavelengthNm: number,
+    slitDistanceMm: number,
+    screenDistM: number
+  ): number {
     const lambda = wavelengthNm * 1e-9;
-    const d = slitDistanceMm * 1e-3;
-    const L = screenDistanceM;
-    if (d <= 0) return 0;
-    return (lambda * L) / d; // 单位：米
+    const d = Math.max(1e-6, slitDistanceMm * 1e-3);
+    const L = Math.max(0.01, screenDistM);
+    return ((lambda * L) / d) * 1e3; // 单位：mm
   }
 
   /**
-   * 单缝衍射第一极小角半角宽度：
-   * theta_1 = arcsin(lambda / a)
+   * 圆孔艾里斑第一暗环半径：
+   * r_1 = 1.22 * lambda * L / D
    */
-  public static calculateSingleSlitAiryWidth(wavelengthNm: number, slitWidthMm: number, screenDistanceM: number): number {
+  public static getAiryDiskRadius(
+    wavelengthNm: number,
+    apertureDiameterMm: number,
+    screenDistM: number
+  ): number {
     const lambda = wavelengthNm * 1e-9;
-    const a = slitWidthMm * 1e-3;
-    if (a <= 0) return 0;
-    const sinTheta = Math.min(1.0, lambda / a);
-    return 2.0 * screenDistanceM * Math.tan(Math.asin(sinTheta)); // 中央明纹总宽度
+    const D = Math.max(1e-6, apertureDiameterMm * 1e-3);
+    const L = Math.max(0.01, screenDistM);
+    return (1.2196696 * (lambda * L) / D) * 1e3; // 单位：mm
   }
 
   /**
-   * 60 度等边三棱镜的多光谱色散计算
+   * 光栅主极大位置计算：
+   * d * sin(theta) = m * lambda
    */
-  public static calculatePrismDispersionRays(
-    apexPos: THREE.Vector3,
-    prismRotationY: number,
-    baseIndex = 1.54,
-    incomingPos: THREE.Vector3 = new THREE.Vector3(0, 0, -0.6),
-    screenZ = 0.48
-  ): DispersionRay[] {
-    const spectrumWavelengths = [
-      { wl: 680, name: 'Red' },
-      { wl: 610, name: 'Orange' },
-      { wl: 575, name: 'Yellow' },
-      { wl: 530, name: 'Green' },
-      { wl: 480, name: 'Cyan' },
-      { wl: 440, name: 'Blue' },
-      { wl: 405, name: 'Violet' },
-    ];
+  public static getGratingPeakPositions(
+    wavelengthNm: number,
+    gratingLinesPerMm: number,
+    screenDistM: number,
+    maxOrder = 4
+  ): { order: number; xMm: number; angleDeg: number }[] {
+    const lambda = wavelengthNm * 1e-9;
+    const d = (1.0 / Math.max(10, gratingLinesPerMm)) * 1e-3;
+    const L = Math.max(0.01, screenDistM);
+    const peaks: { order: number; xMm: number; angleDeg: number }[] = [];
 
-    const rays: DispersionRay[] = [];
-    const side = 0.075;
-    const h = side * Math.sin(Math.PI / 3);
-    const theta = prismRotationY;
-    const cosT = Math.cos(theta);
-    const sinT = Math.sin(theta);
-
-    // 相对 apexPos 在 XZ 平面旋转后的顶角 A 及底角 B、C
-    // 局部坐标：A = (0, -h*0.5), B = (-side*0.5, h*0.5), C = (side*0.5, h*0.5)
-    const Ax = apexPos.x + (-h * 0.5) * sinT;
-    const Az = apexPos.z + (-h * 0.5) * cosT;
-    const Bx = apexPos.x + (-side * 0.5) * cosT + (h * 0.5) * sinT;
-    const Bz = apexPos.z - (-side * 0.5) * sinT + (h * 0.5) * cosT;
-
-    // 界面 1（AB）指向空气的外法向量
-    const N1 = new THREE.Vector3(
-      -0.866025 * cosT - 0.5 * sinT,
-      0,
-      0.866025 * sinT - 0.5 * cosT
-    ).normalize();
-
-    // 界面 2（AC）指向空气的外法向量
-    const N2 = new THREE.Vector3(
-      0.866025 * cosT - 0.5 * sinT,
-      0,
-      -0.866025 * sinT - 0.5 * cosT
-    ).normalize();
-
-    // 光线在界面 1（AB）上的入射点
-    let u = (incomingPos.x - Ax) / (Bx - Ax || 1e-5);
-    if (u < 0.1 || u > 0.9) {
-      u = 0.45;
+    for (let m = -maxOrder; m <= maxOrder; m++) {
+      const sinTheta = (m * lambda) / d;
+      if (Math.abs(sinTheta) <= 0.999) {
+        const theta = Math.asin(sinTheta);
+        const xM = L * Math.tan(theta);
+        peaks.push({
+          order: m,
+          xMm: xM * 1e3,
+          angleDeg: THREE.MathUtils.radToDeg(theta),
+        });
+      }
     }
-    const pEnter = new THREE.Vector3(
-      Ax + u * (Bx - Ax),
-      apexPos.y,
-      Az + u * (Bz - Az)
-    );
-
-    const inDir = new THREE.Vector3().subVectors(pEnter, incomingPos).normalize();
-    if (inDir.lengthSq() < 1e-4) inDir.set(0, 0, 1);
-
-    for (const spec of spectrumWavelengths) {
-      // 增强视觉色散系数（0.016），呈现清晰分明的各色光谱分离
-      const n = OpticalPhysics.getCauchyIndex(spec.wl, baseIndex, 0.016);
-      const color = OpticalPhysics.wavelengthToColor(spec.wl);
-
-      // 1. 在界面 1 折射进入玻璃
-      const r1 = OpticalPhysics.refractRay(inDir, N1, 1.0, n);
-      const dirInside = r1.outDirection;
-
-      // 2. 与界面 2 所在平面求交（过点 A，法向量为 N2）
-      const denom = dirInside.dot(N2);
-      const tExit = Math.abs(denom) > 1e-5
-        ? (new THREE.Vector3(Ax - pEnter.x, 0, Az - pEnter.z).dot(N2)) / denom
-        : 0.045;
-
-      const pExit = pEnter.clone().add(dirInside.clone().multiplyScalar(Math.max(0.01, tExit)));
-      pExit.y = apexPos.y;
-
-      // 3. 在界面 2 从玻璃折射出射至空气
-      const r2 = OpticalPhysics.refractRay(dirInside, N2, n, 1.0);
-      const dirOut = r2.totalInternalReflection ? dirInside : r2.outDirection;
-
-      // 4. 与位于 screenZ 处的观测屏求交
-      const distZ = screenZ - pExit.z;
-      const tScreen = dirOut.z > 1e-4 ? distZ / dirOut.z : 0.45;
-      const pScreen = pExit.clone().add(dirOut.clone().multiplyScalar(Math.max(0.05, tScreen)));
-      pScreen.z = screenZ;
-      pScreen.y = apexPos.y;
-
-      rays.push({
-        wavelengthNm: spec.wl,
-        color,
-        refractiveIndex: n,
-        deviationAngleRad: inDir.angleTo(dirOut),
-        points: [incomingPos.clone(), pEnter.clone(), pExit, pScreen],
-      });
-    }
-
-    return rays;
+    return peaks;
   }
 }
+

@@ -157,7 +157,7 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
 
 // Test 2: Level 2 shows the 5 experiments only after entering Optics
 {
-  console.log('Test 2: Level 2 displays 5 optics experiments after clicking Optics');
+  console.log('Test 2: Level 2 displays only 光的反射与折射 in Optics');
   let levelReported: number = 0;
 
   const modal = new PhysicsDisciplineModal({
@@ -178,24 +178,25 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(html.includes('physics-level-2'), 'Must render Level 2 container');
   assert(html.includes('optics-exp-deck'), 'Must render optics experiments deck');
 
-  // 4 Core optics experiments present in Level 2
-  assert(html.includes('光的传播与折射色散'), 'Must contain 光的传播与折射色散');
-  assert(html.includes('杨氏双缝干涉'), 'Must contain 杨氏双缝干涉');
-  assert(html.includes('单缝与光栅衍射'), 'Must contain 单缝与光栅衍射');
-  assert(html.includes('光的偏振与马吕斯定律'), 'Must contain 光的偏振与马吕斯定律');
+  // 光的反射与折射 & 光的衍射 in optics plate
+  assert.strictEqual(PhysicsDisciplineModal.OPTICS_EXPERIMENTS.length, 2, '2 experiments in optics section');
+  assert(html.includes('光的反射与折射'), 'Must contain 光的反射与折射');
+  assert(html.includes('n₁ sinθ₁ = n₂ sinθ₂ · θᵣ = θ₁'), 'Must contain reflection & refraction formula');
+  assert(html.includes('光的衍射'), 'Must contain 光的衍射');
+  assert(html.includes('a sinθ = kλ · I = I₀ sinc²β'), 'Must contain diffraction formula');
 
-  // Academic formulas present
-  assert(html.includes('n₁ sinθ₁ = n₂ sinθ₂'), 'Must contain Snell formula');
-  assert(html.includes('Δy = (λ L) / d'), 'Must contain Young formula');
-  assert(html.includes('d sinθ = mλ'), 'Must contain Grating formula');
-  assert(html.includes('I = I₀ cos²(θ₂ - θ₁)'), 'Must contain Malus formula');
+  // Other obsolete experiments removed
+  assert(!html.includes('光的传播与折射色散'), 'Must not contain 光的传播与折射色散');
+  assert(!html.includes('杨氏双缝干涉'), 'Must not contain 杨氏双缝干涉');
+  assert(!html.includes('单缝与光栅衍射'), 'Must not contain 单缝与光栅衍射');
+  assert(!html.includes('光的偏振与马吕斯定律'), 'Must not contain 光的偏振与马吕斯定律');
 
   // Blue pill back button inside content area removed (relying on top-left window header back button)
   assert(!html.includes('btn-back-to-physics'), 'Internal blue back button must be removed in favor of top-left window back button');
   assert(!html.includes('physics-level-title'), 'Level 2 must not contain redundant inner title physics-level-title');
   assert(!html.includes('physics-nav-bar'), 'Level 2 must not contain redundant inner navigation bar');
 
-  console.log('✓ Test 2 passed: Level 2 accurately reveals 4 core experiments and formulas\n');
+  console.log('✓ Test 2 passed: Level 2 accurately reveals 光的反射与折射 and 光的衍射\n');
 }
 
 // Test 3: Zero small-text descriptions on both Level 1 and Level 2

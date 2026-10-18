@@ -185,7 +185,7 @@ const visionModal = new VisionModal(engine, {
 // Test 1: In an optics experiment, modal is on Level 2 Optics. Closing and opening keeps Level 2 Optics.
 {
   console.log('Test 1: Optics experiment Level 2 retention across close/open');
-  visionModal.setCurrentExperimentId('optics-propagation');
+  visionModal.setCurrentExperimentId('optics-reflection-refraction');
   assert.strictEqual(visionModal.currentTab, 'physics');
 
   // Verify physics modal is on Level 2 'optics'
@@ -299,7 +299,7 @@ const visionModal = new VisionModal(engine, {
 // Test 6: Switching experiment to optics updates activeTab and Level 2
 {
   console.log('Test 6: Switching experiment sets appropriate default page');
-  visionModal.setCurrentExperimentId('optics-interference');
+  visionModal.setCurrentExperimentId('optics-reflection-refraction');
   assert.strictEqual(visionModal.currentTab, 'physics');
   const physicsModal = (visionModal as any).physicsModal;
   assert.strictEqual(physicsModal.getCurrentLevel(), 2);

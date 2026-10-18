@@ -4,11 +4,7 @@ import type {
   NBodyStepResponse,
   WaveStepResponse,
   LorenzStepResponse,
-  OpticalDiffractionStepResponse,
-  OpticalPolarizationStepResponse,
-  OpticalDispersionStepResponse,
   ChemistryStepResponse,
-  WorkerDispersionRayData,
   ParticleSimStepResponse,
   StreamTubeStepResponse,
   TextureBakeTaskResponse,
@@ -204,111 +200,6 @@ export class ComputeBridge {
     return res.positions;
   }
 
-  /**
-   * 跨多核 Worker 运行光学衍射 / 干涉模拟
-   */
-  public async simulateOpticalDiffraction(params: {
-    intensityBuffer: Float32Array;
-    wavelengthNm: number;
-    slitWidthMm: number;
-    slitDistanceMm?: number;
-    screenDistanceM: number;
-    screenSpanMm: number;
-    slitCount: number;
-    gratingLinesPerMm?: number;
-  }): Promise<{ intensityBuffer: Float32Array; computeTimeMs: number }> {
-    const res = await this.workerPool.execute<OpticalDiffractionStepResponse>(
-      {
-        action: 'OPTICAL_DIFFRACTION_STEP',
-        intensityBuffer: params.intensityBuffer,
-        wavelengthNm: params.wavelengthNm,
-        slitWidthMm: params.slitWidthMm,
-        slitDistanceMm: params.slitDistanceMm ?? 0.25,
-        screenDistanceM: params.screenDistanceM,
-        screenSpanMm: params.screenSpanMm,
-        slitCount: params.slitCount,
-        gratingLinesPerMm: params.gratingLinesPerMm,
-      },
-      [params.intensityBuffer.buffer]
-    );
-
-    this.recordMetrics(res.computeTimeMs);
-    return {
-      intensityBuffer: res.intensityBuffer,
-      computeTimeMs: res.computeTimeMs,
-    };
-  }
-
-  /**
-   * 跨多核 Worker 运行 3D 偏振矢量波模拟
-   */
-  public async simulateOpticalPolarization(params: {
-    positions: Float32Array;
-    colors: Float32Array;
-    polarizerAngleDeg: number;
-    analyzerAngleDeg: number;
-    hasQuarterWavePlate: boolean;
-    wavelengthNm: number;
-    startZ: number;
-    endZ: number;
-    polarizerZ?: number;
-    analyzerZ?: number;
-    numSamples?: number;
-    time: number;
-  }): Promise<{ positions: Float32Array; colors: Float32Array; malusIntensity: number; computeTimeMs: number }> {
-    const res = await this.workerPool.execute<OpticalPolarizationStepResponse>(
-      {
-        action: 'OPTICAL_POLARIZATION_STEP',
-        positions: params.positions,
-        colors: params.colors,
-        polarizerAngleDeg: params.polarizerAngleDeg,
-        analyzerAngleDeg: params.analyzerAngleDeg,
-        hasQuarterWavePlate: params.hasQuarterWavePlate,
-        wavelengthNm: params.wavelengthNm,
-        startZ: params.startZ,
-        endZ: params.endZ,
-        polarizerZ: params.polarizerZ ?? -0.15,
-        analyzerZ: params.analyzerZ ?? 0.25,
-        numSamples: params.numSamples ?? 60,
-        time: params.time,
-      },
-      [params.positions.buffer, params.colors.buffer]
-    );
-
-    this.recordMetrics(res.computeTimeMs);
-    return {
-      positions: res.positions,
-      colors: res.colors,
-      malusIntensity: res.malusIntensity,
-      computeTimeMs: res.computeTimeMs,
-    };
-  }
-
-  /**
-   * 跨多核 Worker 运行 3D 三棱镜复色光色散光线追踪
-   */
-  public async simulateOpticalDispersion(params: {
-    apexPos: [number, number, number];
-    prismRotationY: number;
-    baseIndex: number;
-    incomingPos: [number, number, number];
-    screenZ?: number;
-  }): Promise<{ rays: WorkerDispersionRayData[]; computeTimeMs: number }> {
-    const res = await this.workerPool.execute<OpticalDispersionStepResponse>({
-      action: 'OPTICAL_DISPERSION_STEP',
-      apexPos: params.apexPos,
-      prismRotationY: params.prismRotationY,
-      baseIndex: params.baseIndex,
-      incomingPos: params.incomingPos,
-      screenZ: params.screenZ,
-    });
-
-    this.recordMetrics(res.computeTimeMs);
-    return {
-      rays: res.rays,
-      computeTimeMs: res.computeTimeMs,
-    };
-  }
 
   /**
    * 跨多核 Worker 运行化学热力学耗散与衰减模拟

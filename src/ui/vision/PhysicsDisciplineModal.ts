@@ -88,6 +88,26 @@ export class PhysicsDisciplineModal {
         </svg>
       `,
     },
+    {
+      id: 'mech-newton-cannon',
+      name: '牛顿大炮与第一宇宙速度',
+      category: '万有引力与人造地球卫星',
+      formula: 'v_1 = \\sqrt{\\frac{GM}{R}} \\approx 7.91\\text{ km/s}',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Earth Globe -->
+          <circle cx="18" cy="22" r="10" stroke="#38bdf8" stroke-width="2" fill="#0284c7" fill-opacity="0.2"/>
+          <ellipse cx="18" cy="22" rx="10" ry="3.5" stroke="#38bdf8" stroke-width="1" stroke-dasharray="2 1.5"/>
+          <!-- Mountain and Cannon -->
+          <polygon points="17,12 19,12 18,8" fill="#e2e8f0" stroke="currentColor" stroke-width="1"/>
+          <line x1="18" y1="8" x2="22" y2="8" stroke="#f59e0b" stroke-width="1.8"/>
+          <!-- Cannonball Orbital Path -->
+          <path d="M 22,8 C 32,8 32,32 18,32 C 6,32 6,10 18,8" stroke="#34d399" stroke-width="1.8" stroke-dasharray="3 1.5"/>
+          <!-- Satellite -->
+          <circle cx="18" cy="32" r="2" fill="#34d399" stroke="#ffffff" stroke-width="1"/>
+        </svg>
+      `,
+    },
   ];
 
   public static readonly EM_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
@@ -250,72 +270,28 @@ export class PhysicsDisciplineModal {
       `,
     },
     {
-      id: 'optics-propagation',
-      name: '光的传播与折射色散',
-      category: '几何光学',
-      formula: 'n₁ sinθ₁ = n₂ sinθ₂',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="18,4 32,30 4,30" stroke-width="2.2" fill="currentColor" fill-opacity="0.08"/>
-          <line x1="2" y1="20" x2="11.5" y2="18.5" stroke-width="2.4"/>
-          <line x1="11.5" y1="18.5" x2="23" y2="20.5" stroke-width="2.2" opacity="0.9"/>
-          <line x1="23" y1="20.5" x2="34" y2="15" stroke-width="2" stroke="#ff3b30"/>
-          <line x1="23" y1="20.5" x2="34" y2="20" stroke-width="2" stroke="#ffcc00"/>
-          <line x1="23" y1="20.5" x2="34" y2="25" stroke-width="2" stroke="#007aff"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'optics-interference',
-      name: '杨氏双缝干涉',
-      category: '波动光学',
-      formula: 'Δy = (λ L) / d',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="9" y1="4" x2="9" y2="11" stroke-width="2.6"/>
-          <line x1="9" y1="15" x2="9" y2="21" stroke-width="2.6"/>
-          <line x1="9" y1="25" x2="9" y2="32" stroke-width="2.6"/>
-          <path d="M13 8 A7 7 0 0 1 18 18" stroke-width="1.8" opacity="0.85"/>
-          <path d="M16 5 A13 13 0 0 1 24 21" stroke-width="1.8" opacity="0.65"/>
-          <path d="M13 28 A7 7 0 0 0 18 18" stroke-width="1.8" opacity="0.85"/>
-          <path d="M16 31 A13 13 0 0 0 24 15" stroke-width="1.8" opacity="0.65"/>
-          <line x1="30" y1="4" x2="30" y2="32" stroke-width="2.2" opacity="0.5"/>
-          <circle cx="30" cy="18" r="2" fill="currentColor"/>
-          <circle cx="30" cy="10" r="1.5" fill="currentColor"/>
-          <circle cx="30" cy="26" r="1.5" fill="currentColor"/>
-        </svg>
-      `,
-    },
-    {
       id: 'optics-diffraction',
-      name: '单缝与光栅衍射',
-      category: '衍射光谱',
-      formula: 'd sinθ = mλ',
+      name: '光的衍射',
+      category: '波动光学与夫琅禾费衍射',
+      formula: 'a sinθ = kλ · I = I₀ sinc²β',
       iconSvg: `
         <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="6" y1="6" x2="6" y2="30" stroke-width="2.2"/>
-          <line x1="10" y1="6" x2="10" y2="30" stroke-width="2.2"/>
-          <line x1="14" y1="6" x2="14" y2="30" stroke-width="2.2"/>
-          <line x1="18" y1="6" x2="18" y2="30" stroke-width="2.2"/>
-          <path d="M18 18 L32 7" stroke-width="1.8" opacity="0.85" stroke-dasharray="3 1.5"/>
-          <path d="M18 18 L34 18" stroke-width="2.4"/>
-          <path d="M18 18 L32 29" stroke-width="1.8" opacity="0.85" stroke-dasharray="3 1.5"/>
-          <path d="M28 8 Q34 18 28 28" stroke-width="1.6" opacity="0.5"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'optics-polarization',
-      name: '光的偏振与马吕斯定律',
-      category: '矢量光学',
-      formula: 'I = I₀ cos²(θ₂ - θ₁)',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="18" cy="18" r="14" stroke-width="2.2" fill="currentColor" fill-opacity="0.08"/>
-          <line x1="18" y1="4" x2="18" y2="32" stroke-width="2.4"/>
-          <line x1="8" y1="8" x2="28" y2="28" stroke-width="2" opacity="0.75" stroke-dasharray="4 2"/>
-          <path d="M18 10 A8 8 0 0 1 23.6 12.4" stroke-width="1.8" stroke="#ff375f"/>
-          <circle cx="18" cy="18" r="2.5" fill="currentColor"/>
+          <!-- 激光源与狭缝 -->
+          <rect x="3" y="15" width="6" height="6" rx="1" fill="#38bdf8" fill-opacity="0.3" stroke="#38bdf8" stroke-width="1.8"/>
+          <line x1="9" y1="18" x2="16" y2="18" stroke="#38bdf8" stroke-width="2.2"/>
+          <line x1="16" y1="6" x2="16" y2="15" stroke="#94a3b8" stroke-width="2.4"/>
+          <line x1="16" y1="21" x2="16" y2="30" stroke="#94a3b8" stroke-width="2.4"/>
+          <!-- 衍射发散光羽 -->
+          <line x1="16" y1="18" x2="31" y2="8" stroke="#38bdf8" stroke-width="1.8" opacity="0.75" stroke-dasharray="2 1.5"/>
+          <line x1="16" y1="18" x2="33" y2="18" stroke="#38bdf8" stroke-width="2.6"/>
+          <line x1="16" y1="18" x2="31" y2="28" stroke="#38bdf8" stroke-width="1.8" opacity="0.75" stroke-dasharray="2 1.5"/>
+          <!-- 投影屏与光强条纹 -->
+          <line x1="33" y1="5" x2="33" y2="31" stroke="#f8fafc" stroke-width="2.2"/>
+          <circle cx="33" cy="18" r="2.8" fill="#38bdf8"/>
+          <circle cx="33" cy="11" r="1.6" fill="#38bdf8" fill-opacity="0.7"/>
+          <circle cx="33" cy="25" r="1.6" fill="#38bdf8" fill-opacity="0.7"/>
+          <circle cx="33" cy="7" r="1.0" fill="#38bdf8" fill-opacity="0.4"/>
+          <circle cx="33" cy="29" r="1.0" fill="#38bdf8" fill-opacity="0.4"/>
         </svg>
       `,
     },

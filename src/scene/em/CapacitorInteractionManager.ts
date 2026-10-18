@@ -50,18 +50,11 @@ export class CapacitorInteractionManager {
             cursor: 'pointer',
           };
         }
-        if (obj === this.callbacks.bench.powerKnobMesh || obj.name === 'powerKnobMesh') {
+        if (obj === this.callbacks.bench.batteryPackGroup || obj.name === 'batteryPackGroup') {
           return {
-            id: 'cap_power_knob',
-            label: '直流电源电压旋钮（点击循环调节电压：5V → 10V → 15V）',
-            cursor: 'pointer',
-          };
-        }
-        if (obj === this.callbacks.bench.powerSwitchMesh || obj.name === 'powerSwitchMesh') {
-          return {
-            id: 'cap_power_switch',
-            label: '电源总开关（点击重置/启闭电源）',
-            cursor: 'pointer',
+            id: 'cap_battery_pack',
+            label: '标准四联干电池组（提供 6.0V 稳定直流电动势）',
+            cursor: 'default',
           };
         }
         if (
@@ -103,14 +96,6 @@ export class CapacitorInteractionManager {
       }
       if (obj === this.callbacks.bench.switchRightContactMesh || obj.name === 'switchRightContact') {
         this.callbacks.onSetSwitchPosition('discharge');
-        return true;
-      }
-      if (obj === this.callbacks.bench.powerKnobMesh || obj.name === 'powerKnobMesh') {
-        this.callbacks.onAdjustVoltage?.();
-        return true;
-      }
-      if (obj === this.callbacks.bench.powerSwitchMesh || obj.name === 'powerSwitchMesh') {
-        this.callbacks.onAdjustVoltage?.();
         return true;
       }
       if (

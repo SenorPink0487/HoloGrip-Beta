@@ -652,7 +652,13 @@ export class VisionModal {
     } else if (id.startsWith('thermo-')) {
       this.activeTab = 'thermo';
     } else if (id.startsWith('em-')) {
-      this.activeTab = 'em';
+      if (id === 'em-capacitor-discharge') {
+        // 电容器充放电过程模块不需要悬浮窗口里的功能，就像光学板块那样只观察现象即可
+        this.activeTab = 'physics';
+        this.physicsModal.showLevel2('em');
+      } else {
+        this.activeTab = 'em';
+      }
     } else if (id.startsWith('mech-')) {
       // 伽利略理想斜面实验不需要悬浮窗口的状态卡片（参考光学板块：打开视窗时呈现力学实验列表，不呈现状态卡片）
       this.activeTab = 'physics';
@@ -747,7 +753,7 @@ export class VisionModal {
     if (this.hallStatusCard) this.hallStatusCard.setVisible(false);
     if (this.fieldStatusCard) this.fieldStatusCard.setVisible(false);
     if (this.capacitorStatusCard) this.capacitorStatusCard.setVisible(false);
-    if (tab === 'em') emCard.setVisible(true);
+    if (tab === 'em' && emId !== 'em-capacitor-discharge') emCard.setVisible(true);
 
     if (tab === 'disciplines') {
       this.bodyContainer.appendChild(this.disciplineSelector.element);

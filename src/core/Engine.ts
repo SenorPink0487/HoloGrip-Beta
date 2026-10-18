@@ -621,7 +621,11 @@ export class Engine {
   }
 
   private isFreeCursorExperiment(id: string | null): boolean {
-    return id === 'math-stereometry';
+    return (
+      id === 'math-stereometry' ||
+      id === 'optics-diffraction' ||
+      id === 'optics-reflection-refraction'
+    );
   }
 
   private initHUD(): void {
@@ -1831,7 +1835,9 @@ export class Engine {
           this.currentExperimentId === 'math-stereometry' ||
           this.currentExperimentId === 'mech-galileo' ||
           this.currentExperimentId === 'mech-free-fall' ||
-          this.currentExperimentId === 'mech-center-of-gravity') &&
+          this.currentExperimentId === 'mech-center-of-gravity' ||
+          this.currentExperimentId === 'optics-diffraction' ||
+          this.currentExperimentId === 'optics-reflection-refraction') &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
         const isLocked = this.inputManager?.player?.isLocked ?? false;

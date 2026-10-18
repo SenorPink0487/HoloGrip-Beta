@@ -50,6 +50,9 @@ class MockDOMElement {
       stroke: () => {},
       fill: () => {},
       setLineDash: () => {},
+      createLinearGradient: () => ({
+        addColorStop: () => {},
+      }),
     };
   }
 
@@ -368,11 +371,10 @@ console.log('=== Starting Capacitor Charge & Discharge Analytical & Integration 
   assert.strictEqual(handledRight, true);
   assert.strictEqual(switchPos, 'discharge', 'Click on right contact throws to discharge');
 
-  // Test pointer down on power knob
-  const knobHit = { object: bench.powerKnobMesh } as any;
-  const handledKnob = interaction.onPointerDown(mockEvt, knobHit, {} as any);
-  assert.strictEqual(handledKnob, true);
-  assert.strictEqual(adjustedVolt, true, 'Click on power knob triggers voltage adjustment');
+  // Test pointer down on oscilloscope clear button
+  const clearBtnHit = { object: bench.scopeClearBtnMesh } as any;
+  const handledClearBtn = interaction.onPointerDown(mockEvt, clearBtnHit, {} as any);
+  assert.strictEqual(handledClearBtn, true);
 
   // Test pointer down on desk oscilloscope screen (clears samples / reset trigger)
   const scopeHit = { object: bench.scopeScreenMesh } as any;
@@ -436,7 +438,6 @@ console.log('=== Starting Capacitor Charge & Discharge Analytical & Integration 
 
   exp.init(mockContext);
   assert.ok(exp.bench, 'Bench must be initialized');
-  assert.ok(exp.waveformWindow, 'Waveform window must be initialized');
 
   // Parameter updates
   exp.setVoltage(12.5);

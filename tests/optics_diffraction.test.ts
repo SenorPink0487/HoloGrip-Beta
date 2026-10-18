@@ -1,0 +1,420 @@
+import assert from 'node:assert';
+import * as THREE from 'three';
+import { OpticalPhysics } from '../src/scene/optics/OpticalPhysics.ts';
+import {
+  OpticalDiffractionBenchMesh,
+  type DiffractionType,
+} from '../src/scene/optics/OpticalDiffractionBenchMesh.ts';
+import { OpticalDiffractionInteractionManager } from '../src/scene/optics/OpticalDiffractionInteractionManager.ts';
+import OpticsDiffractionExperiment from '../src/experiments/catalog/optics-diffraction/index.ts';
+import { metadata } from '../src/experiments/catalog/optics-diffraction/meta.ts';
+import { PhysicsDisciplineModal } from '../src/ui/vision/PhysicsDisciplineModal.ts';
+
+// Minimal DOM mock for Node.js test environment
+const createMockElement = (tag = 'div'): any => {
+  const el: any = {
+    tagName: tag.toUpperCase(),
+    id: '',
+    className: '',
+    innerHTML: '',
+    attributes: {} as Record<string, string>,
+    children: [] as any[],
+    style: {},
+    setAttribute: (k: string, v: string) => { el.attributes[k] = v; },
+    getAttribute: (k: string) => el.attributes[k] ?? null,
+    appendChild: (child: any) => { el.children.push(child); return child; },
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    getContext: (type: string) => {
+      if (type === '2d') {
+        return {
+          fillStyle: '',
+          strokeStyle: '',
+          lineWidth: 1,
+          font: '',
+          textAlign: '',
+          textBaseline: '',
+          shadowColor: '',
+          shadowBlur: 0,
+          fillRect: () => {},
+          strokeRect: () => {},
+          clearRect: () => {},
+          fillText: () => {},
+          strokeText: () => {},
+          beginPath: () => {},
+          moveTo: () => {},
+          lineTo: () => {},
+          stroke: () => {},
+          fill: () => {},
+          arc: () => {},
+          setLineDash: () => {},
+          createImageData: (w: number, h: number) => ({
+            width: w,
+            height: h,
+            data: new Uint8ClampedArray(w * h * 4),
+          }),
+          putImageData: () => {},
+          createLinearGradient: () => ({
+            addColorStop: () => {},
+          }),
+        };
+      }
+      return null;
+    },
+  };
+  return el;
+};
+
+if (typeof globalThis.document === 'undefined') {
+  (globalThis as any).document = {
+    createElement: (tag: string) => createMockElement(tag),
+  };
+}
+if (typeof globalThis.window === 'undefined') {
+  (globalThis as any).window = {
+    innerWidth: 1920,
+    innerHeight: 1080,
+  };
+}
+if (typeof (globalThis as any).PointerEvent === 'undefined') {
+  (globalThis as any).PointerEvent = class PointerEvent extends Event {};
+}
+
+console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n');
+
+// -------------------------------------------------------------
+// Test 1: Analytical Single-Slit Fraunhofer Diffraction
+// -------------------------------------------------------------
+{
+  console.log('Test 1: Analytical Single-Slit Fraunhofer Diffraction');
+  const wlNm = 532.0;
+  const aMm = 0.08;
+  const LM = 0.50;
+
+  // 1. Center intensity is normalized peak 1.0
+  const I0 = OpticalPhysics.calculateSingleSlitIntensity(0, wlNm, aMm, LM);
+  assert(Math.abs(I0 - 1.0) < 1e-5, 'Center intensity must be 1.0');
+
+  // 2. Central maximum width Delta x_0 = 2 * lambda * L / a
+  const theoryDeltaX0M = (2 * wlNm * 1e-9 * LM) / (aMm * 1e-3);
+  const theoryFirstMinM = theoryDeltaX0M * 0.5; // 0.003325m = 3.325mm
+  const res = OpticalPhysics.getSingleSlitFringeWidth(wlNm, aMm, LM);
+  assert(Math.abs(res.centralWidthMm - theoryDeltaX0M * 1e3) < 1e-4, 'Central fringe width must match theory');
+  assert(Math.abs(res.centralWidthMm - 2 * res.secondarySpacingMm) < 1e-5, 'Central width must be exactly 2x secondary spacing');
+
+  // 3. At first minimum x = firstMin, intensity drops to 0
+  const I_min1 = OpticalPhysics.calculateSingleSlitIntensity(theoryFirstMinM, wlNm, aMm, LM);
+  assert(I_min1 < 1e-4, `Intensity at first minimum must be 0, got ${I_min1}`);
+
+  // 4. Secondary maximum at beta ~ 1.4303 * pi (~4.75mm)
+  const secondaryPeakXM = (1.4303 * wlNm * 1e-9 * LM) / (aMm * 1e-3);
+  const I_sec = OpticalPhysics.calculateSingleSlitIntensity(secondaryPeakXM, wlNm, aMm, LM);
+  assert(Math.abs(I_sec - 0.0472) < 0.005, `Secondary peak intensity should be ~0.0472, got ${I_sec}`);
+
+  // 5. Inversely proportional to slit width a: doubling a halves central width
+  const resDoubleA = OpticalPhysics.getSingleSlitFringeWidth(wlNm, aMm * 2, LM);
+  assert(Math.abs(resDoubleA.centralWidthMm - res.centralWidthMm * 0.5) < 1e-4, 'Doubling slit width must halve fringe width');
+
+  console.log(`  Central maximum width: ${res.centralWidthMm.toFixed(3)} mm (Theory: ${(theoryDeltaX0M * 1e3).toFixed(3)} mm)`);
+  console.log(`  Secondary peak ratio:  ${(I_sec * 100).toFixed(2)}% (Theory: 4.72%)`);
+  console.log('✓ Test 1 passed: Single-slit Fraunhofer diffraction analytically validated\n');
+}
+
+// -------------------------------------------------------------
+// Test 2: Analytical Double-Slit Interference & Diffraction Modulation
+// -------------------------------------------------------------
+{
+  console.log('Test 2: Analytical Double-Slit Interference & Diffraction');
+  const wlNm = 532.0;
+  const aMm = 0.04;
+  const dMm = 0.25;
+  const LM = 0.50;
+
+  // 1. Center intensity is 1.0
+  const I0 = OpticalPhysics.calculateDoubleSlitIntensity(0, wlNm, aMm, dMm, LM);
+  assert(Math.abs(I0 - 1.0) < 1e-5, 'Center intensity must be 1.0');
+
+  // 2. Fringe spacing Delta y = lambda * L / d
+  const spacingMm = OpticalPhysics.getDoubleSlitFringeSpacing(wlNm, dMm, LM);
+  const theorySpacingM = (wlNm * 1e-9 * LM) / (dMm * 1e-3);
+  assert(Math.abs(spacingMm - theorySpacingM * 1e3) < 1e-4, 'Fringe spacing must match formula lambda*L/d');
+
+  // 3. First interference minimum at x = 0.5 * spacing
+  const I_interfMin = OpticalPhysics.calculateDoubleSlitIntensity(theorySpacingM * 0.5, wlNm, aMm, dMm, LM);
+  assert(I_interfMin < 1e-4, `Intensity at first interference minimum must be 0, got ${I_interfMin}`);
+
+  // 4. First interference peak at x = spacing
+  const I_interfPeak1 = OpticalPhysics.calculateDoubleSlitIntensity(theorySpacingM, wlNm, aMm, dMm, LM);
+  assert(I_interfPeak1 > 0.85, 'First interference peak must be high intensity');
+
+  console.log(`  Double slit fringe spacing: ${spacingMm.toFixed(3)} mm (Theory: ${(theorySpacingM * 1e3).toFixed(3)} mm)`);
+  console.log('✓ Test 2 passed: Double-slit interference and modulation analytically validated\n');
+}
+
+// -------------------------------------------------------------
+// Test 3: Analytical Circular Aperture Diffraction & Airy Disk
+// -------------------------------------------------------------
+{
+  console.log('Test 3: Analytical Circular Aperture Diffraction & Airy Disk');
+  const wlNm = 532.0;
+  const DMm = 0.25;
+  const LM = 0.50;
+
+  // 1. Center intensity is 1.0
+  const I0 = OpticalPhysics.calculateCircularApertureIntensity(0, wlNm, DMm, LM);
+  assert(Math.abs(I0 - 1.0) < 1e-4, 'Center intensity of Airy disk must be 1.0');
+
+  // 2. First dark ring radius r1 = 1.22 * lambda * L / D
+  const r1Mm = OpticalPhysics.getAiryDiskRadius(wlNm, DMm, LM);
+  const theoryR1M = 1.2196696 * (wlNm * 1e-9 * LM) / (DMm * 1e-3);
+  assert(Math.abs(r1Mm - theoryR1M * 1e3) < 1e-4, 'Airy disk radius must match 1.22 lambda L / D');
+
+  // 3. Intensity at r1 must be zero (first minimum of J1(v))
+  const I_ring1 = OpticalPhysics.calculateCircularApertureIntensity(theoryR1M, wlNm, DMm, LM);
+  assert(I_ring1 < 1e-3, `Intensity at Airy disk boundary must be zero, got ${I_ring1}`);
+
+  // 4. First bright ring peak at v ~ 5.136 (r ~ 1.34 * r1) with ~1.75% intensity
+  const brightRingRM = (5.136 * wlNm * 1e-9 * LM) / (Math.PI * DMm * 1e-3);
+  const I_brightRing = OpticalPhysics.calculateCircularApertureIntensity(brightRingRM, wlNm, DMm, LM);
+  assert(Math.abs(I_brightRing - 0.0175) < 0.005, `First bright ring intensity should be ~0.0175, got ${I_brightRing}`);
+
+  console.log(`  Airy disk radius r₁:   ${r1Mm.toFixed(3)} mm (Theory: ${(theoryR1M * 1e3).toFixed(3)} mm)`);
+  console.log(`  First bright ring:     ${(I_brightRing * 100).toFixed(2)}% (Theory: 1.75%)`);
+  console.log('✓ Test 3 passed: Circular aperture Airy disk analytically validated\n');
+}
+
+// -------------------------------------------------------------
+// Test 4: Analytical Diffraction Grating Dispersion & Angular Condition
+// -------------------------------------------------------------
+{
+  console.log('Test 4: Analytical Diffraction Grating Dispersion & Angular Condition');
+  const N = 300; // lines/mm
+  const LM = 0.50;
+
+  // Red (650nm) vs Green (532nm) vs Blue (405nm)
+  const redPeaks = OpticalPhysics.getGratingPeakPositions(650, N, LM, 1);
+  const greenPeaks = OpticalPhysics.getGratingPeakPositions(532, N, LM, 1);
+  const bluePeaks = OpticalPhysics.getGratingPeakPositions(405, N, LM, 1);
+
+  const redOrder1 = redPeaks.find((p) => p.order === 1)!;
+  const greenOrder1 = greenPeaks.find((p) => p.order === 1)!;
+  const blueOrder1 = bluePeaks.find((p) => p.order === 1)!;
+
+  assert(redOrder1 && greenOrder1 && blueOrder1, 'Order 1 must exist for all wavelengths');
+  // Longer wavelength diffracts more: theta_red > theta_green > theta_blue
+  assert(redOrder1.angleDeg > greenOrder1.angleDeg, 'Red diffraction angle must exceed green');
+  assert(greenOrder1.angleDeg > blueOrder1.angleDeg, 'Green diffraction angle must exceed blue');
+
+  // Check d * sin(theta) = lambda
+  const d = 1e-3 / N;
+  const sinGreen = Math.sin(THREE.MathUtils.degToRad(greenOrder1.angleDeg));
+  assert(Math.abs(d * sinGreen - 532e-9) < 1e-8, 'Grating equation d*sin(theta)=m*lambda must hold');
+
+  console.log(`  Blue 405nm  order 1: ${blueOrder1.angleDeg.toFixed(2)}° (x = ${blueOrder1.xMm.toFixed(1)} mm)`);
+  console.log(`  Green 532nm order 1: ${greenOrder1.angleDeg.toFixed(2)}° (x = ${greenOrder1.xMm.toFixed(1)} mm)`);
+  console.log(`  Red 650nm   order 1: ${redOrder1.angleDeg.toFixed(2)}° (x = ${redOrder1.xMm.toFixed(1)} mm)`);
+  console.log('✓ Test 4 passed: Grating dispersion and angular condition analytically validated\n');
+}
+
+// -------------------------------------------------------------
+// Test 5: 3D OpticalDiffractionBenchMesh Assembly & Disposal Invariants
+// -------------------------------------------------------------
+{
+  console.log('Test 5: 3D OpticalDiffractionBenchMesh Assembly & Disposal Invariants');
+  const bench = new OpticalDiffractionBenchMesh();
+
+  assert.ok(bench.group, 'Apparatus group must exist');
+  assert.ok(bench.railGroup, 'Rail group must exist');
+  assert.ok(bench.laserGroup, 'Laser module group must exist');
+  assert.ok(bench.turretGroup, 'Slit turret group must exist');
+  assert.ok(bench.turretWheel, 'Slit turret rotating wheel must exist');
+  assert.ok(bench.screenCarrierGroup, 'Screen carrier group must exist');
+  assert.ok(bench.screenPanelGroup, 'Screen panel group must exist');
+  assert.ok(bench.micrometerKnob, 'Micrometer knob must exist');
+  assert.ok(bench.laserSwitchMesh, 'Laser switch mesh must exist');
+  assert.ok(bench.laserLedMesh, 'Laser LED indicator must exist');
+  assert.ok(bench.wlButtons[650] && bench.wlButtons[532] && bench.wlButtons[405], '3 Wavelength buttons must exist');
+  assert.ok(bench.preBeamMesh, 'Pre-slit laser beam must exist');
+  assert.ok(bench.postBeamMesh, 'Post-slit diffraction light fan must exist');
+  assert.ok(bench.gratingRaysGroup, 'Grating discrete rays group must exist');
+
+  // Verify memory disposal
+  bench.dispose();
+  console.log('✓ Test 5 passed: 3D optical bench assembly & clean disposal verified\n');
+}
+
+// -------------------------------------------------------------
+// Test 6: 3D Raycast Hover Target & Pointer Direct Manipulation
+// -------------------------------------------------------------
+{
+  console.log('Test 6: 3D Raycast Hover Target & Pointer Direct Manipulation');
+  const bench = new OpticalDiffractionBenchMesh();
+  const rootGroup = new THREE.Group();
+  rootGroup.add(bench.group);
+
+  let typeChanged = false;
+  let powerToggled = false;
+  let wlChanged = false;
+  let distChanged = false;
+
+  const mgr = new OpticalDiffractionInteractionManager(bench, rootGroup, {
+    onDiffractionTypeChange: () => { typeChanged = true; },
+    onLaserPowerToggle: () => { powerToggled = true; },
+    onWavelengthChange: () => { wlChanged = true; },
+    onScreenDistanceChange: () => { distChanged = true; },
+  });
+
+  // 1. Raycast hover over laser power switch
+  const mockRaycaster = new THREE.Raycaster();
+  const switchWorldPos = new THREE.Vector3();
+  bench.laserSwitchMesh.getWorldPosition(switchWorldPos);
+  mockRaycaster.ray.set(new THREE.Vector3(switchWorldPos.x, switchWorldPos.y + 0.5, switchWorldPos.z), new THREE.Vector3(0, -1, 0));
+
+  const target = mgr.getHoverTarget(mockRaycaster);
+  assert.ok(target, 'Must detect hover target');
+  assert.strictEqual(target.id, 'laser_power');
+  assert.strictEqual(target.cursor, 'pointer');
+
+  // 2. Click laser switch
+  const mockHit = {
+    object: bench.laserSwitchMesh,
+    point: switchWorldPos,
+  } as any;
+  const handled = mgr.onPointerDown(new PointerEvent('pointerdown'), mockHit);
+  assert.strictEqual(handled, true, 'Laser switch click handled');
+  assert.strictEqual(powerToggled, true, 'Power toggle callback invoked');
+
+  // 3. Click wavelength button 650nm
+  const btn650 = bench.wlButtons[650];
+  const hitBtn = { object: btn650, point: btn650.position } as any;
+  mgr.onPointerDown(new PointerEvent('pointerdown'), hitBtn);
+  assert.strictEqual(wlChanged, true, 'Wavelength callback invoked');
+  assert.strictEqual(bench.wavelengthNm, 650);
+
+  // 4. Click turret to cycle slit type
+  const hitTurret = { object: bench.turretWheel, point: bench.turretWheel.position } as any;
+  mgr.onPointerDown(new PointerEvent('pointerdown'), hitTurret);
+  assert.strictEqual(typeChanged, true, 'Slit type changed callback invoked');
+  assert.strictEqual(bench.diffractionType, 'double', 'Cycled from single to double');
+
+  bench.dispose();
+  console.log('✓ Test 6 passed: 3D raycast hover target and direct interaction verified\n');
+}
+
+// -------------------------------------------------------------
+// Test 7: Full Experiment Lifecycle, Parameters & Telemetry Synchronization
+// -------------------------------------------------------------
+{
+  console.log('Test 7: Full Experiment Lifecycle, Parameters & Telemetry Synchronization');
+  const exp = new OpticsDiffractionExperiment();
+  const mockContext = {
+    scene: new THREE.Scene(),
+    camera: new THREE.PerspectiveCamera(),
+    setParameter: (k: string, v: any) => {
+      exp.onParameterChange(k, v, mockContext);
+    },
+  } as any;
+
+  exp.init(mockContext);
+  assert.ok(exp.getBench(), 'Apparatus bench must be initialized');
+
+  const telem1 = exp.getTelemetry();
+  assert.strictEqual(telem1.diffractionType, 'single');
+  assert.strictEqual(telem1.wavelengthNm, 532.0);
+  assert(telem1.centralWidthMm > 0, 'Central width must be positive');
+
+  // Parameter updates
+  exp.onParameterChange('diffractionType', 'circular', mockContext);
+  assert.strictEqual(exp.getBench().diffractionType, 'circular');
+
+  exp.onParameterChange('wavelength', 650.0, mockContext);
+  assert.strictEqual(exp.getBench().wavelengthNm, 650.0);
+
+  exp.onParameterChange('screenDistance', 0.70, mockContext);
+  assert.strictEqual(exp.getBench().screenDistanceM, 0.70);
+
+  const telem2 = exp.getTelemetry();
+  assert.strictEqual(telem2.diffractionType, 'circular');
+  assert.strictEqual(telem2.wavelengthNm, 650.0);
+  assert.strictEqual(telem2.screenDistanceM, 0.70);
+  assert(telem2.airyDiskRadiusMm > 0, 'Airy disk radius must be positive');
+
+  // Advance update loop
+  exp.update(0.016, 1.0, mockContext);
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 7 passed: Experiment lifecycle, parameters, and telemetry verified\n');
+}
+
+// -------------------------------------------------------------
+// Test 8: Strict Zero Floating Popups & Banners Invariant
+// -------------------------------------------------------------
+{
+  console.log('Test 8: Strict Zero Floating Popups & Banners Invariant');
+  const exp = new OpticsDiffractionExperiment();
+  const mockContext = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera() } as any;
+  exp.init(mockContext);
+
+  // Invariant 1: Root group does not contain any DOM elements or floating UI widgets
+  assert.strictEqual(exp.rootGroup.children.length, 1, 'Only native 3D bench is added to rootGroup');
+
+  // Invariant 2: No DOM popups, modals, toasts, or guide banners injected
+  assert.strictEqual((exp as any).statusCard, undefined, 'No DOM status cards permitted');
+  assert.strictEqual((exp as any).guidanceBanner, undefined, 'No DOM guidance banners permitted');
+  assert.strictEqual((exp as any).floatingModal, undefined, 'No DOM floating modals permitted');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 8 passed: Strict zero floating popups & banners rule enforced\n');
+}
+
+// -------------------------------------------------------------
+// Test 9: 60+ FPS Performance Benchmark (< 0.05ms per simulation update)
+// -------------------------------------------------------------
+{
+  console.log('Test 9: 60+ FPS Performance Benchmark');
+  const exp = new OpticsDiffractionExperiment();
+  const mockContext = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera() } as any;
+  exp.init(mockContext);
+
+  const iterations = 1000;
+  const start = performance.now();
+  for (let i = 0; i < iterations; i++) {
+    exp.update(0.016, i * 0.016, mockContext);
+  }
+  const totalMs = performance.now() - start;
+  const stepMs = totalMs / iterations;
+  const fps = Math.round(1000 / Math.max(0.0001, stepMs));
+
+  console.log(`  Total time for ${iterations} steps: ${totalMs.toFixed(3)} ms`);
+  console.log(`  Average step time:          ${stepMs.toFixed(5)} ms`);
+  console.log(`  Equivalent logic frame rate: ${fps} FPS`);
+
+  assert(stepMs < 0.05, `Step time ${stepMs}ms must be under 0.05ms for locked 60+ FPS`);
+  exp.dispose(mockContext);
+  console.log('✓ Test 9 passed: Simulation loop performance well within 60+ FPS budget\n');
+}
+
+// -------------------------------------------------------------
+// Test 10: Metadata & Discipline Modal Registration Invariants
+// -------------------------------------------------------------
+{
+  console.log('Test 10: Metadata & Discipline Modal Registration Invariants');
+  assert.strictEqual(metadata.id, 'optics-diffraction');
+  assert.strictEqual(metadata.category, 'optics');
+  assert.strictEqual(metadata.name, '光的衍射');
+  assert(metadata.parameters.length >= 8, 'Must declare at least 8 tunable parameters');
+
+  const registered = PhysicsDisciplineModal.OPTICS_EXPERIMENTS.find(
+    (e) => e.id === 'optics-diffraction'
+  );
+  assert.ok(registered, 'optics-diffraction must be registered in PhysicsDisciplineModal');
+  assert.strictEqual(registered.name, '光的衍射');
+  assert.ok(registered.iconSvg.includes('svg'), 'Must have valid SVG icon');
+  assert.ok(registered.formula.includes('sinθ'), 'Must have valid diffraction formula');
+
+  console.log('✓ Test 10 passed: Metadata and Physics Discipline Modal registration verified\n');
+}
+
+console.log('========================================================');
+console.log('All Light Diffraction Tests Passed (10/10)!');
+console.log('========================================================\n');

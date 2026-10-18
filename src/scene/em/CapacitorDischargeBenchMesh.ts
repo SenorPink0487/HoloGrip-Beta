@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {
+  labMetal,
   labGlow,
   anodizedAluminum,
   polishedGold,
@@ -16,6 +17,37 @@ export interface CapacitorDischargeBenchMeshOptions {
 }
 
 /**
+ * 真实物理实验室：圆锥宝塔螺旋压缩弹簧参数曲线
+ */
+class ConicalSpringCurve extends THREE.Curve<THREE.Vector3> {
+  private rBase: number;
+  private rTop: number;
+  private length: number;
+  private turns: number;
+
+  constructor(
+    rBase: number,
+    rTop: number,
+    length: number,
+    turns: number
+  ) {
+    super();
+    this.rBase = rBase;
+    this.rTop = rTop;
+    this.length = length;
+    this.turns = turns;
+  }
+  override getPoint(t: number, optionalTarget = new THREE.Vector3()): THREE.Vector3 {
+    const r = this.rBase + (this.rTop - this.rBase) * t;
+    const phi = t * Math.PI * 2 * this.turns;
+    const x = t * this.length;
+    const y = Math.sin(phi) * r;
+    const z = Math.cos(phi) * r;
+    return optionalTarget.set(x, y, z);
+  }
+}
+
+/**
  * 经典力学与电磁学实验室：电容器充放电与RC暂态电路实验台
  * 纯物理实验器材真实高精度 3D 建模，杜绝虚假数显底座与教学文字标牌
  */
@@ -29,15 +61,17 @@ export class CapacitorDischargeBenchMesh {
   public switchHandleMesh!: THREE.Mesh;
   public powerKnobMesh!: THREE.Mesh;
   public powerSwitchMesh!: THREE.Mesh;
+  public batteryPackGroup!: THREE.Group;
 
   // 单刀双掷开关动触刀组件（围绕铰链轴平滑旋转）
   private switchLeverGroup!: THREE.Group;
   private currentBladeAngle = 0; // 弧度
   private targetBladeAngle = 0;
 
-  // 动态数显纹理与画布（仅保留电源与电流测量仪器的真实表头）
-  private powerDisplayTexture!: THREE.CanvasTexture;
-  private powerDisplayCanvas!: HTMLCanvasElement;
+  // 动态数显纹理与画布（仅保留电流测量仪器的真实表头与电池高精标签）
+  private batteryLabelTexture?: THREE.CanvasTexture;
+  private powerDisplayTexture?: THREE.CanvasTexture;
+  private powerDisplayCanvas?: HTMLCanvasElement;
   private sensorDisplayTexture!: THREE.CanvasTexture;
   private sensorDisplayCanvas!: HTMLCanvasElement;
 
@@ -136,175 +170,480 @@ export class CapacitorDischargeBenchMesh {
     }
   }
 
-  // ================= 2. 直流稳压电源 (DC Regulated Power Supply - 左后方仪器区) =================
-  private buildPowerSupply(initialVoltage: number): void {
-    const pGroup = new THREE.Group();
-    // 端正放置在左后方仪器区，向内微偏转面向操作者视界
-    pGroup.position.set(-0.28, 0.082, -0.06);
-    pGroup.rotation.y = 0.16;
-
-    // 1. 钣金喷塑机箱主体（冷灰白工业仪器喷漆，带散热栅格与缝线）
-    const caseGeo = new THREE.BoxGeometry(0.18, 0.12, 0.16);
-    const caseMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f5f9,
-      metalness: 0.20,
-      roughness: 0.32,
-    });
-    const caseMesh = new THREE.Mesh(caseGeo, caseMat);
-    caseMesh.castShadow = true;
-    caseMesh.receiveShadow = true;
-    pGroup.add(caseMesh);
-
-    // 侧面冲压通风百叶窗槽 (Cooling slots)
-    const slotMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
-    for (let s = -3; s <= 3; s++) {
-      const slotGeo = new THREE.PlaneGeometry(0.002, 0.06);
-      const slotLeft = new THREE.Mesh(slotGeo, slotMat);
-      slotLeft.position.set(-0.0905, s * 0.012, 0);
-      slotLeft.rotation.y = -Math.PI / 2;
-      pGroup.add(slotLeft);
-
-      const slotRight = new THREE.Mesh(slotGeo, slotMat);
-      slotRight.position.set(0.0905, s * 0.012, 0);
-      slotRight.rotation.y = Math.PI / 2;
-      pGroup.add(slotRight);
+  /**
+   * 绘制 1024x512 超高分辨率工业级高能碱性电池（黑金工业配色）真实包装贴图
+   */
+  private createBatteryLabelTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return new THREE.CanvasTexture(canvas);
     }
 
-    // 顶部便携折叠金属提手配黑色防滑橡胶套
-    const handleCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.05, 0.06, 0),
-      new THREE.Vector3(-0.04, 0.09, 0),
-      new THREE.Vector3(0.04, 0.09, 0),
-      new THREE.Vector3(0.05, 0.06, 0),
-    ]);
-    const handleGeo = new THREE.TubeGeometry(handleCurve, 20, 0.0035, 12, false);
-    const handleMat = anodizedAluminum(0x64748b);
-    pGroup.add(new THREE.Mesh(handleGeo, handleMat));
+    const w = 1024;
+    const h = 512;
+    const goldWidth = w * 0.32;
 
-    const handleGripGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.05, 16);
-    handleGripGeo.rotateZ(Math.PI / 2);
-    const handleGripMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
-    const handleGrip = new THREE.Mesh(handleGripGeo, handleGripMat);
-    handleGrip.position.set(0, 0.09, 0);
-    pGroup.add(handleGrip);
-
-    // 2. 前面板阳极氧化拉丝铝合金面板
-    const panelGeo = new THREE.PlaneGeometry(0.174, 0.114);
-    const panelMat = anodizedAluminum(0xe2e8f0, 0.22);
-    const panelMesh = new THREE.Mesh(panelGeo, panelMat);
-    panelMesh.position.set(0, 0, 0.0805);
-    pGroup.add(panelMesh);
-
-    // 3. 前置真实双排数码管/LCD显示窗（上方电压、下方电流限流）
-    this.powerDisplayCanvas = document.createElement('canvas');
-    this.powerDisplayCanvas.width = 256;
-    this.powerDisplayCanvas.height = 128;
-    this.powerDisplayTexture = new THREE.CanvasTexture(this.powerDisplayCanvas);
-    this.powerDisplayTexture.colorSpace = THREE.SRGBColorSpace;
-    this.renderPowerSupplyDisplay(initialVoltage, 1.0);
-
-    const dispGeo = new THREE.PlaneGeometry(0.085, 0.048);
-    const dispMat = new THREE.MeshBasicMaterial({
-      map: this.powerDisplayTexture,
-      toneMapped: false,
-    });
-    const dispMesh = new THREE.Mesh(dispGeo, dispMat);
-    dispMesh.position.set(-0.035, 0.022, 0.0815);
-    pGroup.add(dispMesh);
-
-    // 显示窗深色保护边框
-    const bezelGeo = new THREE.BoxGeometry(0.092, 0.054, 0.003);
-    const bezelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
-    const bezelMesh = new THREE.Mesh(bezelGeo, bezelMat);
-    bezelMesh.position.set(-0.035, 0.022, 0.081);
-    pGroup.add(bezelMesh);
-
-    // 4. 电压调节金属滚花旋钮（带指示刻度槽）
-    const knobGroup = new THREE.Group();
-    knobGroup.position.set(0.05, 0.022, 0.082);
-
-    const knobBodyGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.014, 24);
-    knobBodyGeo.rotateX(Math.PI / 2);
-    const knobMat = anodizedAluminum(0x64748b, 0.2);
-    this.powerKnobMesh = new THREE.Mesh(knobBodyGeo, knobMat);
-    this.powerKnobMesh.name = 'powerKnobMesh';
-    knobGroup.add(this.powerKnobMesh);
-
-    // 旋钮刻度指示白线
-    const markerGeo = new THREE.BoxGeometry(0.002, 0.010, 0.002);
-    markerGeo.translate(0, 0.006, 0.007);
-    const markerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    knobGroup.add(new THREE.Mesh(markerGeo, markerMat));
-    pGroup.add(knobGroup);
-
-    // 5. 真实电源船型开关（红色半透明内照式翘板开关）
-    const swHousingGeo = new THREE.BoxGeometry(0.022, 0.028, 0.008);
-    const swHousingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
-    const swHousing = new THREE.Mesh(swHousingGeo, swHousingMat);
-    swHousing.position.set(0.05, -0.025, 0.082);
-    pGroup.add(swHousing);
-
-    const rockerGeo = new THREE.BoxGeometry(0.016, 0.022, 0.006);
-    rockerGeo.rotateX(0.18);
-    const rockerMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      emissive: 0xdc2626,
-      emissiveIntensity: 0.6,
-      roughness: 0.25,
-    });
-    this.powerSwitchMesh = new THREE.Mesh(rockerGeo, rockerMat);
-    this.powerSwitchMesh.position.set(0.05, -0.025, 0.086);
-    this.powerSwitchMesh.name = 'powerSwitchMesh';
-    pGroup.add(this.powerSwitchMesh);
-
-    // 6. 三联实验室防触电安全包塑香蕉插孔接线柱（绿接地、黑负、红正朝向内侧水平出线）
-    this.createBindingPost(pGroup, new THREE.Vector3(-0.025, -0.025, 0.082), 0x10b981, true);  // (GND) 接地绿
-    this.createBindingPost(pGroup, new THREE.Vector3(0.005, -0.025, 0.082), 0x334155, true);   // (-) 负极黑
-    this.createBindingPost(pGroup, new THREE.Vector3(0.035, -0.025, 0.082), 0xef4444, true);   // (+) 正极红
-
-    this.group.add(pGroup);
-  }
-
-  private renderPowerSupplyDisplay(volts: number, amps: number): void {
-    const ctx = this.powerDisplayCanvas.getContext('2d');
-    if (!ctx) return;
-    const w = this.powerDisplayCanvas.width;
-    const h = this.powerDisplayCanvas.height;
-
-    ctx.fillStyle = '#05131f';
+    // 1. 哑光高聚物深曜石黑底
+    ctx.fillStyle = '#090a0f';
     ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
-    ctx.lineWidth = 2;
-    if (typeof ctx.strokeRect === 'function') {
-      ctx.strokeRect(3, 3, w - 6, h - 6);
+    // 2. 正极端拉丝高光金属金色渐变区
+    const goldGrad = ctx.createLinearGradient(0, 0, goldWidth, 0);
+    goldGrad.addColorStop(0, '#ca8a04');
+    goldGrad.addColorStop(0.25, '#eab308');
+    goldGrad.addColorStop(0.55, '#fef08a');
+    goldGrad.addColorStop(0.85, '#ca8a04');
+    goldGrad.addColorStop(1, '#92400e');
+    ctx.fillStyle = goldGrad;
+    ctx.fillRect(0, 0, goldWidth, h);
+
+    // 金黑交界处立体光反边线
+    ctx.fillStyle = '#fde047';
+    ctx.fillRect(goldWidth - 4, 0, 2, h);
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(goldWidth - 2, 0, 2, h);
+
+    // 金属横向拉丝发丝纹
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    for (let y = 0; y < h; y += 4) {
+      ctx.fillRect(0, y, goldWidth, 1.5);
+    }
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
+    for (let y = 0; y < h; y += 6) {
+      ctx.fillRect(goldWidth, y, w - goldWidth, 1.5);
     }
 
-    if (typeof ctx.fillText === 'function') {
-      // 输出电压读数 (青色 LED 数码管)
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = '700 48px monospace';
-      ctx.textAlign = 'right';
-      ctx.fillText(`${volts.toFixed(2)}`, w - 44, 56);
-      ctx.font = '600 24px monospace';
-      ctx.fillText('V', w - 14, 56);
+    // 3. 正极端醒目标记 (在金色区)
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(goldWidth * 0.45, h * 0.28, 38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.stroke();
 
-      // 电流上限设定 (绿色 LED 数码管)
-      ctx.fillStyle = '#34d399';
-      ctx.font = '700 36px monospace';
-      ctx.fillText(`${amps.toFixed(2)}`, w - 44, 108);
-      ctx.font = '600 20px monospace';
-      ctx.fillText('A', w - 14, 108);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 52px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('+', goldWidth * 0.45, h * 0.28 - 2);
 
-      // 工业状态小字
-      ctx.fillStyle = '#64748b';
-      ctx.font = '600 14px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText('CV', 16, 48);
-      ctx.fillText('CC', 16, 100);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '900 38px "Arial Black", Impact, sans-serif';
+    ctx.fillText('ALKALINE', goldWidth * 0.45, h * 0.58);
+
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText('1.5V · SIZE D', goldWidth * 0.45, h * 0.74);
+
+    // 4. 黑色工业主体文字与标牌
+    const bodyX = goldWidth + 35;
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'italic 900 46px "Arial Black", sans-serif';
+    ctx.fillText('HoloGrip', bodyX, h * 0.25);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = '900 22px monospace';
+    ctx.fillText('LABORATORY STANDARD', bodyX + 225, h * 0.25);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText('SUPER HEAVY DUTY LR20 CELL', bodyX, h * 0.42);
+
+    // 能量刻度指示槽
+    const barW = 380;
+    const barH = 14;
+    const barY = h * 0.52;
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(bodyX, barY, barW, barH);
+    const pGrad = ctx.createLinearGradient(bodyX, 0, bodyX + barW, 0);
+    pGrad.addColorStop(0, '#10b981');
+    pGrad.addColorStop(0.5, '#38bdf8');
+    pGrad.addColorStop(1, '#facc15');
+    ctx.fillStyle = pGrad;
+    ctx.fillRect(bodyX + 2, barY + 2, barW - 4, barH - 4);
+
+    // 安全警告与环保小字
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '16px monospace';
+    ctx.fillText('0.00% MERCURY & CADMIUM · HIGH CAPACITY', bodyX, h * 0.68);
+    ctx.fillText('CAUTION: DO NOT CONNECT IMPROPERLY OR DISPOSE IN FIRE.', bodyX, h * 0.78);
+    ctx.fillText('MADE FOR HIGH-PRECISION PHYSICS CIRCUIT WORKSTATION', bodyX, h * 0.88);
+
+    // 条形码
+    const bcX = w - 170;
+    const bcY = h * 0.45;
+    const bcH = 120;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bcX - 10, bcY - 10, 150, bcH + 35);
+    ctx.fillStyle = '#000000';
+    const barPatterns = [3, 1, 2, 4, 1, 3, 2, 1, 4, 2, 1, 3, 1, 4, 2, 2, 1, 3, 2, 4, 1, 2, 3, 1];
+    let curBx = bcX;
+    for (let i = 0; i < barPatterns.length; i++) {
+      const bw = barPatterns[i];
+      if (i % 2 === 0) {
+        ctx.fillRect(curBx, bcY, bw * 2, bcH);
+      }
+      curBx += bw * 2.8;
+    }
+    ctx.font = '14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('6901028804152', bcX + 65, bcY + bcH + 18);
+
+    // 负极端大标 [-]
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'bold 54px monospace';
+    ctx.fillText('[-]', w - 60, h * 0.28);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    return texture;
+  }
+
+  /**
+   * 构建工业级 D 型干电池（真实冲压卷边、负极凹槽接触盘、收颈斜肩、正极排气凸钮，拒绝简陋拼接）
+   */
+  private createDetailedDCellBattery(
+    parent: THREE.Group,
+    centerPos: THREE.Vector3,
+    isReversed: boolean,
+    labelTexture: THREE.CanvasTexture,
+    angleJitter = 0,
+  ): void {
+    const cellGroup = new THREE.Group();
+    cellGroup.position.copy(centerPos);
+
+    if (isReversed) {
+      cellGroup.rotation.y = Math.PI;
+    }
+    cellGroup.rotation.x = angleJitter;
+
+    const R = 0.016;       // 电池外壳外径半径 16mm (直径 32mm)
+    const R_top = 0.0146;   // 正极收口斜肩上径 14.6mm
+    const bodyL = 0.046;   // 贴纸圆柱筒身长 46mm
+
+    // ================= A. 负极镀镍钢盖组合件 (-X 侧端面) =================
+    const negX = -0.026;
+
+    // 1. 负极端面外圈冲压卷边咬唇 (Rolled Outer Rim)
+    const negRimGeo = new THREE.TorusGeometry(R - 0.0011, 0.0011, 12, 32);
+    negRimGeo.rotateY(Math.PI / 2);
+    const negRimMat = labMetal(0xf1f5f9, 0.95, 0.16);
+    const negRim = new THREE.Mesh(negRimGeo, negRimMat);
+    negRim.position.set(negX + 0.0011, 0, 0);
+    cellGroup.add(negRim);
+
+    // 2. 负极外围绝缘黑色缝隙环
+    const negGasketGeo = new THREE.CylinderGeometry(R - 0.0006, R - 0.0006, 0.0012, 32);
+    negGasketGeo.rotateZ(Math.PI / 2);
+    const negGasketMat = new THREE.MeshStandardMaterial({ color: 0x090a0f, roughness: 0.85 });
+    const negGasket = new THREE.Mesh(negGasketGeo, negGasketMat);
+    negGasket.position.set(negX + 0.0008, 0, 0);
+    cellGroup.add(negGasket);
+
+    // 3. 负极冲压防漏液凹槽环 (Annular Safety Groove)
+    const negGrooveGeo = new THREE.CylinderGeometry(R - 0.0022, R - 0.0022, 0.0015, 32);
+    negGrooveGeo.rotateZ(Math.PI / 2);
+    const negGrooveMat = labMetal(0x94a3b8, 0.92, 0.22);
+    const negGroove = new THREE.Mesh(negGrooveGeo, negGrooveMat);
+    negGroove.position.set(negX + 0.0004, 0, 0);
+    cellGroup.add(negGroove);
+
+    // 4. 负极中央镀镍平坦接触圆盘 (Central Flat Contact Disc - 紧压弹簧)
+    const negDiscGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.0012, 24);
+    negDiscGeo.rotateZ(Math.PI / 2);
+    const negDiscMat = labMetal(0xffffff, 0.98, 0.10);
+    const negDisc = new THREE.Mesh(negDiscGeo, negDiscMat);
+    negDisc.position.set(negX, 0, 0);
+    cellGroup.add(negDisc);
+
+    // ================= B. 电池主体圆柱壳与高清黑金印刷覆膜 =================
+    const bodyGeo = new THREE.CylinderGeometry(R, R, bodyL, 48);
+    bodyGeo.rotateZ(-Math.PI / 2);
+    const bodyMat = new THREE.MeshStandardMaterial({
+      map: labelTexture,
+      roughness: 0.26,
+      metalness: 0.14,
+    });
+    const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+    bodyMesh.position.set(-0.001, 0, 0);
+    bodyMesh.castShadow = true;
+    bodyMesh.receiveShadow = true;
+    cellGroup.add(bodyMesh);
+
+    // ================= C. 正极端工业多段收颈与冲压凸钮 (+X 侧端面) =================
+    const neckStartX = bodyL * 0.5 - 0.001;
+
+    // 1. 冲压倒角收颈斜肩圆台 (Tapered Neck Shoulder)
+    const shoulderGeo = new THREE.CylinderGeometry(R_top, R, 0.0028, 48);
+    shoulderGeo.rotateZ(-Math.PI / 2);
+    const shoulderMat = labMetal(0xe2e8f0, 0.95, 0.18);
+    const shoulderMesh = new THREE.Mesh(shoulderGeo, shoulderMat);
+    shoulderMesh.position.set(neckStartX + 0.0014, 0, 0);
+    cellGroup.add(shoulderMesh);
+
+    // 2. 金属外壳顶部向内收口卷唇 (Top Crimped Beaded Lip)
+    const topLipGeo = new THREE.TorusGeometry(R_top - 0.001, 0.001, 12, 32);
+    topLipGeo.rotateY(Math.PI / 2);
+    const topLipMat = labMetal(0xf1f5f9, 0.96, 0.14);
+    const topLipMesh = new THREE.Mesh(topLipGeo, topLipMat);
+    topLipMesh.position.set(neckStartX + 0.0028, 0, 0);
+    cellGroup.add(topLipMesh);
+
+    // 3. 内嵌绝缘阻燃尼龙防爆垫圈 (Recessed Nylon Vent Ring)
+    const washerGeo = new THREE.CylinderGeometry(R_top - 0.0014, R_top - 0.0014, 0.0015, 32);
+    washerGeo.rotateZ(Math.PI / 2);
+    const washerMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.85 });
+    const washerMesh = new THREE.Mesh(washerGeo, washerMat);
+    washerMesh.position.set(neckStartX + 0.003, 0, 0);
+    cellGroup.add(washerMesh);
+
+    // 4. 正极冲压紫铜镀黄铜凸台端子 (Positive Button Terminal Cap)
+    const capGeo = new THREE.CylinderGeometry(0.0042, 0.0047, 0.0036, 24);
+    capGeo.rotateZ(-Math.PI / 2);
+    const capMat = labMetal(0xfef08a, 0.94, 0.15);
+    const capMesh = new THREE.Mesh(capGeo, capMat);
+    capMesh.position.set(neckStartX + 0.0048, 0, 0);
+    cellGroup.add(capMesh);
+
+    // 正极凸帽顶端倒圆角冲压封顶
+    const capRimGeo = new THREE.TorusGeometry(0.0038, 0.0006, 8, 20);
+    capRimGeo.rotateY(Math.PI / 2);
+    const capRimMesh = new THREE.Mesh(capRimGeo, capMat);
+    capRimMesh.position.set(neckStartX + 0.0066, 0, 0);
+    cellGroup.add(capRimMesh);
+
+    parent.add(cellGroup);
+  }
+
+  /**
+   * 为槽位负极端添加 3D 圆锥宝塔螺旋压缩弹簧
+   */
+  private addConicalSpring(
+    parent: THREE.Group,
+    basePos: THREE.Vector3,
+    direction: 1 | -1,
+  ): void {
+    const length = 0.011;
+    const curve = new ConicalSpringCurve(0.0115, 0.0060, length, 3.5);
+    const geo = new THREE.TubeGeometry(curve, 48, 0.0011, 8, false);
+    if (direction === -1) {
+      geo.rotateY(Math.PI);
+    }
+    const mat = labMetal(0xf8fafc, 0.96, 0.12);
+    const springMesh = new THREE.Mesh(geo, mat);
+    springMesh.position.copy(basePos);
+    springMesh.castShadow = true;
+    parent.add(springMesh);
+  }
+
+  /**
+   * 为槽位正极端添加冲压紫铜接触片与接触触点
+   */
+  private addLeafContact(
+    parent: THREE.Group,
+    wallPos: THREE.Vector3,
+    direction: 1 | -1,
+  ): void {
+    const contactGroup = new THREE.Group();
+    contactGroup.position.copy(wallPos);
+    if (direction === -1) {
+      contactGroup.rotation.y = Math.PI;
     }
 
-    this.powerDisplayTexture.needsUpdate = true;
+    const leafGeo = new THREE.BoxGeometry(0.0012, 0.018, 0.014);
+    const leafMat = labMetal(0xd97706, 0.88, 0.25);
+    const leafMesh = new THREE.Mesh(leafGeo, leafMat);
+    leafMesh.position.set(0, 0.009, 0);
+    contactGroup.add(leafMesh);
+
+    const pipGeo = new THREE.SphereGeometry(0.0028, 12, 12);
+    const pipMesh = new THREE.Mesh(pipGeo, leafMat);
+    pipMesh.position.set(direction * 0.0012, 0.009, 0);
+    contactGroup.add(pipMesh);
+
+    parent.add(contactGroup);
+  }
+
+  // ================= 2. 真实四联工业大号干电池组与实验室电池盒 (替代原简陋稳压电源箱) =================
+  private buildPowerSupply(_initialVoltage: number): void {
+    const bGroup = new THREE.Group();
+    bGroup.name = 'batteryPackGroup';
+    this.batteryPackGroup = bGroup;
+
+    // 端正放置在左后方仪器台面，向内微偏转面向操作者视界
+    bGroup.position.set(-0.275, 0.022, -0.065);
+    bGroup.rotation.y = 0.16;
+
+    // 1. 实验室高强度绝缘工程电木/ABS底座外框 (带精密微倒角)
+    const caddyWidth = 0.156;  // X轴：电池长度方向
+    const caddyDepth = 0.138;  // Z轴：4槽并排方向
+    const caddyHeight = 0.028; // Y轴：底座高
+
+    const chassisGeo = new THREE.BoxGeometry(caddyWidth, caddyHeight, caddyDepth);
+    const chassisMat = new THREE.MeshStandardMaterial({
+      color: 0x18181b,
+      metalness: 0.06,
+      roughness: 0.72,
+    });
+    const chassisMesh = new THREE.Mesh(chassisGeo, chassisMat);
+    chassisMesh.position.set(0, caddyHeight * 0.5, 0);
+    chassisMesh.castShadow = true;
+    chassisMesh.receiveShadow = true;
+    bGroup.add(chassisMesh);
+
+    // 底座四角防滑硅胶底脚垫
+    const footMat = new THREE.MeshStandardMaterial({ color: 0x090a0f, roughness: 0.9 });
+    const footOffsets = [
+      [-caddyWidth * 0.44, 0.002, -caddyDepth * 0.44],
+      [caddyWidth * 0.44, 0.002, -caddyDepth * 0.44],
+      [-caddyWidth * 0.44, 0.002, caddyDepth * 0.44],
+      [caddyWidth * 0.44, 0.002, caddyDepth * 0.44],
+    ];
+    for (const [fx, fy, fz] of footOffsets) {
+      const footGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.004, 12);
+      const foot = new THREE.Mesh(footGeo, footMat);
+      foot.position.set(fx, fy, fz);
+      bGroup.add(foot);
+    }
+
+    // 四角不锈钢内六角固定螺栓沉孔
+    const boltMat = labMetal(0xe2e8f0, 0.94, 0.22);
+    for (const [fx, _, fz] of footOffsets) {
+      const boltGeo = new THREE.CylinderGeometry(0.0028, 0.0028, 0.002, 12);
+      const bolt = new THREE.Mesh(boltGeo, boltMat);
+      bolt.position.set(fx, caddyHeight + 0.0005, fz);
+      bGroup.add(bolt);
+    }
+
+    // 前端拉丝铝合金工业铭牌
+    const plateGeo = new THREE.PlaneGeometry(0.120, 0.015);
+    const plateMat = anodizedAluminum(0xf1f5f9, 0.22);
+    const plateMesh = new THREE.Mesh(plateGeo, plateMat);
+    plateMesh.position.set(0, caddyHeight * 0.52, caddyDepth * 0.501);
+    bGroup.add(plateMesh);
+
+    // 2. 4个卧式半圆柱弧形电池托槽与注塑隔板
+    const cradleR = 0.0172; // 槽内径，刚好承托 R=0.016 电池
+    const slotZList = [-0.045, -0.015, 0.015, 0.045]; // 4槽位置
+    const cradleLength = 0.076;
+
+    // 槽底模压极性浮雕材质
+    const posSignMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5 });
+    const negSignMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+
+    // 3. 生成 1024x512 超写实黑金电池标签贴纸
+    this.batteryLabelTexture = this.createBatteryLabelTexture();
+
+    // 4. 依次构建 4 节串联 D 型干电池及两端接触件
+    const wallLeftX = -caddyWidth * 0.5 + 0.012;
+    const wallRightX = caddyWidth * 0.5 - 0.012;
+    const batteryY = caddyHeight * 0.72; // 电池中心高度约 20mm
+
+    slotZList.forEach((sz, idx) => {
+      // 弧形托槽内凹阴影面
+      const cradleGeo = new THREE.CylinderGeometry(cradleR, cradleR, cradleLength, 24, 1, true, 0, Math.PI);
+      cradleGeo.rotateZ(Math.PI / 2);
+      const cradleMat = new THREE.MeshStandardMaterial({
+        color: 0x111216,
+        roughness: 0.85,
+        side: THREE.DoubleSide,
+      });
+      const cradleMesh = new THREE.Mesh(cradleGeo, cradleMat);
+      cradleMesh.position.set(0, batteryY, sz);
+      bGroup.add(cradleMesh);
+
+      // 槽内极性标志浮雕
+      const isReversed = idx % 2 === 1; // 奇数槽极性反向（+在左侧）
+      const leftIsPositive = isReversed;
+
+      // 槽底极性符号
+      const signXLeft = -0.024;
+      const signXRight = 0.024;
+      const signMatLeft = leftIsPositive ? posSignMat : negSignMat;
+      const signMatRight = leftIsPositive ? negSignMat : posSignMat;
+
+      const pSignGeo = new THREE.BoxGeometry(0.005, 0.001, 0.0016);
+      const pSignLeft = new THREE.Mesh(pSignGeo, signMatLeft);
+      pSignLeft.position.set(signXLeft, batteryY - cradleR + 0.002, sz);
+      bGroup.add(pSignLeft);
+
+      const pSignRight = new THREE.Mesh(pSignGeo, signMatRight);
+      pSignRight.position.set(signXRight, batteryY - cradleR + 0.002, sz);
+      bGroup.add(pSignRight);
+
+      // 构建精密 D 型干电池实体
+      const jitter = (idx === 1 ? 0.25 : idx === 2 ? -0.18 : 0.08);
+      this.createDetailedDCellBattery(
+        bGroup,
+        new THREE.Vector3(0, batteryY, sz),
+        isReversed,
+        this.batteryLabelTexture!,
+        jitter,
+      );
+
+      // 五金：宝塔弹簧与冲压片
+      if (leftIsPositive) {
+        this.addLeafContact(bGroup, new THREE.Vector3(wallLeftX, batteryY, sz), 1);
+        this.addConicalSpring(bGroup, new THREE.Vector3(wallRightX, batteryY, sz), -1);
+      } else {
+        this.addConicalSpring(bGroup, new THREE.Vector3(wallLeftX, batteryY, sz), 1);
+        this.addLeafContact(bGroup, new THREE.Vector3(wallRightX, batteryY, sz), -1);
+      }
+    });
+
+    // 5. 电池间串联黄铜连接排 (Brass Series Busbars)
+    const busbarMat = labMetal(0xd97706, 0.88, 0.22);
+    // 左端跨接条：连接槽0与槽1
+    const busbarLeft = new THREE.Mesh(
+      new THREE.BoxGeometry(0.002, 0.014, Math.abs(slotZList[1] - slotZList[0]) + 0.006),
+      busbarMat,
+    );
+    busbarLeft.position.set(wallLeftX - 0.003, batteryY, (slotZList[0] + slotZList[1]) * 0.5);
+    bGroup.add(busbarLeft);
+
+    // 右端跨接条：连接槽1与槽2
+    const busbarRight = new THREE.Mesh(
+      new THREE.BoxGeometry(0.002, 0.014, Math.abs(slotZList[2] - slotZList[1]) + 0.006),
+      busbarMat,
+    );
+    busbarRight.position.set(wallRightX + 0.003, batteryY, (slotZList[1] + slotZList[2]) * 0.5);
+    bGroup.add(busbarRight);
+
+    // 左端跨接条：连接槽2与槽3
+    const busbarLeft2 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.002, 0.014, Math.abs(slotZList[3] - slotZList[2]) + 0.006),
+      busbarMat,
+    );
+    busbarLeft2.position.set(wallLeftX - 0.003, batteryY, (slotZList[2] + slotZList[3]) * 0.5);
+    bGroup.add(busbarLeft2);
+
+    // 6. 前侧面板红黑高规格香蕉插孔实验室接线柱 (Binding Posts)
+    // 红色正极(+)由槽0引出，黑色负极(-)由槽3引出
+    const posPostLocal = new THREE.Vector3(0.040, caddyHeight * 0.55, caddyDepth * 0.5);
+    const negPostLocal = new THREE.Vector3(0.008, caddyHeight * 0.55, caddyDepth * 0.5);
+    this.createBindingPost(bGroup, posPostLocal, 0xef4444, true); // (+) 正极红
+    this.createBindingPost(bGroup, negPostLocal, 0x334155, true); // (-) 负极黑
+
+    // 兼容占位 Mesh（确保外部引用安全）
+    const dummyGeo = new THREE.BoxGeometry(0.001, 0.001, 0.001);
+    const dummyMat = new THREE.MeshBasicMaterial({ visible: false });
+    this.powerKnobMesh = new THREE.Mesh(dummyGeo, dummyMat);
+    this.powerSwitchMesh = new THREE.Mesh(dummyGeo, dummyMat);
+    bGroup.add(this.powerKnobMesh);
+    bGroup.add(this.powerSwitchMesh);
+
+    this.group.add(bGroup);
+  }
+
+  private renderPowerSupplyDisplay(_volts: number, _amps: number): void {
+    // 电池组输出稳定电动势，无需数码管重绘
   }
 
   // ================= 3. 单刀双掷开关 (真实经典物理教学 J2354 胶木双掷闸刀开关 - 前排操作区) =================
@@ -1232,11 +1571,11 @@ export class CapacitorDischargeBenchMesh {
   // ================= 8. 真实实验室 4mm 香蕉插头导线与电流动态粒子流系统 =================
   private buildWiresAndParticles(): void {
     // 导线端点路径（CatmullRom 曲线，重力悬垂感，严格无交叉整齐布线）
-    // 导线1 (红): 电源正极 -> 开关触点1 (电源侧左极接线柱)
+    // 导线1 (红): 电池组正极 -> 开关触点1 (电源侧左极接线柱)
     const wire1Pts = [
-      new THREE.Vector3(-0.230, 0.057, 0.032),
-      new THREE.Vector3(-0.220, 0.054, 0.065),
-      new THREE.Vector3(-0.190, 0.032, 0.105),
+      new THREE.Vector3(-0.2216, 0.0454, 0.0145),
+      new THREE.Vector3(-0.210, 0.042, 0.055),
+      new THREE.Vector3(-0.185, 0.032, 0.100),
       new THREE.Vector3(-0.160, 0.040, 0.138),
       new THREE.Vector3(-0.145, 0.050, 0.142),
     ];
@@ -1256,14 +1595,14 @@ export class CapacitorDischargeBenchMesh {
       new THREE.Vector3(0.102, 0.100, -0.035),
       new THREE.Vector3(0.096, 0.1455, -0.060),
     ];
-    // 导线4 (黑): 电容器负极 -> 电源负极接地回路线（沿后槽低垂规整回线）
+    // 导线4 (黑): 电容器负极 -> 电池组负极接地回路线（沿后槽低垂规整回线）
     const wire4Pts = [
       new THREE.Vector3(0.064, 0.1455, -0.080),
       new THREE.Vector3(0.040, 0.080, -0.125),
       new THREE.Vector3(-0.060, 0.034, -0.130),
       new THREE.Vector3(-0.180, 0.036, -0.100),
-      new THREE.Vector3(-0.255, 0.042, -0.020),
-      new THREE.Vector3(-0.259, 0.057, 0.036),
+      new THREE.Vector3(-0.245, 0.040, -0.030),
+      new THREE.Vector3(-0.2532, 0.0454, 0.0196),
     ];
 
     // 放电回路特定导线
@@ -1624,6 +1963,9 @@ export class CapacitorDischargeBenchMesh {
   public dispose(): void {
     if (this.scopeDisplayTexture) {
       this.scopeDisplayTexture.dispose();
+    }
+    if (this.batteryLabelTexture) {
+      this.batteryLabelTexture.dispose();
     }
     if (this.powerDisplayTexture) {
       this.powerDisplayTexture.dispose();

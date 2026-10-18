@@ -3,9 +3,6 @@ export type WorkerAction =
   | 'NBODY_STEP'
   | 'WAVE_STEP'
   | 'LORENZ_STEP'
-  | 'OPTICAL_DIFFRACTION_STEP'
-  | 'OPTICAL_POLARIZATION_STEP'
-  | 'OPTICAL_DISPERSION_STEP'
   | 'CHEMISTRY_STEP'
   | 'PARTICLE_SIM_STEP'
   | 'STREAM_TUBE_STEP'
@@ -48,50 +45,6 @@ export interface LorenzStepRequest extends BaseWorkerRequest {
   dt: number;
 }
 
-export interface OpticalDiffractionStepRequest extends BaseWorkerRequest {
-  action: 'OPTICAL_DIFFRACTION_STEP';
-  intensityBuffer: Float32Array;
-  wavelengthNm: number;
-  slitWidthMm: number;
-  slitDistanceMm: number;
-  screenDistanceM: number;
-  screenSpanMm: number;
-  slitCount: number;
-  gratingLinesPerMm?: number;
-}
-
-export interface OpticalPolarizationStepRequest extends BaseWorkerRequest {
-  action: 'OPTICAL_POLARIZATION_STEP';
-  positions: Float32Array;
-  colors: Float32Array;
-  polarizerAngleDeg: number;
-  analyzerAngleDeg: number;
-  hasQuarterWavePlate: boolean;
-  wavelengthNm: number;
-  startZ: number;
-  endZ: number;
-  polarizerZ: number;
-  analyzerZ: number;
-  numSamples: number;
-  time: number;
-}
-
-export interface WorkerDispersionRayData {
-  wavelengthNm: number;
-  colorRgb: [number, number, number];
-  refractiveIndex: number;
-  deviationAngleRad: number;
-  points: [number, number, number][];
-}
-
-export interface OpticalDispersionStepRequest extends BaseWorkerRequest {
-  action: 'OPTICAL_DISPERSION_STEP';
-  apexPos: [number, number, number];
-  prismRotationY: number;
-  baseIndex: number;
-  incomingPos: [number, number, number];
-  screenZ?: number;
-}
 
 export interface ChemistryStepRequest extends BaseWorkerRequest {
   action: 'CHEMISTRY_STEP';
@@ -174,9 +127,6 @@ export type WorkerRequest =
   | NBodyStepRequest
   | WaveStepRequest
   | LorenzStepRequest
-  | OpticalDiffractionStepRequest
-  | OpticalPolarizationStepRequest
-  | OpticalDispersionStepRequest
   | ChemistryStepRequest
   | ParticleSimStepRequest
   | StreamTubeStepRequest
@@ -209,28 +159,6 @@ export interface LorenzStepResponse {
   computeTimeMs: number;
 }
 
-export interface OpticalDiffractionStepResponse {
-  id: number;
-  action: 'OPTICAL_DIFFRACTION_STEP';
-  intensityBuffer: Float32Array;
-  computeTimeMs: number;
-}
-
-export interface OpticalPolarizationStepResponse {
-  id: number;
-  action: 'OPTICAL_POLARIZATION_STEP';
-  positions: Float32Array;
-  colors: Float32Array;
-  malusIntensity: number;
-  computeTimeMs: number;
-}
-
-export interface OpticalDispersionStepResponse {
-  id: number;
-  action: 'OPTICAL_DISPERSION_STEP';
-  rays: WorkerDispersionRayData[];
-  computeTimeMs: number;
-}
 
 export interface ChemistryStepResponse {
   id: number;
@@ -293,9 +221,6 @@ export type WorkerResponse =
   | NBodyStepResponse
   | WaveStepResponse
   | LorenzStepResponse
-  | OpticalDiffractionStepResponse
-  | OpticalPolarizationStepResponse
-  | OpticalDispersionStepResponse
   | ChemistryStepResponse
   | ParticleSimStepResponse
   | StreamTubeStepResponse
