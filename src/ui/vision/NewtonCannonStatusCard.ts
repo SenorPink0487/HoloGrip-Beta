@@ -187,14 +187,13 @@ export class NewtonCannonStatusCard {
           backdrop-filter: blur(30px);
           -webkit-backdrop-filter: blur(30px);
           color: #ffffff;
-          font-size: 15px;
+          font-size: 18px;
           font-weight: 600;
-          letter-spacing: -0.2px;
+          letter-spacing: 1px;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
           transition: all 0.16s ease;
           outline: none;
           user-select: none;
@@ -257,20 +256,16 @@ export class NewtonCannonStatusCard {
               <span class="apple-newton-label">粒子数量</span>
               <span id="card-readout-count" class="apple-newton-readout">8 颗</span>
             </div>
-            <input type="range" id="newton-slider-count" class="apple-newton-slider" min="1" max="32" step="1" value="8">
+            <input type="range" id="newton-slider-count" class="apple-newton-slider" min="1" max="15" step="1" value="8">
             <div class="apple-newton-scale">
               <span>1 颗</span>
-              <span>32 颗</span>
+              <span>15 颗</span>
             </div>
           </div>
         </div>
 
         <!-- 下方发射操作块（与上方卡片风格完全一致，保持双块独立布局） -->
         <button id="card-btn-launch" class="apple-newton-launch-btn" type="button">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
-            <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
-          </svg>
           <span>发射</span>
         </button>
       </div>
@@ -287,7 +282,7 @@ export class NewtonCannonStatusCard {
 
     this.updateSliderTrackFill(this.sliderVMin, 1.0, 15.0, this.currentVMin);
     this.updateSliderTrackFill(this.sliderVMax, 2.0, 16.0, this.currentVMax);
-    this.updateSliderTrackFill(this.sliderCount, 1, 32, this.currentCount);
+    this.updateSliderTrackFill(this.sliderCount, 1, 15, this.currentCount);
   }
 
   private bindEvents(): void {
@@ -329,13 +324,13 @@ export class NewtonCannonStatusCard {
     bindVisionSlider(this.sliderCount, {
       activeSet: this.activeSliders,
       onChange: (val) => {
-        const count = Math.max(1, Math.min(32, Math.round(val)));
+        const count = Math.max(1, Math.min(15, Math.round(val)));
         this.currentCount = count;
         if (this.sliderCount && Number(this.sliderCount.value) !== count) {
           this.sliderCount.value = String(count);
         }
         if (this.readoutCount) this.readoutCount.textContent = `${count} 颗`;
-        this.updateSliderTrackFill(this.sliderCount, 1, 32, count);
+        this.updateSliderTrackFill(this.sliderCount, 1, 15, count);
         this.callbacks.onParticleCountChange?.(count);
       },
     });
@@ -347,7 +342,7 @@ export class NewtonCannonStatusCard {
     this.currentVMax = maxV;
     if (this.sliderCount) {
       this.sliderCount.value = String(count);
-      this.updateSliderTrackFill(this.sliderCount, 1, 32, count);
+      this.updateSliderTrackFill(this.sliderCount, 1, 15, count);
     }
     if (this.sliderVMin) {
       this.sliderVMin.value = String(minV);
@@ -394,7 +389,7 @@ export class NewtonCannonStatusCard {
           this.currentCount = config.particleCount;
           this.sliderCount.value = String(config.particleCount);
           if (this.readoutCount) this.readoutCount.textContent = `${config.particleCount} 颗`;
-          this.updateSliderTrackFill(this.sliderCount, 1, 32, config.particleCount);
+          this.updateSliderTrackFill(this.sliderCount, 1, 15, config.particleCount);
         }
       }
     }

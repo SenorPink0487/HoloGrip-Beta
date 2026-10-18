@@ -157,14 +157,14 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
    * 微调粒子数量
    */
   public adjustParticleCount(delta: number): void {
-    this.particleCount = Math.max(1, Math.min(32, this.particleCount + delta));
+    this.particleCount = Math.max(1, Math.min(15, this.particleCount + delta));
   }
 
   /**
    * 设置粒子数量
    */
   public setParticleCount(count: number): void {
-    this.particleCount = Math.max(1, Math.min(32, Math.round(count)));
+    this.particleCount = Math.max(1, Math.min(15, Math.round(count)));
   }
 
   /**
@@ -331,7 +331,7 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
     _context: ExperimentContext
   ): void {
     if (id === 'particleCount') {
-      this.particleCount = Math.max(1, Math.min(32, Math.floor(Number(value))));
+      this.particleCount = Math.max(1, Math.min(15, Math.floor(Number(value))));
     } else if (id === 'minVelocity') {
       this.setMinVelocity(Number(value));
     } else if (id === 'maxVelocity') {

@@ -29,7 +29,7 @@ export const metadata: ExperimentMetadata = {
       type: 'range',
       defaultValue: 8,
       min: 1,
-      max: 32,
+      max: 15,
       step: 1,
       unit: '个',
       description: '单次并发发射的炮弹粒子数量 (可在 3D 控制台通过 [-]/[+] 或快捷键调整)',

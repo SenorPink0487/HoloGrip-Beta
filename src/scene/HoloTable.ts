@@ -32,10 +32,10 @@ export class HoloTable {
 
   private createTableStructure(): void {
     const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0xdbe3e8, metalness: 0.12, roughness: 0.38, side: THREE.FrontSide,
+      color: 0xdbe3e8, metalness: 0.12, roughness: 0.38, side: THREE.DoubleSide,
     });
     const seamMat = new THREE.MeshStandardMaterial({
-      color: 0x90a2ac, metalness: 0.22, roughness: 0.40, side: THREE.FrontSide,
+      color: 0x90a2ac, metalness: 0.22, roughness: 0.40, side: THREE.DoubleSide,
     });
     // 纯白缎面复合材质台面，具备高光反射质感
     const whiteMat = new THREE.MeshPhysicalMaterial({
@@ -45,13 +45,13 @@ export class HoloTable {
       clearcoat: 0.70,
       clearcoatRoughness: 0.16,
       reflectivity: 0.82,
-      side: THREE.FrontSide,
+      side: THREE.DoubleSide,
     });
     const edgeMat = new THREE.MeshStandardMaterial({
-      color: 0xdde5ec, metalness: 0.25, roughness: 0.28, side: THREE.FrontSide,
+      color: 0xdde5ec, metalness: 0.25, roughness: 0.28, side: THREE.DoubleSide,
     });
     const basePlinthMat = new THREE.MeshStandardMaterial({
-      color: 0x1e2428, metalness: 0.65, roughness: 0.35, side: THREE.FrontSide,
+      color: 0x1e2428, metalness: 0.65, roughness: 0.35, side: THREE.DoubleSide,
     });
 
     // 贴地深色内凹阴影基座
@@ -76,16 +76,16 @@ export class HoloTable {
     pedestalSeam.position.set(0, 0.35, 1.09);
     this.group.add(pedestalSeam);
 
-    // 流线型圆盘台面，顶部保持 y = 0.99 以平齐对齐
+    // 流线型圆盘台面，由底向上至台面中心 (确保顶点法线朝外向上，保持表面饱满凸起，严禁背面剔除致使台面下凹)
     const profile = [
-      new THREE.Vector2(0.02, 0.99),
-      new THREE.Vector2(2.18, 0.99),
-      new THREE.Vector2(2.34, 0.968),
-      new THREE.Vector2(2.42, 0.90),
-      new THREE.Vector2(2.40, 0.82),
-      new THREE.Vector2(2.16, 0.74),
-      new THREE.Vector2(1.48, 0.67),
       new THREE.Vector2(1.16, 0.64),
+      new THREE.Vector2(1.48, 0.67),
+      new THREE.Vector2(2.16, 0.74),
+      new THREE.Vector2(2.40, 0.82),
+      new THREE.Vector2(2.42, 0.90),
+      new THREE.Vector2(2.34, 0.968),
+      new THREE.Vector2(2.18, 0.99),
+      new THREE.Vector2(0.02, 0.99),
     ];
     const tabletop = new THREE.Mesh(new THREE.LatheGeometry(profile, 128), whiteMat);
     tabletop.castShadow = true;
@@ -99,14 +99,12 @@ export class HoloTable {
     this.group.add(topSeam);
   }
 
-
-
   private createProjectorEmitter(): void {
     this.emitterAssembly.name = 'hologram-emitter';
     this.emitterAssembly.visible = false;
 
     const emitterBaseMat = new THREE.MeshStandardMaterial({
-      color: 0xd4dde1, metalness: 0.7, roughness: 0.26, side: THREE.FrontSide,
+      color: 0xd4dde1, metalness: 0.7, roughness: 0.26, side: THREE.DoubleSide,
     });
     const emitterBase = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.025, 64), emitterBaseMat);
     emitterBase.position.y = 1.0;
@@ -118,7 +116,7 @@ export class HoloTable {
 
     this.emitterLensMat = new THREE.MeshStandardMaterial({
       color: 0xb8eaff, metalness: 0.42, roughness: 0.2, emissive: 0x8bdfff,
-      emissiveIntensity: 0, side: THREE.FrontSide,
+      emissiveIntensity: 0, side: THREE.DoubleSide,
     });
     this.emitterLens = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.36, 64), this.emitterLensMat);
     this.emitterLens.rotation.x = -Math.PI / 2;
