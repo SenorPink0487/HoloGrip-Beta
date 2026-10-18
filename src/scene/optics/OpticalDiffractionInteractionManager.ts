@@ -56,19 +56,9 @@ export class OpticalDiffractionInteractionManager {
     }
 
     if (this.dragMode === 'micrometer') {
-      let lbl = '';
-      if (this.bench.diffractionType === 'single') {
-        lbl = `调节狭缝宽度: a = ${this.bench.slitWidthMm.toFixed(2)} mm`;
-      } else if (this.bench.diffractionType === 'double') {
-        lbl = `调节双缝间距: d = ${this.bench.slitDistanceMm.toFixed(2)} mm`;
-      } else if (this.bench.diffractionType === 'circular') {
-        lbl = `调节圆孔孔径: D = ${this.bench.apertureDiameterMm.toFixed(2)} mm`;
-      } else {
-        lbl = `光栅刻度密度: ${Math.round(this.bench.gratingLinesPerMm)} lines/mm`;
-      }
       return {
         id: 'slit_micrometer',
-        label: lbl,
+        label: `精密测微可调单缝仪 · 缝宽 a = ${this.bench.slitWidthMm.toFixed(2)} mm`,
         cursor: 'ew-resize',
       };
     }
@@ -99,19 +89,26 @@ export class OpticalDiffractionInteractionManager {
           };
         }
 
-        if (id === 'slit_turret' || cur.name === 'SlitTurretWheel') {
+        if (
+          id === 'slit_micrometer' ||
+          cur.name === 'SlitMicrometerKnob' ||
+          cur.name === 'SlitLeftJaw' ||
+          cur.name === 'SlitRightJaw' ||
+          cur.name === 'MicrometerThimbleGroup' ||
+          cur.name === 'AdjustableSingleSlitStage'
+        ) {
           return {
-            id: 'slit_turret',
-            label: '旋转孔径转盘 (点击切换单缝 / 双缝 / 圆孔 / 衍射光栅)',
-            cursor: 'pointer',
+            id: 'slit_micrometer',
+            label: `精密测微可调单缝仪 (按住左右拖拽微调缝宽 a = ${this.bench.slitWidthMm.toFixed(2)} mm)`,
+            cursor: 'ew-resize',
           };
         }
 
-        if (id === 'slit_micrometer' || cur.name === 'SlitMicrometerKnob') {
+        if (id === 'slit_turret' || cur.name === 'SlitTurretWheel') {
           return {
-            id: 'slit_micrometer',
-            label: '狭缝测微鼓轮 (左右拖拽微调缝宽或孔径)',
-            cursor: 'ew-resize',
+            id: 'slit_turret',
+            label: `精密测微可调单缝仪 (当前缝宽 a = ${this.bench.slitWidthMm.toFixed(2)} mm)`,
+            cursor: 'pointer',
           };
         }
 
@@ -129,10 +126,11 @@ export class OpticalDiffractionInteractionManager {
         }
 
         if (id === 'screen_surface' || cur.name === 'ScreenSurfaceMesh') {
+          const distMm = (this.bench.screenDistanceM * 1000).toFixed(0);
           return {
             id: 'screen_surface',
-            label: '衍射光电投影屏 (点击切换光强波形曲线显示)',
-            cursor: 'pointer',
+            label: `激光衍射光斑与条纹 (拖拽滑动调节屏距 L = ${distMm} mm)`,
+            cursor: 'grab',
           };
         }
 
@@ -164,13 +162,18 @@ export class OpticalDiffractionInteractionManager {
         targetObject = cur;
         break;
       }
-      if (cur.name === 'SlitTurretWheel') {
-        targetId = 'slit_turret';
+      if (
+        cur.name === 'SlitMicrometerKnob' ||
+        cur.name === 'SlitLeftJaw' ||
+        cur.name === 'SlitRightJaw' ||
+        cur.name === 'MicrometerThimbleGroup'
+      ) {
+        targetId = 'slit_micrometer';
         targetObject = cur;
         break;
       }
-      if (cur.name === 'SlitMicrometerKnob') {
-        targetId = 'slit_micrometer';
+      if (cur.name === 'SlitTurretWheel') {
+        targetId = 'slit_turret';
         targetObject = cur;
         break;
       }
@@ -200,39 +203,22 @@ export class OpticalDiffractionInteractionManager {
       return true;
     }
 
-    // 3. 孔径转盘旋转切换
+    // 3. 向后兼容转盘点击回调
     if (targetId === 'slit_turret') {
       this.bench.cycleNextDiffractionType();
       this.callbacks.onDiffractionTypeChange?.(this.bench.diffractionType);
       return true;
     }
 
-    // 4. 屏幕表面点击：切换包络光强图显示
-    if (targetId === 'screen_surface') {
-      const nextShow = !this.bench.showProfileCurve;
-      this.bench.showProfileCurve = nextShow;
-      this.bench.updateScreenTexture();
-      this.callbacks.onProfileCurveToggle?.(nextShow);
-      return true;
-    }
-
-    // 5. 拖动测微鼓轮
+    // 4. 拖动单缝测微鼓轮 (调节缝宽)
     if (targetId === 'slit_micrometer') {
       this.dragMode = 'micrometer';
-      this.dragStartClientX = event.clientX;
-      if (this.bench.diffractionType === 'single') {
-        this.dragStartSlitParam = this.bench.slitWidthMm;
-      } else if (this.bench.diffractionType === 'double') {
-        this.dragStartSlitParam = this.bench.slitDistanceMm;
-      } else if (this.bench.diffractionType === 'circular') {
-        this.dragStartSlitParam = this.bench.apertureDiameterMm;
-      } else {
-        this.dragStartSlitParam = this.bench.gratingLinesPerMm;
-      }
+      this.dragStartClientX = event.clientX ?? 0;
+      this.dragStartSlitParam = this.bench.slitWidthMm;
       return true;
     }
 
-    // 6. 拖动观测屏沿导轨横向滑行 (沿 X 轴)
+    // 5. 拖动观测屏沿导轨横向滑行 (沿 X 轴)
     if (targetId === 'screen_handle' || targetId === 'screen_surface') {
       this.dragMode = 'screen';
       this.dragStartScreenX = this.bench.getScreenCarrierX();
@@ -271,23 +257,17 @@ export class OpticalDiffractionInteractionManager {
     }
 
     if (this.dragMode === 'micrometer') {
-      const deltaX = event.clientX - this.dragStartClientX;
+      const isLocked = typeof document !== 'undefined' && document.pointerLockElement !== null;
+      const clientX = event.clientX ?? 0;
+      const delta = isLocked
+        ? (event.movementX ?? 0) * 0.0005
+        : (clientX - this.dragStartClientX) * 0.0005;
 
-      if (this.bench.diffractionType === 'single') {
-        const newW = THREE.MathUtils.clamp(this.dragStartSlitParam + deltaX * 0.0005, 0.02, 0.25);
-        this.bench.setSlitWidth(newW);
-        this.callbacks.onSlitWidthChange?.(newW);
-      } else if (this.bench.diffractionType === 'double') {
-        const newD = THREE.MathUtils.clamp(this.dragStartSlitParam + deltaX * 0.001, 0.10, 0.60);
-        this.bench.setSlitDistance(newD);
-      } else if (this.bench.diffractionType === 'circular') {
-        const newDia = THREE.MathUtils.clamp(this.dragStartSlitParam + deltaX * 0.001, 0.10, 0.60);
-        this.bench.setApertureDiameter(newDia);
-        this.callbacks.onApertureDiameterChange?.(newDia);
-      } else if (this.bench.diffractionType === 'grating') {
-        const newLines = THREE.MathUtils.clamp(this.dragStartSlitParam + deltaX * 2, 50, 1000);
-        this.bench.setGratingDensity(newLines);
-      }
+      const baseVal = isLocked ? this.bench.slitWidthMm : this.dragStartSlitParam;
+      const newW = THREE.MathUtils.clamp(baseVal + delta, 0.02, 0.25);
+
+      this.bench.setSlitWidth(newW);
+      this.callbacks.onSlitWidthChange?.(newW);
       return;
     }
   }

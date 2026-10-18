@@ -50,10 +50,45 @@ export class CapacitorInteractionManager {
             cursor: 'pointer',
           };
         }
-        if (obj === this.callbacks.bench.batteryPackGroup || obj.name === 'batteryPackGroup') {
+        if (
+          obj === this.callbacks.bench.powerKnobMesh ||
+          obj.name === 'powerKnobMesh'
+        ) {
           return {
-            id: 'cap_battery_pack',
-            label: '标准四联干电池组（提供 6.0V 稳定直流电动势）',
+            id: 'cap_power_knob',
+            label: '稳压电源旋钮（点击调节输出电压：5V ➔ 10V ➔ 15V）',
+            cursor: 'pointer',
+          };
+        }
+        if (
+          obj === this.callbacks.bench.batteryPackGroup ||
+          obj.name === 'powerSupplyGroup' ||
+          obj.name === 'batteryPackGroup'
+        ) {
+          return {
+            id: 'cap_power_supply',
+            label: '台式直流稳压电源（提供稳定直流电动势）',
+            cursor: 'default',
+          };
+        }
+        if (obj === this.callbacks.bench.rheostatGroup || obj.name === 'rheostatGroup') {
+          return {
+            id: 'cap_rheostat',
+            label: 'J2354 瓷管滑动变阻器（1000Ω 0.5A 密绕电阻线圈）',
+            cursor: 'default',
+          };
+        }
+        if (obj === this.callbacks.bench.capacitorGroup || obj.name === 'capacitorGroup') {
+          return {
+            id: 'cap_capacitor',
+            label: 'CD293 储能电容器组件（1000 µF 25V 铝电解储能电容）',
+            cursor: 'default',
+          };
+        }
+        if (obj === this.callbacks.bench.currentSensorGroup || obj.name === 'currentSensorGroup') {
+          return {
+            id: 'cap_sensor',
+            label: 'DIS 数字化微电流传感器（高灵敏双向电流检测仪）',
             cursor: 'default',
           };
         }
@@ -96,6 +131,13 @@ export class CapacitorInteractionManager {
       }
       if (obj === this.callbacks.bench.switchRightContactMesh || obj.name === 'switchRightContact') {
         this.callbacks.onSetSwitchPosition('discharge');
+        return true;
+      }
+      if (
+        obj === this.callbacks.bench.powerKnobMesh ||
+        obj.name === 'powerKnobMesh'
+      ) {
+        this.callbacks.onAdjustVoltage?.();
         return true;
       }
       if (

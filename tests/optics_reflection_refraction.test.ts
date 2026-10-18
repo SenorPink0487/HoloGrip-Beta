@@ -506,10 +506,49 @@ console.log('Test 8: 3D Angle Annotation Labels (Incident, Reflected, Refracted 
   assert.strictEqual(apparatus.angleLabelsGroup.visible, false, 'angleLabelsGroup hidden when showAngleArcs is false');
 
   apparatus.dispose();
-  console.log('✓ Test 8 passed: Pure text angle annotations, integer precision & 0° snapping verified');
+  console.log('✓ Test 8 passed: Pure text angle annotations, integer precision & 0° snapping verified\n');
+}
+
+// Test 9: Center Crosshair Activation & Raycast Hover Detection Invariant
+console.log('Test 9: Center Crosshair Activation & Raycast Hover Detection Invariant');
+{
+  const exp = new OpticsReflectionRefractionExperiment();
+  const mockContext = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(60, 1920 / 1080, 0.1, 100) } as any;
+  exp.init(mockContext);
+  exp.rootGroup.updateMatrixWorld(true);
+
+  // 9.1 归一化指针坐标换算：在指针锁定激活状态下必须返回屏幕绝对中心 (0, 0) 以驱动准星
+  const mockEvent = { clientX: 500, clientY: 300 } as PointerEvent;
+  (globalThis as any).document.pointerLockElement = (globalThis as any).document.body;
+  const lockedCoords = exp.getNormalizedMouse(mockEvent);
+  assert.strictEqual(lockedCoords.x, 0, 'In pointer lock mode, NDC X must be 0 for center crosshair');
+  assert.strictEqual(lockedCoords.y, 0, 'In pointer lock mode, NDC Y must be 0 for center crosshair');
+
+  (globalThis as any).document.pointerLockElement = null;
+  const unlockedCoords = exp.getNormalizedMouse(mockEvent);
+  assert(unlockedCoords.x !== 0 || unlockedCoords.y !== 0, 'In free cursor mode, NDC coords reflect mouse position');
+
+  // 9.2 准星射线直接对准激光发射器手柄
+  const apparatus = exp.getApparatus();
+  const carriageWorldPos = new THREE.Vector3();
+  apparatus.laserCarriageGroup.getWorldPosition(carriageWorldPos);
+
+  const raycaster = new THREE.Raycaster();
+  raycaster.ray.origin.set(carriageWorldPos.x, carriageWorldPos.y, carriageWorldPos.z + 1.0);
+  raycaster.ray.direction.set(0, 0, -1);
+
+  const hover = exp.getHoverTarget(raycaster);
+  assert.ok(hover !== null, 'Center crosshair ray should detect hover target on laser emitter');
+  assert.strictEqual(hover?.id, 'laser_handle');
+  assert.strictEqual(hover?.cursor, 'grab');
+  assert.ok(hover?.label.includes('激光发射器'), 'Hover target must show descriptive label for crosshair tooltip');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 9 passed: Center crosshair activation and hover raycasting verified');
 }
 
 console.log('\n========================================================');
-console.log('All Light Reflection & Refraction Tests Passed Successfully (8/8)!');
+console.log('All Light Reflection & Refraction Tests Passed Successfully (9/9)!');
 console.log('========================================================\n');
+
 

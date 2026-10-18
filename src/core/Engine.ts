@@ -621,11 +621,7 @@ export class Engine {
   }
 
   private isFreeCursorExperiment(id: string | null): boolean {
-    return (
-      id === 'math-stereometry' ||
-      id === 'optics-diffraction' ||
-      id === 'optics-reflection-refraction'
-    );
+    return id === 'math-stereometry';
   }
 
   private initHUD(): void {

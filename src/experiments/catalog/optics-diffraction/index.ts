@@ -148,15 +148,26 @@ export default class OpticsDiffractionExperiment extends BaseExperiment {
   private mouseNDC = new THREE.Vector2();
   private internalRaycaster = new THREE.Raycaster();
 
+  /**
+   * 换算屏幕归一化坐标 (支持指针锁定准星 (0, 0) 与自由鼠标模式)
+   */
+  public getNormalizedMouse(event: PointerEvent): THREE.Vector2 {
+    const isLocked = typeof document !== 'undefined' && document.pointerLockElement !== null;
+    if (isLocked) {
+      return new THREE.Vector2(0, 0);
+    }
+    const width = typeof window !== 'undefined' ? window.innerWidth : 1920;
+    const height = typeof window !== 'undefined' ? window.innerHeight : 1080;
+    return new THREE.Vector2(
+      (event.clientX / width) * 2 - 1,
+      -(event.clientY / height) * 2 + 1
+    );
+  }
+
   public override onPointerMove(event: PointerEvent, _hit: THREE.Intersection | null, context: ExperimentContext): void {
     if (this.interactionManager?.isDragging) {
-      const width = typeof window !== 'undefined' ? window.innerWidth : 1920;
-      const height = typeof window !== 'undefined' ? window.innerHeight : 1080;
-      this.mouseNDC.set(
-        (event.clientX / width) * 2 - 1,
-        -(event.clientY / height) * 2 + 1
-      );
-      this.internalRaycaster.setFromCamera(this.mouseNDC, context.camera);
+      const mouse = this.getNormalizedMouse(event);
+      this.internalRaycaster.setFromCamera(mouse, context.camera);
       this.interactionManager.onPointerMove(event, this.internalRaycaster);
     }
   }

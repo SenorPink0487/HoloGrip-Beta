@@ -77,7 +77,21 @@ if (typeof globalThis.window === 'undefined') {
   };
 }
 if (typeof (globalThis as any).PointerEvent === 'undefined') {
-  (globalThis as any).PointerEvent = class PointerEvent extends Event {};
+  (globalThis as any).PointerEvent = class PointerEvent extends Event {
+    public clientX = 0;
+    public clientY = 0;
+    public movementX = 0;
+    public movementY = 0;
+    constructor(type: string, init?: any) {
+      super(type);
+      if (init) {
+        if (init.clientX !== undefined) this.clientX = init.clientX;
+        if (init.clientY !== undefined) this.clientY = init.clientY;
+        if (init.movementX !== undefined) this.movementX = init.movementX;
+        if (init.movementY !== undefined) this.movementY = init.movementY;
+      }
+    }
+  };
 }
 
 console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n');
@@ -415,6 +429,178 @@ console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n
   console.log('✓ Test 10 passed: Metadata and Physics Discipline Modal registration verified\n');
 }
 
+// -------------------------------------------------------------
+// Test 11: Center Crosshair Activation & Raycast Hover Detection Invariant
+// -------------------------------------------------------------
+{
+  console.log('Test 11: Center Crosshair Activation & Raycast Hover Detection Invariant');
+  const exp = new OpticsDiffractionExperiment();
+  const mockContext = {
+    scene: new THREE.Scene(),
+    camera: new THREE.PerspectiveCamera(60, 1920 / 1080, 0.1, 100),
+    setParameter: () => {},
+  } as any;
+  exp.init(mockContext);
+  exp.rootGroup.updateMatrixWorld(true);
+
+  // 11.1 归一化指针坐标换算：在指针锁定激活状态下必须返回屏幕绝对中心 (0, 0) 以驱动准星
+  const mockEvent = { clientX: 640, clientY: 480 } as PointerEvent;
+  (globalThis as any).document.pointerLockElement = (globalThis as any).document.body;
+  const lockedCoords = exp.getNormalizedMouse(mockEvent);
+  assert.strictEqual(lockedCoords.x, 0, 'In pointer lock mode, NDC X must be 0 for center crosshair');
+  assert.strictEqual(lockedCoords.y, 0, 'In pointer lock mode, NDC Y must be 0 for center crosshair');
+
+  (globalThis as any).document.pointerLockElement = null;
+  const unlockedCoords = exp.getNormalizedMouse(mockEvent);
+  assert(unlockedCoords.x !== 0 || unlockedCoords.y !== 0, 'In free cursor mode, NDC coords reflect mouse position');
+
+  // 11.2 准星射线直接对准激光电源开关
+  const bench = exp.getBench();
+  const raycaster = new THREE.Raycaster();
+  const switchWorldPos = new THREE.Vector3();
+  bench.laserSwitchMesh.getWorldPosition(switchWorldPos);
+
+  raycaster.ray.origin.set(switchWorldPos.x, switchWorldPos.y, switchWorldPos.z + 0.5);
+  raycaster.ray.direction.set(0, 0, -1);
+
+  const hoverSwitch = exp.getHoverTarget(raycaster);
+  assert.ok(hoverSwitch !== null, 'Center crosshair ray should detect hover target on laser switch');
+  assert.strictEqual(hoverSwitch?.id, 'laser_power');
+  assert.strictEqual(hoverSwitch?.cursor, 'pointer');
+  assert.ok(hoverSwitch?.label.includes('激光电源开关'), 'Hover target must show descriptive label for crosshair tooltip');
+
+  // 11.3 验证指针锁定状态下的微米鼓轮微调
+  const micrometerHit: any = {
+    object: bench.micrometerKnob,
+    point: new THREE.Vector3(),
+  };
+  const downHandled = exp.interactionManager.onPointerDown(new PointerEvent('pointerdown'), micrometerHit);
+  assert.strictEqual(downHandled, true);
+  assert.strictEqual(exp.interactionManager.isDragging, true);
+
+  (globalThis as any).document.pointerLockElement = (globalThis as any).document.body;
+  const initialWidth = bench.slitWidthMm;
+  const moveEvent = { movementX: 10 } as any;
+  exp.interactionManager.onPointerMove(moveEvent, raycaster);
+  assert(bench.slitWidthMm > initialWidth, 'Slit width should increase with positive movementX under pointer lock');
+
+  exp.interactionManager.onPointerUp(new PointerEvent('pointerup'));
+  (globalThis as any).document.pointerLockElement = null;
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 11 passed: Center crosshair activation and hover raycasting verified\n');
+}
+
+// -------------------------------------------------------------
+// Test 12: Minimalist Diffraction Screen Invariant (Pure Light Image Only)
+// -------------------------------------------------------------
+{
+  console.log('Test 12: Minimalist Diffraction Screen Invariant (Pure Light Image Only)');
+  const exp = new OpticsDiffractionExperiment();
+  const mockContext = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), setParameter: () => {} } as any;
+  exp.init(mockContext);
+
+  const bench = exp.getBench();
+
+  // 12.1 验证激光开启时：观测屏纹理更新仅渲染纯物理衍射光像，绝不绘制任何刻度文字、网格或波形图卡片
+  let filledTextCount = 0;
+  const originalGetContext = (bench as any).screenCanvas.getContext;
+  const mockCtx = (bench as any).screenCanvas.getContext('2d');
+  mockCtx.fillText = () => { filledTextCount++; };
+  mockCtx.strokeText = () => { filledTextCount++; };
+
+  bench.setLaserPower(true);
+  (bench as any).lastRenderHash = '';
+  bench.updateScreenTexture();
+  assert.strictEqual(filledTextCount, 0, 'Observation screen must not render any text, HUD cards, or scale numbers');
+
+  // 12.2 验证激光关闭时：观测屏保持纯黑深邃，不展示任何多余提示文字
+  bench.setLaserPower(false);
+  (bench as any).lastRenderHash = '';
+  bench.updateScreenTexture();
+  assert.strictEqual(filledTextCount, 0, 'Observation screen must not render text even when laser is off');
+
+  // 12.3 验证屏幕表面交互悬停文案体现纯光像呈现
+  const raycaster = new THREE.Raycaster();
+  const screenWorldPos = new THREE.Vector3();
+  bench.screenMesh.getWorldPosition(screenWorldPos);
+  raycaster.ray.origin.set(screenWorldPos.x, screenWorldPos.y, screenWorldPos.z + 0.5);
+  raycaster.ray.direction.set(0, 0, -1);
+
+  const hoverScreen = exp.getHoverTarget(raycaster);
+  assert.ok(hoverScreen !== null);
+  assert.strictEqual(hoverScreen?.id, 'screen_surface');
+  assert.ok(hoverScreen?.label.includes('激光衍射光斑'), 'Screen surface hover label should describe pure light pattern');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 12 passed: Minimalist diffraction screen invariant verified\n');
+}
+
+// -------------------------------------------------------------
+// Test 13: Adjustable Single Slit Mechanical Kinematics & Blade Separation Invariant
+// -------------------------------------------------------------
+{
+  console.log('Test 13: Adjustable Single Slit Mechanical Kinematics & Blade Separation Invariant');
+  const exp = new OpticsDiffractionExperiment();
+  const mockContext = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), setParameter: () => {} } as any;
+  exp.init(mockContext);
+
+  const bench = exp.getBench();
+
+  // 13.1 Verify physical presence of precision opposed knife-edge jaws
+  assert.ok(bench.leftJawMesh, 'Left knife-edge jaw must exist');
+  assert.ok(bench.rightJawMesh, 'Right knife-edge jaw must exist');
+  assert.ok(bench.micrometerKnob, 'Micrometer knob must exist');
+
+  // 13.2 Verify initial blade separation
+  bench.setSlitWidth(0.04);
+  const gapSmall = Math.abs(bench.rightJawMesh.position.z - bench.leftJawMesh.position.z);
+  const rotSmall = bench.micrometerKnob.rotation.z;
+
+  bench.setSlitWidth(0.20);
+  const gapLarge = Math.abs(bench.rightJawMesh.position.z - bench.leftJawMesh.position.z);
+  const rotLarge = bench.micrometerKnob.rotation.z;
+
+  assert(gapLarge > gapSmall, `Wider slit must yield wider blade gap in 3D: gapLarge=${gapLarge} > gapSmall=${gapSmall}`);
+  assert(rotLarge !== rotSmall, 'Micrometer knob must rotate when slit width changes');
+
+  // 13.3 Verify raycast hover on micrometer and jaws
+  const raycaster = new THREE.Raycaster();
+  const knobPos = new THREE.Vector3();
+  bench.micrometerKnob.getWorldPosition(knobPos);
+  raycaster.ray.origin.set(knobPos.x, knobPos.y, knobPos.z + 0.5);
+  raycaster.ray.direction.set(0, 0, -1);
+
+  const hoverKnob = exp.getHoverTarget(raycaster);
+  assert.ok(hoverKnob !== null, 'Micrometer knob must be hover-detectable');
+  assert.strictEqual(hoverKnob?.id, 'slit_micrometer');
+  assert.ok(hoverKnob?.label.includes('单缝'), 'Hover label must describe single slit micrometer');
+
+  // 13.4 Verify direct dragging of micrometer under free cursor
+  let changedSlitWidth = 0;
+  exp.interactionManager = new OpticalDiffractionInteractionManager(bench, exp.rootGroup, {
+    onSlitWidthChange: (w) => { changedSlitWidth = w; },
+  });
+
+  const hitKnob = { object: bench.micrometerKnob, point: knobPos } as any;
+  const downHandled = exp.interactionManager.onPointerDown(new PointerEvent('pointerdown', { clientX: 200 } as any), hitKnob);
+  assert.strictEqual(downHandled, true);
+  assert.strictEqual(exp.interactionManager.isDragging, true);
+
+  const moveEvent = { clientX: 260 } as any;
+  exp.interactionManager.onPointerMove(moveEvent, raycaster);
+  assert(changedSlitWidth > 0.20, `Dragging micrometer must update slit width, got ${changedSlitWidth}`);
+  assert.strictEqual(bench.slitWidthMm, changedSlitWidth);
+
+  exp.interactionManager.onPointerUp(new PointerEvent('pointerup'));
+  assert.strictEqual(exp.interactionManager.isDragging, false);
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 13 passed: Adjustable single slit mechanical kinematics & blade separation verified\n');
+}
+
 console.log('========================================================');
-console.log('All Light Diffraction Tests Passed (10/10)!');
+console.log('All Light Diffraction Tests Passed (13/13)!');
 console.log('========================================================\n');
+
+

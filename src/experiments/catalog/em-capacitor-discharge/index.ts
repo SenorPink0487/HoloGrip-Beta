@@ -56,6 +56,7 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
       bench: this.bench,
       onSetSwitchPosition: (pos) => this.setSwitchPosition(pos),
       onCycleSwitch: () => this.cycleSwitchPosition(),
+      onAdjustVoltage: () => this.cycleVoltagePreset(),
       onClearSamples: () => this.clearSamples(),
     });
 
