@@ -24,9 +24,9 @@ export const EARTH_MASS_KG = 5.972e24; // 地球质量 5.972 × 10^24 kg
 export const GRAVITATIONAL_CONSTANT = 6.6743e-11; // 万有引力常数 G (m^3 / kg s^2)
 export const STANDARD_GRAVITATIONAL_PARAMETER = 3.986004418e14; // mu = GM (m^3 / s^2)
 
-// 经典牛顿大炮高山发射高度 (等效于低地轨道 350km，脱离浓密大气阻力，纯引力场)
-export const CANNON_ALTITUDE_M = 350e3; // 350 km
-export const LAUNCH_RADIUS_M = EARTH_RADIUS_M + CANNON_ALTITUDE_M; // r0 = 6721 km
+// 经典牛顿大炮发射高度 (对应场景比例 0.14m/0.52m，约 1715km，纯引力天体轨道)
+export const CANNON_ALTITUDE_M = 1.715e6; // 1715 km
+export const LAUNCH_RADIUS_M = EARTH_RADIUS_M + CANNON_ALTITUDE_M; // r0 = 8086 km
 
 /**
  * 粒子状态枚举
@@ -129,20 +129,25 @@ export class NewtonCannonDynamicsSolver {
   public totalOrbitingCount = 0;
   public totalEscapedCount = 0;
 
-  // 仿真时间缩放 (默认 1 秒模拟真实世界 100 秒，使环绕 90 分钟周期在 54 秒内优美展示)
+  // 仿真时间缩放 (默认 1 秒模拟真实世界 120 秒，使环绕 90 分钟周期在 45 秒内优美展示)
   public timeScale = 120.0;
+
+  // 仿真模式：是否允许穿透地壳演化完整开普勒地心椭圆 (默认 false 保证碰撞测试兼容，在实验主场景设为 true)
+  public allowPenetration: boolean;
 
   constructor(options?: {
     mu?: number;
     earthRadius?: number;
     cannonAltitude?: number;
     timeScale?: number;
+    allowPenetration?: boolean;
   }) {
     this.mu = options?.mu ?? STANDARD_GRAVITATIONAL_PARAMETER;
     this.earthRadius = options?.earthRadius ?? EARTH_RADIUS_M;
     this.cannonAltitude = options?.cannonAltitude ?? CANNON_ALTITUDE_M;
     this.launchRadius = this.earthRadius + this.cannonAltitude;
     this.timeScale = options?.timeScale ?? 120.0;
+    this.allowPenetration = options?.allowPenetration ?? false;
 
     // 计算当前发射高度下的第一、第二宇宙速度 (km/s)
     this.v1KmS = Math.sqrt(this.mu / this.launchRadius) / 1000.0; // ~7.70 km/s (350km 高空)
@@ -242,19 +247,29 @@ export class NewtonCannonDynamicsSolver {
     const color = new THREE.Color();
 
     if (v0KmS < v1) {
-      // 次轨道落体：随着速度提升，从深珊瑚红过渡到亮橙黄色
+      // 次轨道落体：从烈焰高饱和猩红过渡到高能霓虹橙与金黄 (纯正饱和色谱，无灰暗/泛白分量)
       const t = Math.max(0, Math.min(1, (v0KmS - 2.5) / (v1 - 2.5)));
-      // #ff3344 -> #ffaa00
-      color.setRGB(1.0, 0.2 + t * 0.45, 0.25 - t * 0.2);
+      // #ff1744 -> #ff9100 -> #ffee00
+      const r = 1.0;
+      const g = 0.08 + t * 0.82;
+      const b = 0.02 * (1.0 - t);
+      color.setRGB(r, g, b);
     } else if (v0KmS <= v2) {
-      // 人造卫星轨道：从高科技极光青蓝过渡到明澈碧绿
+      // 人造卫星轨道：从极光电光青蓝过渡到明澈激光翠绿与湛蓝
       const t = Math.max(0, Math.min(1, (v0KmS - v1) / (v2 - v1)));
-      // #00e5ff -> #00ff88 -> #7000ff
-      color.setRGB(0.0 + t * 0.4, 0.95 - t * 0.15, 1.0 - t * 0.45);
+      // #00f0ff (第一宇宙速度入轨) -> #00e676 -> #2979ff
+      if (t < 0.5) {
+        const u = t * 2.0;
+        color.setRGB(0.0, 0.95 - u * 0.05, 1.0 - u * 0.54);
+      } else {
+        const u = (t - 0.5) * 2.0;
+        color.setRGB(0.0 + u * 0.16, 0.9 - u * 0.43, 0.46 + u * 0.54);
+      }
     } else {
-      // 第二宇宙速度逃逸：从亮紫罗兰过渡到高能洋红金
+      // 第二宇宙速度逃逸：高能霓虹紫罗兰过渡到热烈电光洋红与金粉
       const t = Math.max(0, Math.min(1, (v0KmS - v2) / 3.0));
-      color.setRGB(0.75 + t * 0.25, 0.2 + t * 0.3, 1.0);
+      // #d500f9 -> #f50057
+      color.setRGB(0.85 + t * 0.11, 0.0, 0.98 - t * 0.64);
     }
 
     return { color, hex: color.getHex() };
@@ -338,15 +353,13 @@ export class NewtonCannonDynamicsSolver {
 
   /**
    * 计算指定位置处的引力加速度矢量: a = - mu / r^3 * r
+   * 采用引力软化因子 eps = 200km，避免穿透地心极近处 (r -> 0) 时数值发散，保持光滑物理轨道
    */
   private getAcceleration(pos: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
     const r2 = pos.lengthSq();
-    const r = Math.sqrt(r2);
-    if (r < 1.0) {
-      out.set(0, 0, 0);
-      return out;
-    }
-    const factor = -this.mu / (r2 * r);
+    const eps2 = 200e3 * 200e3;
+    const rEff = Math.sqrt(r2 + eps2);
+    const factor = -this.mu / (rEff * rEff * rEff);
     out.copy(pos).multiplyScalar(factor);
     return out;
   }
@@ -439,8 +452,8 @@ export class NewtonCannonDynamicsSolver {
 
         const currentDist = p.position.length();
 
-        // 1. 撞击地面检测
-        if (currentDist <= this.earthRadius) {
+        // 1. 撞击地面检测 (在非穿模模式下截断落地；在穿模模式下允许粒子深入地心演化完整开普勒闭合椭圆)
+        if (!this.allowPenetration && currentDist <= this.earthRadius) {
           // 精确投影到地球表面
           p.position.normalize().multiplyScalar(this.earthRadius);
           p.velocity.set(0, 0, 0);
@@ -477,10 +490,22 @@ export class NewtonCannonDynamicsSolver {
 
       // 约每隔 80 km 采样一个点，在视觉上形成顺滑无棱角的光滑曲线
       if (distFromLast >= 80e3 || p.state === 'landed') {
+        let recX = p.position.x;
+        let recY = p.position.y;
+        let recZ = p.position.z;
+        if (!this.allowPenetration && p.state === 'landed') {
+          const r = Math.sqrt(recX * recX + recY * recY + recZ * recZ);
+          if (r < this.earthRadius && r > 0) {
+            const fac = this.earthRadius / r;
+            recX *= fac;
+            recY *= fac;
+            recZ *= fac;
+          }
+        }
         p.trail.push({
-          x: p.position.x,
-          y: p.position.y,
-          z: p.position.z,
+          x: recX,
+          y: recY,
+          z: recZ,
           speed: p.velocity.length(),
           time: p.flightTime,
         });

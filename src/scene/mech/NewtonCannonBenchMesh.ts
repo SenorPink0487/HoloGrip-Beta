@@ -59,18 +59,27 @@ export class NewtonCannonBenchMesh {
   public trailsGroup = new THREE.Group();
   public impactsGroup = new THREE.Group();
 
-  // 粒子球体缓存池
+  // 粒子球体缓存池 (双通道：常规可见通道 + 地心/背面 X-Ray 透视通道)
   private particleMeshes: THREE.Mesh[] = [];
+  private particleXRayMeshes: THREE.Mesh[] = [];
   private particleGlowMeshes: THREE.Mesh[] = [];
   private trailLines: Map<number, THREE.Line> = new Map();
+  private trailLinesXRay: Map<number, THREE.Line> = new Map();
   private impactRings: THREE.Mesh[] = [];
 
-  // 缩放比例：将物理世界的米制坐标 (约 6.721e6 m) 映射到 3D 实验台尺度
-  // 物理地球半径 6.371e6 m -> 场景半径 0.52 m
+  // 几何尺寸与缩放参数
+  public readonly earthRadiusScene: number;
+  public readonly earthRadiusM: number;
   public readonly SCALE_PHYSICS_TO_SCENE: number;
+
+  // 粒子与光晕视觉尺寸常量 (色彩饱满柔和，适中尺寸不突兀，避免强光泛白)
+  public readonly PARTICLE_RADIUS_SCENE = 0.020; // 20mm 粒子球半径
+  public readonly PARTICLE_GLOW_RADIUS_SCENE = 0.028; // 28mm 外层微光晕轮
 
   constructor(earthRadiusScene: number, earthRadiusM: number) {
     this.group.name = 'NewtonCannonBenchMesh';
+    this.earthRadiusScene = earthRadiusScene;
+    this.earthRadiusM = earthRadiusM;
     this.SCALE_PHYSICS_TO_SCENE = earthRadiusScene / earthRadiusM;
 
     // 构建 3D 控制台
@@ -446,9 +455,10 @@ export class NewtonCannonBenchMesh {
     ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
     ctx.fillText(`🛰️ 在轨人造卫星: ${telemetry.orbitingCount} 颗 (永不坠地)`, rx, 164);
 
-    // 地面坠落 (橙红)
-    ctx.fillStyle = '#f87171';
-    ctx.fillText(`💥 坠落地表: ${telemetry.landedCount} 颗`, rx, 204);
+    // 地心穿透闭合轨道 (橙红，透视可见)
+    const penetCount = Math.max(0, telemetry.totalParticles - telemetry.orbitingCount - telemetry.escapedCount);
+    ctx.fillStyle = '#fb923c';
+    ctx.fillText(`🌐 地心穿透闭合轨道: ${penetCount} 颗 (透视可见)`, rx, 204);
 
     // 深空逃逸 (紫光)
     ctx.fillStyle = '#c084fc';
@@ -493,91 +503,142 @@ export class NewtonCannonBenchMesh {
 
   /**
    * 高频同步物理粒子与彩色开普勒轨迹渲染
+   * 支持地心穿透与双通道 X-Ray 透视观察 (地面外部正常显示，地心与背面穿透透视)
    */
   public syncParticlesAndTrails(particles: CannonballParticle[]): void {
     const scale = this.SCALE_PHYSICS_TO_SCENE;
 
-    // 1. 扩容或缩减粒子网格缓存池
+    // 1. 扩容或缩减粒子网格缓存池 (双通道：常规可见网格 + 地心/背面 X-Ray 透视网格)
     while (this.particleMeshes.length < particles.length) {
-      const pGeo = new THREE.SphereGeometry(0.0075, 16, 16);
+      const pGeo = new THREE.SphereGeometry(this.PARTICLE_RADIUS_SCENE, 24, 24);
+
+      // A. 常规可视通道 (视线前方直接可见，色彩饱满温润，绝不刺眼泛白)
       const pMat = new THREE.MeshStandardMaterial({
         color: 0xffffff,
-        roughness: 0.15,
-        metalness: 0.8,
+        roughness: 0.4,
+        metalness: 0.15,
         emissive: 0xffffff,
-        emissiveIntensity: 0.8,
+        emissiveIntensity: 0.35, // 降低自发光，显露纯正饱满的原色
+        depthFunc: THREE.LessEqualDepth,
       });
       const pMesh = new THREE.Mesh(pGeo, pMat);
+      pMesh.renderOrder = 6;
 
-      // 发光耀斑
-      const glowGeo = new THREE.SphereGeometry(0.015, 12, 12);
+      // 柔和外层发光晕轮 (低透明度微光，不形成刺眼大白斑)
+      const glowGeo = new THREE.SphereGeometry(this.PARTICLE_GLOW_RADIUS_SCENE, 16, 16);
       const glowMat = new THREE.MeshBasicMaterial({
-        color: 0x38bdf8,
+        color: 0xffffff,
         transparent: true,
-        opacity: 0.45,
+        opacity: 0.22,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
       });
       const glowMesh = new THREE.Mesh(glowGeo, glowMat);
       pMesh.add(glowMesh);
 
+      // B. 地心与背面透视通道 (X-Ray 透视：当粒子穿透地心或运行到地球背面时，透视发光呈现)
+      const xrayMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.75,
+        depthFunc: THREE.GreaterDepth, // 仅在深度大于地球表面 (即位于地球内部或背后) 时渲染！
+        depthWrite: false,
+        blending: THREE.NormalBlending,
+      });
+      const xrayMesh = new THREE.Mesh(pGeo, xrayMat);
+      xrayMesh.renderOrder = 26; // 在地球表面完全绘制后叠加上屏
+
       this.particlesGroup.add(pMesh);
+      this.particlesGroup.add(xrayMesh);
       this.particleMeshes.push(pMesh);
+      this.particleXRayMeshes.push(xrayMesh);
       this.particleGlowMeshes.push(glowMesh);
     }
 
     // 隐藏多余粒子
     for (let i = particles.length; i < this.particleMeshes.length; i++) {
       this.particleMeshes[i].visible = false;
+      this.particleXRayMeshes[i].visible = false;
     }
 
-    // 2. 更新活跃粒子位置、颜色与显示
+    // 2. 更新活跃粒子位置、颜色与显示 (自由穿模演化，位置直通地心)
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       const mesh = this.particleMeshes[i];
+      const xrayMesh = this.particleXRayMeshes[i];
       const glow = this.particleGlowMeshes[i];
 
       mesh.visible = true;
-      mesh.position.set(p.position.x * scale, p.position.y * scale, p.position.z * scale);
+      xrayMesh.visible = true;
 
+      // 映射到 3D 世界坐标 (不添加任何人为地表截断，粒子自由穿透地心演化)
+      const posX = p.position.x * scale;
+      const posY = p.position.y * scale;
+      const posZ = p.position.z * scale;
+
+      mesh.position.set(posX, posY, posZ);
+      xrayMesh.position.set(posX, posY, posZ);
+
+      // 前景网格材质同步
       const mat = mesh.material as THREE.MeshStandardMaterial;
       mat.color.copy(p.color);
       mat.emissive.copy(p.color);
+      mat.emissiveIntensity = 0.35; // 柔和适度发光
+
       (glow.material as THREE.MeshBasicMaterial).color.copy(p.color);
+      (glow.material as THREE.MeshBasicMaterial).opacity = 0.22;
 
-      // 若撞击地面，稍微缩小变暗
-      if (p.state === 'landed') {
-        mesh.scale.set(0.65, 0.65, 0.65);
-        mat.emissiveIntensity = 0.2;
-      } else {
-        mesh.scale.set(1.0, 1.0, 1.0);
-        mat.emissiveIntensity = 0.9;
-      }
+      // 透视网格材质同步
+      const xmat = xrayMesh.material as THREE.MeshBasicMaterial;
+      xmat.color.copy(p.color);
+      xmat.opacity = 0.75;
 
-      // 3. 动态轨迹线渲染
-      let line = this.trailLines.get(p.id);
-      if (!line) {
+      // 3. 动态轨迹线渲染：双通道透视系统 (前景实线 + 地心/背面 X-Ray 透视线)
+      let lineNormal = this.trailLines.get(p.id);
+      let lineXRay = this.trailLinesXRay.get(p.id);
+      if (!lineNormal) {
         const lineGeo = new THREE.BufferGeometry();
-        const lineMat = new THREE.LineBasicMaterial({
+
+        // 前景正常轨道线 (视线前方实线)
+        const lineMatNormal = new THREE.LineBasicMaterial({
           color: p.color,
           transparent: true,
-          opacity: 0.85,
-          linewidth: 2,
+          opacity: 0.95,
+          linewidth: 3,
+          depthFunc: THREE.LessEqualDepth,
         });
-        line = new THREE.Line(lineGeo, lineMat);
-        this.trailsGroup.add(line);
-        this.trailLines.set(p.id, line);
+        lineNormal = new THREE.Line(lineGeo, lineMatNormal);
+        lineNormal.renderOrder = 5;
+        this.trailsGroup.add(lineNormal);
+        this.trailLines.set(p.id, lineNormal);
+
+        // 地心与背面透视轨道线 (X-Ray 穿透地球清晰发光呈现)
+        const lineMatXRay = new THREE.LineBasicMaterial({
+          color: p.color,
+          transparent: true,
+          opacity: 0.65,
+          linewidth: 2,
+          depthFunc: THREE.GreaterDepth,
+          depthWrite: false,
+        });
+        lineXRay = new THREE.Line(lineGeo, lineMatXRay);
+        lineXRay.renderOrder = 25;
+        this.trailsGroup.add(lineXRay);
+        this.trailLinesXRay.set(p.id, lineXRay);
       }
 
-      // 填充轨迹顶点数据
+      // 填充轨迹顶点数据 (不加任何地表截断，粒子与轨迹完整穿透地心演化)
       const trailPoints = p.trail;
       const count = trailPoints.length;
       const posArray = new Float32Array(count * 3);
+
       for (let pt = 0; pt < count; pt++) {
         posArray[pt * 3 + 0] = trailPoints[pt].x * scale;
         posArray[pt * 3 + 1] = trailPoints[pt].y * scale;
         posArray[pt * 3 + 2] = trailPoints[pt].z * scale;
       }
-      line.geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-      line.geometry.computeBoundingSphere();
+      lineNormal.geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+      lineNormal.geometry.computeBoundingSphere();
     }
   }
 
@@ -588,12 +649,21 @@ export class NewtonCannonBenchMesh {
     for (const mesh of this.particleMeshes) {
       mesh.visible = false;
     }
+    for (const mesh of this.particleXRayMeshes) {
+      mesh.visible = false;
+    }
     for (const line of this.trailLines.values()) {
       line.geometry.dispose();
       (line.material as THREE.Material).dispose();
       this.trailsGroup.remove(line);
     }
     this.trailLines.clear();
+
+    for (const line of this.trailLinesXRay.values()) {
+      (line.material as THREE.Material).dispose();
+      this.trailsGroup.remove(line);
+    }
+    this.trailLinesXRay.clear();
 
     for (const impact of this.impactRings) {
       impact.geometry.dispose();

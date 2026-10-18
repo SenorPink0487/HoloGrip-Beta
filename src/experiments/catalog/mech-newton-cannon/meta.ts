@@ -2,7 +2,7 @@ import type { ExperimentMetadata } from '../../../core/types.ts';
 
 export const metadata: ExperimentMetadata = {
   id: 'mech-newton-cannon',
-  name: '牛顿大炮与第一宇宙速度实验',
+  name: '牛顿大炮',
   category: 'mechanics',
   categoryName: '经典力学',
   description:

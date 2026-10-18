@@ -49,7 +49,14 @@ export class RealisticEarthMesh {
   // 3. 轨道基准参考环
   public orbitalRingMesh: THREE.Mesh;
 
-  // 4. 材质与着色器
+  // 4. 地球上方待命粒子与水平发射切线虚线 (Standby Particle & Tangent Aim Line)
+  public standbyParticleGroup = new THREE.Group();
+  public standbyParticleMesh: THREE.Mesh;
+  public standbyHaloMesh: THREE.Mesh;
+  public aimLineMesh: THREE.Line;
+  private standbyTime = 0;
+
+  // 5. 材质与着色器
   private earthMaterial: THREE.ShaderMaterial;
   private cloudMaterial: THREE.ShaderMaterial;
   private atmosphereMaterial: THREE.ShaderMaterial;
@@ -62,7 +69,7 @@ export class RealisticEarthMesh {
 
   // 几何尺寸常量 (场景三维世界米制单位)
   public readonly EARTH_RADIUS_SCENE = 0.52; // 地球半径 52cm
-  public readonly CANNON_HEIGHT_SCENE = 0.018; // 微型平贴发射台高度
+  public readonly CANNON_HEIGHT_SCENE = 0.14; // 地球上方发射点高度 (与参考图比例完全一致)
   public readonly LAUNCH_RADIUS_SCENE = this.EARTH_RADIUS_SCENE + this.CANNON_HEIGHT_SCENE;
 
   // 自转速度 (弧度/秒)
@@ -92,20 +99,24 @@ export class RealisticEarthMesh {
     this.atmosphereGlow = this.buildAtmosphereGlow();
     this.earthRotationGroup.add(this.atmosphereGlow);
 
-    // 4. 构建巍峨高山与牛顿大炮发射台
-    this.buildCannonStation();
-    this.earthRotationGroup.add(this.cannonStationGroup);
+    // 4. 保持地球表面自然纯净：严禁在地球表面放置意义不明的蓝色构件 (大炮管、线圈、立柱与蓝色环)
+    // 仅初始化占位对象以保证 API 与测试兼容性，绝不添加到 3D 渲染树中
+    this.cannonStationGroup = new THREE.Group();
+    this.cannonBarrelMesh = new THREE.Mesh();
+    this.cannonStationGroup.add(this.cannonBarrelMesh);
 
-    // 5. 构建第一宇宙速度半透明基准参考轨道环
-    this.orbitalRingMesh = this.buildOrbitalReferenceRing();
-    this.earthRotationGroup.add(this.orbitalRingMesh);
+    // 5. 轨道参考环 (不添加到地球表面，视界开阔干净)
+    this.orbitalRingMesh = new THREE.Mesh();
 
-    // 6. 构建发射点火特效组件
+    // 6. 构建地球上方待命粒子与水平切线虚线 (严格对齐用户图中样式)
+    this.buildStandbyParticleAndAimLine();
+    this.group.add(this.standbyParticleGroup);
+
+    // 7. 发射特效组占位
     this.buildMuzzleFlash();
 
-    // 7. 构建深空背景星芒
-    this.starfieldPoints = this.buildStarfield();
-    this.group.add(this.starfieldPoints);
+    // 8. 室内全息实验室环境：移除空中杂散固定的深空星芒粒子，保持实验空间绝对纯净
+    this.starfieldPoints = new THREE.Points();
   }
 
   /**
@@ -230,6 +241,7 @@ export class RealisticEarthMesh {
 
     const mesh = new THREE.Mesh(geo, this.earthMaterial);
     mesh.name = 'EarthCoreSphere';
+    mesh.renderOrder = 0;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     return mesh;
@@ -292,6 +304,7 @@ export class RealisticEarthMesh {
 
     const mesh = new THREE.Mesh(geo, this.cloudMaterial);
     mesh.name = 'EarthCloudSphere';
+    mesh.renderOrder = 1;
     return mesh;
   }
 
@@ -334,6 +347,7 @@ export class RealisticEarthMesh {
 
     const mesh = new THREE.Mesh(geo, this.atmosphereMaterial);
     mesh.name = 'AtmosphereGlow';
+    mesh.renderOrder = 2;
     return mesh;
   }
 
@@ -425,7 +439,69 @@ export class RealisticEarthMesh {
   }
 
   /**
-   * 6. 构建发射点火特效组件
+   * 6. 构建地球上方待命粒子与水平发射切线虚线 (Standby Particle & Tangent Aim Line)
+   * 严格匹配用户参考图：
+   * - 显著放大的高饱和发光粒子静止置于地球正上方 (0, LAUNCH_RADIUS_SCENE, 0)
+   * - 从粒子外沿向右水平拉出一条清晰高对比度的纯白切线虚线
+   */
+  private buildStandbyParticleAndAimLine(): void {
+    const launchY = this.LAUNCH_RADIUS_SCENE;
+
+    // A. 醒目发光待命小球 (色彩柔和饱满，杜绝过曝泛白，半径 0.024)
+    const pGeo = new THREE.SphereGeometry(0.024, 32, 32);
+    const pMat = new THREE.MeshStandardMaterial({
+      color: 0x00e5ff, // 纯正饱和极光电青色
+      emissive: 0x0099cc,
+      emissiveIntensity: 0.35, // 降低自发光，显现真实色彩，不晃眼
+      metalness: 0.15,
+      roughness: 0.4,
+    });
+    this.standbyParticleMesh = new THREE.Mesh(pGeo, pMat);
+    this.standbyParticleMesh.name = 'cannon-standby-particle';
+    this.standbyParticleMesh.position.set(0, launchY, 0);
+    this.standbyParticleMesh.renderOrder = 6;
+    this.standbyParticleGroup.add(this.standbyParticleMesh);
+
+    // 外层呼吸发光微耀斑
+    const haloGeo = new THREE.SphereGeometry(0.032, 24, 24);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0x00e5ff,
+      transparent: true,
+      opacity: 0.25, // 柔和微光，不刺眼
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.standbyHaloMesh = new THREE.Mesh(haloGeo, haloMat);
+    this.standbyParticleMesh.add(this.standbyHaloMesh);
+
+    // B. 水平向右延伸的白色发射切线虚线 (如同用户图中那样)
+    const points = [
+      new THREE.Vector3(0.035, launchY, 0),
+      new THREE.Vector3(1.65, launchY, 0),
+    ];
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+    const lineMat = new THREE.LineDashedMaterial({
+      color: 0xffffff, // 极高对比度纯白虚线
+      dashSize: 0.05,
+      gapSize: 0.03,
+      linewidth: 3,
+      transparent: false,
+      opacity: 1.0,
+    });
+    this.aimLineMesh = new THREE.Line(lineGeo, lineMat);
+    this.aimLineMesh.computeLineDistances();
+    this.standbyParticleGroup.add(this.aimLineMesh);
+  }
+
+  /**
+   * 控制待命粒子与发射切线指示线的显隐
+   */
+  public setStandbyVisible(visible: boolean): void {
+    this.standbyParticleGroup.visible = visible;
+  }
+
+  /**
+   * 7. 构建发射点火特效组件
    */
   private buildMuzzleFlash(): void {
     this.muzzleFlashGroup.position.set(0.042, this.LAUNCH_RADIUS_SCENE + 0.012, 0);
@@ -526,6 +602,13 @@ export class RealisticEarthMesh {
 
     // 高空云层超前漂移
     this.cloudSphere.rotation.y += this.cloudRotationSpeed * dt;
+
+    // 待命粒子微弱呼吸光晕
+    if (this.standbyParticleMesh && this.standbyParticleMesh.visible) {
+      this.standbyTime += dt;
+      const breath = 1.0 + Math.sin(this.standbyTime * 3.5) * 0.12;
+      this.standbyHaloMesh.scale.set(breath, breath, breath);
+    }
 
     // 发射点火特效衰减
     if (this.flashTimer > 0) {

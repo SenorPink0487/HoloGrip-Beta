@@ -162,8 +162,8 @@ console.log('Test 1: Theoretical Cosmic Velocities & Keplerian Orbits');
     `v1 calculation mismatch: got ${solver.v1KmS}, expected ${theoreticalV1}`
   );
   assert(
-    solver.v1KmS > 7.6 && solver.v1KmS < 7.9,
-    `v1 out of standard LEO range: ${solver.v1KmS} km/s`
+    solver.v1KmS > 6.8 && solver.v1KmS < 7.9,
+    `v1 out of orbital range: ${solver.v1KmS} km/s`
   );
 
   // 2. 验证第二宇宙速度 v2 = sqrt(2) * v1
@@ -260,11 +260,11 @@ console.log('\nTest 3: First Cosmic Velocity - Becomes Artificial Earth Satellit
 {
   const solver = new NewtonCannonDynamicsSolver({ timeScale: 60.0 });
 
-  // 发射一颗以第一宇宙速度 (如 7.72 km/s) 飞行的炮弹
+  // 发射一颗以第一宇宙速度飞行的炮弹
   const [satellite] = solver.launch({
     particleCount: 1,
-    minVelocityKmS: 7.72,
-    maxVelocityKmS: 7.72,
+    minVelocityKmS: solver.v1KmS + 0.05,
+    maxVelocityKmS: solver.v1KmS + 0.05,
   });
 
   // 模拟演化 6000 仿真秒 (相当于 1.6 个多小时，完成超过一整圈公转)

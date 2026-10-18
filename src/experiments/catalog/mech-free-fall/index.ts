@@ -37,14 +37,14 @@ export default class MechFreeFallExperiment extends BaseExperiment {
       fallDistanceM: this.mesh.FALL_DISTANCE_M,
     });
 
-    // 监听键盘快捷操作 (空格键 / R 旋转倒转，V 键切换抽气机)
+    // 监听键盘快捷操作 (R 键旋转倒转，V 键切换抽气机；空格键专用于视角上升，绝不拦截)
     if (typeof window !== 'undefined') {
       this.keydownListener = (e: KeyboardEvent) => {
         if (this.isDisposed) return;
         const target = e.target as HTMLElement | null;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
 
-        if (e.code === 'Space' || e.code === 'KeyR') {
+        if (e.code === 'KeyR') {
           e.preventDefault();
           this.invertTube();
         } else if (e.code === 'KeyV') {
@@ -106,7 +106,7 @@ export default class MechFreeFallExperiment extends BaseExperiment {
             id: 'freefall-rotate-button',
             label: isRotating
               ? '牛顿管正在翻转倒转中...'
-              : '3D 旋转倒转按钮 (↻ 180°) · 点击倒转以观察管内物体自由落体 (快捷键: 空格 / R)',
+              : '3D 旋转倒转按钮 (↻ 180°) · 点击倒转以观察管内物体自由落体 (快捷键: R 键)',
             cursor: 'pointer',
           };
         }

@@ -90,7 +90,7 @@ export class PhysicsDisciplineModal {
     },
     {
       id: 'mech-newton-cannon',
-      name: '牛顿大炮与第一宇宙速度',
+      name: '牛顿大炮',
       category: '万有引力与人造地球卫星',
       formula: 'v_1 = \\sqrt{\\frac{GM}{R}} \\approx 7.91\\text{ km/s}',
       iconSvg: `

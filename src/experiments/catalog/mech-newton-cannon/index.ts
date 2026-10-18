@@ -41,10 +41,11 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
     this.rootGroup.add(this.earth.group);
     this.addDisposable(() => this.earth.dispose());
 
-    // 2. 实例化天体力学与开普勒轨道求解器
+    // 2. 实例化天体力学与开普勒轨道求解器 (开启穿模地心轨道透视演化)
     this.solver = new NewtonCannonDynamicsSolver({
       earthRadius: EARTH_RADIUS_M,
       timeScale: this.timeScale,
+      allowPenetration: true,
     });
 
     // 3. 实例化 3D 航天发射控制台与粒子轨迹渲染系统
@@ -58,14 +59,14 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
 
-    // 4. 绑定全局键盘操作监听 (Space 发射, C 清空, R 重置, [ / ] 增减粒子, 1-4 预设)
+    // 4. 绑定全局键盘操作监听 (Enter 发射, C 清空, R 重置, [ / ] 增减粒子, 1-4 预设；空格键专用于视角上升，绝不拦截)
     if (typeof window !== 'undefined') {
       this.keydownListener = (e: KeyboardEvent) => {
         if (this.isDisposed) return;
         const target = e.target as HTMLElement | null;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
 
-        if (e.code === 'Space' || e.code === 'Enter') {
+        if (e.code === 'Enter') {
           e.preventDefault();
           this.triggerLaunch();
         } else if (e.code === 'KeyC') {
@@ -106,15 +107,8 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
     // 5. 初始化 3D 液晶遥测监视大屏
     this.syncLcd();
 
-    // 6. 首次进入 700ms 后自动执行一次标准全谱示范，直观展现落体、卫星与逃逸
-    if (typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
-      const demoTimer = window.setTimeout(() => {
-        if (!this.isDisposed && this.solver.particles.length === 0) {
-          this.triggerLaunch();
-        }
-      }, 700);
-      this.addDisposable(() => window.clearTimeout(demoTimer));
-    }
+    // 6. 初始待命状态：粒子静止置于地球正上方待命，等用户按下发射按钮才开始运动
+    this.earth.setStandbyVisible(true);
   }
 
   /**
@@ -139,27 +133,32 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
     // 1. 控制台物理大按钮机械下陷与回弹动画
     this.bench.triggerLaunchButtonPress();
 
-    // 2. 高山牛顿大炮高能等离子闪光与冲击环
+    // 2. 隐藏静态待命小球，运动粒子群正式发射
+    this.earth.setStandbyVisible(false);
+
+    // 3. 高能等离子发射闪光与冲击环
     this.earth.triggerMuzzleFlash();
 
-    // 3. 动力学求解器发射粒子群
+    // 4. 动力学求解器发射粒子群 (粒子开始运动)
     this.solver.launch({
       particleCount: this.particleCount,
       minVelocityKmS: this.minVelocityKmS,
       maxVelocityKmS: this.maxVelocityKmS,
     });
 
-    // 4. 同步 3D 粒子和轨迹
+    // 5. 同步 3D 粒子和轨迹
     this.bench.syncParticlesAndTrails(this.solver.particles);
     this.syncLcd();
   }
 
   /**
-   * 清空所有轨迹与已发射粒子
+   * 清空所有轨迹与已发射粒子，粒子重新回到地球正上方待命
    */
   public clearTrails(): void {
     this.solver.clear();
     this.bench.clearVisuals();
+    // 粒子重新在地球正上方静止待命
+    this.earth.setStandbyVisible(true);
     this.syncLcd();
   }
 
@@ -269,7 +268,7 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
           this.lastHoveredTarget = 'cannon-btn-launch';
           return {
             id: 'cannon-btn-launch',
-            label: `🚀 发射牛顿大炮 · 发射 ${this.particleCount} 颗粒子 [${this.minVelocityKmS.toFixed(1)}~${this.maxVelocityKmS.toFixed(1)} km/s] (点击发射 · 快捷键: 空格 / Enter)`,
+            label: `🚀 发射牛顿大炮 · 发射 ${this.particleCount} 颗粒子 [${this.minVelocityKmS.toFixed(1)}~${this.maxVelocityKmS.toFixed(1)} km/s] (点击发射 · 快捷键: 回车 Enter)`,
             cursor: 'pointer',
           };
         }
@@ -381,13 +380,17 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
           };
         }
 
-        // 6. 大炮发射台
-        if (cur === this.earth.cannonBarrelMesh || cur === this.earth.cannonStationGroup) {
+        // 6. 地球上方待命粒子
+        if (
+          cur.name === 'cannon-standby-particle' ||
+          cur === this.earth.standbyParticleMesh ||
+          cur === this.earth.standbyParticleGroup
+        ) {
           this.bench.setLaunchButtonHovered(false);
-          this.lastHoveredTarget = 'cannon-barrel';
+          this.lastHoveredTarget = 'cannon-standby-particle';
           return {
-            id: 'cannon-barrel',
-            label: '牛顿大炮发射管 · 位于 350km 高山之巅 (点击发射炮弹)',
+            id: 'cannon-standby-particle',
+            label: `待命粒子 (静止等待发射) · 初速区间: [${this.minVelocityKmS.toFixed(1)}~${this.maxVelocityKmS.toFixed(1)} km/s] · 点击发射 (快捷键: 回车 Enter)`,
             cursor: 'pointer',
           };
         }
@@ -425,11 +428,12 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
 
     let cur: THREE.Object3D | null = hit.object;
     while (cur && cur !== this.bench.group && cur !== this.earth.group) {
-      // 1. 发射按钮或大炮
+      // 1. 发射按钮或待命粒子
       if (
         cur.name === 'cannon-btn-launch' ||
         cur.userData?.isLaunchButton ||
-        cur === this.earth.cannonBarrelMesh
+        cur.name === 'cannon-standby-particle' ||
+        cur === this.earth.standbyParticleMesh
       ) {
         this.triggerLaunch();
         return true;
