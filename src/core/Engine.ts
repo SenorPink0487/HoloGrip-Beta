@@ -1859,8 +1859,8 @@ export class Engine {
             if (handled) {
               e.stopPropagation();
               this.isExperimentInteracting = true;
+              this.inputManager.player.enabled = false;
               if (!isPointerLocked) {
-                this.inputManager.player.enabled = false;
                 this.inputManager.player.allowPointerLock = false;
               }
               return;
@@ -1903,7 +1903,8 @@ export class Engine {
           this.currentExperimentId === 'mech-center-of-gravity' ||
           this.currentExperimentId === 'mech-newton-third' ||
           this.currentExperimentId === 'optics-diffraction' ||
-          this.currentExperimentId === 'optics-reflection-refraction') &&
+          this.currentExperimentId === 'optics-reflection-refraction' ||
+          this.currentExperimentId === 'em-capacitor-discharge') &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
         this.lastPointerRaycastTime = now;

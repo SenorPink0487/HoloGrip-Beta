@@ -1,0 +1,14 @@
+Generation: built-in image_gen
+Requested aspect ratio: 200:80 (5:2)
+
+Use case: ads-marketing
+Asset type: HoloGrip project promotional poster, ultra-wide 5:2 horizontal canvas, target 2500 x 1000 pixels (200:80 ratio).
+Primary request: 为 HoloGrip 沉浸式科学实验室创作一张“新旷野主义”海报。Neo-wilderness art direction: vast elemental landscape, poetic freedom, contemporary editorial restraint, nature meeting precise scientific exploration. This is wilderness-inspired design, not neo-brutalist graphic design.
+Scene/backdrop: a breathtaking open alpine grassland with pale weathered limestone, distant mountain silhouettes and an expansive luminous sky, natural morning haze, tactile grasses moving softly in the wind. A single refined HoloGrip scientific workbench sits organically within this landscape, facing the viewer.
+Subject: a premium satin-silver laboratory optical bench extending horizontally, polished chrome rails, champagne brass adjustment collars and knurled knobs, beautifully chamfered precision machining, readable etched graduations facing the viewer, one pristine clear optical glass prism splitting sunlight into a subtle spectral ray. Accurate sophisticated scientific equipment, never crude blocks or cylinders. Keep equipment subordinate to the grandeur and spaciousness of the wilderness.
+Style/medium: premium art-directed photographic campaign poster, cinematic environmental product photography, realistic natural materials, subtle fine film grain, exceptional detail, restrained editorial graphic design.
+Composition/framing: exact 5:2 ultra-wide full-bleed landscape. Beautiful panoramic negative space, low horizon, workbench in lower right half, headline in open upper left sky with generous margins, all content safely within canvas. Visually integrated editorial poster typography, not software UI.
+Lighting/mood: airy morning sunlight, luminous silver highlights, gentle atmosphere, a sense of discovery and open possibility.
+Color palette: soft grass green, limestone ivory, pale sky blue, satin silver, champagne brass. Type in restrained deep ocean sapphire. No muddy black surfaces.
+Text (verbatim): "HoloGrip" as a large confident elegant sans-serif wordmark; beneath it smaller Chinese text "沉浸式科学实验室". Only these two text elements, accurately spelled, crisp, balanced, no invented slogans.
+Constraints: generate ONE finished poster at 5:2 ratio, preferably 2500x1000. No floating software panels, no notifications, no cards, no buttons, no HUD, no watermarks, no clutter, no generic sci-fi city, no chunky primitive apparatus. Full finished image, not a poster photographed on a wall.

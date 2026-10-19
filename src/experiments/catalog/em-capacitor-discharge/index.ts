@@ -51,12 +51,15 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
 
-    // 2. 交互管理器：支持直接点击 3D 闸刀开关、接线端与台面示波器小屏幕
+    // 2. 交互管理器：支持直接点击与 3D 拖拽变阻器滑块、单刀双掷闸刀开关
     this.interactionManager = new CapacitorInteractionManager({
       bench: this.bench,
       onSetSwitchPosition: (pos) => this.setSwitchPosition(pos),
       onCycleSwitch: () => this.cycleSwitchPosition(),
       onAdjustVoltage: () => this.cycleVoltagePreset(),
+      onAdjustResistance: () => this.cycleResistancePreset(),
+      onSetResistance: (rOhm) => this.setResistance(rOhm),
+      onAdjustCapacitance: () => this.cycleCapacitancePreset(),
       onClearSamples: () => this.clearSamples(),
     });
 
@@ -78,6 +81,14 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
 
   public override onPointerDown(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean {
     return this.interactionManager?.onPointerDown(event, hit, context) ?? false;
+  }
+
+  public override onPointerMove(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void {
+    this.interactionManager?.onPointerMove(event, hit, context);
+  }
+
+  public override onPointerUp(event: PointerEvent, context: ExperimentContext): void {
+    this.interactionManager?.onPointerUp(event, context);
   }
 
   public update(delta: number, _elapsed: number, _context: ExperimentContext): void {
@@ -134,6 +145,24 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
     this.setVoltage(next);
   }
 
+  public cycleResistancePreset(): void {
+    const cur = this.model.dischargeResistance;
+    let next = 1000.0;
+    if (cur < 800) next = 1000.0;
+    else if (cur < 1500) next = 2000.0;
+    else next = 500.0;
+    this.setResistance(next);
+  }
+
+  public cycleCapacitancePreset(): void {
+    const cur = this.model.capacitanceMicroFarad;
+    let next = 1000.0;
+    if (cur < 800) next = 1000.0;
+    else if (cur < 1500) next = 2200.0;
+    else next = 470.0;
+    this.setCapacitance(next);
+  }
+
   public setVoltage(volts: number): void {
     this.model.setVoltageSupply(volts);
     this.syncTelemetry();
@@ -141,11 +170,13 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
 
   public setCapacitance(cMicroFarad: number): void {
     this.model.setCapacitance(cMicroFarad);
+    this.bench?.setCapacitance(cMicroFarad);
     this.syncTelemetry();
   }
 
   public setResistance(rOhm: number): void {
     this.model.setDischargeResistance(rOhm);
+    this.bench?.setResistance(rOhm);
     this.syncTelemetry();
   }
 
