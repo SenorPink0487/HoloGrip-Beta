@@ -2,6 +2,7 @@ import { fetchMe, joinClass, logout, messageOf, restoreSession, updateClassName,
 import { AuthPanel } from '../account/AuthPanel.ts';
 import { formatInviteCode, normalizeInviteCode } from '../account/invite.ts';
 import { clearSession, getUser, hasRefreshToken, readRefresh, subscribe, updateUser } from '../account/session.ts';
+import { accountPreferences } from '../account/preferences.ts';
 import type { AccountUser, ClassStudent } from '../account/types.ts';
 import { AccountApiError } from '../account/types.ts';
 import type { WhiteboardCanvas } from './WhiteboardCanvas';
@@ -408,7 +409,10 @@ export class AccountModal {
     button.textContent = '退出登录';
     button.addEventListener('click', () => {
       const refresh = readRefresh();
-      void logout(refresh).finally(() => clearSession());
+      button.disabled = true;
+      void accountPreferences().flush()
+        .then(() => logout(refresh))
+        .finally(() => clearSession());
     });
     return button;
   }

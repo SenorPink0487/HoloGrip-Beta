@@ -3,10 +3,10 @@
  * 经典力学交互式 3D 实验主控模块
  *
  * 【核心设计铁律遵从】：
- * 1. 严禁出现任何 DOM 悬浮提示弹窗、向导 Banner 或浮动卡片！
- * 2. 实验全流程依托纯三维物理模型、鼠标自由无锁拖拽、光标手势与物理材质反馈自然完成；
- * 3. 三只弹簧测力计：一只独立垂直悬挂，两只水平精密对扣；
- * 4. 实时动态验证：大小相等、方向相反、共线同生同灭。
+ * 1. 严格零 DOM 弹窗/浮动向导：严禁注入任何 DOM 悬浮提示弹窗、向导 Banner 或浮动卡片；
+ * 2. 纯三维物理建模：场景中仅有 3 只高精细度透明圆筒弹簧测力计（1只独立垂直，2只水平对扣互拉）；
+ * 3. 自由光标桌面交互：鼠标自由无锁拖拽，光标手势（grab/grabbing）与原生 3D 物理材质反馈自然联动；
+ * 4. 实时动态验证：大小严格恒等 (F_A ≡ F_B)、方向相反、共线同生同灭同增同减。
  */
 
 import * as THREE from 'three';
@@ -22,7 +22,7 @@ import { metadata } from './meta.ts';
 export default class MechNewtonThirdExperiment extends BaseExperiment {
   public readonly metadata = metadata;
 
-  // 近景大尺寸特写展示，确保用户看清每个小孔、弹簧螺线与刻度细节
+  // 近景特写展示，确保用户看清每个刻度分度、弹簧螺线与红盘游标细节
   public override targetScale = 2.25;
   public override hideCenterEmitter = true;
 
@@ -39,6 +39,9 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
   private dragStartPointerPosLocal = new THREE.Vector3();
   private dragStartForce = 0;
 
+  // 当前悬停高亮测力计
+  private currentHoveredDynamometer: 'solo' | 'A' | 'B' | null = null;
+
   public init(_context: ExperimentContext): void {
     // 根节点定位至台前近景工作台视界 (Y=0.08, Z=1.30)
     this.rootGroup.position.set(0, 0.08, 1.30);
@@ -46,14 +49,14 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     // 1. 实例化动力学求解器
     this.solver = new NewtonThirdDynamicsSolver();
 
-    // 2. 实例化 3D 实验台构件
+    // 2. 实例化 3D 测力计装配体 (严格仅有 3 只弹簧测力计)
     this.bench = new NewtonThirdBenchMesh();
     this.rootGroup.add(this.bench.group);
     this.addDisposable(() => this.bench.dispose());
   }
 
   /**
-   * 物理与视觉主更新循环 (120 FPS 纯物理驱动)
+   * 物理与视觉主更新循环 (纯物理驱动)
    */
   public update(delta: number, elapsed: number, _context: ExperimentContext): void {
     if (this.isDisposed) return;
@@ -61,7 +64,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     // 1. 动力学求解步进
     this.solver.update(delta, elapsed);
 
-    // 2. 同步更新 3D 机械结构、螺旋弹簧拉伸、两端挂钩扣合与深海蓝遥测屏幕
+    // 2. 同步更新 3D 测力计螺旋弹簧拉伸、两端挂钩扣合连动
     this.bench.updateVisualState(
       this.solver.soloState.forceN,
       this.solver.pairState.forceN,
@@ -81,53 +84,35 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
 
     let obj: THREE.Object3D | null = hit.object;
 
-    // 1. 检测是否点击了 3D 预设微动机械按钮
     while (obj && obj !== this.rootGroup) {
-      if (obj.userData?.buttonId) {
-        const btnId = obj.userData.buttonId as string;
-        this.bench.animateButtonPress(btnId);
-
-        const btnDef = this.bench.benchButtons.find((b) => b.id === btnId);
-        if (btnDef) {
-          if (btnDef.action === 'preset') {
-            this.solver.setMode('manual_drag');
-            this.solver.setPairTargetForce(btnDef.targetForce ?? 2.5);
-          } else if (btnDef.action === 'oscillation') {
-            this.solver.setMode('oscillation');
-          } else if (btnDef.action === 'reset') {
-            this.solver.setMode('manual_drag');
-            this.solver.reset();
-          }
-        }
-        return true;
-      }
-
-      // 检测是否点击了钩码 (挂载到独立测力计)
-      if (obj.userData?.weightMassKg) {
-        const mass = obj.userData.weightMassKg;
-        if (this.solver.soloState.suspendedWeightKg > 0) {
-          this.solver.hangWeightOnSolo(0); // 取下钩码
-        } else {
-          this.solver.hangWeightOnSolo(mass); // 挂上钩码
-        }
-        return true;
-      }
-
-      // 检测是否按在右侧测力计拉动手柄上
+      // 1. 检测是否点击在互拉测力计 B 或其挂钩/手柄上
       if (
-        obj.name === 'pair-pull-handle-hitbox' ||
         obj.name === 'DynamometerB' ||
-        obj.parent?.name === 'DynamometerB'
+        obj.name.startsWith('DynamometerB') ||
+        obj === this.bench.dynamometerB.group ||
+        this.isDescendantOf(obj, this.bench.dynamometerB.group)
       ) {
         this.startDraggingPair(event, hit, context);
         return true;
       }
 
-      // 检测是否按在左侧独立测力计的秤钩上
+      // 2. 检测是否点击在互拉测力计 A 上
       if (
-        obj.name.includes('hook') ||
+        obj.name === 'DynamometerA' ||
+        obj.name.startsWith('DynamometerA') ||
+        obj === this.bench.dynamometerA.group ||
+        this.isDescendantOf(obj, this.bench.dynamometerA.group)
+      ) {
+        this.startDraggingPair(event, hit, context);
+        return true;
+      }
+
+      // 3. 检测是否点击在左侧独立测力计上
+      if (
         obj.name === 'SoloDynamometer' ||
-        obj.parent?.name === 'SoloDynamometer'
+        obj.name.startsWith('SoloDynamometer') ||
+        obj === this.bench.soloDynamometer.group ||
+        this.isDescendantOf(obj, this.bench.soloDynamometer.group)
       ) {
         this.startDraggingSolo(event, hit, context);
         return true;
@@ -140,7 +125,19 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
   }
 
   /**
-   * 启动右侧双测力计手柄拖拽
+   * 判断节点是否为特定父节点的后代
+   */
+  private isDescendantOf(child: THREE.Object3D, parent: THREE.Object3D): boolean {
+    let curr: THREE.Object3D | null = child;
+    while (curr) {
+      if (curr === parent) return true;
+      curr = curr.parent;
+    }
+    return false;
+  }
+
+  /**
+   * 启动双测力计水平互拉拖拽
    */
   private startDraggingPair(
     event: PointerEvent,
@@ -166,7 +163,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
   }
 
   /**
-   * 启动左侧独立测力计垂直拉拽
+   * 启动左侧独立测力计垂直下拖
    */
   private startDraggingSolo(
     event: PointerEvent,
@@ -199,7 +196,6 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     context: ExperimentContext
   ): void {
     if (!context.camera) return;
-
     if (!this.isDraggingPair && !this.isDraggingSolo) return;
 
     this.getBenchWorldPlane(this.dragPlane);
@@ -215,7 +211,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
       this.dragPlaneIntersection.clone()
     );
 
-    // 1. 双测力计水平拖拽
+    // 1. 双测力计水平互拉拖拽
     if (this.isDraggingPair) {
       const deltaX = currentDragLocal.x - this.dragStartPointerPosLocal.x;
       // 水平位移每移动 0.035m 增加 1.0 N 拉力
@@ -249,7 +245,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     if (this.isDraggingSolo) {
       this.isDraggingSolo = false;
       this.solver.soloState.isHandDragging = false;
-      // 若未挂载钩码，松手后平缓回弹归零
+      // 若无持续外力，松手后平缓回弹归零
       if (this.solver.soloState.suspendedWeightKg <= 0) {
         this.solver.setSoloTargetForce(0, false);
       }
@@ -257,13 +253,13 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
   }
 
   /**
-   * 获取台面工作平面的世界 3D 平面 (以 rootGroup 局部朝向为基准)
+   * 获取台面工作平面的世界 3D 平面
    */
   private getBenchWorldPlane(targetPlane: THREE.Plane): THREE.Plane {
     const normal = new THREE.Vector3(0, 0, 1)
       .applyQuaternion(this.rootGroup.quaternion)
       .normalize();
-    const point = this.rootGroup.localToWorld(new THREE.Vector3(0, 0, 0.05));
+    const point = this.rootGroup.localToWorld(new THREE.Vector3(0, 0.22, 0.0));
     return targetPlane.setFromNormalAndCoplanarPoint(normal, point);
   }
 
@@ -275,55 +271,67 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
   ): { id: string; label: string; cursor?: string } | null {
     const hits = raycaster.intersectObjects(this.rootGroup.children, true);
     if (hits.length === 0) {
-      this.bench.handleAuraMesh.scale.set(1, 1, 1);
+      this.clearHoverHighlight();
       return null;
     }
 
     const hitObj = hits[0].object;
 
-    if (
-      hitObj.name === 'pair-pull-handle-hitbox' ||
-      hitObj.name === 'DynamometerB' ||
-      hitObj.parent?.name === 'DynamometerB'
-    ) {
-      this.bench.handleAuraMesh.scale.set(1.15, 1.15, 1.15);
+    // 检测是否悬停在互拉测力计 B 上
+    if (this.isDescendantOf(hitObj, this.bench.dynamometerB.group)) {
+      this.setHoverHighlight('B');
       return {
-        id: 'dynamometer-b-handle',
-        label: '右侧测力计拉动手柄 · 按住向右拖拽',
+        id: 'dynamometer-b',
+        label: '互拉测力计 B · 按住向右拖拽',
         cursor: 'grab',
       };
     }
 
-    if (hitObj.userData?.buttonId) {
-      const btn = this.bench.benchButtons.find((b) => b.id === hitObj.userData.buttonId);
+    // 检测是否悬停在互拉测力计 A 上
+    if (this.isDescendantOf(hitObj, this.bench.dynamometerA.group)) {
+      this.setHoverHighlight('A');
       return {
-        id: hitObj.userData.buttonId,
-        label: `微动按键 · 单击触发【${btn?.label || '控制'}】`,
-        cursor: 'pointer',
-      };
-    }
-
-    if (hitObj.userData?.weightMassKg) {
-      return {
-        id: 'lab-weight',
-        label: '标准 1.0 N 钩码 · 单击悬挂于独立测力计',
-        cursor: 'pointer',
-      };
-    }
-
-    if (
-      hitObj.name.includes('hook') ||
-      hitObj.name === 'SoloDynamometer' ||
-      hitObj.parent?.name === 'SoloDynamometer'
-    ) {
-      return {
-        id: 'solo-dynamometer-hook',
-        label: '独立测力计秤钩 · 按住向下拖拽体验拉力',
+        id: 'dynamometer-a',
+        label: '互拉测力计 A · 与测力计 B 挂钩互扣',
         cursor: 'grab',
       };
     }
 
+    // 检测是否悬停在独立测力计上
+    if (this.isDescendantOf(hitObj, this.bench.soloDynamometer.group)) {
+      this.setHoverHighlight('solo');
+      return {
+        id: 'dynamometer-solo',
+        label: '独立测力计 · 按住向下拖拽体验拉力',
+        cursor: 'grab',
+      };
+    }
+
+    this.clearHoverHighlight();
     return null;
+  }
+
+  /**
+   * 设置高亮反馈
+   */
+  private setHoverHighlight(target: 'solo' | 'A' | 'B'): void {
+    if (this.currentHoveredDynamometer === target) return;
+    this.clearHoverHighlight();
+    this.currentHoveredDynamometer = target;
+    if (target === 'solo') this.bench.soloDynamometer.setHighlighted(true);
+    if (target === 'A') this.bench.dynamometerA.setHighlighted(true);
+    if (target === 'B') this.bench.dynamometerB.setHighlighted(true);
+  }
+
+  /**
+   * 清除高亮
+   */
+  private clearHoverHighlight(): void {
+    if (!this.currentHoveredDynamometer) return;
+    if (this.currentHoveredDynamometer === 'solo') this.bench.soloDynamometer.setHighlighted(false);
+    if (this.currentHoveredDynamometer === 'A') this.bench.dynamometerA.setHighlighted(false);
+    if (this.currentHoveredDynamometer === 'B') this.bench.dynamometerB.setHighlighted(false);
+    this.currentHoveredDynamometer = null;
   }
 
   /**
@@ -370,10 +378,11 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
   }
 
   /**
-   * 深度释放 GPU 资源与动画定时器
+   * 深度释放 GPU 资源
    */
   public override dispose(context: ExperimentContext): void {
     this.isDisposed = true;
+    this.clearHoverHighlight();
     super.dispose(context);
   }
 }

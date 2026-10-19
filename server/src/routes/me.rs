@@ -6,6 +6,7 @@ use crate::auth::token::CurrentUser;
 use crate::dto::MeResponse;
 use crate::error::AppError;
 use crate::profile::load_me;
+use crate::preferences::AccountPreferences;
 use crate::routes::auth::normalize_display_name;
 use crate::state::AppState;
 
@@ -34,4 +35,22 @@ pub async fn update_me(
         .execute(&state.pool)
         .await?;
     Ok(Json(load_me(&state.pool, &user.id).await?))
+}
+
+pub async fn update_preferences(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Json(body): Json<AccountPreferences>,
+) -> Result<Json<AccountPreferences>, AppError> {
+    body.validate()?;
+    if let Some(scale) = body.spatial_window_scale {
+        sqlx::query(
+            "UPDATE users SET preferences = JSON_SET(COALESCE(preferences, JSON_OBJECT()), '$.spatialWindowScale', ?) WHERE id = ?",
+        )
+        .bind(scale)
+        .bind(&user.id)
+        .execute(&state.pool)
+        .await?;
+    }
+    Ok(Json(load_me(&state.pool, &user.id).await?.preferences))
 }

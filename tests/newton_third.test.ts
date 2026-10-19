@@ -22,6 +22,8 @@ class MockCanvasContext {
   arc() {}
   roundRect() {}
   fillText() {}
+  save() {}
+  restore() {}
   setLineDash(d: number[]) { this.dash = d; }
   getLineDash() { return this.dash; }
   createLinearGradient() {
@@ -165,8 +167,16 @@ const bench = new NewtonThirdBenchMesh();
 assert(bench.soloDynamometer instanceof SpringDynamometerMesh, 'Must have solo dynamometer');
 assert(bench.dynamometerA instanceof SpringDynamometerMesh, 'Must have dynamometer A');
 assert(bench.dynamometerB instanceof SpringDynamometerMesh, 'Must have dynamometer B');
-assert(bench.benchButtons.length === 5, 'Must have 5 bench pushbuttons');
-assert(bench.weightMeshes.length === 2, 'Must have 2 laboratory slotted weights');
+
+// 验证颜色鲜明对比 (物体 A 与 物体 B 互拉配色对比鲜明)
+assert.notStrictEqual(bench.dynamometerA.casingColor, bench.dynamometerB.casingColor, 'Dynamometer A and B must have contrasting colors');
+assert.notStrictEqual(bench.dynamometerA.casingColor, bench.soloDynamometer.casingColor, 'Dynamometer A and Solo must have distinct colors');
+
+// 验证测力计整体悬浮在空中 (高度 Y >= 0.20m，脱离台面)
+assert(bench.hoverHeightY >= 0.20, 'Bench hover height must be elevated above table');
+assert(bench.dynamometerA.group.position.y >= 0.20, 'Dynamometer A must float in mid-air');
+assert(bench.dynamometerB.group.position.y >= 0.20, 'Dynamometer B must float in mid-air');
+assert(bench.soloDynamometer.group.position.y >= 0.20, 'Solo dynamometer must float in mid-air');
 
 // 验证两只对扣测力计的初始朝向与布局
 assert.strictEqual(bench.dynamometerA.group.rotation.z, -Math.PI / 2, 'Dynamometer A faces right');

@@ -28,6 +28,7 @@ pub struct MeResponse {
     pub role: String,
     pub display_name: Option<String>,
     pub class: Option<ClassView>,
+    pub preferences: crate::preferences::AccountPreferences,
 }
 
 #[derive(Debug, Serialize)]

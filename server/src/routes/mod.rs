@@ -35,6 +35,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/auth/refresh", post(auth::refresh))
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/me", get(me::me).patch(me::update_me))
+        .route("/api/v1/me/preferences", patch(me::update_preferences))
         .route("/api/v1/classes/current", patch(classes::update_class))
         .route("/api/v1/classes/join", post(classes::join_class))
         .layer(TraceLayer::new_for_http())

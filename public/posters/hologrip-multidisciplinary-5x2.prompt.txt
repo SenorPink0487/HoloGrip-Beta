@@ -1,0 +1,18 @@
+Generation: image-generator subagent & precision 5:2 composition framing
+Requested aspect ratio: 5:2 (2000 x 800 px)
+
+Use case: ads-marketing
+Asset type: HoloGrip flagship product promotional poster, 5:2 ultra-wide horizontal format (2000 x 800 pixels).
+Theme: 空间数理化全息交融与裸手空间交互 (Multi-Disciplinary Science Fusion: Mathematics, Physics, Chemistry & Spatial Direct Manipulation)
+Visual Hierarchy & Elements:
+- Floating HoloTable Workstation: Aerospace satin-silver aluminum (`#e2e8f0`) base with dual 316L liquid-chrome rails and champagne brass corner collars.
+- Mathematics (数): Golden wireframe stereometric polyhedra (regular dodecahedron and icosahedron) and topological minimal surfaces hovering in upper 3D space.
+- Physics (理): Optical dispersion prism splitting a coherent cyan laser beam into an ethereal spectral rainbow ribbon, enclosed within concentric glowing electromagnetic field lines.
+- Chemistry (化): Luminous fullerene / diamond crystal molecular lattice sphere with subtle radiant reaction particles.
+- Spatial Direct Manipulation (裸手交互): Bare human hand with luminous spatial tracking indicator rings, seamlessly pinching and interacting with the floating UI and physical vectors.
+- UI & Environment: Apple Vision Pro frosted glass spatial telemetry panels in deep oceanic sapphire space (`#08101e`), with zero muddy black plastics or crude primitives.
+- Integrated Typography:
+  - Brand: "HoloGrip"
+  - Main Slogan: "无界全息 · 触碰数理化真理"
+  - Subtitle: "新一代空间全息虚拟科研实验室"
+  - Badges: "数学立体几何 · 物理场域 · 化学分子 | 裸手空间交互"

@@ -892,11 +892,12 @@ export class VisionModal {
     this.setScale(this.DEFAULT_SCALE);
   }
 
-  public setScale(scale: number): void {
+  public setScale(scale: number, showIndicator = true): void {
+    if (!Number.isFinite(scale)) return;
     const clamped = Math.min(this.MAX_SCALE, Math.max(this.MIN_SCALE, scale));
     this.currentScale = Math.round(clamped * 100) / 100;
     this.callbacks.onScaleChange?.(this.currentScale);
-    this.showScaleIndicator();
+    if (showIndicator) this.showScaleIndicator();
   }
 
   public get scale(): number {

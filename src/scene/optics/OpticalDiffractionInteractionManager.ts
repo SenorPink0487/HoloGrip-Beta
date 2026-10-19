@@ -105,9 +105,10 @@ export class OpticalDiffractionInteractionManager {
         }
 
         if (id === 'slit_turret' || cur.name === 'SlitTurretWheel') {
+          const typeName = this.bench.diffractionType === 'single' ? '单缝' : this.bench.diffractionType === 'double' ? '双缝' : this.bench.diffractionType === 'circular' ? '圆孔' : '光栅';
           return {
             id: 'slit_turret',
-            label: `精密测微可调单缝仪 (当前缝宽 a = ${this.bench.slitWidthMm.toFixed(2)} mm)`,
+            label: `精密衍射元件架 · 当前[${typeName}] (点击切换单缝/双缝/圆孔/光栅)`,
             cursor: 'pointer',
           };
         }

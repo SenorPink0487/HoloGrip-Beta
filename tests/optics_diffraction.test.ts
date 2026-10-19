@@ -12,6 +12,7 @@ import { PhysicsDisciplineModal } from '../src/ui/vision/PhysicsDisciplineModal.
 
 // Minimal DOM mock for Node.js test environment
 const createMockElement = (tag = 'div'): any => {
+  let context2d: any = null;
   const el: any = {
     tagName: tag.toUpperCase(),
     id: '',
@@ -27,37 +28,42 @@ const createMockElement = (tag = 'div'): any => {
     removeEventListener: () => {},
     getContext: (type: string) => {
       if (type === '2d') {
-        return {
-          fillStyle: '',
-          strokeStyle: '',
-          lineWidth: 1,
-          font: '',
-          textAlign: '',
-          textBaseline: '',
-          shadowColor: '',
-          shadowBlur: 0,
-          fillRect: () => {},
-          strokeRect: () => {},
-          clearRect: () => {},
-          fillText: () => {},
-          strokeText: () => {},
-          beginPath: () => {},
-          moveTo: () => {},
-          lineTo: () => {},
-          stroke: () => {},
-          fill: () => {},
-          arc: () => {},
-          setLineDash: () => {},
-          createImageData: (w: number, h: number) => ({
-            width: w,
-            height: h,
-            data: new Uint8ClampedArray(w * h * 4),
-          }),
-          putImageData: () => {},
-          createLinearGradient: () => ({
-            addColorStop: () => {},
-          }),
-        };
+        if (!context2d) {
+          context2d = {
+            fillStyle: '',
+            strokeStyle: '',
+            lineWidth: 1,
+            font: '',
+            textAlign: '',
+            textBaseline: '',
+            shadowColor: '',
+            shadowBlur: 0,
+            save: () => {},
+            restore: () => {},
+            fillRect: () => {},
+            strokeRect: () => {},
+            clearRect: () => {},
+            fillText: () => {},
+            strokeText: () => {},
+            beginPath: () => {},
+            moveTo: () => {},
+            lineTo: () => {},
+            stroke: () => {},
+            fill: () => {},
+            arc: () => {},
+            setLineDash: () => {},
+            createImageData: (w: number, h: number) => ({
+              width: w,
+              height: h,
+              data: new Uint8ClampedArray(w * h * 4),
+            }),
+            putImageData: () => {},
+            createLinearGradient: () => ({
+              addColorStop: () => {},
+            }),
+          };
+        }
+        return context2d;
       }
       return null;
     },
@@ -599,8 +605,78 @@ console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n
   console.log('✓ Test 13 passed: Adjustable single slit mechanical kinematics & blade separation verified\n');
 }
 
+// -------------------------------------------------------------
+// Test 14: Pure Large Deep-Colored Slit Value Text Invariant (No Square UI / Card Border)
+// -------------------------------------------------------------
+{
+  console.log('Test 14: Pure Large Deep-Colored Slit Value Text Invariant (No Square UI / Card Border)');
+  const exp = new OpticsDiffractionExperiment();
+  const mockContext = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), setParameter: () => {} } as any;
+  exp.init(mockContext);
+
+  const bench = exp.getBench();
+
+  // 14.1 验证缝隙数值标注必须采用纯文字 3D Sprite，杜绝低多边形平板/卡片网格拼接
+  let foundSprite: THREE.Sprite | null = null;
+  bench.group.traverse((obj) => {
+    if (obj.name === 'SlitValueLabel' && (obj as any).isSprite) {
+      foundSprite = obj as THREE.Sprite;
+    }
+  });
+
+  assert.ok(foundSprite, 'SlitValueLabel Sprite must exist in bench hierarchy');
+  const spriteMat = (foundSprite as any).material as THREE.SpriteMaterial;
+  assert.strictEqual(spriteMat.transparent, true, 'Sprite material must be transparent');
+  assert.strictEqual(spriteMat.depthWrite, false, 'Sprite material must disable depthWrite');
+
+  // 14.2 验证绘制过程：严禁调用 fillRect / strokeRect 绘制方形 UI 框与背景色块
+  let fillRectCalls = 0;
+  let strokeRectCalls = 0;
+  let clearRectCalls = 0;
+  let lastFilledText = '';
+  let lastFillStyle = '';
+  let lastFont = '';
+
+  const slitCanvas = (bench as any).slitPlateCanvas;
+  assert.ok(slitCanvas, 'Slit plate canvas must exist');
+  const ctx = slitCanvas.getContext('2d');
+  ctx.fillRect = () => { fillRectCalls++; };
+  ctx.strokeRect = () => { strokeRectCalls++; };
+  ctx.clearRect = () => { clearRectCalls++; };
+  ctx.fillText = (text: string) => {
+    lastFilledText = text;
+    lastFillStyle = ctx.fillStyle;
+    lastFont = ctx.font;
+  };
+
+  // 触发缝宽更新
+  bench.setSlitWidth(0.10);
+  assert.strictEqual(fillRectCalls, 0, 'Must NOT draw any background fill rect (no square UI allowed)');
+  assert.strictEqual(strokeRectCalls, 0, 'Must NOT draw any stroke rect / border outline (no square UI allowed)');
+  assert(clearRectCalls > 0, 'Must clear canvas with transparency');
+
+  // 14.3 验证文字为大号深色字
+  assert.ok(lastFilledText.includes('单缝 a = 0.10 mm'), `Rendered text must match slit width: ${lastFilledText}`);
+  assert.strictEqual(lastFillStyle, '#0f172a', 'Text color must be deep dark slate (#0f172a)');
+  assert.ok(lastFont.includes('bold'), 'Font must be bold');
+  assert.ok(lastFont.includes('96px'), 'Font must be large (96px)');
+
+  // 14.4 验证切换衍射类型时文字同步更新
+  bench.setDiffractionType('double');
+  assert.ok(lastFilledText.includes('双缝'), 'Must display double slit label when switched');
+
+  bench.setDiffractionType('circular');
+  assert.ok(lastFilledText.includes('圆孔'), 'Must display circular aperture label when switched');
+
+  bench.setDiffractionType('grating');
+  assert.ok(lastFilledText.includes('光栅'), 'Must display grating label when switched');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 14 passed: Pure large deep-colored slit value text invariant verified\n');
+}
+
 console.log('========================================================');
-console.log('All Light Diffraction Tests Passed (13/13)!');
+console.log('All Light Diffraction Tests Passed (14/14)!');
 console.log('========================================================\n');
 
 

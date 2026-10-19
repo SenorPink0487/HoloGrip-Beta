@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import './account_preferences.test.ts';
 import { readFileSync } from 'node:fs';
 import { formatInviteCode, normalizeInviteCode } from '../src/account/invite.ts';
 

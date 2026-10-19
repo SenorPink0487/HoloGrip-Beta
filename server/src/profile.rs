@@ -10,6 +10,7 @@ struct UserRow {
     email: String,
     role: String,
     display_name: Option<String>,
+    preferences: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -35,7 +36,7 @@ struct MemberRow {
 
 pub async fn load_me(pool: &MySqlPool, user_id: &str) -> Result<MeResponse, AppError> {
     let user = sqlx::query_as::<_, UserRow>(
-        "SELECT id, email, role, display_name FROM users WHERE id = ?",
+        "SELECT id, email, role, display_name, CAST(preferences AS CHAR) AS preferences FROM users WHERE id = ?",
     )
     .bind(user_id)
     .fetch_optional(pool)
@@ -54,6 +55,11 @@ pub async fn load_me(pool: &MySqlPool, user_id: &str) -> Result<MeResponse, AppE
         role: user.role,
         display_name: user.display_name,
         class,
+        preferences: user.preferences
+            .map(|raw| serde_json::from_str(&raw))
+            .transpose()
+            .map_err(|_| AppError::internal())?
+            .unwrap_or_default(),
     })
 }
 

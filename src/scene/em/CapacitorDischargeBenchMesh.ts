@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   labMetal,
   labGlow,
+  labGlass,
   anodizedAluminum,
   polishedGold,
   paintTexture,
@@ -138,12 +139,18 @@ function createTrapezoidFootGeometry(
  * 3D 螺旋线曲线，用于创建逼真的不锈钢受压螺旋弹簧
  */
 class HelicalSpringCurve extends THREE.Curve<THREE.Vector3> {
+  public radius: number;
+  public height: number;
+  public turns: number;
   constructor(
-    public radius: number,
-    public height: number,
-    public turns: number
+    radius: number,
+    height: number,
+    turns: number
   ) {
     super();
+    this.radius = radius;
+    this.height = height;
+    this.turns = turns;
   }
   getPoint(t: number): THREE.Vector3 {
     const angle = t * Math.PI * 2 * this.turns;
@@ -1656,16 +1663,25 @@ export class CapacitorDischargeBenchMesh {
 
     const brassMat = polishedGold(0xd4af37);
 
-    // 2. 三根物理隔离的纯黄铜冲压导电排
-    const lBar = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.0016, 0.040), brassMat);
-    lBar.position.set(-0.038, baseH + 0.0008, 0.004);
-    sGroup.add(lBar);
+    // 2. 三根物理隔离的纯黄铜冲压导电排 (自前端接线柱直接贯通至后部触头与铰链立柱)
+    // 左导电排：自左接线柱 (-0.045, 0.024) 纵向走线至 (-0.045, -0.016)，并横向延伸至触头立柱底座 (-0.0197, -0.016)
+    const lBarLong = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.0016, 0.040), brassMat);
+    lBarLong.position.set(-0.045, baseH + 0.0008, 0.004);
+    sGroup.add(lBarLong);
+    const lBarTrans = new THREE.Mesh(new THREE.BoxGeometry(0.0253, 0.0016, 0.007), brassMat);
+    lBarTrans.position.set(-0.03235, baseH + 0.0008, -0.016);
+    sGroup.add(lBarTrans);
 
-    const rBar = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.0016, 0.040), brassMat);
-    rBar.position.set(0.038, baseH + 0.0008, 0.004);
-    sGroup.add(rBar);
+    // 右导电排：自右接线柱 (0.045, 0.024) 纵向走线至 (0.045, -0.016)，并横向延伸至触头立柱底座 (0.0197, -0.016)
+    const rBarLong = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.0016, 0.040), brassMat);
+    rBarLong.position.set(0.045, baseH + 0.0008, 0.004);
+    sGroup.add(rBarLong);
+    const rBarTrans = new THREE.Mesh(new THREE.BoxGeometry(0.0253, 0.0016, 0.007), brassMat);
+    rBarTrans.position.set(0.03235, baseH + 0.0008, -0.016);
+    sGroup.add(rBarTrans);
 
-    const cBar = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.0016, 0.040), brassMat);
+    // 中导电排：自中接线柱 (0, 0.024) 纵向直行贯通至中间动刀铰链座 (0, -0.016)
+    const cBar = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.0016, 0.040), brassMat);
     cBar.position.set(0, baseH + 0.0008, 0.004);
     sGroup.add(cBar);
 
@@ -1678,9 +1694,14 @@ export class CapacitorDischargeBenchMesh {
     this.createKnurledTerminalPost(sGroup, new THREE.Vector3(0.045, baseH, postZ), brassMat, 0xf59e0b);  // 右极（黄）
     this.createKnurledTerminalPost(sGroup, new THREE.Vector3(0, baseH, postZ), brassMat, 0x0284c7);     // 中极（蓝）
 
-    // 4. 左侧与右侧真实 U 型弹性黄铜触刀夹
-    this.switchLeftContactMesh = this.createKnifeJaw(sGroup, new THREE.Vector3(-0.024, baseH, -0.016), brassMat, 'switchLeftContact');
-    this.switchRightContactMesh = this.createKnifeJaw(sGroup, new THREE.Vector3(0.024, baseH, -0.016), brassMat, 'switchRightContact');
+    // 4. 左侧与右侧真实 U 型弹性黄铜触刀夹（带坚固导电立柱与导向喇叭口，闭合时与刀身物理完全吻合无缝嵌合）
+    const rClamp = 0.024;
+    const closeAngle = 0.96; // 55°
+    const leftClampPos = new THREE.Vector3(-rClamp * Math.sin(closeAngle), baseH + 0.016 + rClamp * Math.cos(closeAngle), -0.016);
+    const rightClampPos = new THREE.Vector3(rClamp * Math.sin(closeAngle), baseH + 0.016 + rClamp * Math.cos(closeAngle), -0.016);
+
+    this.switchLeftContactMesh = this.createKnifeJaw(sGroup, leftClampPos, closeAngle, brassMat, 'switchLeftContact');
+    this.switchRightContactMesh = this.createKnifeJaw(sGroup, rightClampPos, -closeAngle, brassMat, 'switchRightContact');
 
     // 5. 中间双耳 U 型铰链座与横向枢轴销钉
     const hingeGroup = new THREE.Group();
@@ -1708,17 +1729,18 @@ export class CapacitorDischargeBenchMesh {
     this.switchLeverGroup.name = 'switchLeverGroup';
     this.switchLeverGroup.position.set(0, baseH + 0.016, -0.016);
 
-    const bladeGeo = new THREE.BoxGeometry(0.0028, 0.030, 0.010);
-    bladeGeo.translate(0, 0.015, 0);
+    // 黄铜冲压刀身：厚度 2.2mm (沿 Z 轴)，宽度 7mm (沿 X 轴)，长度 34mm (沿 Y 轴)
+    const bladeGeo = new THREE.BoxGeometry(0.007, 0.034, 0.0022);
+    bladeGeo.translate(0, 0.017, 0);
     this.switchKnifeMesh = new THREE.Mesh(bladeGeo, brassMat);
     this.switchKnifeMesh.name = 'switchKnifeBlade';
     this.switchKnifeMesh.castShadow = true;
     this.switchLeverGroup.add(this.switchKnifeMesh);
 
-    // 车削深红胶木手柄
+    // 车削深红胶木手柄 (装配于刀片顶端 r = 0.034 处)
     const handleGroup = new THREE.Group();
     handleGroup.name = 'switchHandleGroup';
-    handleGroup.position.set(0, 0.030, 0);
+    handleGroup.position.set(0, 0.034, 0);
 
     const gripGeo = new THREE.CylinderGeometry(0.0055, 0.0075, 0.030, 16);
     gripGeo.translate(0, 0.015, 0);
@@ -1739,46 +1761,78 @@ export class CapacitorDischargeBenchMesh {
 
     // 触点瞬态微弱电弧火花点光源
     this.sparkLight = new THREE.PointLight(0x67e8f9, 0, 0.35);
-    this.sparkLight.position.set(-0.024, baseH + 0.016, -0.016);
+    this.sparkLight.position.set(-0.0197, 0.0438, -0.016);
     sGroup.add(this.sparkLight);
 
     this.group.add(sGroup);
   }
 
-  private createKnifeJaw(parent: THREE.Group, pos: THREE.Vector3, mat: THREE.Material, name: string): THREE.Group {
+  private createKnifeJaw(
+    parent: THREE.Group,
+    clampPos: THREE.Vector3,
+    tiltAngle: number,
+    mat: THREE.Material,
+    name: string
+  ): THREE.Group {
+    const baseH = 0.014;
+    const brassMat = mat;
+
+    // 1. 基座安装垫块与紧固六角螺母 (固定在导电排上方)
+    const mountPad = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.003, 0.012), brassMat);
+    mountPad.position.set(clampPos.x, baseH + 0.0015, clampPos.z);
+    parent.add(mountPad);
+
+    const nutGeo = new THREE.CylinderGeometry(0.0028, 0.0028, 0.002, 6);
+    const nut = new THREE.Mesh(nutGeo, brassMat);
+    nut.position.set(clampPos.x, baseH + 0.004, clampPos.z);
+    parent.add(nut);
+
+    // 2. 车削精密纯黄铜导电立柱 (自底座平稳托举至触刀夹高度)
+    const pillarH = clampPos.y - (baseH + 0.003) - 0.005;
+    const pillarGeo = new THREE.CylinderGeometry(0.0032, 0.0038, pillarH, 16);
+    const pillar = new THREE.Mesh(pillarGeo, brassMat);
+    pillar.position.set(clampPos.x, baseH + 0.003 + pillarH * 0.5, clampPos.z);
+    parent.add(pillar);
+
+    // 3. 接触簧片总成（在夹紧中心精准定位，倾角与闭合刀刃严格对齐）
     const jawGroup = new THREE.Group();
-    jawGroup.position.copy(pos);
+    jawGroup.position.copy(clampPos);
+    jawGroup.rotation.z = tiltAngle;
     jawGroup.name = name;
 
-    const baseBlock = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.004, 0.014), mat);
-    baseBlock.position.set(0, 0.002, 0);
-    baseBlock.name = name;
-    jawGroup.add(baseBlock);
+    // 限位槽底连接块
+    const throatBase = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.004, 0.0046), brassMat);
+    throatBase.position.set(0, -0.007, 0);
+    throatBase.name = name;
+    jawGroup.add(throatBase);
 
-    const leafGeo = new THREE.BoxGeometry(0.008, 0.018, 0.0016);
-    const fLeaf = new THREE.Mesh(leafGeo, mat);
-    fLeaf.position.set(0, 0.011, 0.0028);
+    // 前后两片精密黄铜弹性接触簧片 (Z轴方向夹持刀片)
+    const leafGeo = new THREE.BoxGeometry(0.007, 0.018, 0.0010);
+    const fLeaf = new THREE.Mesh(leafGeo, brassMat);
+    fLeaf.position.set(0, 0, 0.0018);
     fLeaf.name = name;
     jawGroup.add(fLeaf);
 
-    const bLeaf = new THREE.Mesh(leafGeo, mat);
-    bLeaf.position.set(0, 0.011, -0.0028);
+    const bLeaf = new THREE.Mesh(leafGeo, brassMat);
+    bLeaf.position.set(0, 0, -0.0018);
     bLeaf.name = name;
     jawGroup.add(bLeaf);
 
-    const lipGeo = new THREE.CylinderGeometry(0.0012, 0.0012, 0.008, 8);
+    // 导向圆角喇叭口 (卷边导向唇，确保动触刀顺滑切入)
+    const lipGeo = new THREE.CylinderGeometry(0.0009, 0.0009, 0.007, 12);
     lipGeo.rotateZ(Math.PI / 2);
-    const fLip = new THREE.Mesh(lipGeo, mat);
-    fLip.position.set(0, 0.020, 0.0036);
+    const fLip = new THREE.Mesh(lipGeo, brassMat);
+    fLip.position.set(0, 0.009, 0.0024);
     fLip.name = name;
     jawGroup.add(fLip);
-    const bLip = new THREE.Mesh(lipGeo, mat);
-    bLip.position.set(0, 0.020, -0.0036);
+
+    const bLip = new THREE.Mesh(lipGeo, brassMat);
+    bLip.position.set(0, 0.009, -0.0024);
     bLip.name = name;
     jawGroup.add(bLip);
 
-    const hitGeo = new THREE.BoxGeometry(0.028, 0.034, 0.024);
-    hitGeo.translate(0, 0.014, 0);
+    // 射线检测交互碰撞体
+    const hitGeo = new THREE.BoxGeometry(0.028, 0.038, 0.028);
     const hitMesh = new THREE.Mesh(hitGeo, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
     hitMesh.name = name;
     jawGroup.add(hitMesh);
@@ -1816,7 +1870,7 @@ export class CapacitorDischargeBenchMesh {
     this.createKnurledTerminalPost(parent, pos, brassMat, color);
   }
 
-  // ================= 5. DIS 数字化微电流传感器 (直接置于桌面) =================
+  // ================= 5. DIS 数字化微电流传感器 (现代科研级高精数字化实验仪器工艺) =================
   private buildCurrentSensor(): void {
     const sensGroup = new THREE.Group();
     sensGroup.name = 'currentSensorGroup';
@@ -1835,32 +1889,95 @@ export class CapacitorDischargeBenchMesh {
     tiltGroup.rotation.x = -Math.PI * 0.065;
     tiltGroup.position.set(0, bodyH * 0.5, 0);
 
-    // 1. 阻燃工程白 ABS 外壳（底面平整贴合台面）
-    const bodyGeo = createChamferedBoxGeometry(bodyW, bodyH, bodyD, 0.006, 0.0015);
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.12, roughness: 0.30 });
+    // 1. 底部 4 只微型工业级减震防滑硅胶脚垫
+    const footGeo = new THREE.CylinderGeometry(0.0035, 0.0042, 0.002, 16);
+    const footMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.05 });
+    for (const [fx, fz] of [
+      [-bodyW * 0.40, -bodyD * 0.38],
+      [bodyW * 0.40, -bodyD * 0.38],
+      [-bodyW * 0.40, bodyD * 0.38],
+      [bodyW * 0.40, bodyD * 0.38],
+    ]) {
+      const foot = new THREE.Mesh(footGeo, footMat);
+      foot.position.set(fx, -bodyH * 0.5 - 0.0008, fz);
+      tiltGroup.add(foot);
+    }
+
+    // 2. 阻燃工程白 ABS 外壳（精细机械倒角）
+    const bodyGeo = createChamferedBoxGeometry(bodyW, bodyH, bodyD, 0.006, 0.0018);
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.12, roughness: 0.28 });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.castShadow = true;
     body.receiveShadow = true;
     tiltGroup.add(body);
 
-    const gripGeo = new THREE.BoxGeometry(0.004, bodyH * 0.85, bodyD * 0.85);
-    const gripMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.6 });
+    // 3. 两侧高弹性工程护套与防滑肋条 (双色模注塑工艺，海洋钴蓝质感)
+    const gripW = 0.0045;
+    const gripGeo = createChamferedBoxGeometry(gripW, bodyH * 0.88, bodyD * 0.88, 0.003, 0.001);
+    const gripMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.52, metalness: 0.15 });
+
     const lGrip = new THREE.Mesh(gripGeo, gripMat);
     lGrip.position.set(-bodyW * 0.501, 0, 0);
     tiltGroup.add(lGrip);
+
     const rGrip = new THREE.Mesh(gripGeo, gripMat);
     rGrip.position.set(bodyW * 0.501, 0, 0);
     tiltGroup.add(rGrip);
 
-    // 2. 液晶数显仪表屏
+    // 左右侧防滑凹凸肋条 (各 3 道)
+    const ribGeo = new THREE.CylinderGeometry(0.0009, 0.0009, bodyD * 0.65, 8);
+    ribGeo.rotateX(Math.PI / 2);
+    for (let i = -1; i <= 1; i++) {
+      const lRib = new THREE.Mesh(ribGeo, gripMat);
+      lRib.position.set(-bodyW * 0.503 - gripW * 0.5, i * 0.006, 0);
+      tiltGroup.add(lRib);
+
+      const rRib = new THREE.Mesh(ribGeo, gripMat);
+      rRib.position.set(bodyW * 0.503 + gripW * 0.5, i * 0.006, 0);
+      tiltGroup.add(rRib);
+    }
+
+    // 4. 航天级阳极氧化喷砂拉丝铝合金前面板 (Inset Aluminum Faceplate)
+    const plateW = bodyW * 0.94;
+    const plateD = bodyD * 0.92;
+    const plateH = 0.0012;
+    const plateGeo = createChamferedBoxGeometry(plateW, plateH, plateD, 0.004, 0.0008);
+    const plateMat = labMetal(0xe2e8f0, 0.88, 0.20);
+    const topPlate = new THREE.Mesh(plateGeo, plateMat);
+    topPlate.position.set(0, bodyH * 0.5 + plateH * 0.5, 0);
+    tiltGroup.add(topPlate);
+
+    // 四角不锈钢内六角紧固螺丝 (M2 Allen Screws)
+    for (const [sx, sz] of [
+      [-plateW * 0.44, -plateD * 0.44],
+      [plateW * 0.44, -plateD * 0.44],
+      [-plateW * 0.44, plateD * 0.44],
+      [plateW * 0.44, plateD * 0.44],
+    ]) {
+      const screw = createPhillipsScrewMesh(0.0016, 0.0008);
+      screw.position.set(sx, bodyH * 0.5 + plateH + 0.0004, sz);
+      tiltGroup.add(screw);
+    }
+
+    // 5. 沉入式深色防眩框与深邃海洋蓝黑液晶数显视窗 (Sunken Bezel & Reticle)
+    const bezelW = 0.088;
+    const bezelD = 0.046;
+    const bezelH = 0.0022;
+    const bezelGeo = createChamferedBoxGeometry(bezelW, bezelH, bezelD, 0.003, 0.0008);
+    const bezelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.25, metalness: 0.45 });
+    const bezelMesh = new THREE.Mesh(bezelGeo, bezelMat);
+    bezelMesh.position.set(0, bodyH * 0.5 + plateH + bezelH * 0.5, 0.004);
+    tiltGroup.add(bezelMesh);
+
+    // 液晶数显画布 (512x256 高清分辨率)
     this.sensorDisplayCanvas = document.createElement('canvas');
-    this.sensorDisplayCanvas.width = 384;
-    this.sensorDisplayCanvas.height = 192;
+    this.sensorDisplayCanvas.width = 512;
+    this.sensorDisplayCanvas.height = 256;
     this.sensorDisplayTexture = new THREE.CanvasTexture(this.sensorDisplayCanvas);
     this.sensorDisplayTexture.colorSpace = THREE.SRGBColorSpace;
     this.renderCurrentSensorDisplay(0.0);
 
-    const dispGeo = new THREE.PlaneGeometry(0.084, 0.044);
+    const dispGeo = new THREE.PlaneGeometry(0.082, 0.040);
     const dispMat = new THREE.MeshBasicMaterial({
       map: this.sensorDisplayTexture,
       toneMapped: false,
@@ -1869,29 +1986,82 @@ export class CapacitorDischargeBenchMesh {
       polygonOffsetUnits: -1,
     });
     const dispMesh = new THREE.Mesh(dispGeo, dispMat);
-    dispMesh.position.set(0, bodyH * 0.5 + 0.003, 0.006);
+    dispMesh.position.set(0, bodyH * 0.5 + plateH + bezelH + 0.0002, 0.004);
     dispMesh.rotation.x = -Math.PI / 2;
     tiltGroup.add(dispMesh);
 
-    // 3. 采样状态微型指示灯
-    const ledGeo = new THREE.SphereGeometry(0.003, 16, 16);
-    this.sensorLedMaterial = labGlow(0x38bdf8, 0.9);
+    // 防护光学超白防眩透明保护镜片
+    const glassGeo = new THREE.PlaneGeometry(0.082, 0.040);
+    const glassMesh = new THREE.Mesh(glassGeo, labGlass(0.08));
+    glassMesh.position.set(0, bodyH * 0.5 + plateH + bezelH + 0.0004, 0.004);
+    glassMesh.rotation.x = -Math.PI / 2;
+    tiltGroup.add(glassMesh);
+
+    // 6. 物理控制按键 (ZERO 归零校准键、RANGE 量程切换键与电源键)
+    const btnMat = labMetal(0xd1d5db, 0.9, 0.25);
+    const btnGeo = new THREE.CylinderGeometry(0.0028, 0.0032, 0.0024, 16);
+
+    // ZERO 校准键
+    const zeroBtn = new THREE.Mesh(btnGeo, btnMat);
+    zeroBtn.position.set(-0.032, bodyH * 0.5 + plateH + 0.0012, -0.026);
+    tiltGroup.add(zeroBtn);
+
+    // RANGE 量程键
+    const rangeBtn = new THREE.Mesh(btnGeo, btnMat);
+    rangeBtn.position.set(-0.016, bodyH * 0.5 + plateH + 0.0012, -0.026);
+    tiltGroup.add(rangeBtn);
+
+    // 7. 采样状态微型指示灯与金属定位外圈
+    const ledBezelGeo = new THREE.CylinderGeometry(0.0034, 0.0034, 0.0014, 16);
+    const ledBezel = new THREE.Mesh(ledBezelGeo, labMetal(0x94a3b8, 0.95, 0.15));
+    ledBezel.position.set(0.038, bodyH * 0.5 + plateH + 0.0007, 0.024);
+    tiltGroup.add(ledBezel);
+
+    const ledGeo = new THREE.SphereGeometry(0.0024, 16, 16);
+    this.sensorLedMaterial = labGlow(0x38bdf8, 0.95);
     const ledMesh = new THREE.Mesh(ledGeo, this.sensorLedMaterial);
-    ledMesh.position.set(0.042, bodyH * 0.5 + 0.003, 0.024);
+    ledMesh.position.set(0.038, bodyH * 0.5 + plateH + 0.0020, 0.024);
     tiltGroup.add(ledMesh);
 
-    // 4. 标准实验室 4mm 安全香蕉插座（红+正极输入、黑-负极输出）
+    // 8. 标准实验室 4mm 安全香蕉插座（红+正极输入、黑-负极输出）
     // 红（+正极）：世界坐标 (0.014, 0.014, 0.139)
     // 黑（-负极）：世界坐标 (0.058, 0.014, 0.139)
-    this.createBindingPost(tiltGroup, new THREE.Vector3(-0.026, bodyH * 0.5, 0.024), 0xef4444);
-    this.createBindingPost(tiltGroup, new THREE.Vector3(0.018, bodyH * 0.5, 0.024), 0x1e293b);
+    this.createBindingPost(tiltGroup, new THREE.Vector3(-0.026, bodyH * 0.5 + plateH, 0.024), 0xef4444);
+    this.createBindingPost(tiltGroup, new THREE.Vector3(0.018, bodyH * 0.5 + plateH, 0.024), 0x1e293b);
 
-    // 5. 右侧示波器模拟信号 BNC 输出金属同轴端口
+    // 接线端子底座黄铜锁紧螺母与极性丝印识别环
+    const hexNutGeo = new THREE.CylinderGeometry(0.0068, 0.0068, 0.0018, 6);
+    const hexNutMat = polishedGold(0xd4af37);
+    const lHex = new THREE.Mesh(hexNutGeo, hexNutMat);
+    lHex.position.set(-0.026, bodyH * 0.5 + plateH + 0.0009, 0.024);
+    tiltGroup.add(lHex);
+    const rHex = new THREE.Mesh(hexNutGeo, hexNutMat);
+    rHex.position.set(0.018, bodyH * 0.5 + plateH + 0.0009, 0.024);
+    tiltGroup.add(rHex);
+
+    // 9. 右侧示波器模拟信号 BNC 工业级镀铬卡口端口 (带外壳锁紧六角螺母)
     const bncGroup = new THREE.Group();
     bncGroup.position.set(bodyW * 0.5 + 0.004, 0, -0.010);
     bncGroup.rotation.z = -Math.PI * 0.5;
-    const bncMetalGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.010, 16);
-    bncGroup.add(new THREE.Mesh(bncMetalGeo, anodizedAluminum(0x94a3b8)));
+
+    // BNC 主体圆筒
+    const bncMetalGeo = new THREE.CylinderGeometry(0.0048, 0.0048, 0.012, 20);
+    const bncMat = labMetal(0xe2e8f0, 0.96, 0.12);
+    bncGroup.add(new THREE.Mesh(bncMetalGeo, bncMat));
+
+    // BNC 外圈双卡口锁紧销 (Bayonet Lug Pins)
+    const pinGeo = new THREE.CylinderGeometry(0.0008, 0.0008, 0.0116, 8);
+    pinGeo.rotateZ(Math.PI / 2);
+    const pinMesh = new THREE.Mesh(pinGeo, bncMat);
+    pinMesh.position.set(0, 0.002, 0);
+    bncGroup.add(pinMesh);
+
+    // 机壳紧固黄铜六角螺母 (M10 Hex Panel Nut)
+    const bncNutGeo = new THREE.CylinderGeometry(0.0075, 0.0075, 0.0024, 6);
+    const bncNut = new THREE.Mesh(bncNutGeo, polishedGold(0xd4af37));
+    bncNut.position.set(0, -0.0035, 0);
+    bncGroup.add(bncNut);
+
     tiltGroup.add(bncGroup);
 
     sensGroup.add(tiltGroup);
@@ -1904,28 +2074,92 @@ export class CapacitorDischargeBenchMesh {
     const w = this.sensorDisplayCanvas.width;
     const h = this.sensorDisplayCanvas.height;
 
-    ctx.fillStyle = '#051410';
+    // 1. 深邃海洋蓝黑渐变背景 (Deep Oceanic Sapphire)
+    if (typeof ctx.createLinearGradient === 'function') {
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+      bgGrad.addColorStop(0, '#060f1e');
+      bgGrad.addColorStop(1, '#0a192f');
+      ctx.fillStyle = bgGrad;
+    } else {
+      ctx.fillStyle = '#060f1e';
+    }
     ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)';
-    ctx.lineWidth = 3;
+    // 2. 精细科研网格刻度底纹
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 32; x < w; x += 32) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+    }
+    for (let y = 32; y < h; y += 32) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+
+    // 工业内框高亮边缘
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+    ctx.lineWidth = 2;
     if (typeof ctx.strokeRect === 'function') {
-      ctx.strokeRect(4, 4, w - 8, h - 8);
+      ctx.strokeRect(6, 6, w - 12, h - 12);
     }
 
     if (typeof ctx.fillText === 'function') {
+      // 3. 顶部信息状态栏
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 22px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('DIS-I02 TRANSDUCER', 18, 14);
+
+      // 右上状态指示
+      ctx.fillStyle = '#4ade80';
+      ctx.beginPath();
+      ctx.arc(w - 170, 24, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 18px monospace';
+      ctx.fillText('10kS/s  [■■■■]', w - 158, 15);
+
+      // 4. 核心主读数区（动态高对比度发光字）
       const isCharging = currentMa > 0.01;
       const isDischarging = currentMa < -0.01;
-      ctx.fillStyle = isCharging ? '#38bdf8' : isDischarging ? '#f59e0b' : '#4ade80';
-      ctx.font = '700 80px monospace';
+      const numColor = isCharging ? '#38bdf8' : isDischarging ? '#f59e0b' : '#4ade80';
+
+      ctx.fillStyle = numColor;
+      ctx.font = '700 96px monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
 
       const sign = currentMa > 0 ? '+' : '';
-      ctx.fillText(`${sign}${currentMa.toFixed(2)}`, w - 90, h * 0.55);
+      ctx.fillText(`${sign}${currentMa.toFixed(2)}`, w - 110, h * 0.54);
 
-      ctx.font = '600 36px monospace';
-      ctx.fillText('mA', w - 24, h * 0.55);
+      ctx.font = '700 44px monospace';
+      ctx.fillText('mA', w - 24, h * 0.50);
+
+      ctx.font = 'bold 18px monospace';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('DC CURRENT', w - 24, h * 0.65);
+
+      // 5. 底部状态与量程参数
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(10, h - 42, w - 20, 1);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 18px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('RANGE: ±20.00mA', 18, h - 14);
+
+      ctx.textAlign = 'center';
+      ctx.fillText('R_sh: 10.0Ω', w * 0.5, h - 14);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('CAL: ZERO OK', w - 18, h - 14);
     }
 
     this.sensorDisplayTexture.needsUpdate = true;
@@ -2675,10 +2909,10 @@ export class CapacitorDischargeBenchMesh {
   public setSwitchPosition(pos: SwitchPosition, instant = false): void {
     this.lastSwitchPos = pos;
     if (pos === 'charge') {
-      this.targetBladeAngle = -0.96; // 约 -55° 切入左侧中空双簧片内部
+      this.targetBladeAngle = 0.96; // 约 +55° 切入左侧中空双簧片内部（朝向 -X 电池充电侧）
       this.triggerSpark();
     } else if (pos === 'discharge') {
-      this.targetBladeAngle = 0.96;  // 约 +55° 切入右侧中空双簧片内部
+      this.targetBladeAngle = -0.96; // 约 -55° 切入右侧中空双簧片内部（朝向 +X 放电电阻侧）
       this.triggerSpark();
     } else {
       this.targetBladeAngle = 0;     // 中立断开 (0° 垂直挺立)
@@ -2695,9 +2929,9 @@ export class CapacitorDischargeBenchMesh {
   private triggerSpark(): void {
     if (this.sparkLight) {
       if (this.lastSwitchPos === 'charge') {
-        this.sparkLight.position.set(-0.024, 0.022, -0.016);
+        this.sparkLight.position.set(-0.0197, 0.0438, -0.016);
       } else if (this.lastSwitchPos === 'discharge') {
-        this.sparkLight.position.set(0.024, 0.022, -0.016);
+        this.sparkLight.position.set(0.0197, 0.0438, -0.016);
       }
       this.sparkLight.intensity = 2.5;
       this.sparkTimer = 0.08;

@@ -349,11 +349,11 @@ export class CapacitorInteractionManager {
       if (Math.abs(this.switchAccumX) > 6) {
         this.hasDragged = true;
         if (this.switchAccumX < -35) {
-          this.callbacks.bench.setBladeAngle(-0.96);
-        } else if (this.switchAccumX > 35) {
           this.callbacks.bench.setBladeAngle(0.96);
+        } else if (this.switchAccumX > 35) {
+          this.callbacks.bench.setBladeAngle(-0.96);
         } else {
-          this.callbacks.bench.setBladeAngle((this.switchAccumX / 35) * 0.96);
+          this.callbacks.bench.setBladeAngle((-this.switchAccumX / 35) * 0.96);
         }
       }
       return;

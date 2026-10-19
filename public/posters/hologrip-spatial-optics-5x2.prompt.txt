@@ -1,0 +1,12 @@
+Generation: image-generator subagent
+Requested aspect ratio: 5:2 (2000 x 800 px)
+
+Use case: ads-marketing
+Asset type: HoloGrip flagship product promotional poster, 5:2 ultra-wide horizontal format (2000 x 800 pixels).
+Theme: 空间交互光学实验台与全息裸手手势操控 (Spatial Direct Manipulation & High-Precision Optics Laboratory)
+Core elements:
+- Aerospace satin-silver optical bench (`#e2e8f0`) with dual mirror-polished 316L liquid chrome guide rails and champagne brass knurled micrometers.
+- Pure optical glass dispersion prism splitting coherent cyan laser into a vibrant spectral rainbow.
+- Translucent holographic hand with spatial contour lines manipulating a floating lens, accompanied by subtle magnetic field orbits.
+- High-tech spatial observatory background with twilight horizon in deep oceanic sapphire tones (`#08101e`).
+- Integrated typography: "HoloGrip" | "沉浸式空间交互科学实验室" | "Next-Generation Spatial Physics & Science Simulation".

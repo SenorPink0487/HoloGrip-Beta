@@ -366,12 +366,14 @@ console.log('=== Starting Capacitor Charge & Discharge Analytical & Integration 
     onClearSamples: () => { clearedSamples = true; },
   });
 
-  // Test pointer down on knife handle
-  const mockEvt = { type: 'pointerdown' } as any;
+  // Test pointer down & up on knife handle (click triggers cycle on pointerup when not dragged)
+  const mockEvt = { type: 'pointerdown', clientX: 100, clientY: 100 } as any;
   const knifeHit = { object: bench.switchHandleMesh } as any;
   const handledKnife = interaction.onPointerDown(mockEvt, knifeHit, {} as any);
   assert.strictEqual(handledKnife, true, 'Click on switch handle must be handled');
-  assert.strictEqual(cycled, true, 'Click on switch handle triggers onCycleSwitch');
+  const mockUpEvt = { type: 'pointerup', clientX: 100, clientY: 100 } as any;
+  interaction.onPointerUp(mockUpEvt, {} as any);
+  assert.strictEqual(cycled, true, 'Click on switch handle triggers onCycleSwitch on pointer up');
 
   // Test pointer down on left contact (charge)
   const leftHit = { object: bench.switchLeftContactMesh } as any;

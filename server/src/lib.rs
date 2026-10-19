@@ -4,6 +4,7 @@ mod db;
 mod dto;
 mod error;
 mod profile;
+mod preferences;
 mod routes;
 mod state;
 

@@ -34,6 +34,7 @@ import {
   type StreamSample,
 } from '../chemistry/pourKinematics.ts';
 import { VisionModal } from '../ui/vision/VisionModal.ts';
+import { accountPreferences } from '../account/preferences.ts';
 import type { ExperimentContext, IExperiment } from './types.ts';
 import {
   advanceLabEntry,
@@ -816,9 +817,10 @@ export class Engine {
         const baseScale = 0.0028;
         const s = baseScale * multiplier;
         this.spatialWindowObject.scale.set(s, s, s);
+        accountPreferences().setSpatialWindowScale(multiplier);
       },
       onSelectChemistry: () => {
-        const baseScale = 0.0028;
+        const baseScale = 0.0028 * this.visionModal.scale;
         this.spatialWindowObject.scale.set(baseScale, baseScale, baseScale);
         this.holoTable.hideHologram();
         this.holoStage.clearExperiment(this.currentContext);
@@ -836,7 +838,7 @@ export class Engine {
         this.holoTable.showHologram();
         this.holoStage.setStageVisible(true);
         await this.switchExperiment(id);
-        const baseScale = 0.0028;
+        const baseScale = 0.0028 * this.visionModal.scale;
         this.spatialWindowObject.scale.set(baseScale, baseScale, baseScale);
         this.positionWindowDefault(true);
       },
@@ -1349,6 +1351,11 @@ export class Engine {
     this.positionWindowDefault(true);
     this.spatialWindowObject.visible = false;
     this.css3dScene.add(this.spatialWindowObject);
+
+    const preferences = accountPreferences();
+    const restoreWindowScale = () => this.visionModal.setScale(preferences.spatialWindowScale, false);
+    preferences.subscribe(restoreWindowScale);
+    restoreWindowScale();
 
     if (this.inputManager?.touch) {
       this.inputManager.touch.onToggleVisionModal = () => {

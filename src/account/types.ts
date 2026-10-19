@@ -1,5 +1,9 @@
 export type AccountRole = 'teacher' | 'student';
 
+export interface AccountPreferences {
+  spatialWindowScale?: number;
+}
+
 export interface ClassStudent {
   id: string;
   email: string;
@@ -20,6 +24,7 @@ export interface AccountUser {
   role: AccountRole;
   displayName: string | null;
   class: AccountClass | null;
+  preferences?: AccountPreferences;
 }
 
 export interface AuthResult {
