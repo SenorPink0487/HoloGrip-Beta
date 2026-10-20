@@ -1,3 +1,5 @@
+import { adminRequest } from './session.ts';
+import type { AccountPreferences } from '../account/types.ts';
 export interface ClassMetricItem {
   id: string;
   name: string;
@@ -36,6 +38,8 @@ export interface AdminOverview {
 }
 
 export interface AdminUser {
+  isAdmin: boolean;
+  preferences: AccountPreferences;
   id: string;
   email: string;
   role: 'teacher' | 'student';
@@ -104,37 +108,6 @@ export interface SecurityAuditData {
   sessions: SessionAuditItem[];
 }
 
-export function getAdminApiBase(): string {
-  const configured = (import.meta as any).env?.VITE_ACCOUNT_API_URL;
-  const base = configured && configured.trim() ? configured.trim() : 'http://127.0.0.1:8080';
-  return base.replace(/\/$/, '');
-}
-
-async function adminRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers);
-  if (init.body && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-  const res = await fetch(`${getAdminApiBase()}${path}`, {
-    ...init,
-    headers,
-  });
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  if (!res.ok) {
-    let msg = `请求失败 (${res.status})`;
-    try {
-      const data = await res.json();
-      if (data?.error?.message) msg = data.error.message;
-    } catch {
-      // ignore json parse error
-    }
-    throw new Error(msg);
-  }
-  return res.json() as Promise<T>;
-}
-
 export const adminApi = {
   checkHealth(): Promise<{ status: string }> {
     return adminRequest('/health');
@@ -142,14 +115,13 @@ export const adminApi = {
   getOverview(): Promise<AdminOverview> {
     return adminRequest('/api/v1/admin/overview');
   },
-  seedCohort(): Promise<AdminOverview> {
-    return adminRequest('/api/v1/admin/seed', { method: 'POST' });
-  },
   listUsers(): Promise<AdminUser[]> {
     return adminRequest('/api/v1/admin/users');
   },
   createUser(payload: {
     role: 'teacher' | 'student';
+    isAdmin?: boolean;
+    preferences?: AccountPreferences;
     email: string;
     password: string;
     displayName: string;
@@ -168,6 +140,8 @@ export const adminApi = {
       email?: string;
       displayName?: string;
       role?: 'teacher' | 'student';
+      isAdmin?: boolean;
+      preferences?: AccountPreferences;
       password?: string;
       classId?: string;
       className?: string;

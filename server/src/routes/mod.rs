@@ -1,5 +1,8 @@
+use crate::auth::token::CurrentUser;
+use axum::extract::Request;
 use axum::extract::{DefaultBodyLimit, State};
 use axum::http::{header, HeaderName, HeaderValue, Method};
+use axum::middleware::{self, Next};
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
@@ -39,8 +42,19 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/me/preferences", patch(me::update_preferences))
         .route("/api/v1/classes/current", patch(classes::update_class))
         .route("/api/v1/classes/join", post(classes::join_class))
+        .merge(admin_routes(state.clone()))
+        .layer(TraceLayer::new_for_http())
+        .layer(cors)
+        .layer(SetResponseHeaderLayer::overriding(
+            HeaderName::from_static("cross-origin-resource-policy"),
+            HeaderValue::from_static("cross-origin"),
+        ))
+        .with_state(state)
+}
+
+fn admin_routes(state: AppState) -> Router<AppState> {
+    Router::new()
         .route("/api/v1/admin/overview", get(admin::get_overview))
-        .route("/api/v1/admin/seed", post(admin::seed_academic_data))
         .route(
             "/api/v1/admin/users",
             get(admin::list_users).post(admin::create_user),
@@ -87,13 +101,22 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/admin/security/users/{id}/revoke-all",
             post(admin::revoke_user_sessions),
         )
-        .layer(TraceLayer::new_for_http())
-        .layer(cors)
-        .layer(SetResponseHeaderLayer::overriding(
-            HeaderName::from_static("cross-origin-resource-policy"),
-            HeaderValue::from_static("cross-origin"),
-        ))
-        .with_state(state)
+        .route_layer(middleware::from_fn_with_state(state, require_admin))
+}
+
+async fn require_admin(
+    user: CurrentUser,
+    request: Request,
+    next: Next,
+) -> Result<axum::response::Response, AppError> {
+    if !user.is_admin {
+        return Err(AppError::new(
+            axum::http::StatusCode::FORBIDDEN,
+            "admin_required",
+            "仅管理员可以访问管理页面",
+        ));
+    }
+    Ok(next.run(request).await)
 }
 
 async fn health(State(state): State<AppState>) -> Result<Json<Value>, AppError> {

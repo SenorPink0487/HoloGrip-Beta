@@ -23,6 +23,7 @@ pub struct ClassView {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MeResponse {
+    pub is_admin: bool,
     pub id: String,
     pub email: String,
     pub role: String,

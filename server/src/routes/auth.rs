@@ -62,7 +62,7 @@ struct RefreshRow {
     user_id: String,
     expires_at: NaiveDateTime,
     revoked_at: Option<NaiveDateTime>,
-    role: String,
+    session_id: Option<String>,
 }
 
 pub async fn register(
@@ -178,12 +178,22 @@ pub async fn refresh(
     Json(body): Json<RefreshBody>,
 ) -> Result<Json<AuthResponse>, AppError> {
     let row = load_refresh(&state.pool, &body.refresh_token).await?;
+    let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
+        .bind(&row.user_id)
+        .fetch_one(&state.pool)
+        .await?;
+    ensure_not_locked(&state.pool, &email).await?;
     let now = Utc::now().naive_utc();
     if row.revoked_at.is_some() || row.expires_at <= now {
         return Err(AppError::unauthorized());
     }
 
     let mut tx = state.pool.begin().await?;
+    let (role, version): (String, i64) =
+        sqlx::query_as("SELECT role, auth_version FROM users WHERE id = ? FOR UPDATE")
+            .bind(&row.user_id)
+            .fetch_one(&mut *tx)
+            .await?;
     let updated =
         sqlx::query("UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
             .bind(now)
@@ -194,18 +204,26 @@ pub async fn refresh(
         return Err(AppError::unauthorized());
     }
 
+    let session_id = row.session_id.as_deref().unwrap_or(&row.id);
     let (access, refresh_token) = {
         let (refresh_token, hash) = crate::auth::token::new_refresh_token();
         sqlx::query(
-            "INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, session_id) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(Uuid::now_v7().to_string())
         .bind(&row.user_id)
         .bind(hash)
         .bind(refresh_expiry(&state.config))
+        .bind(session_id)
         .execute(&mut *tx)
         .await?;
-        let access = crate::auth::token::encode_access(&row.user_id, &row.role, &state.config)?;
+        let access = crate::auth::token::encode_access(
+            &row.user_id,
+            &role,
+            version,
+            session_id,
+            &state.config,
+        )?;
         (access, refresh_token)
     };
     tx.commit().await?;
@@ -309,7 +327,7 @@ async fn find_class_id(
 async fn load_refresh(pool: &MySqlPool, token: &str) -> Result<RefreshRow, AppError> {
     let hash = sha256_hex(token.trim());
     sqlx::query_as::<_, RefreshRow>(
-        "SELECT t.id, t.user_id, t.expires_at, t.revoked_at, u.role
+        "SELECT t.id, t.user_id, t.expires_at, t.revoked_at, t.session_id
          FROM refresh_tokens t
          JOIN users u ON u.id = t.user_id
          WHERE t.token_hash = ?",

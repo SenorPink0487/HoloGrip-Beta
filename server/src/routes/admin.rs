@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use crate::auth::invite::{generate_invite_code, normalize_invite_code};
 use crate::auth::password::{hash_password, validate_password};
-use crate::auth::token::{new_refresh_token, refresh_expiry};
 use crate::dto::StudentView;
 use crate::error::{duplicate_kind, AppError, DuplicateKind};
 use crate::routes::auth::{normalize_class_name, normalize_display_name, normalize_email};
@@ -60,6 +59,8 @@ pub struct TrendPoint {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminUserView {
+    pub is_admin: bool,
+    pub preferences: serde_json::Value,
     pub id: String,
     pub email: String,
     pub role: String,
@@ -132,6 +133,10 @@ pub struct SessionAuditView {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAdminUserBody {
+    #[serde(default)]
+    pub is_admin: bool,
+    #[serde(default)]
+    pub preferences: Option<crate::preferences::AccountPreferences>,
     pub role: String,
     pub email: String,
     pub password: String,
@@ -147,6 +152,10 @@ pub struct CreateAdminUserBody {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateAdminUserBody {
+    #[serde(default)]
+    pub is_admin: Option<bool>,
+    #[serde(default)]
+    pub preferences: Option<crate::preferences::AccountPreferences>,
     #[serde(default)]
     pub email: Option<String>,
     #[serde(default)]
@@ -351,7 +360,9 @@ pub async fn get_overview(
 
     let mut days_set = std::collections::BTreeSet::new();
     for i in (0..7).rev() {
-        let d = (Utc::now() - Duration::days(i)).format("%Y-%m-%d").to_string();
+        let d = (Utc::now() - Duration::days(i))
+            .format("%Y-%m-%d")
+            .to_string();
         days_set.insert(d);
     }
     for row in &user_days {
@@ -415,6 +426,8 @@ pub async fn get_overview(
 
 #[derive(sqlx::FromRow)]
 struct AdminUserRow {
+    is_admin: bool,
+    preferences: Option<String>,
     id: String,
     email: String,
     role: String,
@@ -450,11 +463,13 @@ impl AdminUserRow {
                 0,
             )
         };
-        let is_locked = self
-            .locked_until
-            .map(|until| until > now)
-            .unwrap_or(false);
+        let is_locked = self.locked_until.map(|until| until > now).unwrap_or(false);
         AdminUserView {
+            is_admin: self.is_admin,
+            preferences: self
+                .preferences
+                .and_then(|v| serde_json::from_str(&v).ok())
+                .unwrap_or(serde_json::json!({})),
             id: self.id,
             email: self.email,
             role: self.role,
@@ -478,6 +493,8 @@ const USER_QUERY_BASE: &str = "
         u.id,
         u.email,
         u.role,
+        u.is_admin,
+        CAST(u.preferences AS CHAR) AS preferences,
         u.display_name,
         tc.id AS teacher_class_id,
         tc.name AS teacher_class_name,
@@ -556,11 +573,10 @@ pub async fn create_user(
         }
     } else if role == "student" {
         if let Some(cid) = body.class_id.as_deref().filter(|s| !s.trim().is_empty()) {
-            let exists: Option<String> =
-                sqlx::query_scalar("SELECT id FROM classes WHERE id = ?")
-                    .bind(cid.trim())
-                    .fetch_optional(&mut *tx)
-                    .await?;
+            let exists: Option<String> = sqlx::query_scalar("SELECT id FROM classes WHERE id = ?")
+                .bind(cid.trim())
+                .fetch_optional(&mut *tx)
+                .await?;
             let class_id = exists.ok_or_else(|| AppError::validation("指定的班级不存在"))?;
             sqlx::query("INSERT INTO class_members (class_id, user_id) VALUES (?, ?)")
                 .bind(class_id)
@@ -586,6 +602,21 @@ pub async fn create_user(
         }
     }
 
+    if let Some(preferences) = &body.preferences {
+        preferences.validate()?;
+    }
+    sqlx::query("UPDATE users SET is_admin = ?, preferences = ? WHERE id = ?")
+        .bind(body.is_admin)
+        .bind(
+            body.preferences
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(|_| AppError::internal())?,
+        )
+        .bind(&user_id)
+        .execute(&mut *tx)
+        .await?;
     tx.commit().await?;
     let created = fetch_admin_user(&state.pool, &user_id).await?;
     Ok((StatusCode::CREATED, Json(created)))
@@ -597,12 +628,19 @@ pub async fn update_user(
     Json(body): Json<UpdateAdminUserBody>,
 ) -> Result<Json<AdminUserView>, AppError> {
     let mut tx = state.pool.begin().await?;
+    let admin_ids = lock_admins(&mut tx).await?;
+    if body.is_admin == Some(false) && admin_ids.len() == 1 && admin_ids.contains(&user_id) {
+        return Err(AppError::conflict("last_admin", "至少保留一位管理员"));
+    }
+    let old_email: Option<String> = sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
+        .bind(&user_id)
+        .fetch_optional(&mut *tx)
+        .await?;
 
-    let existing_role: Option<String> =
-        sqlx::query_scalar("SELECT role FROM users WHERE id = ?")
-            .bind(&user_id)
-            .fetch_optional(&mut *tx)
-            .await?;
+    let existing_role: Option<String> = sqlx::query_scalar("SELECT role FROM users WHERE id = ?")
+        .bind(&user_id)
+        .fetch_optional(&mut *tx)
+        .await?;
     let current_role = existing_role
         .ok_or_else(|| AppError::new(StatusCode::NOT_FOUND, "user_not_found", "用户不存在"))?;
 
@@ -636,6 +674,18 @@ pub async fn update_user(
                 .bind(&user_id)
                 .execute(&mut *tx)
                 .await?;
+            if new_role == "student" {
+                let owns_class: i64 =
+                    sqlx::query_scalar("SELECT COUNT(*) FROM classes WHERE teacher_id = ?")
+                        .bind(&user_id)
+                        .fetch_one(&mut *tx)
+                        .await?;
+                if owns_class > 0 {
+                    return Err(AppError::validation(
+                        "请先转交或删除该教师负责的班级，再切换为学生",
+                    ));
+                }
+            }
             if new_role == "teacher" {
                 sqlx::query("DELETE FROM class_members WHERE user_id = ?")
                     .bind(&user_id)
@@ -698,6 +748,41 @@ pub async fn update_user(
         }
     }
 
+    if let Some(is_admin) = body.is_admin {
+        sqlx::query("UPDATE users SET is_admin = ? WHERE id = ?")
+            .bind(is_admin)
+            .bind(&user_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    if let Some(preferences) = &body.preferences {
+        preferences.validate()?;
+        sqlx::query("UPDATE users SET preferences = ? WHERE id = ?")
+            .bind(serde_json::to_string(preferences).map_err(|_| AppError::internal())?)
+            .bind(&user_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    if body.password.as_ref().is_some_and(|p| !p.trim().is_empty())
+        || body.email.is_some()
+        || body.role.is_some()
+        || body.is_admin.is_some()
+    {
+        sqlx::query("UPDATE users SET auth_version = auth_version + 1 WHERE id = ?")
+            .bind(&user_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE refresh_tokens SET revoked_at = UTC_TIMESTAMP(3) WHERE user_id = ? AND revoked_at IS NULL")
+            .bind(&user_id).execute(&mut *tx).await?;
+    }
+    if body.email.is_some() {
+        if let Some(old_email) = old_email {
+            sqlx::query("DELETE FROM login_attempts WHERE email = ?")
+                .bind(old_email)
+                .execute(&mut *tx)
+                .await?;
+        }
+    }
     tx.commit().await?;
     Ok(Json(fetch_admin_user(&state.pool, &user_id).await?))
 }
@@ -707,6 +792,10 @@ pub async fn delete_user(
     Path(user_id): Path<String>,
 ) -> Result<StatusCode, AppError> {
     let mut tx = state.pool.begin().await?;
+    let admin_ids = lock_admins(&mut tx).await?;
+    if admin_ids.len() == 1 && admin_ids.contains(&user_id) {
+        return Err(AppError::conflict("last_admin", "不能删除最后一位管理员"));
+    }
 
     let email: Option<String> = sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
         .bind(&user_id)
@@ -1040,7 +1129,10 @@ pub async fn update_class_admin(
                 .await;
             if let Err(err) = res {
                 if duplicate_kind(&err) == Some(DuplicateKind::Invite) {
-                    return Err(AppError::conflict("invite_taken", "该 5 位邀请码已被其他班级使用"));
+                    return Err(AppError::conflict(
+                        "invite_taken",
+                        "该 5 位邀请码已被其他班级使用",
+                    ));
                 }
                 return Err(err.into());
             }
@@ -1049,6 +1141,13 @@ pub async fn update_class_admin(
 
     if let Some(raw_tid) = body.teacher_id.as_deref() {
         if !raw_tid.trim().is_empty() {
+            let role: Option<String> = sqlx::query_scalar("SELECT role FROM users WHERE id = ?")
+                .bind(raw_tid.trim())
+                .fetch_optional(&mut *tx)
+                .await?;
+            if role.as_deref() != Some("teacher") {
+                return Err(AppError::validation("班级负责人必须是教师账号"));
+            }
             sqlx::query("UPDATE classes SET teacher_id = ? WHERE id = ?")
                 .bind(raw_tid.trim())
                 .bind(&class_id)
@@ -1097,7 +1196,9 @@ pub async fn add_class_member(
 ) -> Result<Json<AdminClassView>, AppError> {
     let mut tx = state.pool.begin().await?;
 
-    let student_id: String = if let Some(uid) = body.user_id.as_deref().filter(|s| !s.trim().is_empty()) {
+    let student_id: String = if let Some(uid) =
+        body.user_id.as_deref().filter(|s| !s.trim().is_empty())
+    {
         uid.trim().to_string()
     } else if let Some(raw_email) = body.email.as_deref().filter(|s| !s.trim().is_empty()) {
         let email = normalize_email(raw_email)?;
@@ -1110,6 +1211,13 @@ pub async fn add_class_member(
         return Err(AppError::validation("请提供学生 ID 或邮箱"));
     };
 
+    let role: Option<String> = sqlx::query_scalar("SELECT role FROM users WHERE id = ?")
+        .bind(&student_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    if role.as_deref() != Some("student") {
+        return Err(AppError::validation("班级成员必须是学生账号"));
+    }
     sqlx::query(
         "INSERT INTO class_members (class_id, user_id) VALUES (?, ?)
          ON DUPLICATE KEY UPDATE class_id = VALUES(class_id), joined_at = CURRENT_TIMESTAMP(3)",
@@ -1321,8 +1429,14 @@ pub async fn revoke_session(
     State(state): State<AppState>,
     Path(token_id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    sqlx::query("UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
+    let session_id: Option<String> =
+        sqlx::query_scalar("SELECT COALESCE(session_id, id) FROM refresh_tokens WHERE id = ?")
+            .bind(&token_id)
+            .fetch_optional(&state.pool)
+            .await?;
+    sqlx::query("UPDATE refresh_tokens SET revoked_at = ? WHERE (session_id = ? OR id = ?) AND revoked_at IS NULL")
         .bind(Utc::now().naive_utc())
+        .bind(session_id)
         .bind(token_id)
         .execute(&state.pool)
         .await?;
@@ -1343,196 +1457,10 @@ pub async fn revoke_user_sessions(
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn seed_academic_data(
-    State(state): State<AppState>,
-) -> Result<Json<AdminOverviewResponse>, AppError> {
-    let password_hash = hash_password("HoloGrip2026!", true)?;
-    let mut tx = state.pool.begin().await?;
-
-    // 修复历史遗留乱码名称
-    sqlx::query(
-        "UPDATE users SET display_name = '林致远 · 经典力学教研主任' WHERE display_name LIKE '%??%' AND email LIKE '%4309%'",
+async fn lock_admins(tx: &mut sqlx::Transaction<'_, sqlx::MySql>) -> Result<Vec<String>, AppError> {
+    Ok(
+        sqlx::query_scalar("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id FOR UPDATE")
+            .fetch_all(&mut **tx)
+            .await?,
     )
-    .execute(&mut *tx)
-    .await?;
-    sqlx::query(
-        "UPDATE users SET display_name = '苏婉清 · 空间光学首席讲师' WHERE display_name LIKE '%??%' AND email LIKE '%3105%'",
-    )
-    .execute(&mut *tx)
-    .await?;
-    sqlx::query(
-        "UPDATE classes SET name = '高三 (1) 班 · 经典力学与伽利略斜面实验组' WHERE name LIKE '%??%' AND invite_code = 'S4JJK'",
-    )
-    .execute(&mut *tx)
-    .await?;
-    sqlx::query(
-        "UPDATE classes SET name = '高二 (3) 班 · 波动光学与夫琅禾费衍射实验室' WHERE name LIKE '%??%' AND invite_code = 'PAOD6'",
-    )
-    .execute(&mut *tx)
-    .await?;
-
-    let faculty = [
-        (
-            "chen.weimin@hologrip.edu.cn",
-            "陈维民 教授",
-            "高三 (2) 班 · 电磁学与霍尔效应创新实验班",
-            "EM84X",
-        ),
-        (
-            "gu.xingchen@hologrip.edu.cn",
-            "顾星辰 博士",
-            "高一 (5) 班 · 定量化学滴定与热力学分子动力组",
-            "CH92K",
-        ),
-        (
-            "ye.zhiqiu@hologrip.edu.cn",
-            "叶知秋 特级教师",
-            "竞赛集训营 · 空间立体几何 AR 向量解析班",
-            "AR77V",
-        ),
-    ];
-
-    let mut class_ids: Vec<String> = Vec::new();
-
-    for (email, name, cname, code) in faculty {
-        let existing_uid: Option<String> =
-            sqlx::query_scalar("SELECT id FROM users WHERE email = ?")
-                .bind(email)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let uid = if let Some(id) = existing_uid {
-            id
-        } else {
-            let id = Uuid::now_v7().to_string();
-            sqlx::query(
-                "INSERT INTO users (id, email, password_hash, role, display_name) VALUES (?, ?, ?, 'teacher', ?)",
-            )
-            .bind(&id)
-            .bind(email)
-            .bind(&password_hash)
-            .bind(name)
-            .execute(&mut *tx)
-            .await?;
-            id
-        };
-
-        let existing_cid: Option<String> =
-            sqlx::query_scalar("SELECT id FROM classes WHERE teacher_id = ?")
-                .bind(&uid)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let cid = if let Some(id) = existing_cid {
-            id
-        } else {
-            let code_opt = Some(code.to_string());
-            insert_class_tx(&mut tx, &uid, cname, code_opt).await?
-        };
-        class_ids.push(cid);
-    }
-
-    // 也把已有班级加入列表以便分配学生
-    let all_cids: Vec<String> = sqlx::query_scalar("SELECT id FROM classes ORDER BY created_at ASC")
-        .fetch_all(&mut *tx)
-        .await?;
-    if !all_cids.is_empty() {
-        class_ids = all_cids;
-    }
-
-    let students = [
-        ("shen.yicheng@stu.hologrip.edu.cn", "沈奕辰", 0usize),
-        ("lu.mingxuan@stu.hologrip.edu.cn", "陆明轩", 0),
-        ("zhou.ziyu@stu.hologrip.edu.cn", "周子瑜", 0),
-        ("jiang.haoran@stu.hologrip.edu.cn", "江浩然", 0),
-        ("tang.waner@stu.hologrip.edu.cn", "唐婉儿", 1),
-        ("xu.jiayou@stu.hologrip.edu.cn", "许嘉佑", 1),
-        ("he.shuyao@stu.hologrip.edu.cn", "何书瑶", 1),
-        ("zhao.lingfeng@stu.hologrip.edu.cn", "赵凌峰", 2),
-        ("song.qinghe@stu.hologrip.edu.cn", "宋清禾", 2),
-        ("deng.yuhang@stu.hologrip.edu.cn", "邓宇航", 2),
-        ("bai.ruoxi@stu.hologrip.edu.cn", "白若溪", 3),
-        ("qin.muyan@stu.hologrip.edu.cn", "秦牧言", 3),
-        ("wen.zhixia@stu.hologrip.edu.cn", "温知夏", 4),
-        ("fu.jingxuan@stu.hologrip.edu.cn", "傅璟轩", 4),
-    ];
-
-    for (idx, (email, name, class_idx)) in students.iter().enumerate() {
-        let existing_uid: Option<String> =
-            sqlx::query_scalar("SELECT id FROM users WHERE email = ?")
-                .bind(email)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let uid = if let Some(id) = existing_uid {
-            id
-        } else {
-            let id = Uuid::now_v7().to_string();
-            sqlx::query(
-                "INSERT INTO users (id, email, password_hash, role, display_name) VALUES (?, ?, ?, 'student', ?)",
-            )
-            .bind(&id)
-            .bind(email)
-            .bind(&password_hash)
-            .bind(name)
-            .execute(&mut *tx)
-            .await?;
-            id
-        };
-
-        if !class_ids.is_empty() {
-            let target_cid = &class_ids[*class_idx % class_ids.len()];
-            sqlx::query(
-                "INSERT IGNORE INTO class_members (class_id, user_id) VALUES (?, ?)",
-            )
-            .bind(target_cid)
-            .bind(&uid)
-            .execute(&mut *tx)
-            .await?;
-        }
-
-        // 为部分学生生成活跃会话令牌
-        if idx < 6 {
-            let active_cnt: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL",
-            )
-            .bind(&uid)
-            .fetch_one(&mut *tx)
-            .await?;
-            if active_cnt == 0 {
-                let (_, hash) = new_refresh_token();
-                sqlx::query(
-                    "INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)",
-                )
-                .bind(Uuid::now_v7().to_string())
-                .bind(&uid)
-                .bind(hash)
-                .bind(refresh_expiry(&state.config))
-                .execute(&mut *tx)
-                .await?;
-            }
-        }
-    }
-
-    // 为各班级初始化白板版本快照记录
-    for (idx, cid) in class_ids.iter().enumerate() {
-        let rev = ((idx + 1) * 14 + 7) as u64;
-        sqlx::query(
-            "INSERT IGNORE INTO class_whiteboards (class_id, revision, snapshot) VALUES (?, ?, JSON_OBJECT('version', 1, 'strokes', JSON_ARRAY()))",
-        )
-        .bind(cid)
-        .bind(rev)
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    // 补充一条真实锁定审计示例
-    let locked_until = Utc::now().naive_utc() + Duration::minutes(14);
-    sqlx::query(
-        "INSERT INTO login_attempts (email, failed_count, locked_until) VALUES ('intruder.probe@external.net', 9, ?)
-         ON DUPLICATE KEY UPDATE failed_count = 9, locked_until = VALUES(locked_until)",
-    )
-    .bind(locked_until)
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    get_overview(State(state)).await
 }

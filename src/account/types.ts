@@ -20,6 +20,7 @@ export interface AccountClass {
 }
 
 export interface AccountUser {
+  isAdmin?: boolean;
   id: string;
   email: string;
   role: AccountRole;

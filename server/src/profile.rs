@@ -6,6 +6,7 @@ use crate::error::AppError;
 
 #[derive(sqlx::FromRow)]
 struct UserRow {
+    is_admin: bool,
     id: String,
     email: String,
     role: String,
@@ -36,7 +37,7 @@ struct MemberRow {
 
 pub async fn load_me(pool: &MySqlPool, user_id: &str) -> Result<MeResponse, AppError> {
     let user = sqlx::query_as::<_, UserRow>(
-        "SELECT id, email, role, display_name, CAST(preferences AS CHAR) AS preferences FROM users WHERE id = ?",
+        "SELECT id, email, role, is_admin, display_name, CAST(preferences AS CHAR) AS preferences FROM users WHERE id = ?",
     )
     .bind(user_id)
     .fetch_optional(pool)
@@ -50,12 +51,14 @@ pub async fn load_me(pool: &MySqlPool, user_id: &str) -> Result<MeResponse, AppE
     };
 
     Ok(MeResponse {
+        is_admin: user.is_admin,
         id: user.id,
         email: user.email,
         role: user.role,
         display_name: user.display_name,
         class,
-        preferences: user.preferences
+        preferences: user
+            .preferences
             .map(|raw| serde_json::from_str(&raw))
             .transpose()
             .map_err(|_| AppError::internal())?

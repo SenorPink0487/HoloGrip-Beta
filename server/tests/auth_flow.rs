@@ -579,3 +579,208 @@ async fn refresh_rotates_and_logout_revokes() {
     })
     .await;
 }
+
+async fn with_admin_app<F, Fut>(test: F)
+where
+    F: FnOnce(axum::Router, MySqlPool, Value) -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
+    let _guard = LOCK.lock().await;
+    let pool = fresh_pool().await;
+    server::reset_data(&pool, "owner@example.com", "Owner", "owner-password-123")
+        .await
+        .unwrap();
+    let app = router(AppState {
+        pool: pool.clone(),
+        config: Arc::new(Config::for_test()),
+    });
+    let (status, owner) = call(
+        &app,
+        "POST",
+        "/api/v1/auth/login",
+        None,
+        Some(json!({"email": "owner@example.com", "password": "owner-password-123"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(owner["user"]["isAdmin"], true);
+    test(app, pool, owner).await;
+}
+
+#[tokio::test]
+async fn every_admin_route_requires_a_current_administrator() {
+    with_admin_app(|app, _pool, owner| async move {
+        let endpoints = [
+            ("GET", "/api/v1/admin/overview"),
+            ("GET", "/api/v1/admin/users"),
+            ("POST", "/api/v1/admin/users"),
+            ("PATCH", "/api/v1/admin/users/missing"),
+            ("DELETE", "/api/v1/admin/users/missing"),
+            ("GET", "/api/v1/admin/classes"),
+            ("POST", "/api/v1/admin/classes"),
+            ("PATCH", "/api/v1/admin/classes/missing"),
+            ("DELETE", "/api/v1/admin/classes/missing"),
+            ("POST", "/api/v1/admin/classes/missing/regenerate-code"),
+            ("POST", "/api/v1/admin/classes/missing/members"),
+            ("DELETE", "/api/v1/admin/classes/missing/members/missing"),
+            ("GET", "/api/v1/admin/security"),
+            ("POST", "/api/v1/admin/security/unlock"),
+            ("POST", "/api/v1/admin/security/unlock-all"),
+            ("POST", "/api/v1/admin/security/lock"),
+            ("POST", "/api/v1/admin/security/sessions/missing/revoke"),
+            ("POST", "/api/v1/admin/security/users/missing/revoke-all"),
+        ];
+        for role in ["student", "teacher"] {
+            let (status, ordinary) = call(
+                &app,
+                "POST",
+                "/api/v1/auth/register",
+                None,
+                Some(json!({
+                    "role": role, "displayName": "Ordinary", "email": format!("{role}@example.com"),
+                    "password": "ordinary-password", "className": "Test class", "isAdmin": true,
+                })),
+            )
+            .await;
+            assert_eq!(status, StatusCode::CREATED);
+            assert_eq!(
+                ordinary["user"]["isAdmin"], false,
+                "public registration cannot grant admin"
+            );
+            for (method, endpoint) in endpoints {
+                assert_eq!(
+                    call(&app, method, endpoint, None, Some(json!({}))).await.0,
+                    StatusCode::UNAUTHORIZED,
+                    "anonymous {method} {endpoint}"
+                );
+                assert_eq!(
+                    call(
+                        &app,
+                        method,
+                        endpoint,
+                        ordinary["accessToken"].as_str(),
+                        Some(json!({}))
+                    )
+                    .await
+                    .0,
+                    StatusCode::FORBIDDEN,
+                    "{role} {method} {endpoint}"
+                );
+                assert_eq!(
+                    call(&app, method, endpoint, Some("invalid-jwt"), Some(json!({})))
+                        .await
+                        .0,
+                    StatusCode::UNAUTHORIZED
+                );
+            }
+        }
+        assert_eq!(
+            call(
+                &app,
+                "GET",
+                "/api/v1/admin/overview",
+                owner["accessToken"].as_str(),
+                None
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+        assert_eq!(
+            call(
+                &app,
+                "POST",
+                "/api/v1/admin/seed",
+                owner["accessToken"].as_str(),
+                None
+            )
+            .await
+            .0,
+            StatusCode::NOT_FOUND
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn administrator_edits_accounts_and_grants_and_revokes_access() {
+    with_admin_app(|app, _pool, owner| async move {
+        let token = owner["accessToken"].as_str();
+        let (status, user) = call(&app, "POST", "/api/v1/admin/users", token, Some(json!({
+            "role": "student", "displayName": "Before", "email": "before@example.com", "password": "old-password",
+        }))).await;
+        assert_eq!(status, StatusCode::CREATED);
+        let id = user["id"].as_str().unwrap();
+        let (_, old_login) = call(&app, "POST", "/api/v1/auth/login", None, Some(json!({"email":"before@example.com", "password":"old-password"}))).await;
+        let (status, updated) = call(&app, "PATCH", &format!("/api/v1/admin/users/{id}"), token, Some(json!({
+            "email": "after@example.com", "displayName": "After", "password": "new-password",
+            "isAdmin": true, "preferences": {"spatialWindowScale": 1.5, "whiteboardTheme": "grid"},
+        }))).await;
+        assert_eq!(status, StatusCode::OK, "{updated}");
+        assert_eq!(updated["isAdmin"], true);
+        assert_eq!(updated["preferences"]["spatialWindowScale"], 1.5);
+        assert!(updated.get("password").is_none() && updated.get("passwordHash").is_none());
+        assert_eq!(call(&app, "GET", "/api/v1/me", old_login["accessToken"].as_str(), None).await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(call(&app, "POST", "/api/v1/auth/refresh", None, Some(json!({"refreshToken":old_login["refreshToken"]}))).await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(call(&app, "POST", "/api/v1/auth/login", None, Some(json!({"email":"after@example.com", "password":"old-password"}))).await.0, StatusCode::UNAUTHORIZED);
+        let (status, promoted) = call(&app, "POST", "/api/v1/auth/login", None, Some(json!({"email":"after@example.com", "password":"new-password"}))).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(promoted["user"]["role"], "student", "admin access preserves teaching identity");
+        assert_eq!(call(&app, "GET", "/api/v1/admin/users", promoted["accessToken"].as_str(), None).await.0, StatusCode::OK);
+        assert_eq!(call(&app, "PATCH", &format!("/api/v1/admin/users/{id}"), token, Some(json!({"isAdmin":false}))).await.0, StatusCode::OK);
+        assert_eq!(call(&app, "GET", "/api/v1/admin/users", promoted["accessToken"].as_str(), None).await.0, StatusCode::UNAUTHORIZED);
+        let (_, demoted) = call(&app, "POST", "/api/v1/auth/login", None, Some(json!({"email":"after@example.com", "password":"new-password"}))).await;
+        assert_eq!(call(&app, "GET", "/api/v1/admin/users", demoted["accessToken"].as_str(), None).await.0, StatusCode::FORBIDDEN);
+        assert_eq!(call(&app, "DELETE", &format!("/api/v1/admin/users/{id}"), token, None).await.0, StatusCode::NO_CONTENT);
+        assert_eq!(call(&app, "GET", "/api/v1/me", demoted["accessToken"].as_str(), None).await.0, StatusCode::UNAUTHORIZED);
+    }).await;
+}
+
+#[tokio::test]
+async fn last_admin_cannot_be_removed_and_reset_clears_all_application_data() {
+    with_admin_app(|app, pool, owner| async move {
+        let path = format!("/api/v1/admin/users/{}", owner["user"]["id"].as_str().unwrap());
+        assert_eq!(call(&app, "PATCH", &path, owner["accessToken"].as_str(), Some(json!({"isAdmin":false}))).await.0, StatusCode::CONFLICT);
+        assert_eq!(call(&app, "DELETE", &path, owner["accessToken"].as_str(), None).await.0, StatusCode::CONFLICT);
+        let (_, teacher) = call(&app, "POST", "/api/v1/auth/register", None, Some(json!({"role":"teacher","displayName":"Teacher","email":"teacher@example.com","password":"teacher-password","className":"Reset class"}))).await;
+        let class_id = teacher["user"]["class"]["id"].as_str().unwrap();
+        sqlx::query("INSERT INTO class_whiteboards (class_id,snapshot) VALUES (?, JSON_OBJECT())").bind(class_id).execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO whiteboard_operations (class_id,op_id,user_id) VALUES (?,'test',?)").bind(class_id).bind(teacher["user"]["id"].as_str().unwrap()).execute(&pool).await.unwrap();
+        let (_, _student) = call(&app, "POST", "/api/v1/auth/register", None, Some(json!({"role":"student","displayName":"Student","email":"student@example.com","password":"student-password","inviteCode":teacher["user"]["class"]["inviteCode"]}))).await;
+        server::reset_data(&pool, "reset@example.com", "Reset owner", "reset-password").await.unwrap();
+        for table in ["classes","class_members","class_whiteboards","whiteboard_operations","refresh_tokens","login_attempts"] {
+            let count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table}")).fetch_one(&pool).await.unwrap();
+            assert_eq!(count, 0, "{table} must be empty");
+        }
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE is_admin = TRUE").fetch_one(&pool).await.unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(call(&app, "GET", "/api/v1/admin/users", owner["accessToken"].as_str(), None).await.0, StatusCode::UNAUTHORIZED);
+        let (status, fresh) = call(&app, "POST", "/api/v1/auth/login", None, Some(json!({"email":"reset@example.com","password":"reset-password"}))).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(fresh["user"]["displayName"], "Reset owner");
+        assert_eq!(fresh["user"]["isAdmin"], true);
+    }).await;
+}
+
+#[tokio::test]
+async fn revoking_a_device_blocks_access_and_refresh_without_affecting_other_devices() {
+    with_admin_app(|app, pool, owner| async move {
+        let token = owner["accessToken"].as_str();
+        let (_, created) = call(&app, "POST", "/api/v1/admin/users", token, Some(json!({"role":"student","displayName":"Devices","email":"devices@example.com","password":"device-password"}))).await;
+        let credentials = json!({"email":"devices@example.com","password":"device-password"});
+        let (_, first) = call(&app,"POST","/api/v1/auth/login",None,Some(credentials.clone())).await;
+        let session_id: String = sqlx::query_scalar("SELECT id FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL")
+            .bind(created["id"].as_str().unwrap()).fetch_one(&pool).await.unwrap();
+        let (_, second) = call(&app,"POST","/api/v1/auth/login",None,Some(credentials)).await;
+        assert_eq!(call(&app,"POST",&format!("/api/v1/admin/security/sessions/{session_id}/revoke"),token,None).await.0,StatusCode::NO_CONTENT);
+        assert_eq!(call(&app,"GET","/api/v1/me",first["accessToken"].as_str(),None).await.0,StatusCode::UNAUTHORIZED);
+        assert_eq!(call(&app,"POST","/api/v1/auth/refresh",None,Some(json!({"refreshToken":first["refreshToken"]}))).await.0,StatusCode::UNAUTHORIZED);
+        assert_eq!(call(&app,"GET","/api/v1/me",second["accessToken"].as_str(),None).await.0,StatusCode::OK);
+        let (status, refreshed) = call(&app,"POST","/api/v1/auth/refresh",None,Some(json!({"refreshToken":second["refreshToken"]}))).await;
+        assert_eq!(status,StatusCode::OK);
+        assert_eq!(call(&app,"GET","/api/v1/me",refreshed["accessToken"].as_str(),None).await.0,StatusCode::OK);
+        let path = format!("/api/v1/admin/security/users/{}/revoke-all",created["id"].as_str().unwrap());
+        assert_eq!(call(&app,"POST",&path,token,None).await.0,StatusCode::NO_CONTENT);
+        assert_eq!(call(&app,"GET","/api/v1/me",refreshed["accessToken"].as_str(),None).await.0,StatusCode::UNAUTHORIZED);
+    }).await;
+}
