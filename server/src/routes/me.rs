@@ -5,8 +5,8 @@ use serde::Deserialize;
 use crate::auth::token::CurrentUser;
 use crate::dto::MeResponse;
 use crate::error::AppError;
-use crate::profile::load_me;
 use crate::preferences::AccountPreferences;
+use crate::profile::load_me;
 use crate::routes::auth::normalize_display_name;
 use crate::state::AppState;
 
@@ -43,14 +43,13 @@ pub async fn update_preferences(
     Json(body): Json<AccountPreferences>,
 ) -> Result<Json<AccountPreferences>, AppError> {
     body.validate()?;
-    if let Some(scale) = body.spatial_window_scale {
-        sqlx::query(
-            "UPDATE users SET preferences = JSON_SET(COALESCE(preferences, JSON_OBJECT()), '$.spatialWindowScale', ?) WHERE id = ?",
-        )
-        .bind(scale)
-        .bind(&user.id)
-        .execute(&state.pool)
-        .await?;
-    }
+    let patch = serde_json::to_string(&body).map_err(|_| AppError::internal())?;
+    sqlx::query(
+        "UPDATE users SET preferences = JSON_MERGE_PATCH(COALESCE(preferences, JSON_OBJECT()), ?) WHERE id = ?",
+    )
+    .bind(patch)
+    .bind(&user.id)
+    .execute(&state.pool)
+    .await?;
     Ok(Json(load_me(&state.pool, &user.id).await?.preferences))
 }

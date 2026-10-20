@@ -95,6 +95,145 @@ fn error_message(body: &Value) -> String {
 }
 
 #[tokio::test]
+async fn account_preferences_survive_login_and_remain_private() {
+    with_app(|app| async move {
+        let credentials = json!({ "email": "prefs@school.edu", "password": "password1" });
+        let (status, registered) = call(
+            &app,
+            "POST",
+            "/api/v1/auth/register",
+            None,
+            Some(json!({
+                "role": "student", "displayName": "偏好测试",
+                "email": "prefs@school.edu", "password": "password1"
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(registered["user"]["preferences"], json!({}));
+        let token = registered["accessToken"].as_str().unwrap();
+        let (status, _) = call(
+            &app,
+            "PATCH",
+            "/api/v1/me/preferences",
+            None,
+            Some(json!({ "spatialWindowScale": 1.65 })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let (status, prefs) = call(
+            &app,
+            "PATCH",
+            "/api/v1/me/preferences",
+            Some(token),
+            Some(json!({ "spatialWindowScale": 1.65 })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(prefs["spatialWindowScale"], 1.65);
+        let (status, _) = call(
+            &app,
+            "PATCH",
+            "/api/v1/me/preferences",
+            Some(token),
+            Some(json!({ "spatialWindowScale": 9 })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        // An empty patch must preserve the user's existing preference.
+        let (_, prefs) = call(
+            &app,
+            "PATCH",
+            "/api/v1/me/preferences",
+            Some(token),
+            Some(json!({})),
+        )
+        .await;
+        assert_eq!(prefs["spatialWindowScale"], 1.65);
+        let (_, me) = call(&app, "GET", "/api/v1/me", Some(token), None).await;
+        assert_eq!(me["preferences"]["spatialWindowScale"], 1.65);
+        let (status, prefs) = call(
+            &app,
+            "PATCH",
+            "/api/v1/me/preferences",
+            Some(token),
+            Some(json!({ "whiteboardTheme": "grid" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(prefs["spatialWindowScale"], 1.65);
+        assert_eq!(prefs["whiteboardTheme"], "grid");
+        let (status, _) = call(
+            &app,
+            "PATCH",
+            "/api/v1/me/preferences",
+            Some(token),
+            Some(json!({ "whiteboardTheme": "invalid" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        let (status, _) = call(
+            &app,
+            "POST",
+            "/api/v1/auth/logout",
+            None,
+            Some(json!({ "refreshToken": registered["refreshToken"] })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let (status, login) =
+            call(&app, "POST", "/api/v1/auth/login", None, Some(credentials)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(login["user"]["preferences"]["spatialWindowScale"], 1.65);
+        assert_eq!(login["user"]["preferences"]["whiteboardTheme"], "grid");
+        let (status, refreshed) = call(
+            &app,
+            "POST",
+            "/api/v1/auth/refresh",
+            None,
+            Some(json!({ "refreshToken": login["refreshToken"] })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(refreshed["user"]["preferences"]["spatialWindowScale"], 1.65);
+        assert_eq!(refreshed["user"]["preferences"]["whiteboardTheme"], "grid");
+
+        let (_, other) = call(
+            &app,
+            "POST",
+            "/api/v1/auth/register",
+            None,
+            Some(json!({
+                "role": "student", "displayName": "另一个用户",
+                "email": "other-prefs@school.edu", "password": "password1"
+            })),
+        )
+        .await;
+        assert_eq!(other["user"]["preferences"], json!({}));
+        let (status, prefs) = call(
+            &app,
+            "PATCH",
+            "/api/v1/me/preferences",
+            other["accessToken"].as_str(),
+            Some(json!({ "spatialWindowScale": 0.8 })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(prefs["spatialWindowScale"], 0.8);
+        let (_, me) = call(
+            &app,
+            "GET",
+            "/api/v1/me",
+            refreshed["accessToken"].as_str(),
+            None,
+        )
+        .await;
+        assert_eq!(me["preferences"]["spatialWindowScale"], 1.65);
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn teacher_register_exposes_invite_code_on_me() {
     with_app(|app| async move {
         let (status, body) = call(

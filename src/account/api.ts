@@ -77,7 +77,7 @@ async function refreshOnce(): Promise<boolean> {
         return true;
       } catch (error) {
         if (readRefresh() !== token) return false;
-        if (error instanceof AccountApiError && error.status === 0) return false;
+        if (error instanceof AccountApiError && error.status === 0) throw error;
         clearSession();
         return false;
       } finally {

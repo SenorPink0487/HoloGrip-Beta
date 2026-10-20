@@ -52,6 +52,17 @@ export class AccountModal {
     this.canvas = canvas;
     this.buildShell(parent);
     this.bindShell();
+    const preferences = accountPreferences();
+    const restoreTheme = () => {
+      if (this.canvas.getTheme() !== preferences.whiteboardTheme) {
+        this.canvas.setTheme(preferences.whiteboardTheme);
+      }
+      this.element.querySelectorAll<HTMLElement>('.theme-card-btn').forEach(button => {
+        button.classList.toggle('active', button.dataset.theme === preferences.whiteboardTheme);
+      });
+    };
+    preferences.subscribe(restoreTheme);
+    restoreTheme();
     subscribe(() => {
       if (getUser()) this.authError = '';
       if (this.isOpen) {
@@ -388,6 +399,7 @@ export class AccountModal {
       button.appendChild(label);
       button.addEventListener('click', () => {
         this.canvas.setTheme(theme.id);
+        accountPreferences().setWhiteboardTheme(theme.id);
         const buttons = this.element.querySelectorAll('.theme-card-btn');
         buttons.forEach((item) => {
           item.classList.toggle('active', (item as HTMLElement).dataset.theme === theme.id);

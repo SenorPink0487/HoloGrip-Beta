@@ -630,7 +630,8 @@ export class Engine {
     return (
       id === 'math-stereometry' ||
       id === 'mech-center-of-gravity' ||
-      id === 'mech-newton-third'
+      id === 'mech-newton-third' ||
+      id === 'thermo-compression-ignition'
     );
   }
 
@@ -1911,7 +1912,8 @@ export class Engine {
           this.currentExperimentId === 'mech-newton-third' ||
           this.currentExperimentId === 'optics-diffraction' ||
           this.currentExperimentId === 'optics-reflection-refraction' ||
-          this.currentExperimentId === 'em-capacitor-discharge') &&
+          this.currentExperimentId === 'em-capacitor-discharge' ||
+          this.currentExperimentId === 'thermo-compression-ignition') &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
         this.lastPointerRaycastTime = now;

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { AccountPreferenceStore, normalizePreferences } from '../src/account/preferences.ts';
 import type { AccountUser } from '../src/account/types.ts';
 import { VisionModal } from '../src/ui/vision/VisionModal.ts';
+import { saveAccountPreferences } from '../src/account/api.ts';
+import { clearSession, getUser, setSession } from '../src/account/session.ts';
 
 const user = (id: string, scale?: number): AccountUser => ({
   id, email: `${id}@school.edu`, role: 'student', displayName: id, class: null,
@@ -84,6 +86,17 @@ for (const invalid of [NaN, Infinity, -1, 0.49, 2.01, '1.5', null]) {
   assert.deepEqual(normalizePreferences({ spatialWindowScale: invalid }), {});
 }
 assert.deepEqual(normalizePreferences({ spatialWindowScale: 1.234 }), { spatialWindowScale: 1.23 });
+assert.deepEqual(normalizePreferences({ whiteboardTheme: 'unknown' }), {});
+const themeSaves: unknown[] = [];
+const themed = new AccountPreferenceStore(async (_id, patch) => { themeSaves.push(patch); });
+themed.activate({ ...user('alice', 1.4), preferences: { spatialWindowScale: 1.4, whiteboardTheme: 'grid' } });
+assert.equal(themed.whiteboardTheme, 'grid');
+themed.setWhiteboardTheme('dark');
+themed.setSpatialWindowScale(1.6);
+await themed.flush();
+assert.deepEqual(themeSaves, [{ whiteboardTheme: 'dark', spatialWindowScale: 1.6 }]);
+themed.activate(user('bob'));
+assert.equal(themed.whiteboardTheme, 'plain');
 
 let indicatorCount = 0;
 let appliedScale = 0;
@@ -100,5 +113,50 @@ assert.equal(indicatorCount, 1);
 VisionModal.prototype.setScale.call(modal as any, NaN);
 assert.equal(appliedScale, 1.6, 'invalid values cannot poison the scene transform');
 
-for (const instance of [store, delayed, offline, reloaded, switched]) instance.activate(null);
+for (const instance of [store, delayed, offline, reloaded, switched, themed]) instance.activate(null);
+
+// Actual API retries must retain account ownership when a token refresh crosses logout/login.
+const originalFetch = globalThis.fetch;
+Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+const auth = (id: string) => ({ user: user(id), accessToken: `${id}-access`, refreshToken: `${id}-refresh` });
+try {
+  setSession(auth('alice'));
+  let requests = 0;
+  globalThis.fetch = async (_url, init) => {
+    requests++;
+    assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer alice-access');
+    return Response.json({ spatialWindowScale: 1.5 });
+  };
+  await saveAccountPreferences('alice', { spatialWindowScale: 1.5 });
+  await assert.rejects(saveAccountPreferences('bob', { spatialWindowScale: 1.5 }));
+  assert.equal(requests, 1, 'a mismatched account is rejected before sending a request');
+
+  let refreshStarted!: () => void;
+  const refreshing = new Promise<void>(resolve => { refreshStarted = resolve; });
+  let finishRefresh!: (response: Response) => void;
+  globalThis.fetch = async url => {
+    if (String(url).endsWith('/auth/refresh')) {
+      refreshStarted();
+      return new Promise<Response>(resolve => { finishRefresh = resolve; });
+    }
+    return new Response(null, { status: 401 });
+  };
+  const request = saveAccountPreferences('alice', { spatialWindowScale: 1.8 });
+  await refreshing;
+  setSession(auth('bob'));
+  finishRefresh(Response.json(auth('alice')));
+  await assert.rejects(request);
+  assert.equal(getUser()?.id, 'bob', 'an old token refresh cannot sign the previous account back in');
+
+  globalThis.fetch = async url => {
+    if (String(url).endsWith('/auth/refresh')) throw new Error('offline');
+    return new Response(null, { status: 401 });
+  };
+  await assert.rejects(saveAccountPreferences('bob', { spatialWindowScale: 1.2 }));
+  assert.equal(getUser()?.id, 'bob', 'a temporary refresh network failure must preserve the session');
+} finally {
+  globalThis.fetch = originalFetch;
+  clearSession();
+  delete (globalThis as any).localStorage;
+}
 console.log('account preference persistence, retry, account isolation and silent restoration tests passed');

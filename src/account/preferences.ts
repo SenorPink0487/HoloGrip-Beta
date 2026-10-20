@@ -6,10 +6,14 @@ export const DEFAULT_SPATIAL_WINDOW_SCALE = 1;
 
 export function normalizePreferences(value: unknown): AccountPreferences {
   if (!value || typeof value !== 'object') return {};
+  const result: AccountPreferences = {};
   const scale = (value as AccountPreferences).spatialWindowScale;
-  return typeof scale === 'number' && Number.isFinite(scale) && scale >= 0.5 && scale <= 2
-    ? { spatialWindowScale: Math.round(scale * 100) / 100 }
-    : {};
+  if (typeof scale === 'number' && Number.isFinite(scale) && scale >= 0.5 && scale <= 2) {
+    result.spatialWindowScale = Math.round(scale * 100) / 100;
+  }
+  const theme = (value as AccountPreferences).whiteboardTheme;
+  if (theme && ['plain', 'grid', 'chalkboard', 'dark'].includes(theme)) result.whiteboardTheme = theme;
+  return result;
 }
 
 /** Account-owned preferences; local storage holds only edits awaiting server acknowledgement. */
@@ -33,6 +37,10 @@ export class AccountPreferenceStore {
 
   get spatialWindowScale(): number {
     return this.value.spatialWindowScale ?? DEFAULT_SPATIAL_WINDOW_SCALE;
+  }
+
+  get whiteboardTheme(): NonNullable<AccountPreferences['whiteboardTheme']> {
+    return this.value.whiteboardTheme ?? 'plain';
   }
 
   subscribe(listener: () => void): () => void {
@@ -60,6 +68,16 @@ export class AccountPreferenceStore {
   setSpatialWindowScale(scale: number): void {
     const next = normalizePreferences({ spatialWindowScale: scale });
     if (next.spatialWindowScale === undefined || next.spatialWindowScale === this.spatialWindowScale) return;
+    this.update(next);
+  }
+
+  setWhiteboardTheme(theme: NonNullable<AccountPreferences['whiteboardTheme']>): void {
+    const next = normalizePreferences({ whiteboardTheme: theme });
+    if (!next.whiteboardTheme || next.whiteboardTheme === this.whiteboardTheme) return;
+    this.update(next);
+  }
+
+  private update(next: AccountPreferences): void {
     this.value = { ...this.value, ...next };
     if (this.userId) {
       const pending = { ...this.pending.get(this.userId), ...next };
@@ -132,7 +150,7 @@ export function accountPreferences(): AccountPreferenceStore {
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => { void store!.flush(); });
       window.addEventListener('pagehide', () => { void store!.flush(); });
-      document.addEventListener('visibilitychange', () => {
+      document.addEventListener?.('visibilitychange', () => {
         if (document.visibilityState === 'hidden') void store!.flush();
       });
     }

@@ -297,6 +297,28 @@ export class PhysicsDisciplineModal {
         </svg>
       `,
     },
+    {
+      id: 'thermo-compression-ignition',
+      name: '气体绝热压缩点火实验',
+      category: '内能与绝热过程',
+      formula: 'ΔU = W + Q · T₂ = T₁ (V₁/V₂)^(γ-1)',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Fire Piston Thick Cylinder -->
+          <rect x="12" y="8" width="12" height="22" rx="2" stroke-width="1.8" fill="currentColor" fill-opacity="0.06"/>
+          <!-- Piston Rod & T-Handle -->
+          <line x1="18" y1="2.5" x2="18" y2="16" stroke-width="2.2"/>
+          <line x1="13" y1="2.5" x2="23" y2="2.5" stroke-width="2.2"/>
+          <rect x="13" y="16" width="10" height="3" rx="1" fill="currentColor" fill-opacity="0.3" stroke-width="1.4"/>
+          <!-- Downward Stroke Arrow -->
+          <line x1="7" y1="8" x2="7" y2="17" stroke-width="1.6"/>
+          <polyline points="5,15 7,17.5 9,15" stroke-width="1.4"/>
+          <!-- Combustion Flash at Bottom -->
+          <circle cx="18" cy="26" r="2.5" fill="currentColor"/>
+          <path d="M16 25 Q 18 21.5 20 25" stroke-width="1.3"/>
+        </svg>
+      `,
+    },
   ];
 
   public static readonly OPTICS_EXPERIMENTS: OpticsExperimentDef[] = [

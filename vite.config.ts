@@ -30,6 +30,10 @@ export default defineConfig(({ mode }) => {
       target: 'esnext',
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
+        input: {
+          main: fileURLToPath(new URL('./index.html', import.meta.url)),
+          admin: fileURLToPath(new URL('./admin.html', import.meta.url)),
+        },
         output: {
           manualChunks(id) {
             if (id.includes('node_modules/three')) {

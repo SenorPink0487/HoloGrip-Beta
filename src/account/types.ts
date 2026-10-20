@@ -2,6 +2,7 @@ export type AccountRole = 'teacher' | 'student';
 
 export interface AccountPreferences {
   spatialWindowScale?: number;
+  whiteboardTheme?: 'plain' | 'grid' | 'chalkboard' | 'dark';
 }
 
 export interface ClassStudent {
