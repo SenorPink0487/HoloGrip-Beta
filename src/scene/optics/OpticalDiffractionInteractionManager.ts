@@ -89,6 +89,15 @@ export class OpticalDiffractionInteractionManager {
           };
         }
 
+        if (id === 'slit_turret' || cur.name === 'SlitTurretWheel') {
+          const typeName = this.bench.diffractionType === 'single' ? '单缝' : this.bench.diffractionType === 'double' ? '双缝' : this.bench.diffractionType === 'circular' ? '圆孔' : '光栅';
+          return {
+            id: 'slit_turret',
+            label: `精密多功能衍射转换轮 · 当前[${typeName}] (点击切换单缝/双缝/圆孔/光栅)`,
+            cursor: 'pointer',
+          };
+        }
+
         if (
           id === 'slit_micrometer' ||
           cur.name === 'SlitMicrometerKnob' ||
@@ -101,15 +110,6 @@ export class OpticalDiffractionInteractionManager {
             id: 'slit_micrometer',
             label: `精密测微可调单缝仪 (按住左右拖拽微调缝宽 a = ${this.bench.slitWidthMm.toFixed(2)} mm)`,
             cursor: 'ew-resize',
-          };
-        }
-
-        if (id === 'slit_turret' || cur.name === 'SlitTurretWheel') {
-          const typeName = this.bench.diffractionType === 'single' ? '单缝' : this.bench.diffractionType === 'double' ? '双缝' : this.bench.diffractionType === 'circular' ? '圆孔' : '光栅';
-          return {
-            id: 'slit_turret',
-            label: `精密衍射元件架 · 当前[${typeName}] (点击切换单缝/双缝/圆孔/光栅)`,
-            cursor: 'pointer',
           };
         }
 

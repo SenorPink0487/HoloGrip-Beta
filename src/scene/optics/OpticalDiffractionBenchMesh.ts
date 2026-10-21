@@ -44,14 +44,14 @@ function safeCanvas(width: number, height: number): HTMLCanvasElement | null {
 }
 
 /**
- * 工业科研级光具座光的衍射与干涉实验台 (1:1 物理级真实复刻)
- * 完整复刻：
- * 1. 阳极氧化缎黑双槽精密导轨 (0~100cm 激光蚀刻毫米双边刻度、两端支脚调平旋钮与限位销)
- * 2. 4组标准精密滑鞍 (底座夹持块、微米滚花侧边锁紧手轮、镜面不锈钢立柱导杆)
- * 3. 准直聚光灯箱 (黑色金属箱体、侧边散热百叶槽、电源电缆防折护套、黄铜镜圈、翘板开关与波长轻触键)
- * 4. 八角倒角单缝遮光板 (纯文字无边框浮空缝宽、精密对置钛合金刀口、中心透光狭缝)
- * 5. 光栅与干涉片夹具 (双银色滚花手轮压片、透明透射光栅玻片与细密刻线)
- * 6. 白色投影接收屏 (纯白漫反射屏、真实 Fraunhofer 衍射色散条纹、顶部握把与导轨联动)
+ * 工业科研级光具座光的衍射与干涉实验台 (标准科研三滑座架构)
+ * 架构规范 (方案 A):
+ * 1. 航天级阳极氧化宝石蓝双槽精密导轨 (0~100cm 激光蚀刻毫米双边刻度、两端香槟金调平旋钮与限位销)
+ * 2. 精准三滑座架构 (无冗余器件，符合真实物理光路)：
+ *    - 滑座 1: 准直聚光灯箱 (航天宝石蓝金属箱体、侧边散热百叶槽、实验室高品质柔性电缆、香槟金镜圈、翘板开关与波长轻触键，X=-0.36)
+ *    - 滑座 2: 通用精密衍射变换台 (航天宝石蓝八角倒角承载板、微米精密对置钛合金刀口、香槟金测微鼓轮、旋转转换轮与光栅夹片，X=-0.08)
+ *    - 滑座 3: 深邃海洋蓝黑高对比度投影接收屏 (航天宝石蓝精致外框、深海蓝黑感光面板、真实 Fraunhofer 衍射与艾里斑高动态光斑，X=0.16~0.46)
+ * 3. 3D 空气漫散射真实光路系统 (出光口直达衍射台，衍射台直达观测屏，无中间冗余夹具干扰)
  */
 export class OpticalDiffractionBenchMesh {
   public readonly group = new THREE.Group();
@@ -62,9 +62,9 @@ export class OpticalDiffractionBenchMesh {
   public readonly railHeight = 0.042;  // Y 轴导轨厚度
   public readonly beamHeightY = 0.200; // 沿导轨上方光轴标准高度
   public readonly laserX = -0.36;      // 光源灯箱安装坐标 (标尺 ~14cm 处)
-  public readonly slitX = -0.16;       // 单缝光阑安装坐标 (标尺 ~34cm 处)
-  public readonly gratingX = 0.10;     // 光栅/双缝夹具安装坐标 (标尺 ~60cm 处)
-  public minScreenX = 0.22;            // 观测屏滑行最近端 (标尺 ~72cm 处)
+  public readonly slitX = -0.08;       // 中央通用精密衍射工作台坐标 (标尺 ~46cm 处)
+  public readonly gratingX = -0.08;     // 保持与 slitX 一致 (向后兼容)
+  public minScreenX = 0.16;            // 观测屏滑行最近端 (标尺 ~66cm 处)
   public maxScreenX = 0.46;            // 观测屏滑行最远端 (标尺 ~96cm 处)
 
   // 状态参数
@@ -137,29 +137,27 @@ export class OpticalDiffractionBenchMesh {
 
     this.buildBenchApparatus();
     this.syncScreenPositionFromDistance();
+    this.updateElementVisibility();
     this.updateSlitKinematics();
     this.updateScreenTexture();
     this.updateBeams();
   }
 
-  // ==================== 1. 主装配构建 ====================
+  // ==================== 1. 主装配构建 (标准科研三滑座) ====================
   private buildBenchApparatus(): void {
-    // A. 阳极氧化缎黑双槽导轨、0-100cm 毫米刻度与两端调平支脚
+    // A. 阳极氧化宝石蓝双槽导轨、0-100cm 毫米刻度与两端调平支脚
     this.buildOpticalRail();
 
     // B. 第 1 组滑鞍与准直聚光灯箱 (置于左侧 X=-0.36)
     this.buildLaserModule();
 
-    // C. 第 2 组滑鞍与八角倒角单缝挡板 (置于中央偏左 X=-0.16)
-    this.buildAdjustableSingleSlitStage();
+    // C. 第 2 组滑鞍：中央通用高精度衍射变换工作台 (置于中央 X=-0.08，集成单缝微米刀口、双缝、圆孔、光栅与模式旋转轮)
+    this.buildUniversalDiffractionStage();
 
-    // D. 第 3 组滑鞍与光栅/双缝元件夹具 (置于中央偏右 X=0.10)
-    this.buildGratingHolder();
-
-    // E. 第 4 组滑鞍与白色投影接收屏 (置于右侧 X=0.38，沿导轨平滑滑动)
+    // D. 第 3 组滑鞍：深海蓝黑高对比度投影接收屏 (置于右侧 X=0.16~0.46，沿导轨平滑滑动)
     this.buildObservationScreen();
 
-    // F. 3D 空气中真实光束传播系统
+    // E. 3D 空气漫散射真实激光光路系统
     this.buildOpticalBeams();
   }
 
@@ -173,33 +171,34 @@ export class OpticalDiffractionBenchMesh {
     group.name = name;
     group.position.set(xPos, 0, 0);
 
-    const blackAnodizedMat = new THREE.MeshStandardMaterial({
-      color: 0x1f2328,
-      metalness: 0.65,
-      roughness: 0.35,
+    // 航天级阳极氧化宝石蓝与精密五金体系 (经典科研仪器配色，与浅白背景形成清晰分明的对比度，色调稳固不晃动)
+    const sapphireBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x1d4ed8,
+      metalness: 0.25,
+      roughness: 0.38,
+    });
+    const brightBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x2563eb,
+      metalness: 0.28,
+      roughness: 0.32,
     });
     const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.98,
-      roughness: 0.05,
+      color: 0xf8fafc,
+      metalness: 0.55,
+      roughness: 0.20,
     });
-    const knurlBlackMat = new THREE.MeshStandardMaterial({
-      color: 0x27272a,
-      metalness: 0.45,
-      roughness: 0.40,
-    });
-    const silverCollarMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.90,
-      roughness: 0.18,
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      metalness: 0.35,
+      roughness: 0.32,
     });
 
-    // 1. 滑鞍主体基座 (精密切削实心黑色铝块，跨接于导轨顶部)
+    // 1. 滑鞍主体基座 (精密切削航天级阳极氧化宝石蓝铝块，跨接于导轨顶部)
     const baseW = 0.068; // 沿 X 轴宽度
     const baseH = 0.022; // 沿 Y 轴厚度
     const baseD = 0.076; // 沿 Z 轴深度
     const baseGeo = new THREE.BoxGeometry(baseW, baseH, baseD);
-    const base = new THREE.Mesh(baseGeo, blackAnodizedMat);
+    const base = new THREE.Mesh(baseGeo, sapphireBlueMat);
     base.position.set(0, this.railHeight + baseH * 0.5, 0);
     base.castShadow = true;
     base.receiveShadow = true;
@@ -207,39 +206,39 @@ export class OpticalDiffractionBenchMesh {
 
     // 下部导向燕尾卡爪 (贴合导轨两侧双导杆槽)
     const lipGeo = new THREE.BoxGeometry(baseW, 0.010, 0.006);
-    const lipFront = new THREE.Mesh(lipGeo, blackAnodizedMat);
+    const lipFront = new THREE.Mesh(lipGeo, brightBlueMat);
     lipFront.position.set(0, this.railHeight + 0.005, baseD * 0.5 - 0.003);
-    const lipBack = new THREE.Mesh(lipGeo, blackAnodizedMat);
+    const lipBack = new THREE.Mesh(lipGeo, brightBlueMat);
     lipBack.position.set(0, this.railHeight + 0.005, -baseD * 0.5 + 0.003);
     group.add(lipFront);
     group.add(lipBack);
 
-    // 正面白色高精度对齐读数指针 (对准下方的毫米刻度尺)
+    // 正面高精度对齐读数指针 (对准下方的毫米刻度尺，白色指针在蓝底上极为鲜明)
     const indexLineGeo = new THREE.BoxGeometry(0.002, 0.016, 0.002);
     const indexLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const indexLine = new THREE.Mesh(indexLineGeo, indexLineMat);
     indexLine.position.set(0, this.railHeight + 0.006, baseD * 0.501);
     group.add(indexLine);
 
-    // 2. 中央立柱锁紧圆柱套筒
+    // 2. 中央立柱锁紧圆柱套筒 (香槟金精密锁紧套筒)
     const collarRadius = 0.011;
     const collarH = 0.032;
     const collarGeo = new THREE.CylinderGeometry(collarRadius, collarRadius, collarH, 28);
-    const collar = new THREE.Mesh(collarGeo, blackAnodizedMat);
+    const collar = new THREE.Mesh(collarGeo, brassMat);
     collar.position.set(0, this.railHeight + baseH + collarH * 0.5, 0);
     collar.castShadow = true;
     group.add(collar);
 
-    // 3. 套筒右侧滚花锁紧手轮 (黑色硬质微米滚花旋钮与不锈钢连接轴)
+    // 3. 套筒右侧滚花锁紧手轮 (香槟金微米滚花旋钮与不锈钢连接轴)
     const screwShaftGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.008, 16);
     screwShaftGeo.rotateZ(Math.PI / 2);
-    const screwShaft = new THREE.Mesh(screwShaftGeo, silverCollarMat);
+    const screwShaft = new THREE.Mesh(screwShaftGeo, chromeRodMat);
     screwShaft.position.set(collarRadius + 0.004, this.railHeight + baseH + collarH * 0.55, 0);
     group.add(screwShaft);
 
     const screwHeadGeo = new THREE.CylinderGeometry(0.0075, 0.0075, 0.014, 24);
     screwHeadGeo.rotateZ(Math.PI / 2);
-    const screwHead = new THREE.Mesh(screwHeadGeo, knurlBlackMat);
+    const screwHead = new THREE.Mesh(screwHeadGeo, brassMat);
     screwHead.position.set(collarRadius + 0.015, this.railHeight + baseH + collarH * 0.55, 0);
     group.add(screwHead);
 
@@ -254,35 +253,36 @@ export class OpticalDiffractionBenchMesh {
     return { saddleGroup: group, collar, rod };
   }
 
-  // ==================== A. 阳极氧化缎黑双槽导轨与调平底座 ====================
+  // ==================== A. 航天级阳极氧化宝石蓝双槽导轨与调平底座 ====================
   private buildOpticalRail(): void {
     this.railGroup = new THREE.Group();
     this.railGroup.name = 'RailGroup';
 
-    const satinBlackMat = new THREE.MeshStandardMaterial({
-      color: 0x1f2328,
-      metalness: 0.65,
-      roughness: 0.35,
+    // 导轨床身与端盖材质：阳极氧化宝石蓝铝材，与实验桌面形成清晰分明的视觉轮廓
+    const sapphireBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x1d4ed8,
+      metalness: 0.25,
+      roughness: 0.38,
+    });
+    const brightBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x2563eb,
+      metalness: 0.28,
+      roughness: 0.32,
     });
     const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.98,
-      roughness: 0.05,
+      color: 0xf8fafc,
+      metalness: 0.55,
+      roughness: 0.20,
     });
-    const silverKnurlMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.92,
-      roughness: 0.18,
-    });
-    const blackKnurlMat = new THREE.MeshStandardMaterial({
-      color: 0x27272a,
-      metalness: 0.45,
-      roughness: 0.40,
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      metalness: 0.35,
+      roughness: 0.32,
     });
 
-    // 1. 导轨床身主体：工业缎面黑阳极氧化铝合金型材
+    // 1. 导轨床身主体：工业航天级阳极氧化宝石蓝铝合金型材 (清晰区别于浅白背景)
     const railBodyGeo = new THREE.BoxGeometry(this.railLength, this.railHeight, this.railWidth);
-    const railBody = new THREE.Mesh(railBodyGeo, satinBlackMat);
+    const railBody = new THREE.Mesh(railBodyGeo, sapphireBlueMat);
     railBody.position.set(0, this.railHeight * 0.5, 0);
     railBody.castShadow = true;
     railBody.receiveShadow = true;
@@ -299,7 +299,7 @@ export class OpticalDiffractionBenchMesh {
     this.railGroup.add(rodFront);
     this.railGroup.add(rodBack);
 
-    // 3. 两端铸造支脚端盖与调平螺栓系统 (左右各一组)
+    // 3. 两端亮蓝端盖与香槟金调平螺栓系统 (左右各一组)
     const endCapW = 0.024;
     const endCapH = this.railHeight + 0.008;
     const endCapD = this.railWidth + 0.006;
@@ -307,30 +307,30 @@ export class OpticalDiffractionBenchMesh {
 
     const xEnds = [-this.railLength * 0.5 - endCapW * 0.5, this.railLength * 0.5 + endCapW * 0.5];
 
-    xEnds.forEach((xPos, idx) => {
-      // 黑色端盖封头
-      const endCap = new THREE.Mesh(endCapGeo, satinBlackMat);
+    xEnds.forEach((xPos) => {
+      // 亮蓝端盖封头
+      const endCap = new THREE.Mesh(endCapGeo, brightBlueMat);
       endCap.position.set(xPos, this.railHeight * 0.5, 0);
       endCap.castShadow = true;
       this.railGroup.add(endCap);
 
-      // 顶部不锈钢限位防滑脱止动螺钉 (垂直滚花螺钉)
+      // 顶部香槟金限位防滑脱止动螺钉 (垂直滚花螺钉)
       const stopScrewGeo = new THREE.CylinderGeometry(0.0065, 0.0065, 0.018, 24);
-      const stopScrew = new THREE.Mesh(stopScrewGeo, silverKnurlMat);
+      const stopScrew = new THREE.Mesh(stopScrewGeo, brassMat);
       stopScrew.position.set(xPos, this.railHeight + 0.013, 0);
       this.railGroup.add(stopScrew);
 
-      // 下部横向防倾覆支脚横梁 (沿 Z 轴横向舒展)
+      // 下部横向防倾覆支脚横梁 (航天宝石蓝，沿 Z 轴横向舒展)
       const crossFootW = 0.026;
       const crossFootH = 0.014;
       const crossFootD = 0.144;
       const crossFootGeo = new THREE.BoxGeometry(crossFootW, crossFootH, crossFootD);
-      const crossFoot = new THREE.Mesh(crossFootGeo, satinBlackMat);
+      const crossFoot = new THREE.Mesh(crossFootGeo, sapphireBlueMat);
       crossFoot.position.set(xPos, 0.002, 0);
       crossFoot.castShadow = true;
       this.railGroup.add(crossFoot);
 
-      // 左右两侧前后 2 个高精密防震水平调平旋钮 (带螺纹丝杆、防松螺母与滚花底脚)
+      // 左右两侧前后 2 个高精密防震水平调平旋钮 (镜面铬立轴、香槟金锁紧套与滚花底脚)
       const zFootOffsets = [-crossFootD * 0.40, crossFootD * 0.40];
       zFootOffsets.forEach((zPos) => {
         // 螺纹不锈钢立轴
@@ -339,15 +339,15 @@ export class OpticalDiffractionBenchMesh {
         stud.position.set(xPos, -0.008, zPos);
         this.railGroup.add(stud);
 
-        // 银色六角/滚花锁紧压套
+        // 香槟金锁紧压套
         const lockNutGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.006, 24);
-        const lockNut = new THREE.Mesh(lockNutGeo, silverKnurlMat);
+        const lockNut = new THREE.Mesh(lockNutGeo, brassMat);
         lockNut.position.set(xPos, -0.002, zPos);
         this.railGroup.add(lockNut);
 
-        // 底部大直径黑色硬质防滑滚花底脚
+        // 底部香槟金精密防滑滚花底脚
         const footPadGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.009, 28);
-        const footPad = new THREE.Mesh(footPadGeo, blackKnurlMat);
+        const footPad = new THREE.Mesh(footPadGeo, brassMat);
         footPad.position.set(xPos, -0.018, zPos);
         this.railGroup.add(footPad);
       });
@@ -418,8 +418,8 @@ export class OpticalDiffractionBenchMesh {
       const scalePlateGeo = new THREE.PlaneGeometry(this.railLength * 0.96, this.railHeight * 0.62);
       const scalePlateMat = new THREE.MeshStandardMaterial({
         map: this.railScaleTexture,
-        roughness: 0.28,
-        metalness: 0.35,
+        roughness: 0.35,
+        metalness: 0.12,
       });
       const scalePlateFront = new THREE.Mesh(scalePlateGeo, scalePlateMat);
       scalePlateFront.position.set(0, this.railHeight * 0.5, this.railWidth * 0.502);
@@ -431,68 +431,78 @@ export class OpticalDiffractionBenchMesh {
 
   // ==================== B. 准直聚光灯箱 (第 1 组滑鞍，实物 1:1 复刻) ====================
   private buildLaserModule(): void {
-    // 实例化第 1 组标准滑鞍 (X = -0.36)
-    const saddleData = this.createSliderSaddle(this.laserX, 'LaserSliderSaddle', 0.12);
+    // 实例化第 1 组标准滑鞍 (X = -0.36，立柱高度严密贴合底部连接件)
+    const saddleData = this.createSliderSaddle(this.laserX, 'LaserSliderSaddle', 0.090);
     this.laserGroup = saddleData.saddleGroup;
     this.laserGroup.name = 'LaserGroup';
 
-    const satinBlackMat = new THREE.MeshStandardMaterial({
-      color: 0x1c1e22,
-      metalness: 0.65,
+    const brightBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x2563eb,
+      metalness: 0.28,
       roughness: 0.32,
+    });
+    const sapphireBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x1d4ed8,
+      metalness: 0.25,
+      roughness: 0.38,
+    });
+    const chromeRodMat = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc,
+      metalness: 0.55,
+      roughness: 0.20,
     });
     const brassMat = new THREE.MeshStandardMaterial({
       color: 0xf59e0b,
-      metalness: 0.90,
-      roughness: 0.16,
+      metalness: 0.35,
+      roughness: 0.32,
     });
-    const darkCavityMat = new THREE.MeshStandardMaterial({
-      color: 0x090a0c,
-      roughness: 0.90,
+    const slateSlotMat = new THREE.MeshStandardMaterial({
+      color: 0x1e3a8a,
+      metalness: 0.20,
+      roughness: 0.45,
     });
-    const silverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.92,
-      roughness: 0.18,
+    const cableMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.65,
+      metalness: 0.08,
     });
 
-    // 1. 灯箱下部俯仰微调云台连接件 (与不锈钢立柱顶部紧密咬合)
+    // 1. 灯箱下部俯仰微调云台连接件 (航天宝石蓝，与不锈钢立柱顶部紧密咬合)
     const cradleGeo = new THREE.BoxGeometry(0.046, 0.016, 0.052);
-    const cradle = new THREE.Mesh(cradleGeo, satinBlackMat);
+    const cradle = new THREE.Mesh(cradleGeo, sapphireBlueMat);
     cradle.position.set(0, this.beamHeightY - 0.046, 0);
     cradle.castShadow = true;
     this.laserGroup.add(cradle);
 
-    // 云台锁紧滚花手轮 (位于灯箱底部后方)
+    // 云台锁紧滚花手轮 (香槟金精密滚花旋钮)
     const tiltKnobGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.016, 24);
     tiltKnobGeo.rotateX(Math.PI / 2);
-    const tiltKnob = new THREE.Mesh(tiltKnobGeo, silverMat);
+    const tiltKnob = new THREE.Mesh(tiltKnobGeo, brassMat);
     tiltKnob.position.set(-0.012, this.beamHeightY - 0.056, 0);
     this.laserGroup.add(tiltKnob);
 
-    // 2. 黑色金属矩形灯箱外壳 (沿 X 轴长 0.120m，高 0.082m，深 0.082m)
+    // 2. 航天宝石蓝高精矩形灯箱外壳 (沿 X 轴长 0.120m，高 0.082m，深 0.082m，与浅白背景高对比清晰分明)
     const boxW = 0.120;
     const boxH = 0.082;
     const boxD = 0.082;
     const boxGeo = new THREE.BoxGeometry(boxW, boxH, boxD);
-    const lampBox = new THREE.Mesh(boxGeo, satinBlackMat);
+    const lampBox = new THREE.Mesh(boxGeo, sapphireBlueMat);
     lampBox.position.set(-0.010, this.beamHeightY, 0);
     lampBox.castShadow = true;
     this.laserGroup.add(lampBox);
 
-    // 3. 侧面散热排风百叶槽 (左后侧 6 道平行通风槽，真实物理工业构造)
+    // 3. 侧面散热排风百叶槽 (左后侧 6 道平行通风槽，深空蓝灰金属槽)
     for (let i = -2; i <= 3; i++) {
       const louverGeo = new THREE.BoxGeometry(0.004, 0.042, 0.0025);
-      const louver = new THREE.Mesh(louverGeo, darkCavityMat);
+      const louver = new THREE.Mesh(louverGeo, slateSlotMat);
       louver.position.set(-0.038 + i * 0.0085, this.beamHeightY + 0.008, -boxD * 0.501);
       this.laserGroup.add(louver);
     }
 
-    // 4. 后部柔性黑色电源电缆与防折应力护套 (自然自然垂落至桌面)
+    // 4. 后部实验室高品质柔性电源电缆与防折应力护套 (深空灰高弹性护套)
     const bootGeo = new THREE.CylinderGeometry(0.005, 0.007, 0.020, 16);
     bootGeo.rotateZ(Math.PI / 2);
-    const bootMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.70 });
-    const boot = new THREE.Mesh(bootGeo, bootMat);
+    const boot = new THREE.Mesh(bootGeo, cableMat);
     boot.position.set(-boxW * 0.5 - 0.018, this.beamHeightY - 0.022, -0.018);
     this.laserGroup.add(boot);
 
@@ -504,13 +514,13 @@ export class OpticalDiffractionBenchMesh {
       new THREE.Vector3(-boxW * 0.5 - 0.145, 0.020, -0.070)
     );
     const cableGeo = new THREE.TubeGeometry(cableCurve, 24, 0.0035, 12, false);
-    const cable = new THREE.Mesh(cableGeo, bootMat);
+    const cable = new THREE.Mesh(cableGeo, cableMat);
     this.laserGroup.add(cable);
 
-    // 5. 前置出光镜头镜筒与香槟金倒角反光圈 (+X 端口朝向单缝)
+    // 5. 前置出光镜头镜筒与香槟金倒角反光圈 (+X 端口朝向单缝，镜面镀铬镜筒)
     const lensBarrelGeo = new THREE.CylinderGeometry(0.027, 0.027, 0.016, 32);
     lensBarrelGeo.rotateZ(Math.PI / 2);
-    const lensBarrel = new THREE.Mesh(lensBarrelGeo, satinBlackMat);
+    const lensBarrel = new THREE.Mesh(lensBarrelGeo, chromeRodMat);
     lensBarrel.position.set(boxW * 0.5 - 0.002, this.beamHeightY, 0);
     this.laserGroup.add(lensBarrel);
 
@@ -534,9 +544,9 @@ export class OpticalDiffractionBenchMesh {
     this.laserLedMesh.position.set(boxW * 0.5 + 0.007, this.beamHeightY, 0);
     this.laserGroup.add(this.laserLedMesh);
 
-    // 6. 顶部机械翘板电源开关 (保持交互与测试 100% 兼容)
+    // 6. 顶部机械翘板电源开关 (亮蓝底座与红色按键)
     const switchBaseGeo = new THREE.BoxGeometry(0.022, 0.006, 0.016);
-    const switchBase = new THREE.Mesh(switchBaseGeo, silverMat);
+    const switchBase = new THREE.Mesh(switchBaseGeo, brightBlueMat);
     switchBase.position.set(-0.010, this.beamHeightY + boxH * 0.5 + 0.003, 0.018);
     this.laserGroup.add(switchBase);
 
@@ -579,36 +589,45 @@ export class OpticalDiffractionBenchMesh {
     this.group.add(this.laserGroup);
   }
 
-  // ==================== C. 八角倒角单缝挡板 (第 2 组滑鞍，实物 1:1 复刻) ====================
-  private buildAdjustableSingleSlitStage(): void {
-    // 实例化第 2 组标准滑鞍 (X = -0.16)
-    const saddleData = this.createSliderSaddle(this.slitX, 'SlitSliderSaddle', 0.14);
+  // ==================== C. 中央通用精密衍射变换台 (第 2 组滑鞍，方案 A 核心集成) ====================
+  private buildUniversalDiffractionStage(): void {
+    // 实例化第 2 组标准滑鞍 (X = -0.08，立柱高度严密贴合底部插套)
+    const saddleData = this.createSliderSaddle(this.slitX, 'SlitSliderSaddle', 0.084);
     this.slitStageGroup = saddleData.saddleGroup;
     this.slitStageGroup.name = 'AdjustableSingleSlitStage';
 
-    const satinBlackMat = new THREE.MeshStandardMaterial({
-      color: 0x1c1e22,
-      metalness: 0.65,
-      roughness: 0.35,
+    // 保持向后兼容别名与交互管理
+    this.turretGroup = this.slitStageGroup;
+    this.gratingHolderGroup = this.slitStageGroup;
+
+    const brightBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x2563eb,
+      metalness: 0.28,
+      roughness: 0.32,
+    });
+    const sapphireBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x1d4ed8,
+      metalness: 0.25,
+      roughness: 0.38,
     });
     const titaniumMat = new THREE.MeshStandardMaterial({
-      color: 0xcfd8dc,
-      metalness: 0.88,
-      roughness: 0.20,
+      color: 0xd4d4d8,
+      metalness: 0.30,
+      roughness: 0.28,
     });
-    const silverKnurlMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.92,
-      roughness: 0.18,
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      metalness: 0.35,
+      roughness: 0.32,
     });
 
-    // 1. 挡板底部镜面导杆夹持插套与锁紧螺钉
+    // 1. 挡板底部镜面导杆夹持插套与锁紧螺钉 (航天宝石蓝)
     const holderSocketGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.020, 24);
-    const holderSocket = new THREE.Mesh(holderSocketGeo, satinBlackMat);
+    const holderSocket = new THREE.Mesh(holderSocketGeo, sapphireBlueMat);
     holderSocket.position.set(0, this.beamHeightY - 0.052, 0);
     this.slitStageGroup.add(holderSocket);
 
-    // 2. 经典八角倒角黑色钣金挡板主体 (45° 切角外廓，两侧具备折边滑道)
+    // 2. 经典八角倒角航天宝石蓝挡板主体 (45° 切角外廓，两侧具备折边滑道)
     const plateW = 0.068;
     const plateH = 0.098;
     const chamfer = 0.014;
@@ -631,21 +650,42 @@ export class OpticalDiffractionBenchMesh {
     });
     plateGeo.rotateY(Math.PI / 2); // 沿 YZ 平面竖立，迎向 X 轴光路
 
-    const slitPlate = new THREE.Mesh(plateGeo, satinBlackMat);
+    const slitPlate = new THREE.Mesh(plateGeo, sapphireBlueMat);
     slitPlate.position.set(0, this.beamHeightY, 0);
     slitPlate.castShadow = true;
     this.slitStageGroup.add(slitPlate);
 
     // 两侧经典 U 型压折导轨边缘 (可插放滤色片或狭缝插片)
     const lipGeo = new THREE.BoxGeometry(0.005, plateH, 0.0035);
-    const lipLeft = new THREE.Mesh(lipGeo, satinBlackMat);
+    const lipLeft = new THREE.Mesh(lipGeo, brightBlueMat);
     lipLeft.position.set(0.002, this.beamHeightY, -plateW * 0.5 + 0.002);
-    const lipRight = new THREE.Mesh(lipGeo, satinBlackMat);
+    const lipRight = new THREE.Mesh(lipGeo, brightBlueMat);
     lipRight.position.set(0.002, this.beamHeightY, plateW * 0.5 - 0.002);
     this.slitStageGroup.add(lipLeft);
     this.slitStageGroup.add(lipRight);
 
-    // 3. 中心精密钛合金单缝刀口 (左刀口与右刀口，物理可变间隙，完全满足 Test 13 动力学要求)
+    // 3. 多功能模式快速转换滚轮 (turretWheel，支持点击无缝切换单缝/双缝/圆孔/光栅)
+    this.turretWheel = new THREE.Group();
+    this.turretWheel.name = 'SlitTurretWheel';
+    this.turretWheel.userData = { interactiveId: 'slit_turret' };
+    this.turretWheel.position.set(0, this.beamHeightY - 0.038, -plateW * 0.5 - 0.016);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.014, 28);
+    wheelGeo.rotateX(Math.PI / 2);
+    const wheelMesh = new THREE.Mesh(wheelGeo, brassMat);
+    wheelMesh.name = 'SlitTurretWheelMesh';
+    wheelMesh.userData = { interactiveId: 'slit_turret' };
+    this.turretWheel.add(wheelMesh);
+
+    const wheelCapGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.016, 24);
+    wheelCapGeo.rotateX(Math.PI / 2);
+    const wheelCap = new THREE.Mesh(wheelCapGeo, sapphireBlueMat);
+    wheelCap.userData = { interactiveId: 'slit_turret' };
+    this.turretWheel.add(wheelCap);
+
+    this.slitStageGroup.add(this.turretWheel);
+
+    // 4. 中心精密钛合金单缝刀口 (左刀口与右刀口，物理可变间隙，满足动力学与测微交互)
     const jawHeight = 0.046;
     const jawThickX = 0.0024;
     const jawDepthZ = 0.016;
@@ -661,7 +701,7 @@ export class OpticalDiffractionBenchMesh {
     this.rightJawMesh.position.set(0, this.beamHeightY, jawDepthZ * 0.5);
     this.slitStageGroup.add(this.rightJawMesh);
 
-    // 狭缝内透光发光线元 (细长发光缝隙，生动再现参考图中明亮光缝)
+    // 狭缝内透光发光线元 (细长发光缝隙，生动再现明亮透光狭缝)
     const slitLightGeo = new THREE.PlaneGeometry(0.0016, 0.042);
     slitLightGeo.rotateY(Math.PI / 2);
     const slitLightMat = new THREE.MeshBasicMaterial({
@@ -672,20 +712,69 @@ export class OpticalDiffractionBenchMesh {
     this.slitLightMesh.position.set(0, this.beamHeightY, 0);
     this.slitStageGroup.add(this.slitLightMesh);
 
-    // 4. 精密微米鼓轮与侧边测微调节把手 (满足测试交互与物理旋转动感)
+    // 5. 精密微米鼓轮与侧边测微调节把手 (香槟金微米鼓轮，满足测试交互与物理旋转动感)
     this.micrometerThimbleGroup = new THREE.Group();
     this.micrometerThimbleGroup.name = 'MicrometerThimbleGroup';
     this.micrometerThimbleGroup.position.set(0, this.beamHeightY - 0.038, plateW * 0.5 + 0.004);
 
     const knobGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.018, 24);
     knobGeo.rotateX(Math.PI / 2);
-    this.micrometerKnob = new THREE.Mesh(knobGeo, silverKnurlMat);
+    this.micrometerKnob = new THREE.Mesh(knobGeo, brassMat);
     this.micrometerKnob.name = 'SlitMicrometerKnob';
     this.micrometerKnob.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerThimbleGroup.add(this.micrometerKnob);
     this.slitStageGroup.add(this.micrometerThimbleGroup);
 
-    // 5. 缝宽纯文字 3D 浮空显示 (大字号、深色高对比度、纯文字无背景/边框方形UI)
+    // 6. 光栅透射元件玻片与顶部香槟金滚花螺母压紧结构 (当模式切换至光栅时呈现)
+    const slideCanvas = safeCanvas(512, 512);
+    let slideTex: THREE.CanvasTexture | null = null;
+    if (slideCanvas) {
+      const ctx = slideCanvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, 512, 512);
+        ctx.strokeStyle = 'rgba(70, 75, 85, 0.75)';
+        ctx.lineWidth = 1.2;
+        for (let x = 60; x <= 452; x += 6) {
+          ctx.beginPath();
+          ctx.moveTo(x, 40);
+          ctx.lineTo(x, 472);
+          ctx.stroke();
+        }
+      }
+      slideTex = new THREE.CanvasTexture(slideCanvas);
+    }
+
+    const slideGeo = new THREE.BoxGeometry(0.002, 0.060, 0.054);
+    const slideMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.60,
+      roughness: 0.10,
+      metalness: 0.20,
+      map: slideTex,
+    });
+    this.gratingSlideMesh = new THREE.Mesh(slideGeo, slideMat);
+    this.gratingSlideMesh.name = 'GratingSlideMesh';
+    this.gratingSlideMesh.position.set(0, this.beamHeightY, 0);
+    this.gratingSlideMesh.visible = (this.diffractionType === 'grating');
+    this.slitStageGroup.add(this.gratingSlideMesh);
+
+    // 顶部横梁与两枚精致香槟金滚花手轮螺栓 (压紧玻片)
+    const topBarGeo = new THREE.BoxGeometry(0.005, 0.010, plateW * 0.75);
+    const topBar = new THREE.Mesh(topBarGeo, sapphireBlueMat);
+    topBar.position.set(0, this.beamHeightY + plateH * 0.44, 0);
+    this.slitStageGroup.add(topBar);
+
+    const screwZOffsets = [-plateW * 0.26, plateW * 0.26];
+    screwZOffsets.forEach((zOffset) => {
+      const screwGeo = new THREE.CylinderGeometry(0.0045, 0.0045, 0.010, 20);
+      screwGeo.rotateZ(Math.PI / 2);
+      const screw = new THREE.Mesh(screwGeo, brassMat);
+      screw.position.set(0.004, this.beamHeightY + plateH * 0.44, zOffset);
+      this.slitStageGroup.add(screw);
+    });
+
+    // 7. 缝宽纯文字 3D 浮空显示 (大字号、深色高对比度、纯文字无背景/边框方形UI)
     this.slitPlateCanvas = safeCanvas(1024, 256);
     if (this.slitPlateCanvas) {
       this.slitPlateTexture = new THREE.CanvasTexture(this.slitPlateCanvas);
@@ -714,155 +803,70 @@ export class OpticalDiffractionBenchMesh {
     this.group.add(this.slitStageGroup);
   }
 
-  // ==================== D. 光栅与干涉玻片夹具 (第 3 组滑鞍，实物 1:1 复刻) ====================
-  private buildGratingHolder(): void {
-    // 实例化第 3 组标准滑鞍 (X = 0.10)
-    const saddleData = this.createSliderSaddle(this.gratingX, 'GratingSliderSaddle', 0.14);
-    this.gratingHolderGroup = saddleData.saddleGroup;
-    this.gratingHolderGroup.name = 'GratingHolderGroup';
-
-    // 保持向后兼容别名与测试兼容性
-    this.turretGroup = this.gratingHolderGroup;
-
-    const satinBlackMat = new THREE.MeshStandardMaterial({
-      color: 0x1c1e22,
-      metalness: 0.65,
-      roughness: 0.35,
-    });
-    const silverKnurlMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.92,
-      roughness: 0.18,
-    });
-
-    // 1. 矩形黑色金属夹持外框 (框架式透光结构)
-    const frameW = 0.076;
-    const frameH = 0.088;
-    const frameD = 0.005;
-
-    // 下部支撑横梁与立柱插套
-    const bottomShelfGeo = new THREE.BoxGeometry(frameD, 0.012, frameW);
-    const bottomShelf = new THREE.Mesh(bottomShelfGeo, satinBlackMat);
-    bottomShelf.position.set(0, this.beamHeightY - frameH * 0.5 + 0.006, 0);
-    this.gratingHolderGroup.add(bottomShelf);
-
-    // 左右两侧挡边
-    const sideBarGeo = new THREE.BoxGeometry(frameD, frameH, 0.008);
-    const sideLeft = new THREE.Mesh(sideBarGeo, satinBlackMat);
-    sideLeft.position.set(0, this.beamHeightY, -frameW * 0.5 + 0.004);
-    const sideRight = new THREE.Mesh(sideBarGeo, satinBlackMat);
-    sideRight.position.set(0, this.beamHeightY, frameW * 0.5 - 0.004);
-    this.gratingHolderGroup.add(sideLeft);
-    this.gratingHolderGroup.add(sideRight);
-
-    // 顶部横梁与双紧定螺母夹板
-    const topBarGeo = new THREE.BoxGeometry(frameD, 0.012, frameW);
-    const topBar = new THREE.Mesh(topBarGeo, satinBlackMat);
-    topBar.position.set(0, this.beamHeightY + frameH * 0.5 - 0.006, 0);
-    this.gratingHolderGroup.add(topBar);
-
-    // 顶部两枚精致银色滚花手轮螺栓 (实物关键机械特征，压紧透明玻片顶部)
-    const screwZOffsets = [-frameW * 0.32, frameW * 0.32];
-    screwZOffsets.forEach((zOffset) => {
-      const screwGeo = new THREE.CylinderGeometry(0.0055, 0.0055, 0.012, 24);
-      screwGeo.rotateZ(Math.PI / 2);
-      const screw = new THREE.Mesh(screwGeo, silverKnurlMat);
-      screw.position.set(frameD * 0.5 + 0.004, this.beamHeightY + frameH * 0.5 - 0.006, zOffset);
-      this.gratingHolderGroup.add(screw);
-
-      const washerGeo = new THREE.CylinderGeometry(0.0075, 0.0075, 0.002, 24);
-      washerGeo.rotateZ(Math.PI / 2);
-      const washer = new THREE.Mesh(washerGeo, silverKnurlMat);
-      washer.position.set(frameD * 0.5 + 0.001, this.beamHeightY + frameH * 0.5 - 0.006, zOffset);
-      this.gratingHolderGroup.add(washer);
-    });
-
-    // 2. 透明高质感光学透射光栅玻片 (带有细密垂直衍射条纹)
-    const slideCanvas = safeCanvas(512, 512);
-    let slideTex: THREE.CanvasTexture | null = null;
-    if (slideCanvas) {
-      const ctx = slideCanvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, 512, 512);
-        // 绘制微细密垂直光栅刻线
-        ctx.strokeStyle = 'rgba(70, 75, 85, 0.75)';
-        ctx.lineWidth = 1.2;
-        for (let x = 60; x <= 452; x += 6) {
-          ctx.beginPath();
-          ctx.moveTo(x, 40);
-          ctx.lineTo(x, 472);
-          ctx.stroke();
-        }
-      }
-      slideTex = new THREE.CanvasTexture(slideCanvas);
-    }
-
-    const slideGeo = new THREE.BoxGeometry(0.002, 0.066, 0.060);
-    const slideMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.55,
-      roughness: 0.10,
-      metalness: 0.20,
-      map: slideTex,
-    });
-    this.gratingSlideMesh = new THREE.Mesh(slideGeo, slideMat);
-    this.gratingSlideMesh.position.set(0, this.beamHeightY, 0);
-    this.gratingHolderGroup.add(this.gratingSlideMesh);
-
-    // 3. 将旋转与切换把手绑定至此，保持交互与测试 100% 畅通
-    this.turretWheel = this.gratingHolderGroup;
-    this.turretWheel.name = 'SlitTurretWheel';
-    this.turretWheel.userData = { interactiveId: 'slit_turret' };
-
-    this.group.add(this.gratingHolderGroup);
+  // 向后兼容接口存根
+  public buildAdjustableSingleSlitStage(): void {
+    if (!this.slitStageGroup) this.buildUniversalDiffractionStage();
+  }
+  public buildGratingHolder(): void {
+    // 方案 A 已合并至通用衍射台，无需生成冗余滑鞍
   }
 
-  // ==================== E. 白色投影接收屏 (第 4 组滑鞍，实物 1:1 复刻) ====================
+  // ==================== E. 深海蓝黑高对比度投影接收屏 (第 4 组滑鞍，实物 1:1 复刻) ====================
   private buildObservationScreen(): void {
-    // 实例化第 4 组标准滑鞍 (X = 0.38)
-    const saddleData = this.createSliderSaddle(this.maxScreenX, 'ScreenCarrierGroup', 0.14);
+    // 实例化第 4 组标准滑鞍 (X = 0.38，立柱高度 0.034m 恰好承托底部卡座，杜绝立柱穿屏遮挡光路)
+    const saddleData = this.createSliderSaddle(this.maxScreenX, 'ScreenCarrierGroup', 0.034);
     this.screenCarrierGroup = saddleData.saddleGroup;
     this.screenCarrierGroup.name = 'ScreenCarrierGroup';
     this.screenCarrierGroup.userData = { interactiveId: 'screen_handle' };
 
     const chromeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.98,
-      roughness: 0.05,
+      color: 0xf8fafc,
+      metalness: 0.55,
+      roughness: 0.20,
     });
-    const satinBlackMat = new THREE.MeshStandardMaterial({
-      color: 0x1f2328,
-      metalness: 0.65,
-      roughness: 0.35,
+    const brightBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x2563eb,
+      metalness: 0.28,
+      roughness: 0.32,
+    });
+    const sapphireBlueMat = new THREE.MeshStandardMaterial({
+      color: 0x1d4ed8,
+      metalness: 0.25,
+      roughness: 0.38,
+    });
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      metalness: 0.35,
+      roughness: 0.32,
     });
 
-    // 1. 屏幕总成面板 (正对操作者，微偏转迎向左侧入射光)
+    // 1. 屏幕总成面板 (面向操作者视角，微偏转迎向左侧入射光轴)
     this.screenPanelGroup = new THREE.Group();
     this.screenPanelGroup.name = 'ScreenPanelGroup';
     this.screenPanelGroup.position.set(0, this.beamHeightY, 0);
-    this.screenPanelGroup.rotation.y = -0.32; // 微偏向左侧光轴，同时完全面向操作者视界
+    this.screenPanelGroup.rotation.y = -0.28; // 正对操作者视界，同时平滑迎向光束
 
-    // 2. 纯白哑光投影屏平板 (宽 0.28m, 高 0.20m, 纤薄高质感)
+    // 2. 航天宝石蓝精工背板与边框 (宽 0.28m, 高 0.20m，工业级倒角与金属质感，与浅白背景清晰分明)
     const screenW = 0.28;
     const screenH = 0.20;
     const screenD = 0.003;
 
     const boardGeo = new THREE.BoxGeometry(screenW, screenH, screenD);
-    const boardMat = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc,
-      roughness: 0.85,
-      metalness: 0.05,
-    });
-    const screenBoard = new THREE.Mesh(boardGeo, boardMat);
+    const screenBoard = new THREE.Mesh(boardGeo, sapphireBlueMat);
     screenBoard.castShadow = true;
     this.screenPanelGroup.add(screenBoard);
 
-    // 底部不锈钢立柱夹持锁紧块
+    // 底部航天宝石蓝立柱夹持锁紧块 (配香槟金锁紧手轮)
     const mountGeo = new THREE.BoxGeometry(0.032, 0.016, 0.018);
-    const mountMesh = new THREE.Mesh(mountGeo, satinBlackMat);
+    const mountMesh = new THREE.Mesh(mountGeo, sapphireBlueMat);
     mountMesh.position.set(0, -screenH * 0.5 - 0.008, 0);
     this.screenPanelGroup.add(mountMesh);
+
+    const mountKnobGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.008, 16);
+    mountKnobGeo.rotateZ(Math.PI / 2);
+    const mountKnob = new THREE.Mesh(mountKnobGeo, brassMat);
+    mountKnob.position.set(0.018, -screenH * 0.5 - 0.008, 0);
+    this.screenPanelGroup.add(mountKnob);
 
     // 顶部人体工学镜面镀铬握持把手 (可拖拽滑动调节屏距)
     const handleGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.08, 16);
@@ -873,7 +877,7 @@ export class OpticalDiffractionBenchMesh {
     handleTop.position.set(0, screenH * 0.5 + 0.008, 0);
     this.screenPanelGroup.add(handleTop);
 
-    // 3. 屏幕核心显示平面 (1024x1024 高精动态 CanvasTexture，真实生动呈现物理光斑)
+    // 3. 屏幕核心显示平面 (1024x1024 高精动态 CanvasTexture，深邃海洋蓝黑高对比底色，极致生动呈现物理光斑)
     this.screenCanvas = safeCanvas(1024, 1024);
     if (this.screenCanvas) {
       this.screenTexture = new THREE.CanvasTexture(this.screenCanvas);
@@ -894,36 +898,34 @@ export class OpticalDiffractionBenchMesh {
     this.group.add(this.screenCarrierGroup);
   }
 
-  // ==================== F. 3D 空气漫散射光路系统 ====================
+  // ==================== F. 3D 空气漫散射真实激光光路系统 ====================
   private buildOpticalBeams(): void {
     const colorRGB = OpticalPhysics.wavelengthToColor(this.wavelengthNm);
 
     this.beamMaterial = new THREE.MeshBasicMaterial({
       color: colorRGB,
       transparent: true,
-      opacity: this.laserPower ? 0.70 : 0.0,
+      opacity: this.laserPower ? 0.75 : 0.0,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
 
-    // 1. 灯箱到单缝的准直光束 (沿 +X 传播)
+    // 1. 灯箱到通用衍射台的准直激光光束 (精细准直激光，光束纤细明亮，沿 +X 传播)
     const distPre = Math.abs(this.slitX - this.laserX);
-    const preGeo = new THREE.CylinderGeometry(0.003, 0.003, distPre, 16);
+    const preGeo = new THREE.CylinderGeometry(0.0016, 0.0016, distPre, 16);
     preGeo.rotateZ(Math.PI / 2);
     this.preBeamMesh = new THREE.Mesh(preGeo, this.beamMaterial);
     this.preBeamMesh.position.set((this.laserX + this.slitX) * 0.5, this.beamHeightY, 0);
     this.group.add(this.preBeamMesh);
 
-    // 2. 单缝到光栅的中间传播光束
-    const distMid = Math.abs(this.gratingX - this.slitX);
-    const midGeo = new THREE.CylinderGeometry(0.0035, 0.0045, distMid, 16);
-    midGeo.rotateZ(Math.PI / 2);
+    // 2. 占位中间光束 (保持向后兼容接口，方案 A 无冗余中间光束，设为不可见)
+    const midGeo = new THREE.BufferGeometry();
     this.midBeamMesh = new THREE.Mesh(midGeo, this.beamMaterial);
-    this.midBeamMesh.position.set((this.slitX + this.gratingX) * 0.5, this.beamHeightY, 0);
+    this.midBeamMesh.visible = false;
     this.group.add(this.midBeamMesh);
 
-    // 3. 光栅到观测屏的衍射发散光羽 (随狭缝开度与屏距动态展开)
+    // 3. 通用衍射台到观测屏的衍射发散光羽 (随狭缝/孔径与屏距动态展开)
     const postGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(9);
     postGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -1076,8 +1078,37 @@ export class OpticalDiffractionBenchMesh {
     this.isScreenDirty = true;
   }
 
+  public updateElementVisibility(): void {
+    if (this.turretWheel) {
+      const rotMap: Record<DiffractionType, number> = {
+        single: 0,
+        double: Math.PI * 0.5,
+        circular: Math.PI,
+        grating: Math.PI * 1.5,
+      };
+      this.turretWheel.rotation.x = rotMap[this.diffractionType] ?? 0;
+    }
+
+    if (this.leftJawMesh) {
+      this.leftJawMesh.visible = (this.diffractionType === 'single');
+    }
+    if (this.rightJawMesh) {
+      this.rightJawMesh.visible = (this.diffractionType === 'single');
+    }
+    if (this.micrometerThimbleGroup) {
+      this.micrometerThimbleGroup.visible = (this.diffractionType === 'single');
+    }
+    if (this.slitLightMesh) {
+      this.slitLightMesh.visible = (this.diffractionType === 'single');
+    }
+    if (this.gratingSlideMesh) {
+      this.gratingSlideMesh.visible = (this.diffractionType === 'grating');
+    }
+  }
+
   public setDiffractionType(type: DiffractionType): void {
     this.diffractionType = type;
+    this.updateElementVisibility();
     this.updateSlitPlateLabel();
     this.isScreenDirty = true;
   }
@@ -1086,6 +1117,7 @@ export class OpticalDiffractionBenchMesh {
     const order: DiffractionType[] = ['single', 'double', 'circular', 'grating'];
     const idx = order.indexOf(this.diffractionType);
     this.diffractionType = order[(idx + 1) % order.length];
+    this.updateElementVisibility();
     this.updateSlitPlateLabel();
     this.isScreenDirty = true;
   }
@@ -1116,11 +1148,11 @@ export class OpticalDiffractionBenchMesh {
     }
   }
 
-  // ==================== 白色观测屏物理衍射光像渲染 (完全匹配实物参考图) ====================
+  // ==================== 深邃海洋蓝黑观测屏物理衍射光像渲染 (高对比度科研呈现) ====================
   public updateScreenTexture(): void {
     if (!this.screenCanvas || !this.screenTexture) return;
 
-    const hash = `${this.diffractionType}_${this.wavelengthNm}_${this.laserPower}_${this.slitWidthMm.toFixed(3)}_${this.screenDistanceM.toFixed(3)}`;
+    const hash = `${this.diffractionType}_${this.wavelengthNm}_${this.laserPower}_${this.slitWidthMm.toFixed(3)}_${this.slitDistanceMm.toFixed(3)}_${this.apertureDiameterMm.toFixed(3)}_${this.gratingLinesPerMm}_${this.screenDistanceM.toFixed(3)}`;
     if (hash === this.lastRenderHash) return;
     this.lastRenderHash = hash;
 
@@ -1130,17 +1162,17 @@ export class OpticalDiffractionBenchMesh {
     const w = 1024;
     const h = 1024;
 
-    // 1. 纯白哑光投影屏背景色 (实物参考图为纯白漫反射屏)
-    ctx.fillStyle = '#f3f4f6';
+    // 1. 深邃海洋蓝黑高对比底色 (Deep Oceanic Sapphire: #08101e)
+    ctx.fillStyle = '#08101e';
     ctx.fillRect(0, 0, w, h);
 
-    // 光源关闭时，屏幕为纯净白色投影屏，无任何文字或图案
+    // 光源关闭时，屏幕为纯净深邃蓝黑底色，无任何多余文字或图案
     if (!this.laserPower) {
       this.screenTexture.needsUpdate = true;
       return;
     }
 
-    // 2. 真实物理衍射与干涉条纹渲染
+    // 2. 真实物理 Fraunhofer 衍射与干涉高动态光像渲染
     const colorInfo = OpticalPhysics.wavelengthToRGB(this.wavelengthNm);
     const centerX = w * 0.5;
     const centerY = h * 0.5;
@@ -1153,63 +1185,94 @@ export class OpticalDiffractionBenchMesh {
     const gBase = Math.round(colorInfo.g * 255);
     const bBase = Math.round(colorInfo.b * 255);
 
-    const patternHalfHeight = 340;
-
-    for (let px = 0; px < w; px++) {
-      const xMm = (px - centerX) / pxPerMm;
-      const xM = xMm * 1e-3;
-
-      let I = 0;
-      if (this.diffractionType === 'single') {
-        I = OpticalPhysics.calculateSingleSlitIntensity(
-          xM,
-          this.wavelengthNm,
-          this.slitWidthMm,
-          this.screenDistanceM
-        );
-      } else if (this.diffractionType === 'double') {
-        I = OpticalPhysics.calculateDoubleSlitIntensity(
-          xM,
-          this.wavelengthNm,
-          this.slitWidthMm,
-          this.slitDistanceMm,
-          this.screenDistanceM
-        );
-      } else if (this.diffractionType === 'circular') {
-        I = OpticalPhysics.calculateCircularApertureIntensity(
-          Math.abs(xM),
+    if (this.diffractionType === 'circular') {
+      // 圆孔衍射：高精度真实二维同心圆环艾里斑 (Airy Disk)
+      const maxRadiusPx = Math.min(centerX, centerY);
+      for (let rPx = 0; rPx <= maxRadiusPx; rPx++) {
+        const rM = (rPx / pxPerMm) * 1e-3;
+        const I = OpticalPhysics.calculateCircularApertureIntensity(
+          rM,
           this.wavelengthNm,
           this.apertureDiameterMm,
           this.screenDistanceM
         );
-      } else if (this.diffractionType === 'grating') {
-        I = OpticalPhysics.calculateGratingIntensity(
-          xM,
-          this.wavelengthNm,
-          this.gratingLinesPerMm,
-          this.screenDistanceM,
-          16
-        );
+
+        if (I > 0.0001) {
+          // 伽马非线性映射 (gamma = 0.38)，使第 1、第 2 次级亮环清晰可辨
+          const gammaI = Math.pow(Math.min(1.0, I), 0.38);
+          const coreMix = Math.max(0, (I - 0.20) / 0.80);
+          const r = Math.min(255, Math.round(rBase + (255 - rBase) * coreMix));
+          const g = Math.min(255, Math.round(gBase + (255 - gBase) * coreMix));
+          const b = Math.min(255, Math.round(bBase + (255 - bBase) * coreMix));
+
+          const alpha = Math.min(1.0, gammaI * 1.35);
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, rPx, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+        }
       }
+    } else {
+      // 单缝、双缝、光栅衍射：高清晰、高饱和度竖直干涉与衍射条纹
+      const patternHalfH = 380;
 
-      if (I > 0.0005) {
-        const grad = ctx.createLinearGradient(0, centerY - patternHalfHeight, 0, centerY + patternHalfHeight);
-        const gammaI = Math.pow(Math.min(1.0, I), 0.72);
-        const coreBoost = Math.max(0, (gammaI - 0.8) / 0.2) * 160;
+      for (let px = 0; px < w; px++) {
+        const xMm = (px - centerX) / pxPerMm;
+        const xM = xMm * 1e-3;
 
-        // 在白色背景上的发光叠加渲染
-        const r = Math.min(255, Math.round(rBase + coreBoost));
-        const g = Math.min(255, Math.round(gBase + coreBoost));
-        const b = Math.min(255, Math.round(bBase + coreBoost));
+        let I = 0;
+        if (this.diffractionType === 'single') {
+          I = OpticalPhysics.calculateSingleSlitIntensity(
+            xM,
+            this.wavelengthNm,
+            this.slitWidthMm,
+            this.screenDistanceM
+          );
+        } else if (this.diffractionType === 'double') {
+          I = OpticalPhysics.calculateDoubleSlitIntensity(
+            xM,
+            this.wavelengthNm,
+            this.slitWidthMm,
+            this.slitDistanceMm,
+            this.screenDistanceM
+          );
+        } else if (this.diffractionType === 'grating') {
+          I = OpticalPhysics.calculateGratingIntensity(
+            xM,
+            this.wavelengthNm,
+            this.gratingLinesPerMm,
+            this.screenDistanceM,
+            16
+          );
+        }
 
-        grad.addColorStop(0.0, `rgba(${r}, ${g}, ${b}, 0)`);
-        grad.addColorStop(0.20, `rgba(${r}, ${g}, ${b}, ${(gammaI * 0.35).toFixed(3)})`);
-        grad.addColorStop(0.50, `rgba(${r}, ${g}, ${b}, ${(gammaI * 0.95).toFixed(3)})`);
-        grad.addColorStop(0.80, `rgba(${r}, ${g}, ${b}, ${(gammaI * 0.35).toFixed(3)})`);
-        grad.addColorStop(1.0, `rgba(${r}, ${g}, ${b}, 0)`);
+        if (I > 0.0001) {
+          // 伽马非线性色调映射 (gamma = 0.38)，极大提升弱级次亮纹对比度与清晰度
+          const gammaI = Math.pow(Math.min(1.0, I), 0.38);
 
-        ctx.fillStyle = grad;
-        ctx.fillRect(px, centerY - patternHalfHeight, 1, patternHalfHeight * 2);
+          // 核心白炽化饱和提升：高能量中心呈现白炽亮核，外缘呈现纯净荧光激光色彩
+          const coreMix = Math.max(0, (I - 0.25) / 0.75);
+          const r = Math.min(255, Math.round(rBase + (255 - rBase) * Math.pow(coreMix, 1.2)));
+          const g = Math.min(255, Math.round(gBase + (255 - gBase) * Math.pow(coreMix, 1.2)));
+          const b = Math.min(255, Math.round(bBase + (255 - bBase) * Math.pow(coreMix, 1.2)));
+
+          const grad = ctx.createLinearGradient(0, centerY - patternHalfH, 0, centerY + patternHalfH);
+          const peakAlpha = Math.min(1.0, gammaI * 1.35);
+          const midAlpha = peakAlpha * 0.70;
+          const edgeAlpha = peakAlpha * 0.22;
+
+          grad.addColorStop(0.00, `rgba(${r}, ${g}, ${b}, 0)`);
+          grad.addColorStop(0.18, `rgba(${r}, ${g}, ${b}, ${edgeAlpha.toFixed(3)})`);
+          grad.addColorStop(0.38, `rgba(${r}, ${g}, ${b}, ${midAlpha.toFixed(3)})`);
+          grad.addColorStop(0.50, `rgba(${r}, ${g}, ${b}, ${peakAlpha.toFixed(3)})`);
+          grad.addColorStop(0.62, `rgba(${r}, ${g}, ${b}, ${midAlpha.toFixed(3)})`);
+          grad.addColorStop(0.82, `rgba(${r}, ${g}, ${b}, ${edgeAlpha.toFixed(3)})`);
+          grad.addColorStop(1.00, `rgba(${r}, ${g}, ${b}, 0)`);
+
+          ctx.fillStyle = grad;
+          ctx.fillRect(px, centerY - patternHalfH, 1, patternHalfH * 2);
+        }
       }
     }
 
@@ -1227,25 +1290,80 @@ export class OpticalDiffractionBenchMesh {
     }
 
     if (this.preBeamMesh) this.preBeamMesh.visible = true;
-    if (this.midBeamMesh) this.midBeamMesh.visible = true;
-    if (this.postBeamMesh) this.postBeamMesh.visible = true;
+    if (this.midBeamMesh) this.midBeamMesh.visible = false;
 
     const screenX = this.getScreenCarrierX();
     const beamY = this.beamHeightY;
 
-    // 单缝中央明纹宽度 Delta x_0 = (2 * lambda * L) / a
-    const w0Mm = (2.0 * this.wavelengthNm * 1e-9 * this.screenDistanceM) / (this.slitWidthMm * 1e-3) * 1e3;
-    const halfSpan = Math.min(0.13, Math.max(0.022, w0Mm * 1e-3 * 1.5));
+    if (this.diffractionType === 'grating') {
+      if (this.postBeamMesh) this.postBeamMesh.visible = false;
+      if (this.gratingRaysGroup) {
+        this.gratingRaysGroup.visible = true;
+        this.gratingRaysGroup.clear();
 
-    const pOrigin = [this.gratingX, beamY, 0];
-    const pBack = [screenX, beamY, -halfSpan];
-    const pFront = [screenX, beamY, halfSpan];
+        const peaks = OpticalPhysics.getGratingPeakPositions(
+          this.wavelengthNm,
+          this.gratingLinesPerMm,
+          this.screenDistanceM,
+          3
+        );
 
-    const posAttr = this.postBeamMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
-    posAttr.setXYZ(0, pOrigin[0], pOrigin[1], pOrigin[2]);
-    posAttr.setXYZ(1, pBack[0], pBack[1], pBack[2]);
-    posAttr.setXYZ(2, pFront[0], pFront[1], pFront[2]);
-    posAttr.needsUpdate = true;
+        const colorRGB = OpticalPhysics.wavelengthToColor(this.wavelengthNm);
+        const rayMat = new THREE.MeshBasicMaterial({
+          color: colorRGB,
+          transparent: true,
+          opacity: 0.70,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+
+        for (const peak of peaks) {
+          const zScreen = peak.xMm * 1e-3;
+          const pStart = new THREE.Vector3(this.slitX, beamY, 0);
+          const pEnd = new THREE.Vector3(screenX, beamY, -zScreen);
+          const dir = new THREE.Vector3().subVectors(pEnd, pStart);
+          const len = dir.length();
+          if (len < 0.001) continue;
+
+          const rayGeo = new THREE.CylinderGeometry(0.0010, 0.0014, len, 8);
+          rayGeo.rotateZ(Math.PI / 2);
+          const rayMesh = new THREE.Mesh(rayGeo, rayMat);
+          rayMesh.position.copy(pStart).addScaledVector(dir, 0.5);
+          rayMesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.normalize());
+          this.gratingRaysGroup.add(rayMesh);
+        }
+      }
+    } else {
+      if (this.gratingRaysGroup) {
+        this.gratingRaysGroup.visible = false;
+        this.gratingRaysGroup.clear();
+      }
+      if (this.postBeamMesh) {
+        this.postBeamMesh.visible = true;
+
+        let halfSpan = 0.035;
+        if (this.diffractionType === 'single') {
+          const w0Mm = (2.0 * this.wavelengthNm * 1e-9 * this.screenDistanceM) / (this.slitWidthMm * 1e-3) * 1e3;
+          halfSpan = Math.min(0.13, Math.max(0.022, w0Mm * 1e-3 * 1.5));
+        } else if (this.diffractionType === 'double') {
+          const spacingMm = (this.wavelengthNm * 1e-9 * this.screenDistanceM) / (this.slitDistanceMm * 1e-3) * 1e3;
+          halfSpan = Math.min(0.13, Math.max(0.025, spacingMm * 1e-3 * 6.0));
+        } else if (this.diffractionType === 'circular') {
+          const r1Mm = OpticalPhysics.getAiryDiskRadius(this.wavelengthNm, this.apertureDiameterMm, this.screenDistanceM);
+          halfSpan = Math.min(0.13, Math.max(0.025, r1Mm * 1e-3 * 2.5));
+        }
+
+        const pOrigin = [this.slitX, beamY, 0];
+        const pBack = [screenX, beamY, -halfSpan];
+        const pFront = [screenX, beamY, halfSpan];
+
+        const posAttr = this.postBeamMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+        posAttr.setXYZ(0, pOrigin[0], pOrigin[1], pOrigin[2]);
+        posAttr.setXYZ(1, pBack[0], pBack[1], pBack[2]);
+        posAttr.setXYZ(2, pFront[0], pFront[1], pFront[2]);
+        posAttr.needsUpdate = true;
+      }
+    }
   }
 
   // ==================== 遥测导出 ====================

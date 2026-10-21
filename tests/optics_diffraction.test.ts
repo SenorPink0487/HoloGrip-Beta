@@ -258,6 +258,14 @@ console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n
   assert.ok(bench.postBeamMesh, 'Post-slit diffraction light fan must exist');
   assert.ok(bench.gratingRaysGroup, 'Grating discrete rays group must exist');
 
+  // Verify Scheme A: Standard 3-carrier scientific optical bench architecture (no redundant 4th saddle)
+  assert.strictEqual(
+    bench.group.children.filter((c) => c.name === 'GratingHolderGroup').length,
+    0,
+    'Must have eliminated redundant 4th grating holder saddle from bench group'
+  );
+  assert.strictEqual(bench.slitStageGroup, bench.turretGroup, 'Slit stage group must unify turret group');
+
   // Verify memory disposal
   bench.dispose();
   console.log('✓ Test 5 passed: 3D optical bench assembly & clean disposal verified\n');
