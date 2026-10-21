@@ -683,8 +683,99 @@ console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n
   console.log('✓ Test 14 passed: Pure large deep-colored slit value text invariant verified\n');
 }
 
+// -------------------------------------------------------------
+// Test 15: High-Fidelity Knob Craftsmanship, Rotational Dynamics & Hover Prompt Lifecycle Invariant
+// -------------------------------------------------------------
+{
+  console.log('Test 15: High-Fidelity Knob Craftsmanship, Rotational Dynamics & Hover Prompt Lifecycle Invariant');
+  const exp = new OpticsDiffractionExperiment();
+  const mockContext = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), setParameter: () => {} } as any;
+  exp.init(mockContext);
+
+  const bench = exp.getBench();
+
+  // 15.1 高精度旋钮建模细节校验 (严禁粗糙几何拼接，要求倒角游标环、滚花防滑棱纹、棘轮定位及 3D 光晕环)
+  assert.ok(bench.micrometerHoverCue, 'Micrometer native 3D hover cue must exist');
+  assert.ok(bench.turretHoverCue, 'Turret native 3D hover cue must exist');
+  assert.strictEqual(bench.micrometerHoverCue.visible, false, 'Hover cue must be initially invisible');
+  assert.strictEqual(bench.turretHoverCue.visible, false, 'Hover cue must be initially invisible');
+
+  // 严禁在屏幕上方突兀拼接生硬圆柱体，确保屏幕顶缘完全平整专业
+  assert.strictEqual(bench.group.getObjectByName('ScreenHandleTop'), undefined, 'Extra cylinder above screen must NOT exist');
+
+  // 验证遵循纯净开阔三维台面铁律：彻底移除一切侵入式浮动文字提示标贴 (保持台面纯净)
+  assert.strictEqual(bench.group.getObjectByName('MicrometerHintLabel'), undefined, 'Micrometer floating hint text must be removed');
+  assert.strictEqual(bench.group.getObjectByName('TurretHintLabel'), undefined, 'Turret floating hint text must be removed');
+
+  // 微米鼓轮必须包含倒角游标刻度环、24道滚花棱纹、铬合金倒角环、过渡缩颈、棘轮手柄等丰富装配细节
+  assert(bench.micrometerKnob.children.length >= 10, `Micrometer knob must have high mechanical craftsmanship (found ${bench.micrometerKnob.children.length} sub-features)`);
+  // 转换轮必须包含防滑凹槽、中心液态铬端盖、激光蚀刻象限分度标记等细节
+  assert(bench.turretWheel.children.length >= 10, `Turret wheel must have high mechanical craftsmanship (found ${bench.turretWheel.children.length} sub-features)`);
+
+  // 15.2 差动微米螺杆旋转与轴向真实进给动效校验
+  bench.setSlitWidth(0.02);
+  const posZMin = bench.micrometerKnob.position.z;
+  const rotZMin = bench.micrometerKnob.rotation.z;
+
+  bench.setSlitWidth(0.25);
+  const posZMax = bench.micrometerKnob.position.z;
+  const rotZMax = bench.micrometerKnob.rotation.z;
+
+  assert(posZMax > posZMin, `Micrometer knob must advance axially with slit width: posZMax=${posZMax} > posZMin=${posZMin}`);
+  assert(Math.abs(rotZMax - rotZMin) >= Math.PI * 6, 'Micrometer knob must execute multiple rotations across tuning range');
+
+  // 15.3 转换轮机械弹簧阻尼卡珠平滑旋转动效校验
+  bench.setDiffractionType('double');
+  assert.strictEqual(bench.targetTurretAngle, Math.PI * 0.5);
+  // 模拟逐帧渲染，验证阻尼旋转平滑插值过渡
+  const initialAngle = bench.turretWheel.rotation.x;
+  bench.update(0.016);
+  const step1Angle = bench.turretWheel.rotation.x;
+  assert(step1Angle > initialAngle, 'Turret wheel must smoothly rotate towards target angle');
+  // 经过若干帧后收敛到达精确目标角
+  for (let i = 0; i < 60; i++) {
+    bench.update(0.016);
+  }
+  assert(Math.abs(bench.turretWheel.rotation.x - Math.PI * 0.5) < 0.001, 'Turret wheel must settle on target detent angle');
+
+  // 15.4 悬浮提示生命周期：没接触前有提示与 3D 光晕环，交互后提示彻底消失
+  const raycaster = new THREE.Raycaster();
+  const knobWorldPos = new THREE.Vector3();
+  bench.micrometerKnob.getWorldPosition(knobWorldPos);
+  raycaster.ray.origin.set(knobWorldPos.x, knobWorldPos.y, knobWorldPos.z + 0.5);
+  raycaster.ray.direction.set(0, 0, -1);
+
+  // a. 没接触前悬停：应出现提示文本与 3D 原生光晕环
+  const preHover = exp.getHoverTarget(raycaster);
+  assert.ok(preHover !== null, 'Should detect hover target before interaction');
+  assert.strictEqual(preHover?.id, 'slit_micrometer');
+  assert(preHover?.label && preHover.label.length > 0, 'Must have hover prompt before contact');
+  assert.strictEqual(bench.micrometerHoverCue.visible, true, '3D hover cue halo must be visible before contact');
+
+  // b. 交互触发：执行 pointerdown
+  const hitKnob = { object: bench.micrometerKnob, point: knobWorldPos } as any;
+  const handled = exp.interactionManager.onPointerDown(new PointerEvent('pointerdown', { clientX: 300 } as any), hitKnob);
+  assert.strictEqual(handled, true);
+  assert.strictEqual(bench.micrometerHoverCue.visible, false, '3D hover cue must immediately disappear upon interaction');
+
+  // 转换轮交互后光晕同样彻底消失
+  const hitTurret = { object: bench.turretWheel, point: new THREE.Vector3() } as any;
+  const handledTurret = exp.interactionManager.onPointerDown(new PointerEvent('pointerdown'), hitTurret);
+  assert.strictEqual(handledTurret, true);
+  assert.strictEqual(bench.turretHoverCue.visible, false, 'Turret 3D hover cue must immediately disappear upon interaction');
+
+  // c. 交互后悬停：提示彻底消失 (label 为空，3D 光晕不可见)
+  const postHover = exp.getHoverTarget(raycaster);
+  assert.strictEqual(postHover?.label, '', 'Hover prompt text must disappear after interaction');
+  assert.strictEqual(bench.micrometerHoverCue.visible, false, '3D hover cue halo must remain hidden after interaction');
+
+  exp.interactionManager.onPointerUp(new PointerEvent('pointerup'));
+  exp.dispose(mockContext);
+  console.log('✓ Test 15 passed: High-fidelity knob craftsmanship, rotational dynamics & hover prompt lifecycle verified\n');
+}
+
 console.log('========================================================');
-console.log('All Light Diffraction Tests Passed (14/14)!');
+console.log('All Light Diffraction Tests Passed (15/15)!');
 console.log('========================================================\n');
 
 

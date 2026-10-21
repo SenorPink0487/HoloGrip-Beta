@@ -28,7 +28,7 @@ export class Crosshair {
     if (this.isHovered === hovered && (!hovered || this.tooltipEl.textContent === label)) return;
     this.isHovered = hovered;
 
-    if (hovered) {
+    if (hovered && label && label.trim().length > 0) {
       this.element.classList.add('hovered');
       this.tooltipEl.textContent = label;
       this.tooltipEl.classList.add('visible');

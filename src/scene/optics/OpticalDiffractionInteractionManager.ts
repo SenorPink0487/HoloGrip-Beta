@@ -28,6 +28,10 @@ export class OpticalDiffractionInteractionManager {
   private dragStartClientX = 0;
   private dragStartSlitParam = 0;
 
+  // 交互引导提示生命周期状态 (没接触前呈现悬浮提示，交互后提示彻底消失)
+  private hasInteractedWithMicrometer = false;
+  private hasInteractedWithTurret = false;
+
   constructor(
     bench: OpticalDiffractionBenchMesh,
     rootGroup: THREE.Group,
@@ -47,6 +51,7 @@ export class OpticalDiffractionInteractionManager {
    */
   public getHoverTarget(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null {
     if (this.dragMode === 'screen') {
+      this.bench.setKnobHovered(null, false);
       const distMm = (this.bench.screenDistanceM * 1000).toFixed(0);
       return {
         id: 'screen_handle',
@@ -56,15 +61,19 @@ export class OpticalDiffractionInteractionManager {
     }
 
     if (this.dragMode === 'micrometer') {
+      this.bench.setKnobHovered(null, false);
       return {
         id: 'slit_micrometer',
-        label: `精密测微可调单缝仪 · 缝宽 a = ${this.bench.slitWidthMm.toFixed(2)} mm`,
+        label: this.hasInteractedWithMicrometer ? '' : `精密测微可调单缝仪 · 缝宽 a = ${this.bench.slitWidthMm.toFixed(2)} mm`,
         cursor: 'ew-resize',
       };
     }
 
     const hits = raycaster.intersectObjects(this.bench.group.children, true);
-    if (hits.length === 0) return null;
+    if (hits.length === 0) {
+      this.bench.setKnobHovered(null, false);
+      return null;
+    }
 
     for (const hit of hits) {
       let cur: THREE.Object3D | null = hit.object;
@@ -72,6 +81,7 @@ export class OpticalDiffractionInteractionManager {
         const id = cur.userData?.interactiveId || cur.name;
 
         if (id === 'laser_power' || cur.name === 'LaserPowerSwitch') {
+          this.bench.setKnobHovered(null, false);
           return {
             id: 'laser_power',
             label: `激光电源开关 · 当前[${this.bench.laserPower ? '开启' : '关闭'}] (点击切换)`,
@@ -80,6 +90,7 @@ export class OpticalDiffractionInteractionManager {
         }
 
         if (id && id.startsWith('laser_wavelength_')) {
+          this.bench.setKnobHovered(null, false);
           const wl = cur.userData?.wavelength || 532;
           const colorName = wl === 650 ? '红光 (650nm)' : wl === 532 ? '绿光 (532nm)' : '蓝紫光 (405nm)';
           return {
@@ -90,12 +101,22 @@ export class OpticalDiffractionInteractionManager {
         }
 
         if (id === 'slit_turret' || cur.name === 'SlitTurretWheel') {
-          const typeName = this.bench.diffractionType === 'single' ? '单缝' : this.bench.diffractionType === 'double' ? '双缝' : this.bench.diffractionType === 'circular' ? '圆孔' : '光栅';
-          return {
-            id: 'slit_turret',
-            label: `精密多功能衍射转换轮 · 当前[${typeName}] (点击切换单缝/双缝/圆孔/光栅)`,
-            cursor: 'pointer',
-          };
+          if (!this.hasInteractedWithTurret) {
+            this.bench.setKnobHovered('slit_turret', true);
+            const typeName = this.bench.diffractionType === 'single' ? '单缝' : this.bench.diffractionType === 'double' ? '双缝' : this.bench.diffractionType === 'circular' ? '圆孔' : '光栅';
+            return {
+              id: 'slit_turret',
+              label: `精密多功能衍射转换轮 · 当前[${typeName}] (点击切换单缝/双缝/圆孔/光栅)`,
+              cursor: 'pointer',
+            };
+          } else {
+            this.bench.setKnobHovered('slit_turret', false);
+            return {
+              id: 'slit_turret',
+              label: '',
+              cursor: 'pointer',
+            };
+          }
         }
 
         if (
@@ -106,11 +127,21 @@ export class OpticalDiffractionInteractionManager {
           cur.name === 'MicrometerThimbleGroup' ||
           cur.name === 'AdjustableSingleSlitStage'
         ) {
-          return {
-            id: 'slit_micrometer',
-            label: `精密测微可调单缝仪 (按住左右拖拽微调缝宽 a = ${this.bench.slitWidthMm.toFixed(2)} mm)`,
-            cursor: 'ew-resize',
-          };
+          if (!this.hasInteractedWithMicrometer) {
+            this.bench.setKnobHovered('slit_micrometer', true);
+            return {
+              id: 'slit_micrometer',
+              label: `精密测微可调单缝仪 (按住左右拖拽微调缝宽 a = ${this.bench.slitWidthMm.toFixed(2)} mm)`,
+              cursor: 'ew-resize',
+            };
+          } else {
+            this.bench.setKnobHovered('slit_micrometer', false);
+            return {
+              id: 'slit_micrometer',
+              label: '',
+              cursor: 'ew-resize',
+            };
+          }
         }
 
         if (
@@ -118,6 +149,7 @@ export class OpticalDiffractionInteractionManager {
           cur.name === 'ScreenHandleTop' ||
           cur.name === 'ScreenCarrierGroup'
         ) {
+          this.bench.setKnobHovered(null, false);
           const distMm = (this.bench.screenDistanceM * 1000).toFixed(0);
           return {
             id: 'screen_handle',
@@ -127,6 +159,7 @@ export class OpticalDiffractionInteractionManager {
         }
 
         if (id === 'screen_surface' || cur.name === 'ScreenSurfaceMesh') {
+          this.bench.setKnobHovered(null, false);
           const distMm = (this.bench.screenDistanceM * 1000).toFixed(0);
           return {
             id: 'screen_surface',
@@ -139,6 +172,7 @@ export class OpticalDiffractionInteractionManager {
       }
     }
 
+    this.bench.setKnobHovered(null, false);
     return null;
   }
 
@@ -204,8 +238,10 @@ export class OpticalDiffractionInteractionManager {
       return true;
     }
 
-    // 3. 向后兼容转盘点击回调
+    // 3. 衍射模式转盘点击
     if (targetId === 'slit_turret') {
+      this.hasInteractedWithTurret = true;
+      this.bench.hideTurretHint();
       this.bench.cycleNextDiffractionType();
       this.callbacks.onDiffractionTypeChange?.(this.bench.diffractionType);
       return true;
@@ -213,6 +249,8 @@ export class OpticalDiffractionInteractionManager {
 
     // 4. 拖动单缝测微鼓轮 (调节缝宽)
     if (targetId === 'slit_micrometer') {
+      this.hasInteractedWithMicrometer = true;
+      this.bench.hideMicrometerHint();
       this.dragMode = 'micrometer';
       this.dragStartClientX = event.clientX ?? 0;
       this.dragStartSlitParam = this.bench.slitWidthMm;
@@ -278,5 +316,6 @@ export class OpticalDiffractionInteractionManager {
    */
   public onPointerUp(_event: PointerEvent): void {
     this.dragMode = 'none';
+    this.bench.setKnobHovered(null, false);
   }
 }
