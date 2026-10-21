@@ -375,6 +375,90 @@ export class PhysicsDisciplineModal {
         </svg>
       `,
     },
+    {
+      id: 'optics-double-slit',
+      name: '杨氏双缝干涉',
+      category: '波动光学与相干叠加',
+      formula: 'Δy = λL / d · d sinθ = kλ',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Incident Coherent Wavefronts -->
+          <line x1="4" y1="10" x2="4" y2="26" stroke-width="1.3" stroke-opacity="0.45"/>
+          <line x1="8" y1="10" x2="8" y2="26" stroke-width="1.4" stroke-opacity="0.75"/>
+          <!-- Double-Slit Barrier with S1 & S2 Apertures -->
+          <line x1="12" y1="4" x2="12" y2="11.5" stroke-width="2.2"/>
+          <line x1="12" y1="15" x2="12" y2="21" stroke-width="2.2"/>
+          <line x1="12" y1="24.5" x2="12" y2="32" stroke-width="2.2"/>
+          <!-- Overlapping Coherent Spherical Wavefronts from S1 and S2 -->
+          <path d="M12 8.5 A 5 5 0 0 1 12 18" stroke-width="1.3" stroke-opacity="0.65"/>
+          <path d="M12 18 A 5 5 0 0 1 12 27.5" stroke-width="1.3" stroke-opacity="0.65"/>
+          <path d="M12 4.5 A 9.5 9.5 0 0 1 12 22" stroke-width="1.3" stroke-opacity="0.5"/>
+          <path d="M12 14 A 9.5 9.5 0 0 1 12 31.5" stroke-width="1.3" stroke-opacity="0.5"/>
+          <path d="M15 2.5 A 14 14 0 0 1 15 25.5" stroke-width="1.2" stroke-dasharray="2 1.5" stroke-opacity="0.4"/>
+          <path d="M15 10.5 A 14 14 0 0 1 15 33.5" stroke-width="1.2" stroke-dasharray="2 1.5" stroke-opacity="0.4"/>
+          <!-- Observation Screen & Equidistant Interference Maxima (k = 0, ±1, ±2) -->
+          <line x1="31" y1="4" x2="31" y2="32" stroke-width="1.8" stroke-opacity="0.4"/>
+          <circle cx="31" cy="18" r="2.2" fill="currentColor"/>
+          <circle cx="31" cy="12.5" r="1.9" fill="currentColor" fill-opacity="0.85"/>
+          <circle cx="31" cy="23.5" r="1.9" fill="currentColor" fill-opacity="0.85"/>
+          <circle cx="31" cy="7" r="1.5" fill="currentColor" fill-opacity="0.55"/>
+          <circle cx="31" cy="29" r="1.5" fill="currentColor" fill-opacity="0.55"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'optics-dispersion',
+      name: '光的色散',
+      category: '棱镜光谱与柯西色散定律',
+      formula: 'n(λ) = A + B/λ² · δ = θ₁ + θ₄ - α',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Equilateral Optical Prism Outline & Subtle Crystal Fill -->
+          <polygon points="16,6 7,28 25,28" fill="currentColor" fill-opacity="0.10" stroke-width="2.0"/>
+          <!-- Incident Collimated White Beam -->
+          <line x1="3" y1="21" x2="11.5" y2="17" stroke-width="2.2"/>
+          <!-- Internal Dispersion Wedge inside Prism -->
+          <line x1="11.5" y1="17" x2="20" y2="15.8" stroke-width="1.4" stroke-opacity="0.85"/>
+          <line x1="11.5" y1="17" x2="21.2" y2="18.8" stroke-width="1.4" stroke-opacity="0.65"/>
+          <!-- Emergent Diverging Rainbow Spectral Fan (Red to Violet) -->
+          <line x1="20" y1="15.8" x2="33" y2="13" stroke-width="1.7"/>
+          <line x1="20.4" y1="16.8" x2="33" y2="17.5" stroke-width="1.6" stroke-opacity="0.85"/>
+          <line x1="20.8" y1="17.8" x2="33" y2="22" stroke-width="1.6" stroke-opacity="0.70"/>
+          <line x1="21.2" y1="18.8" x2="33" y2="26.5" stroke-width="1.7" stroke-opacity="0.55"/>
+          <!-- Spectral Nodes on Screen -->
+          <circle cx="33" cy="13" r="1.4" fill="currentColor"/>
+          <circle cx="33" cy="17.5" r="1.3" fill="currentColor" fill-opacity="0.85"/>
+          <circle cx="33" cy="22" r="1.3" fill="currentColor" fill-opacity="0.70"/>
+          <circle cx="33" cy="26.5" r="1.4" fill="currentColor" fill-opacity="0.55"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'optics-polarization',
+      name: '光的偏振',
+      category: '马吕斯定律与三维螺旋双折射',
+      formula: 'I = I₀ cos²θ · Δφ = 2π d Δn / λ',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Optical Propagation Axis -->
+          <line x1="2" y1="18" x2="34" y2="18" stroke-width="1.2" stroke-dasharray="2 2" stroke-opacity="0.45"/>
+          <!-- Unpolarized Starburst E-Vectors (Left) -->
+          <line x1="5.5" y1="12.5" x2="5.5" y2="23.5" stroke-width="1.5"/>
+          <line x1="2.8" y1="15.3" x2="8.2" y2="20.7" stroke-width="1.4" stroke-opacity="0.75"/>
+          <line x1="2.8" y1="20.7" x2="8.2" y2="15.3" stroke-width="1.4" stroke-opacity="0.75"/>
+          <!-- Polarizer P1 Disc & Vertical Slit Grid -->
+          <ellipse cx="13" cy="18" rx="2.6" ry="8.8" fill="currentColor" fill-opacity="0.10" stroke-width="1.8"/>
+          <line x1="13" y1="10.5" x2="13" y2="25.5" stroke-width="1.5"/>
+          <!-- Linearly Polarized Transverse Sinusoidal Wave (Middle) -->
+          <path d="M 15.6 18 Q 17.8 10.5, 20.0 18 T 24.4 18" stroke-width="1.9"/>
+          <!-- Analyzer P2 Rotated Disc & Tilted Axis -->
+          <ellipse cx="27" cy="18" rx="2.6" ry="8.8" fill="currentColor" fill-opacity="0.10" stroke-width="1.8"/>
+          <line x1="25.3" y1="11.2" x2="28.7" y2="24.8" stroke-width="1.5" stroke-opacity="0.85"/>
+          <!-- Attenuated Post-Analyzer Wave (Right) -->
+          <path d="M 29.6 18 Q 31.0 14.5, 32.4 18 T 34.5 18" stroke-width="1.6" stroke-opacity="0.75"/>
+        </svg>
+      `,
+    },
   ];
 
   constructor(callbacks: PhysicsDisciplineCallbacks) {

@@ -631,7 +631,11 @@ export class Engine {
       id === 'math-stereometry' ||
       id === 'mech-center-of-gravity' ||
       id === 'mech-newton-third' ||
-      id === 'thermo-compression-ignition'
+      id === 'thermo-compression-ignition' ||
+      id === 'optics-dispersion' ||
+      id === 'optics-reflection-refraction' ||
+      id === 'optics-diffraction' ||
+      id === 'optics-double-slit'
     );
   }
 
@@ -1911,7 +1915,10 @@ export class Engine {
           this.currentExperimentId === 'mech-center-of-gravity' ||
           this.currentExperimentId === 'mech-newton-third' ||
           this.currentExperimentId === 'optics-diffraction' ||
+          this.currentExperimentId === 'optics-double-slit' ||
           this.currentExperimentId === 'optics-reflection-refraction' ||
+          this.currentExperimentId === 'optics-dispersion' ||
+          this.currentExperimentId === 'optics-polarization' ||
           this.currentExperimentId === 'em-capacitor-discharge' ||
           this.currentExperimentId === 'thermo-compression-ignition') &&
         this.holoStage.activeExperiment?.onPointerMove

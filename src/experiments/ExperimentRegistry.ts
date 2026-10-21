@@ -18,7 +18,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: 'optics',
     name: '光学物理',
     icon: 'optics',
-    description: '光的反射定律、折射定律与全反射临界角高精度3D实验台',
+    description: '光的反射与折射、全反射临界角、光的色散、光的偏振、单缝光栅衍射与杨氏双缝干涉高精度3D实验台',
   },
   {
     id: 'thermodynamics',
