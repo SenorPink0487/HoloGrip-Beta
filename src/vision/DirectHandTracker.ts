@@ -18,6 +18,7 @@ export class DirectHandTracker {
   private isInitializing = false;
   private isReady = false;
   private activeDelegate: 'GPU' | 'CPU' = 'GPU';
+  private lastTimestamp = -1;
 
   constructor(config: Required<HandGestureServiceConfig>) {
     this.config = config;
@@ -81,7 +82,9 @@ export class DirectHandTracker {
 
     const tStart = performance.now();
     try {
-      const results = this.landmarker.detectForVideo(video, timestamp);
+      const safeTimestamp = Math.max(this.lastTimestamp + 1, Math.round(timestamp));
+      this.lastTimestamp = safeTimestamp;
+      const results = this.landmarker.detectForVideo(video, safeTimestamp);
       const latencyMs = performance.now() - tStart;
       return {
         landmarks: (results.landmarks || []) as NormalizedLandmark[][],
@@ -104,5 +107,6 @@ export class DirectHandTracker {
     }
     this.isReady = false;
     this.isInitializing = false;
+    this.lastTimestamp = -1;
   }
 }

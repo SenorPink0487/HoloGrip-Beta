@@ -1161,8 +1161,59 @@ await (async () => {
   console.log('✓ Test 27 passed: No graph rebuilding, timed discovery, continuous two-hand tracking\n');
 }
 
+// Test 28: Smooth and Comfortable Perspective Dragging with 60 FPS Exponential Damping (No Prediction)
+{
+  console.log('Test 28: Smooth and Comfortable Perspective Dragging with 60 FPS Exponential Damping (No Prediction)');
+  const { PlayerController } = await import('../src/controls/PlayerController.ts');
+  const THREE = await import('three');
+
+  const cam = new THREE.PerspectiveCamera();
+  const dummyDom = (globalThis as any).document.createElement('canvas');
+  const player = new PlayerController(cam, dummyDom);
+
+  const startYaw = player.yaw;
+  const startPitch = player.pitch;
+
+  // 1. Gesture callback arrives at 24Hz with hand delta dx = 30, dy = -15
+  player.rotateSmooth(30, -15, 0.0035);
+
+  const targetYaw = startYaw - 30 * 0.0035;
+  const targetPitch = startPitch - (-15) * 0.0035;
+
+  assert.strictEqual(player.targetYaw, targetYaw, 'Target yaw must immediately accumulate gesture delta');
+  assert.strictEqual(player.targetPitch, targetPitch, 'Target pitch must immediately accumulate gesture delta');
+  // Immediately upon calling rotateSmooth, yaw has NOT jumped abruptly (no 24Hz stair-step shock)
+  assert.strictEqual(player.yaw, startYaw, 'Current yaw must not snap instantly on 24Hz frame arrival');
+
+  // 2. In 60 FPS render loop (Engine.animate dt ≈ 16.7ms), successive frames smoothly glide towards target
+  const frame1Dt = 1 / 60;
+  player.update(frame1Dt);
+  const yawFrame1 = player.yaw;
+  const pitchFrame1 = player.pitch;
+
+  assert(yawFrame1 < startYaw && yawFrame1 > targetYaw, 'Frame 1 must smoothly close partial distance towards target');
+  assert(pitchFrame1 > startPitch && pitchFrame1 < targetPitch, 'Pitch 1 must smoothly close partial distance towards target');
+
+  // Frame 2 (next 16.7ms) continues smooth progress
+  player.update(frame1Dt);
+  const yawFrame2 = player.yaw;
+  assert(yawFrame2 < yawFrame1 && yawFrame2 > targetYaw, 'Frame 2 must continue smooth monotonic approach towards target');
+
+  // 3. Settle without prediction or overshoot
+  // Simulate 250ms passing with 60 FPS frames (approx 15 frames)
+  for (let i = 0; i < 15; i++) {
+    player.update(frame1Dt);
+  }
+
+  assert(Math.abs(player.yaw - targetYaw) < 1e-4, 'Player yaw must comfortably settle at target without overshoot');
+  assert(Math.abs(player.pitch - targetPitch) < 1e-4, 'Player pitch must comfortably settle at target without overshoot');
+  assert.strictEqual(player.camera.rotation.y, player.yaw, 'Camera rotation Y must stay in lockstep with player yaw');
+
+  console.log('✓ Test 28 passed: Smooth and comfortable perspective dragging with 60 FPS exponential damping verified\n');
+}
+
 console.log('========================================================');
-console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (27/27)!');
+console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (28/28)!');
 console.log('========================================================\n');
 
 

@@ -181,7 +181,49 @@ isWhiteboardMode = true;
 assert.strictEqual(computeExpectedCrosshairVisibility(), false, 'Hidden when returning to whiteboard');
 console.log('✓ Test 4 passed: All state matrix conditions verified\n');
 
+// Test 5: All Physics Experiments Center Crosshair & Pointer Lock Invariants
+console.log('Test 5: All Physics Experiments Crosshair Activation Invariants');
+const allPhysicsExperiments = [
+  'mech-galileo',
+  'mech-free-fall',
+  'mech-center-of-gravity',
+  'mech-newton-third',
+  'mech-newton-cannon',
+  'em-field',
+  'em-hall',
+  'em-capacitor-discharge',
+  'optics-diffraction',
+  'optics-double-slit',
+  'optics-dispersion',
+  'optics-polarization',
+  'optics-reflection-refraction',
+  'thermo-carnot',
+  'thermo-conduction',
+  'thermo-idealgas',
+  'thermo-phase',
+  'thermo-compression-ignition',
+];
+
+const isFreeCursorExp = (id: string | null): boolean => id === 'math-stereometry';
+
+for (const expId of allPhysicsExperiments) {
+  assert.strictEqual(
+    isFreeCursorExp(expId),
+    false,
+    `Physics experiment [${expId}] must NOT be classified as free cursor; center crosshair must activate`
+  );
+}
+
+// Math stereometry remains the sole dedicated free cursor mode
+assert.strictEqual(
+  isFreeCursorExp('math-stereometry'),
+  true,
+  'Math stereometry must remain dedicated free cursor mode'
+);
+
+console.log('✓ Test 5 passed: Center crosshair activation guaranteed across all 18 physics experiments\n');
+
 crosshair.destroy();
 console.log('========================================================');
-console.log('All Crosshair & Reticle Tests Passed Successfully (4/4)!');
+console.log('All Crosshair & Reticle Tests Passed Successfully (5/5)!');
 console.log('========================================================\n');

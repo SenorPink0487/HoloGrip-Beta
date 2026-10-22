@@ -13,7 +13,7 @@ import type { ExperimentContext } from '../../../core/types.ts';
 
 export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   public readonly metadata = metadata;
-  public override targetScale = 3.0;
+  public override targetScale = 2.80;
   public override hideCenterEmitter = true;
 
   // 物理求解引擎
@@ -38,8 +38,8 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
   }
 
   public init(context: ExperimentContext): void {
-    // 将实验器材直接放置于全息实验台桌面上 (y = 0.082 与桌面绝对贴合)
-    this.rootGroup.position.set(0, 0.082, 1.48);
+    // 将实验器材整体向桌面中心内缩安放 (y = 0.082 贴合桌面，z = 1.15 确保导线与器材完全收纳在桌面内，绝不悬出边缘)
+    this.rootGroup.position.set(0, 0.082, 1.15);
 
     // 1. 3D 器材装配
     this.bench = this.track(new CapacitorDischargeBenchMesh({

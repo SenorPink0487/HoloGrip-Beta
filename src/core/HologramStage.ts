@@ -217,6 +217,9 @@ export class HologramStage {
       if (currentScale < targetScale) {
         const nextScale = Math.min(targetScale, currentScale + delta * 3.5 * Math.max(1.0, targetScale));
         this.currentExperiment.rootGroup.scale.set(nextScale, nextScale, nextScale);
+        if (nextScale >= targetScale && context.renderer?.shadowMap?.enabled) {
+          context.renderer.shadowMap.needsUpdate = true;
+        }
       }
     }
 

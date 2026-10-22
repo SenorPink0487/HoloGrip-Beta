@@ -46,6 +46,14 @@ export class Laboratory {
       ceilingWhite: new THREE.MeshStandardMaterial({ color: 0xeef3f7, roughness: 0.60, metalness: 0.02, side: THREE.FrontSide }),
       ceilingTrim: new THREE.MeshStandardMaterial({ color: 0xcbd8e2, roughness: 0.30, metalness: 0.22, side: THREE.FrontSide }),
       ceilingGroove: new THREE.MeshBasicMaterial({ color: 0xa4b8c6, transparent: true, opacity: 0.45, side: THREE.DoubleSide }),
+      coveDiffuser: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xf6faff,
+        emissiveIntensity: 0.65,
+        roughness: 0.25,
+        metalness: 0.05,
+        side: THREE.DoubleSide,
+      }),
       flutedPanel: new THREE.MeshStandardMaterial({ color: 0xe4ebf0, roughness: 0.62, metalness: 0.02, side: THREE.FrontSide }),
     };
 
@@ -119,26 +127,6 @@ export class Laboratory {
     this.floorMesh.material.needsUpdate = true;
   }
 
-  private haloTexture(): THREE.CanvasTexture {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 512, 512);
-    const glow = ctx.createRadialGradient(256, 256, 120, 256, 256, 256);
-    glow.addColorStop(0, 'rgba(255,255,255,0)');
-    glow.addColorStop(0.35, 'rgba(255,255,255,0.08)');
-    glow.addColorStop(0.60, 'rgba(255,250,242,0.65)');
-    glow.addColorStop(0.76, 'rgba(255,255,255,1.0)');
-    glow.addColorStop(0.88, 'rgba(255,248,238,0.45)');
-    glow.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, 512, 512);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return texture;
-  }
-
   /**
    * 连接内外半径的平滑四边形穹顶藻井环带，具备高精度建筑细节
    */
@@ -200,28 +188,50 @@ export class Laboratory {
     innerEdges.position.y = 0.002;
     ceiling.add(innerEdges);
 
-    // 3. 内嵌圆形间接照明暗藏灯槽台阶
+    // 3. 高精度建筑内嵌圆形暗藏灯槽结构（彻底消除 2D Canvas 贴图导致的移动端/iPad 色彩噪点 Bug）
+    // 3.1 凹槽基座顶面（深处水平顶板）
     const step = new THREE.Mesh(new THREE.RingGeometry(2.45, 3.32, 128), this.materials.ceilingWhite);
     step.rotation.x = Math.PI / 2;
-    step.position.y = 4.34;
+    step.position.y = 4.35;
+    step.receiveShadow = true;
     ceiling.add(step);
 
-    const stepLip = new THREE.Mesh(new THREE.TorusGeometry(3.32, 0.024, 12, 128), this.materials.ceilingTrim);
+    // 3.2 凹槽外侧垂直收口立面（封闭藻井环口 y=4.28 到灯槽顶 y=4.35 之间的建筑结构面）
+    const coveRiserMat = (this.materials.ceilingTrim as THREE.MeshStandardMaterial).clone();
+    coveRiserMat.side = THREE.BackSide;
+    const coveRiser = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.32, 3.32, 0.07, 128, 1, true),
+      coveRiserMat,
+    );
+    coveRiser.position.y = 4.315;
+    ceiling.add(coveRiser);
+
+    // 3.3 藻井内口精细机械倒角金属包边压条
+    const stepLip = new THREE.Mesh(new THREE.TorusGeometry(3.32, 0.016, 12, 128), this.materials.ceilingTrim);
     stepLip.rotation.x = Math.PI / 2;
     stepLip.position.y = 4.28;
     ceiling.add(stepLip);
 
-    // 圆形间接漫反射光晕
-    const halo = new THREE.Mesh(
-      new THREE.CircleGeometry(3.30, 96),
-      new THREE.MeshBasicMaterial({
-        map: this.haloTexture(), transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide,
-      }),
+    // 3.4 环形光学级纯白柔光漫射透光环（实体物理透光板，完全摒弃 Canvas 纹理与 Mipmap 伪影）
+    const diffuser = new THREE.Mesh(
+      new THREE.RingGeometry(2.62, 3.18, 128),
+      this.materials.coveDiffuser,
     );
-    halo.rotation.x = Math.PI / 2;
-    halo.position.y = 4.33;
-    halo.name = 'oculus-halo';
-    ceiling.add(halo);
+    diffuser.rotation.x = Math.PI / 2;
+    diffuser.position.y = 4.346;
+    diffuser.name = 'oculus-cove-diffuser';
+    ceiling.add(diffuser);
+
+    // 3.5 漫射透光板内侧与外侧航空缎面铝合金精密定位扣圈
+    const innerTrimRing = new THREE.Mesh(new THREE.TorusGeometry(2.62, 0.008, 10, 128), this.materials.aluminumTrim);
+    innerTrimRing.rotation.x = Math.PI / 2;
+    innerTrimRing.position.y = 4.345;
+    ceiling.add(innerTrimRing);
+
+    const outerTrimRing = new THREE.Mesh(new THREE.TorusGeometry(3.18, 0.008, 10, 128), this.materials.aluminumTrim);
+    outerTrimRing.rotation.x = Math.PI / 2;
+    outerTrimRing.position.y = 4.345;
+    ceiling.add(outerTrimRing);
 
     // 4. 天窗边框压条
     const bezel = new THREE.Mesh(new THREE.RingGeometry(2.36, 2.45, 96), this.materials.ceilingTrim);

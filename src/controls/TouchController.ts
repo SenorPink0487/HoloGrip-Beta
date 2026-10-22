@@ -19,7 +19,10 @@ export class TouchController {
   private maxRadius = 45;
 
   private lookTouchId: number | null = null;
+  private lookTouchStartPos = { x: 0, y: 0 };
   private lastLookPos = { x: 0, y: 0 };
+  private isLookDragging = false;
+  private readonly lookTapSlop = 10;
 
   private player: PlayerController;
 
@@ -117,6 +120,7 @@ export class TouchController {
         }
       }
       this.lookTouchId = null;
+      this.isLookDragging = false;
       this.visionLauncherBtn?.classList?.remove?.('is-pressed');
     }
   }
@@ -656,6 +660,29 @@ export class TouchController {
             this.player.enabled &&
             !this.isHandTrackingActive
           ) {
+            const engine = typeof window !== 'undefined' ? (window as any).__ENGINE__ : null;
+            if (engine?.isExperimentInteracting || engine?.currentExperimentId) {
+              this.lookTouchId = null;
+              this.isLookDragging = false;
+              continue;
+            }
+
+            const totalDist = Math.hypot(
+              touch.clientX - this.lookTouchStartPos.x,
+              touch.clientY - this.lookTouchStartPos.y
+            );
+
+            // 必须超出点击容差 (Tap Slop) 阈值才进入视角旋转拖拽模式；
+            // 在轻微晃动的点按 (Tap) 范围内绝不调用 preventDefault()，保证 iPad 原生点按灵敏触发！
+            if (!this.isLookDragging) {
+              if (totalDist > this.lookTapSlop) {
+                this.isLookDragging = true;
+                this.lastLookPos = { x: touch.clientX, y: touch.clientY };
+              } else {
+                continue;
+              }
+            }
+
             if (e.cancelable) e.preventDefault();
             const dx = touch.clientX - this.lastLookPos.x;
             const dy = touch.clientY - this.lastLookPos.y;
@@ -692,11 +719,13 @@ export class TouchController {
 
         if (touch.identifier === this.lookTouchId) {
           this.lookTouchId = null;
+          this.isLookDragging = false;
         }
       }
 
       if (e.touches && e.touches.length === 0) {
         this.lookTouchId = null;
+        this.isLookDragging = false;
         this.uiTouchIds.clear();
         this.stopElevateUp();
         this.stopElevateDown();
@@ -719,13 +748,18 @@ export class TouchController {
         const target = e.target instanceof Element ? e.target : null;
         if (!target) return;
 
-        // 允许控件、启动按钮、升降按钮和文本框接收点击，而不触发相机拖拽
-        if (target.closest('.hud-interactive, button, a, input, textarea, select, [contenteditable="true"]')) {
+        // 允许各类 UI 控件、启动按钮、升降按钮、模态框及文本框接收点击，而不触发相机拖拽
+        if (
+          target.closest(
+            '#touch-controls-layer, #css3d-container, .vision-spatial-window, .hud-panel, .hud-interactive, button, a, input, textarea, select, [role="button"], [contenteditable="true"], .discipline-card, .experiment-card, .element-cell, .apple-pill-btn, .vision-window-btn'
+          )
+        ) {
           return;
         }
 
-        // 在立体几何实验中，全屏触摸操作归属于 3D 几何图形交互
-        if (typeof window !== 'undefined' && (window as any).__ENGINE__?.currentExperimentId === 'math-stereometry') {
+        const engine = typeof window !== 'undefined' ? (window as any).__ENGINE__ : null;
+        // 如果当前实验正在交互或处于活动实验中，触摸归属于 3D 实验交互
+        if (engine?.isExperimentInteracting || engine?.currentExperimentId) {
           return;
         }
 
@@ -736,6 +770,7 @@ export class TouchController {
         );
         if (nonJoystickTouches.length > 1) {
           this.lookTouchId = null;
+          this.isLookDragging = false;
           return;
         }
 
@@ -749,7 +784,9 @@ export class TouchController {
 
           if (!isJoystickArea && this.lookTouchId === null) {
             this.lookTouchId = touch.identifier;
+            this.lookTouchStartPos = { x: touch.clientX, y: touch.clientY };
             this.lastLookPos = { x: touch.clientX, y: touch.clientY };
+            this.isLookDragging = false;
           }
         }
       },

@@ -18,6 +18,9 @@ export class PlayerController {
 
   public yaw: number = LAB_ENTRY_REST.yaw;
   public pitch: number = LAB_ENTRY_REST.pitch;
+  public targetYaw: number = LAB_ENTRY_REST.yaw;
+  public targetPitch: number = LAB_ENTRY_REST.pitch;
+  public rotationDamping = 20.0; // 舒适平滑阻尼系数，消除输入阶跃感，提供 60 FPS 顺滑转动
   public minPitch = -Math.PI / 2.1;
   public maxPitch = Math.PI / 2.1;
 
@@ -60,6 +63,8 @@ export class PlayerController {
     // 展厅视角（位于实验台前）：上方为天球顶，圆盘居中，地面在前景。
     this.yaw = LAB_ENTRY_REST.yaw;
     this.pitch = LAB_ENTRY_REST.pitch;
+    this.targetYaw = LAB_ENTRY_REST.yaw;
+    this.targetPitch = LAB_ENTRY_REST.pitch;
     this.eyeHeight = LAB_ENTRY_REST.y;
     this.camera.position.set(LAB_ENTRY_REST.x, LAB_ENTRY_REST.y, LAB_ENTRY_REST.z);
     this.camera.rotation.order = 'YXZ';
@@ -156,6 +161,7 @@ export class PlayerController {
         this.yaw -= e.movementX * sensitivity;
         this.pitch -= e.movementY * sensitivity;
         this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
+        this.syncTargetRotation();
         this.updateCameraRotation();
       } else if (isDragging) {
         const sensitivity = 0.0028;
@@ -166,6 +172,7 @@ export class PlayerController {
         this.yaw -= dx * sensitivity;
         this.pitch -= dy * sensitivity;
         this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
+        this.syncTargetRotation();
         this.updateCameraRotation();
       }
     });
@@ -237,6 +244,11 @@ export class PlayerController {
     }
   }
 
+  public syncTargetRotation(): void {
+    this.targetYaw = this.yaw;
+    this.targetPitch = this.pitch;
+  }
+
   public updateCameraRotation(): void {
     this.camera.rotation.x = this.pitch;
     this.camera.rotation.y = this.yaw;
@@ -248,11 +260,35 @@ export class PlayerController {
     this.yaw -= dx * sensitivity;
     this.pitch -= dy * sensitivity;
     this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
+    this.syncTargetRotation();
     this.updateCameraRotation();
+  }
+
+  public rotateSmooth(dx: number, dy: number, sensitivity = 0.0028): void {
+    if (!this.enabled) return;
+    this.targetYaw -= dx * sensitivity;
+    this.targetPitch -= dy * sensitivity;
+    this.targetPitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.targetPitch));
   }
 
   public update(delta: number): void {
     const dt = Math.min(delta, 0.1);
+
+    // 平滑视角转动阻尼插值（在 60 FPS 渲染帧中平滑追赶目标视角，消除 24Hz 阶跃卡顿，平滑舒适且无需前向预测）
+    if (Math.abs(this.targetYaw - this.yaw) > 1e-4 || Math.abs(this.targetPitch - this.pitch) > 1e-4) {
+      const rotFactor = 1 - Math.exp(-this.rotationDamping * dt);
+      this.yaw += (this.targetYaw - this.yaw) * rotFactor;
+      this.pitch += (this.targetPitch - this.pitch) * rotFactor;
+      this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
+
+      if (Math.abs(this.targetYaw - this.yaw) < 0.0005) {
+        this.yaw = this.targetYaw;
+      }
+      if (Math.abs(this.targetPitch - this.pitch) < 0.0005) {
+        this.pitch = this.targetPitch;
+      }
+      this.updateCameraRotation();
+    }
 
     this.velocity.x -= this.velocity.x * this.damping * dt;
     this.velocity.y -= this.velocity.y * this.damping * dt;

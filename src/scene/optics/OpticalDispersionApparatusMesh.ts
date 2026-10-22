@@ -209,6 +209,47 @@ export class OpticalDispersionApparatusMesh {
   ];
   public activeMaterialIndex = 2; // 默认 'flint'
 
+  // 高精度连续光谱色彩锚点 (物理 CIE 1931 光度学高饱和色彩插值)
+  public static readonly SPECTRUM_ANCHORS: { wl: number; c: [number, number, number] }[] = [
+    { wl: 700, c: [1.00, 0.04, 0.08] }, // 深绯红
+    { wl: 645, c: [1.00, 0.20, 0.04] }, // 鲜红
+    { wl: 615, c: [1.00, 0.48, 0.02] }, // 亮橙
+    { wl: 590, c: [1.00, 0.80, 0.04] }, // 金黄
+    { wl: 575, c: [0.96, 0.95, 0.06] }, // 纯黄
+    { wl: 550, c: [0.55, 0.98, 0.16] }, // 黄绿
+    { wl: 525, c: [0.12, 0.98, 0.32] }, // 翠绿
+    { wl: 500, c: [0.04, 0.95, 0.75] }, // 碧青
+    { wl: 475, c: [0.08, 0.72, 1.00] }, // 天青蓝
+    { wl: 450, c: [0.18, 0.42, 1.00] }, // 湛蓝
+    { wl: 425, c: [0.42, 0.16, 0.98] }, // 靛蓝
+    { wl: 395, c: [0.65, 0.08, 0.92] }, // 幽紫
+  ];
+
+  public static getContinuousSpectralColor(wl: number): THREE.Color {
+    const anchors = OpticalDispersionApparatusMesh.SPECTRUM_ANCHORS;
+    if (wl >= anchors[0].wl) {
+      const [r, g, b] = anchors[0].c;
+      return new THREE.Color(r, g, b);
+    }
+    const last = anchors[anchors.length - 1];
+    if (wl <= last.wl) {
+      return new THREE.Color(last.c[0], last.c[1], last.c[2]);
+    }
+    for (let i = 0; i < anchors.length - 1; i++) {
+      const a = anchors[i];
+      const b = anchors[i + 1];
+      if (wl <= a.wl && wl >= b.wl) {
+        const u = (a.wl - wl) / (a.wl - b.wl);
+        const s = u * u * (3 - 2 * u);
+        const red = a.c[0] + (b.c[0] - a.c[0]) * s;
+        const grn = a.c[1] + (b.c[1] - a.c[1]) * s;
+        const blu = a.c[2] + (b.c[2] - a.c[2]) * s;
+        return new THREE.Color(red, grn, blu);
+      }
+    }
+    return new THREE.Color(1, 1, 1);
+  }
+
   // 3D 核心装配节点 (公开供交互管理器与自动化测试检验)
   public railGroup!: THREE.Group;
   public goniometerDialGroup!: THREE.Group;
@@ -259,6 +300,8 @@ export class OpticalDispersionApparatusMesh {
   public beamsGroup!: THREE.Group;
   public incidentBeamMesh!: THREE.Mesh;
   public incidentHaloMesh!: THREE.Mesh;
+  public internalWhiteBeamMesh!: THREE.Mesh;
+  public internalWhiteHaloMesh!: THREE.Mesh;
   public entrySpotMesh!: THREE.Mesh;
   public fresnelReflectedMesh!: THREE.Mesh;
   public internalRainbowRibbonMesh!: THREE.Mesh;
@@ -552,43 +595,43 @@ export class OpticalDispersionApparatusMesh {
     const pillarH = this.prismCenterY - 0.038;
     const pillarGeo = createChamferedBlockGeometry(0.034, pillarH, 0.020, 0.0016);
     const pillar = new THREE.Mesh(pillarGeo, satinSilverMat);
-    pillar.position.set(0, -pillarH * 0.5, -0.008);
+    pillar.position.set(0, -pillarH * 0.5, -0.012);
     pillar.castShadow = true;
     this.goniometerDialGroup.add(pillar);
 
-    // 2. 航天级银铝精雕测角外环基座
+    // 2. 航天级银铝精雕测角外环基座 (基座正面严谨对齐 z = 0.0000，彻底位于刻度环与黄铜压圈后方)
     const ringShape = new THREE.Shape();
-    ringShape.absarc(0, 0, outerR + 0.005, 0, Math.PI * 2, false);
+    ringShape.absarc(0, 0, outerR + 0.006, 0, Math.PI * 2, false);
     const holePath = new THREE.Path();
-    holePath.absarc(0, 0, innerR - 0.003, 0, Math.PI * 2, true);
+    holePath.absarc(0, 0, innerR - 0.004, 0, Math.PI * 2, true);
     ringShape.holes.push(holePath);
 
+    const frameDepth = 0.007;
+    const frameBevel = 0.0012;
     const frameGeo = new THREE.ExtrudeGeometry(ringShape, {
       steps: 1,
-      depth: 0.008,
+      depth: frameDepth,
       bevelEnabled: true,
-      bevelThickness: 0.0014,
-      bevelSize: 0.0014,
+      bevelThickness: frameBevel,
+      bevelSize: frameBevel,
       bevelSegments: 2,
       curveSegments: 72,
     });
-    frameGeo.translate(0, 0, -0.004);
+    // 将外环基座向后平移，使其正面最高处平齐于 z = 0.0000，彻底杜绝与刻度盘和黄铜环的 Z-fighting 闪烁
+    frameGeo.translate(0, 0, -(frameDepth + frameBevel));
     const frameMesh = new THREE.Mesh(frameGeo, satinSilverMat);
     frameMesh.castShadow = true;
     this.goniometerDialGroup.add(frameMesh);
 
-    // 内外香槟金精密压圈
-    const outerBrassRingGeo = new THREE.TorusGeometry(outerR + 0.003, 0.0018, 14, 72);
-    const outerBrassRing = new THREE.Mesh(outerBrassRingGeo, brassMat);
-    outerBrassRing.position.z = 0.005;
-    this.goniometerDialGroup.add(outerBrassRing);
+    // 2b. 深空钛灰分度盘物理承载衬底环 (清晰凸出于基座 z = 0.0018，提供坚实的实体垫层)
+    const dialBackingGeo = new THREE.RingGeometry(innerR - 0.0006, outerR + 0.0006, 96);
+    const dialBackingMesh = new THREE.Mesh(dialBackingGeo, titaniumSlateMat);
+    dialBackingMesh.position.z = 0.0018;
+    dialBackingMesh.castShadow = false;
+    dialBackingMesh.receiveShadow = true;
+    this.goniometerDialGroup.add(dialBackingMesh);
 
-    const innerBrassRingGeo = new THREE.TorusGeometry(innerR - 0.001, 0.0016, 14, 72);
-    const innerBrassRing = new THREE.Mesh(innerBrassRingGeo, brassMat);
-    innerBrassRing.position.z = 0.005;
-    this.goniometerDialGroup.add(innerBrassRing);
-
-    // 3. 高清激光蚀刻 360° 角度刻度环纹理 (1024x1024)
+    // 3. 高清激光蚀刻 360° 角度刻度环纹理 (1024x1024，深邃海洋蓝黑底盘配合激光天青刻度线)
     this.goniometerDialCanvas = safeCanvas(1024, 1024);
     if (this.goniometerDialCanvas) {
       const ctx = this.goniometerDialCanvas.getContext('2d');
@@ -597,14 +640,27 @@ export class OpticalDispersionApparatusMesh {
         const cy = 512;
         ctx.clearRect(0, 0, 1024, 1024);
 
-        // 深海蓝宝石环形底盘
+        // 深海蓝宝石环形底盘 (填满 innerR 至 outerR 完整 UV 扇区，消除边缘透明发白缝隙)
         ctx.save();
         ctx.beginPath();
-        ctx.arc(cx, cy, 496, 0, Math.PI * 2, false);
-        ctx.arc(cx, cy, 372, 0, Math.PI * 2, true);
+        ctx.arc(cx, cy, 512, 0, Math.PI * 2, false);
+        ctx.arc(cx, cy, 376, 0, Math.PI * 2, true);
         ctx.closePath();
         ctx.fillStyle = '#08101e';
         ctx.fill();
+
+        // 外周镜面激光蚀刻天青基准圈与内周香槟金防眩分界圈
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 508, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 3.0;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 384, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.restore();
 
         // 绘制 360° 刻度与每 15° 角度读数
@@ -617,8 +673,8 @@ export class OpticalDispersionApparatusMesh {
 
           if (!is5 && deg % 2 !== 0) continue;
 
-          const rIn = 376;
-          const rOut = is15 ? 416 : is5 ? 402 : 390;
+          const rIn = 386;
+          const rOut = is15 ? 426 : is5 ? 412 : 398;
           ctx.strokeStyle = is15 ? '#38bdf8' : is5 ? '#e2e8f0' : '#64748b';
           ctx.lineWidth = is15 ? 3.2 : is5 ? 2.0 : 1.2;
           ctx.beginPath();
@@ -629,9 +685,9 @@ export class OpticalDispersionApparatusMesh {
           if (is15) {
             let quadDeg = deg % 180;
             if (quadDeg > 90) quadDeg = 180 - quadDeg;
-            const rTxt = 452;
+            const rTxt = 462;
             ctx.fillStyle = deg % 90 === 0 ? '#fbbf24' : '#f8fafc';
-            ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", monospace';
+            ctx.font = 'bold 25px -apple-system, BlinkMacSystemFont, "SF Pro Display", monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(`${quadDeg}°`, cx + cos * rTxt, cy - sin * rTxt);
@@ -642,17 +698,33 @@ export class OpticalDispersionApparatusMesh {
       this.goniometerDialTexture.anisotropy = 8;
     }
 
-    const dialRingGeo = new THREE.RingGeometry(innerR, outerR, 72);
+    const dialRingGeo = new THREE.RingGeometry(innerR, outerR, 96);
     const dialRingMat = new THREE.MeshBasicMaterial({
       map: this.goniometerDialTexture,
       transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1.0,
+      polygonOffsetUnits: -4.0,
       side: THREE.FrontSide,
     });
     const dialRingMesh = new THREE.Mesh(dialRingGeo, dialRingMat);
-    dialRingMesh.position.z = 0.0052;
+    dialRingMesh.position.z = 0.0028;
+    dialRingMesh.renderOrder = 3;
     this.goniometerDialGroup.add(dialRingMesh);
 
-    // 4. 外周 4 枚 90° 基准游标定位耳座
+    // 4. 内外香槟金精密压圈 (置于 z = 0.0042，高出刻度盘表面，形成精密机械压圈装配层，彻底杜绝任何穿模与闪烁)
+    const outerBrassRingGeo = new THREE.TorusGeometry(outerR + 0.0012, 0.0020, 16, 96);
+    const outerBrassRing = new THREE.Mesh(outerBrassRingGeo, brassMat);
+    outerBrassRing.position.z = 0.0042;
+    this.goniometerDialGroup.add(outerBrassRing);
+
+    const innerBrassRingGeo = new THREE.TorusGeometry(innerR - 0.0008, 0.0018, 16, 96);
+    const innerBrassRing = new THREE.Mesh(innerBrassRingGeo, brassMat);
+    innerBrassRing.position.z = 0.0042;
+    this.goniometerDialGroup.add(innerBrassRing);
+
+    // 5. 外周 4 枚 90° 基准游标定位耳座
     for (let i = 0; i < 4; i++) {
       const ang = i * (Math.PI * 0.5);
       const lugGeo = createChamferedBlockGeometry(0.014, 0.014, 0.012, 0.001);
@@ -778,7 +850,7 @@ export class OpticalDispersionApparatusMesh {
     sleeveMesh.userData = { interactiveId: 'prism_micrometer' };
     microGroup.add(sleeveMesh);
 
-    const knobBodyGeo = new THREE.CylinderGeometry(0.0115, 0.0115, 0.022, 28);
+    const knobBodyGeo = new THREE.CylinderGeometry(0.0115, 0.0115, 0.018, 28);
     knobBodyGeo.rotateX(Math.PI / 2);
     this.prismMicrometerKnob = new THREE.Mesh(knobBodyGeo, brassMat);
     this.prismMicrometerKnob.name = 'PrismMicrometerKnob';
@@ -786,7 +858,7 @@ export class OpticalDispersionApparatusMesh {
     this.prismMicrometerKnob.userData = { interactiveId: 'prism_micrometer' };
 
     // 16 道真实立体防滑滚花棱条 + 锥形读数裙边 + 端面内六角锁孔
-    const ridgeGeo = new THREE.BoxGeometry(0.0014, 0.0014, 0.018);
+    const ridgeGeo = new THREE.BoxGeometry(0.0014, 0.0014, 0.015);
     for (let i = 0; i < 16; i++) {
       const ang = (i / 16) * Math.PI * 2;
       const ridge = new THREE.Mesh(ridgeGeo, titaniumSlateMat);
@@ -796,16 +868,16 @@ export class OpticalDispersionApparatusMesh {
       this.prismMicrometerKnob.add(ridge);
     }
 
-    const skirtGeo = new THREE.CylinderGeometry(0.0086, 0.0115, 0.006, 28);
+    const skirtGeo = new THREE.CylinderGeometry(0.0086, 0.0112, 0.006, 28);
     skirtGeo.rotateX(Math.PI / 2);
     const skirtMesh = new THREE.Mesh(skirtGeo, chromeMat);
-    skirtMesh.position.set(0, 0, -0.013);
+    skirtMesh.position.set(0, 0, -0.012);
     this.prismMicrometerKnob.add(skirtMesh);
 
-    const endCapGeo = new THREE.CylinderGeometry(0.007, 0.009, 0.006, 20);
+    const endCapGeo = new THREE.CylinderGeometry(0.007, 0.009, 0.005, 20);
     endCapGeo.rotateX(Math.PI / 2);
     const endCapMesh = new THREE.Mesh(endCapGeo, satinSilverMat);
-    endCapMesh.position.set(0, 0, 0.013);
+    endCapMesh.position.set(0, 0, 0.0115);
     this.prismMicrometerKnob.add(endCapMesh);
 
     microGroup.add(this.prismMicrometerKnob);
@@ -833,13 +905,15 @@ export class OpticalDispersionApparatusMesh {
     this.materialTurretWheel.rotation.z = this.currentTurretAngle;
     this.materialTurretWheel.userData = { interactiveId: 'prism_material_turret' };
 
-    const wheelDiskGeo = new THREE.CylinderGeometry(0.019, 0.019, 0.010, 32);
+    // 铝合金内盘 (半径 0.0170m，厚度 0.009m，精准嵌于外周黄铜滚花圈内，杜绝共面与重叠闪烁)
+    const wheelDiskGeo = new THREE.CylinderGeometry(0.0170, 0.0170, 0.009, 32);
     wheelDiskGeo.rotateX(Math.PI / 2);
     const wheelDisk = new THREE.Mesh(wheelDiskGeo, satinSilverMat);
     wheelDisk.userData = { interactiveId: 'prism_material_turret' };
     this.materialTurretWheel.add(wheelDisk);
 
-    const wheelRimGeo = new THREE.TorusGeometry(0.019, 0.0020, 14, 36);
+    // 外周香槟金精密防滑滚花外圈 (主半径 0.0185m，管径 0.0018m，包裹于内盘外缘)
+    const wheelRimGeo = new THREE.TorusGeometry(0.0185, 0.0018, 16, 40);
     const wheelRim = new THREE.Mesh(wheelRimGeo, brassMat);
     wheelRim.userData = { interactiveId: 'prism_material_turret' };
     this.materialTurretWheel.add(wheelRim);
@@ -872,9 +946,9 @@ export class OpticalDispersionApparatusMesh {
 
     for (let i = 0; i < 10; i++) {
       const ang = (i / 10) * Math.PI * 2;
-      const notchGeo = new THREE.BoxGeometry(0.0022, 0.0022, 0.011);
+      const notchGeo = new THREE.BoxGeometry(0.0020, 0.0020, 0.010);
       const notch = new THREE.Mesh(notchGeo, titaniumSlateMat);
-      notch.position.set(Math.cos(ang) * 0.020, Math.sin(ang) * 0.020, 0);
+      notch.position.set(Math.cos(ang) * 0.0195, Math.sin(ang) * 0.0195, 0);
       notch.rotation.z = ang;
       notch.userData = { interactiveId: 'prism_material_turret' };
       this.materialTurretWheel.add(notch);
@@ -913,7 +987,7 @@ export class OpticalDispersionApparatusMesh {
       this.prismValueSprite.scale.set(0.24, 0.060, 1.0);
       this.prismValueSprite.renderOrder = 30;
       this.prismValueSprite.raycast = () => {};
-      this.prismValueSprite.position.set(0, 0.165, 0);
+      this.prismValueSprite.position.set(0, 0.235, 0);
       this.prismStageGroup.add(this.prismValueSprite);
     } else {
       this.prismValueSprite = new THREE.Sprite(new THREE.SpriteMaterial());
@@ -951,22 +1025,26 @@ export class OpticalDispersionApparatusMesh {
     });
 
     // 准直管总成沿局部 -X 延伸 (局部原点 (0,0,0) 对齐第一界面入射点 P1，旋转 Z 轴即为光线入射俯仰角)
-    // 1. 平行光管主镜筒 (长 0.165m，距入射点 P1 距离 0.13m ~ 0.295m)
+    // 1. 平行光管主镜筒与前端香槟金调焦环顺序轴向衔接，彻底杜绝端面重叠共面
     const barrelStart = -0.135;
-    const barrelLen = 0.155;
-    const barrelCenter = barrelStart - barrelLen * 0.5;
+    const focusRingLen = 0.016;
+    const tubeEnd = barrelStart - focusRingLen; // -0.151
+    const tubeLen = 0.138;
+    const tubeCenter = tubeEnd - tubeLen * 0.5; // -0.220
+    const barrelLen = focusRingLen + tubeLen; // 0.154
+    const barrelCenter = tubeCenter;
 
-    const tubeGeo = new THREE.CylinderGeometry(0.022, 0.022, barrelLen, 36);
+    const tubeGeo = new THREE.CylinderGeometry(0.022, 0.022, tubeLen, 36);
     tubeGeo.rotateZ(Math.PI / 2);
     const tubeMesh = new THREE.Mesh(tubeGeo, satinSilverMat);
-    tubeMesh.position.set(barrelCenter, 0, 0);
+    tubeMesh.position.set(tubeCenter, 0, 0);
     tubeMesh.castShadow = true;
     tubeMesh.userData = { interactiveId: 'collimator_arm' };
     this.collimatorArmGroup.add(tubeMesh);
 
     // 镜筒中部 6 道精密铝合金散热环与双 CNC 抱箍
     for (let i = 0; i < 6; i++) {
-      const fx = barrelCenter - 0.032 + i * 0.013;
+      const fx = tubeCenter - 0.032 + i * 0.013;
       const finGeo = new THREE.CylinderGeometry(0.0255, 0.0255, 0.004, 36);
       finGeo.rotateZ(Math.PI / 2);
       const fin = new THREE.Mesh(finGeo, titaniumSlateMat);
@@ -975,12 +1053,23 @@ export class OpticalDispersionApparatusMesh {
       this.collimatorArmGroup.add(fin);
     }
 
-    // 前端消色差准直透镜黄铜调焦环与竖直狭缝光阑喷嘴 (正对三棱镜左斜面)
-    const focusRingGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.016, 36);
+    // 前端消色差准直透镜香槟金调焦环与立体机械滚花棱条 (正对三棱镜左斜面，位置 -0.151 到 -0.135)
+    const focusRingGeo = new THREE.CylinderGeometry(0.024, 0.024, focusRingLen, 36);
     focusRingGeo.rotateZ(Math.PI / 2);
     const focusRing = new THREE.Mesh(focusRingGeo, brassMat);
-    focusRing.position.set(barrelStart - 0.008, 0, 0);
+    focusRing.position.set(tubeEnd + focusRingLen * 0.5, 0, 0);
     focusRing.userData = { interactiveId: 'collimator_arm' };
+
+    // 24 道精细机械防滑滚花棱条，不仅提供极致工业质感，同时避免圆柱大面积平整高光反射频闪
+    const focusRibGeo = new THREE.BoxGeometry(focusRingLen - 0.002, 0.0014, 0.0014);
+    for (let i = 0; i < 24; i++) {
+      const ang = (i / 24) * Math.PI * 2;
+      const rib = new THREE.Mesh(focusRibGeo, titaniumSlateMat);
+      rib.position.set(0, Math.cos(ang) * 0.0241, Math.sin(ang) * 0.0241);
+      rib.rotation.x = ang;
+      rib.userData = { interactiveId: 'collimator_arm' };
+      focusRing.add(rib);
+    }
     this.collimatorArmGroup.add(focusRing);
 
     const nozzleGeo = new THREE.CylinderGeometry(0.012, 0.019, 0.018, 28);
@@ -1444,25 +1533,28 @@ export class OpticalDispersionApparatusMesh {
     this.beamsGroup.name = 'OpticalBeamsGroup';
 
     this.incidentCoreMat = new THREE.MeshBasicMaterial({
-      color: 0xfffbeb,
+      color: 0xffffff,
       transparent: true,
-      opacity: 0.96,
+      opacity: 0.92,
       depthWrite: false,
       side: THREE.DoubleSide,
+      blending: THREE.NormalBlending,
     });
     this.incidentHaloMat = new THREE.MeshBasicMaterial({
-      color: 0xfef3c7,
+      color: 0xf1f5f9,
       transparent: true,
       opacity: 0.30,
       depthWrite: false,
       side: THREE.DoubleSide,
+      blending: THREE.NormalBlending,
     });
     this.fresnelReflMat = new THREE.MeshBasicMaterial({
-      color: 0xfef9c3,
+      color: 0xe2e8f0,
       transparent: true,
-      opacity: 0.25,
+      opacity: 0.35,
       depthWrite: false,
       side: THREE.DoubleSide,
+      blending: THREE.NormalBlending,
     });
 
     // 1. 入射准直主光束与外层丁达尔光晕
@@ -1473,31 +1565,53 @@ export class OpticalDispersionApparatusMesh {
     this.incidentBeamMesh.renderOrder = 14;
     this.beamsGroup.add(this.incidentBeamMesh);
 
-    const unitCylHalo = new THREE.CylinderGeometry(0.0052, 0.0052, 1.0, 16);
+    const unitCylHalo = new THREE.CylinderGeometry(0.0048, 0.0048, 1.0, 16);
     unitCylHalo.rotateZ(Math.PI / 2);
     this.incidentHaloMesh = new THREE.Mesh(unitCylHalo, this.incidentHaloMat);
     this.incidentHaloMesh.name = 'IncidentBeamHaloMesh';
     this.incidentHaloMesh.renderOrder = 13;
     this.beamsGroup.add(this.incidentHaloMesh);
 
+    // 1b. 棱镜内部折射核心光柱 (纤细半透明，体现复色光进入介质的物理路径，绝不遮挡晶体透光感)
+    const unitIntCore = new THREE.CylinderGeometry(0.0010, 0.0010, 1.0, 16);
+    unitIntCore.rotateZ(Math.PI / 2);
+    this.internalWhiteBeamMesh = new THREE.Mesh(unitIntCore, this.incidentCoreMat);
+    this.internalWhiteBeamMesh.name = 'InternalWhiteBeamMesh';
+    this.internalWhiteBeamMesh.renderOrder = 14;
+    this.beamsGroup.add(this.internalWhiteBeamMesh);
+
+    const unitIntHalo = new THREE.CylinderGeometry(0.0025, 0.0025, 1.0, 16);
+    unitIntHalo.rotateZ(Math.PI / 2);
+    this.internalWhiteHaloMesh = new THREE.Mesh(unitIntHalo, this.incidentHaloMat);
+    this.internalWhiteHaloMesh.name = 'InternalWhiteHaloMesh';
+    this.internalWhiteHaloMesh.renderOrder = 13;
+    this.internalWhiteHaloMesh.visible = false;
+    this.beamsGroup.add(this.internalWhiteHaloMesh);
+
     // 第一界面入射高光点
-    const spotGeo = new THREE.SphereGeometry(0.0038, 16, 16);
+    const spotGeo = new THREE.SphereGeometry(0.0035, 16, 16);
     this.entrySpotMesh = new THREE.Mesh(
       spotGeo,
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false })
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        blending: THREE.NormalBlending,
+      })
     );
     this.entrySpotMesh.renderOrder = 16;
     this.beamsGroup.add(this.entrySpotMesh);
 
     // 2. 第一界面菲涅尔部分反射光束
-    const reflCyl = new THREE.CylinderGeometry(0.0012, 0.0016, 1.0, 12);
+    const reflCyl = new THREE.CylinderGeometry(0.0010, 0.0012, 1.0, 12);
     reflCyl.rotateZ(Math.PI / 2);
     this.fresnelReflectedMesh = new THREE.Mesh(reflCyl, this.fresnelReflMat);
     this.fresnelReflectedMesh.name = 'FresnelReflectedRayMesh';
     this.fresnelReflectedMesh.renderOrder = 13;
     this.beamsGroup.add(this.fresnelReflectedMesh);
 
-    // 3. 三棱镜内部连续 32 波段顶点着色色散光带 (Internal Crystal Rainbow Fan)
+    // 3. 三棱镜内部连续 32 波段顶点着色色散光带 (Internal Crystal Rainbow Fan - 采用真实色度 NormalBlending，通透晶莹)
     const numBands = 32;
     const internalGeo = new THREE.BufferGeometry();
     const internalPositions = new Float32Array((numBands - 1) * 6 * 3);
@@ -1507,16 +1621,18 @@ export class OpticalDispersionApparatusMesh {
     const internalMat = new THREE.MeshBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.78,
+      opacity: 0.60,
       depthWrite: false,
       side: THREE.DoubleSide,
+      blending: THREE.NormalBlending,
     });
     this.internalRainbowRibbonMesh = new THREE.Mesh(internalGeo, internalMat);
     this.internalRainbowRibbonMesh.name = 'InternalRainbowRibbonMesh';
     this.internalRainbowRibbonMesh.renderOrder = 15;
     this.beamsGroup.add(this.internalRainbowRibbonMesh);
 
-    // 4. 棱镜出射至接收屏的 32 波段连续光滑彩虹体积光带 (External Volumetric Rainbow Fan)
+    // 4. 棱镜出射至接收屏的 32 波段高饱和连续彩虹光带 (External Volumetric Spectrum Ribbon)
+    // 关键修正：采用 NormalBlending 彻底避免 AdditiveBlending 在亮色实验室背景下过曝泛白成白纸的问题！
     const externalGeo = new THREE.BufferGeometry();
     const externalPositions = new Float32Array((numBands - 1) * 6 * 3);
     const externalColors = new Float32Array((numBands - 1) * 6 * 3);
@@ -1525,27 +1641,33 @@ export class OpticalDispersionApparatusMesh {
     const externalMat = new THREE.MeshBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.56,
+      opacity: 0.70,
       depthWrite: false,
       side: THREE.DoubleSide,
+      blending: THREE.NormalBlending,
     });
     this.externalRainbowRibbonMesh = new THREE.Mesh(externalGeo, externalMat);
     this.externalRainbowRibbonMesh.name = 'ExternalRainbowRibbonMesh';
-    this.externalRainbowRibbonMesh.renderOrder = 14;
+    this.externalRainbowRibbonMesh.renderOrder = 15;
     this.beamsGroup.add(this.externalRainbowRibbonMesh);
 
-    // 外层柔和丁达尔体积散射彩虹晕层
+    // 外层光晕占位（隐藏以杜绝重复叠层导致的不透明或发白缺陷）
+    const glowGeo = new THREE.BufferGeometry();
+    const glowPositions = new Float32Array((numBands - 1) * 12 * 3);
+    const glowColors = new Float32Array((numBands - 1) * 12 * 3);
+    glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPositions, 3));
+    glowGeo.setAttribute('color', new THREE.BufferAttribute(glowColors, 3));
     const glowMat = new THREE.MeshBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.24,
+      opacity: 0.0,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
-    this.externalRainbowGlowMesh = new THREE.Mesh(externalGeo, glowMat);
+    this.externalRainbowGlowMesh = new THREE.Mesh(glowGeo, glowMat);
     this.externalRainbowGlowMesh.name = 'ExternalRainbowGlowMesh';
-    this.externalRainbowGlowMesh.position.z = 0.002;
-    this.externalRainbowGlowMesh.renderOrder = 13;
+    this.externalRainbowGlowMesh.renderOrder = 14;
+    this.externalRainbowGlowMesh.visible = false;
     this.beamsGroup.add(this.externalRainbowGlowMesh);
 
     // 5. 七束核心特征波长高亮光谱射线与屏面落点光斑组 (Red, Orange, Yellow, Green, Cyan, Blue, Violet)
@@ -1687,7 +1809,7 @@ export class OpticalDispersionApparatusMesh {
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(255, 255, 255, 0.80)';
     ctx.shadowBlur = 8;
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = '#0284c7'; // 高对比度深海天青蓝，清晰呈现物理参量
     ctx.fillText(labelText, w / 2, h / 2);
     if (typeof ctx.restore === 'function') ctx.restore();
 
@@ -1841,6 +1963,17 @@ export class OpticalDispersionApparatusMesh {
     const isRecombActive = this.enableRecombinationPrism && this.currentRecombSwing < 0.35;
     const recombEntryX = 0.042;
 
+    const screenCenterY = 0.215;
+    const screenH = 0.235;
+    const pxToM = screenH / 1024;
+
+    const distScale = 0.65 + (this.screenDistanceM - 0.30) * 1.25;
+    const baseDevShiftPx = (spectrum.yellowRay.deviationAngleDeg - 48.0) * 6.5;
+    const dispersionSpanPx = Math.max(45, spectrum.angularDispersionDeg * 56.0 * distScale);
+
+    const redTopPy = 512 - dispersionSpanPx * 0.52 + baseDevShiftPx;
+    const violetBottomPy = 512 + dispersionSpanPx * 0.52 + baseDevShiftPx;
+
     for (let i = 0; i < numSamples; i++) {
       const tNorm = i / (numSamples - 1);
       const wl = this.sourceMode === 'monochromatic'
@@ -1866,24 +1999,38 @@ export class OpticalDispersionApparatusMesh {
       const p2Y = hitP2 ? hitP2.y : p1Y + intDirY * 0.065;
       p2Points.push(new THREE.Vector3(p2X, p2Y, 0));
 
-      // 出射方向角 psi_exit = alpha / 2 - theta_4
+      // 出射至接收屏或复合棱镜的精确目标落点 (与屏幕 Canvas 彩虹色谱带严丝合缝)
       if (!trace.isTotalInternalReflection) {
-        const theta4Rad = THREE.MathUtils.degToRad(trace.emergenceAngleDeg);
-        const psiExitRad = halfAlpha - theta4Rad;
-        const exitDirX = Math.cos(psiExitRad);
-        const exitDirY = Math.sin(psiExitRad);
+        const cauchyT = Math.pow(THREE.MathUtils.clamp(tNorm, 0, 1), 0.78);
+        const samplePy = redTopPy + cauchyT * (violetBottomPy - redTopPy);
+        const sampleTargetY = screenCenterY + (512 - samplePy) * pxToM;
 
-        const targetX = isRecombActive ? recombEntryX : screenX;
-        const distToTarget = Math.max(0.01, (targetX - p2X) / Math.max(0.15, exitDirX));
-        const endX = p2X + exitDirX * distToTarget;
-        const endY = THREE.MathUtils.clamp(p2Y + exitDirY * distToTarget, 0.065, 0.365);
-        endPoints.push(new THREE.Vector3(endX, endY, 0));
+        const targetX = isRecombActive ? recombEntryX : screenX - 0.0020;
+        const targetZ = isRecombActive ? 0.001 : 0.0088;
+        const endY = isRecombActive ? p2Y + (sampleTargetY - p2Y) * 0.35 : sampleTargetY;
+        endPoints.push(new THREE.Vector3(targetX, endY, targetZ));
       } else {
         endPoints.push(new THREE.Vector3(p2X, p2Y, 0));
       }
 
-      const c = OpticalPhysics.wavelengthToColor(wl);
+      const c = OpticalDispersionApparatusMesh.getContinuousSpectralColor(wl);
       sampleColors.push(c);
+    }
+
+    // 棱镜内部折射核心光柱更新 (在白光模式下展现高亮白光核心，体现复色光重合叠加物理本质)
+    const p2MidX = (p2Points[0].x + p2Points[numSamples - 1].x) * 0.5;
+    const p2MidY = (p2Points[0].y + p2Points[numSamples - 1].y) * 0.5;
+    if (this.sourceMode === 'white' && !spectrum.hasFullTIR) {
+      this.internalWhiteBeamMesh.visible = true;
+      this.internalWhiteHaloMesh.visible = false;
+      this.positionCylinderBetween(
+        this.internalWhiteBeamMesh,
+        new THREE.Vector3(p1X, p1Y, 0),
+        new THREE.Vector3(p2MidX, p2MidY, 0)
+      );
+    } else {
+      this.internalWhiteBeamMesh.visible = false;
+      this.internalWhiteHaloMesh.visible = false;
     }
 
     // 填充内部色散扇 BufferGeometry (P1 -> P2_i, P2_{i+1})
@@ -1912,9 +2059,12 @@ export class OpticalDispersionApparatusMesh {
     intPosAttr.needsUpdate = true;
     intColAttr.needsUpdate = true;
 
-    // 填充外部体积彩虹带 BufferGeometry (P2_i, P2_{i+1} -> End_{i}, End_{i+1})
+    // 填充外部体积彩虹核心带与前后立体光晕壳 (3D Volumetric Sheaf)
     const extPosAttr = this.externalRainbowRibbonMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
     const extColAttr = this.externalRainbowRibbonMesh.geometry.getAttribute('color') as THREE.BufferAttribute;
+    const glowPosAttr = this.externalRainbowGlowMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const glowColAttr = this.externalRainbowGlowMesh.geometry.getAttribute('color') as THREE.BufferAttribute;
+
     for (let i = 0; i < numSamples - 1; i++) {
       const p2A = p2Points[i];
       const p2B = p2Points[i + 1];
@@ -1922,14 +2072,15 @@ export class OpticalDispersionApparatusMesh {
       const eB = endPoints[i + 1];
       const cA = sampleColors[i];
       const cB = sampleColors[i + 1];
-      const baseIdx = i * 6;
 
+      // 1. 中心高亮核心色散扇面 (起始自 P2，无缝延伸至屏幕表面)
+      const baseIdx = i * 6;
       extPosAttr.setXYZ(baseIdx + 0, p2A.x, p2A.y, 0);
-      extPosAttr.setXYZ(baseIdx + 1, eA.x, eA.y, 0);
-      extPosAttr.setXYZ(baseIdx + 2, eB.x, eB.y, 0);
+      extPosAttr.setXYZ(baseIdx + 1, eA.x, eA.y, eA.z);
+      extPosAttr.setXYZ(baseIdx + 2, eB.x, eB.y, eB.z);
 
       extPosAttr.setXYZ(baseIdx + 3, p2A.x, p2A.y, 0);
-      extPosAttr.setXYZ(baseIdx + 4, eB.x, eB.y, 0);
+      extPosAttr.setXYZ(baseIdx + 4, eB.x, eB.y, eB.z);
       extPosAttr.setXYZ(baseIdx + 5, p2B.x, p2B.y, 0);
 
       extColAttr.setXYZ(baseIdx + 0, cA.r, cA.g, cA.b);
@@ -1939,14 +2090,24 @@ export class OpticalDispersionApparatusMesh {
       extColAttr.setXYZ(baseIdx + 3, cA.r, cA.g, cA.b);
       extColAttr.setXYZ(baseIdx + 4, cB.r, cB.g, cB.b);
       extColAttr.setXYZ(baseIdx + 5, cB.r, cB.g, cB.b);
+
+      // 保持 glow 缓冲区格式完整，但设为零以杜绝光效白化过曝
+      const glowBaseIdx = i * 12;
+      for (let v = 0; v < 12; v++) {
+        glowPosAttr.setXYZ(glowBaseIdx + v, p2A.x, p2A.y, 0);
+        glowColAttr.setXYZ(glowBaseIdx + v, 0, 0, 0);
+      }
     }
     extPosAttr.needsUpdate = true;
     extColAttr.needsUpdate = true;
+    glowPosAttr.needsUpdate = true;
+    glowColAttr.needsUpdate = true;
 
     // 单色激光模式或全反射时隐藏连续彩虹宽带，仅展示精细分立光线
     const showContinuousRibbon = this.sourceMode === 'white' && !spectrum.hasFullTIR;
+    this.internalRainbowRibbonMesh.visible = showContinuousRibbon;
     this.externalRainbowRibbonMesh.visible = showContinuousRibbon;
-    this.externalRainbowGlowMesh.visible = showContinuousRibbon;
+    this.externalRainbowGlowMesh.visible = false;
 
     // 4. 更新七束核心特征波长高亮射线与第二界面全反射 (TIR) 内部反射光束
     this.clearGroupMeshes(this.principalRaysGroup);
@@ -1964,12 +2125,14 @@ export class OpticalDispersionApparatusMesh {
                 this.prismMaterial
               ),
               color: OpticalPhysics.wavelengthToColor(this.wavelengthNm),
+              name: '单色光',
+              nameEn: 'Monochromatic',
             },
           ]
         : spectrum.bands;
 
-    let topRedY = this.prismCenterY;
-    let bottomVioletY = this.prismCenterY;
+    let topRedY = screenCenterY;
+    let bottomVioletY = screenCenterY;
     let hasRefractedTop = false;
 
     for (const band of activeBands) {
@@ -1982,43 +2145,66 @@ export class OpticalDispersionApparatusMesh {
       const p2X = hitP2 ? hitP2.x : p1X + intDirX * 0.065;
       const p2Y = hitP2 ? hitP2.y : p1Y + intDirY * 0.065;
 
-      // 棱镜内部核心光线
+      // 棱镜内部核心光线：
+      // 白光模式下：内部主体为高亮复合白光柱，隐藏 intRayMesh 杜绝红线贯穿棱镜的非物理现象；
+      // 单色模式/谱线模式下展示对应波长的高亮光束
       const intRayMesh = this.createRayCylinder(
         new THREE.Vector3(p1X, p1Y, 0.001),
         new THREE.Vector3(p2X, p2Y, 0.001),
         band.color,
-        0.0012,
-        0.88
+        this.sourceMode === 'monochromatic' ? 0.0020 : 0.0006,
+        0.95,
+        true
       );
+      if (this.sourceMode === 'white') {
+        intRayMesh.visible = false;
+      }
       this.principalRaysGroup.add(intRayMesh);
 
       if (!band.isTotalInternalReflection) {
-        const theta4Rad = THREE.MathUtils.degToRad(band.emergenceAngleDeg);
-        const psiExitRad = halfAlpha - theta4Rad;
-        const exitDirX = Math.cos(psiExitRad);
-        const exitDirY = Math.sin(psiExitRad);
+        const normWl = THREE.MathUtils.clamp((700.0 - band.wavelengthNm) / (700.0 - 390.0), 0, 1);
+        const cauchyT = Math.pow(normWl, 0.78);
+        const bandPy = redTopPy + cauchyT * (violetBottomPy - redTopPy);
+        const bandTargetY = screenCenterY + (512 - bandPy) * pxToM;
 
-        const targetX = isRecombActive ? recombEntryX : screenX;
-        const dist = Math.max(0.01, (targetX - p2X) / Math.max(0.15, exitDirX));
-        const endX = p2X + exitDirX * dist;
-        const endY = THREE.MathUtils.clamp(p2Y + exitDirY * dist, 0.065, 0.365);
+        const targetX = isRecombActive ? recombEntryX : screenX - 0.0020;
+        const targetZ = isRecombActive ? 0.001 : 0.0088;
+        const endY = isRecombActive ? p2Y + (bandTargetY - p2Y) * 0.35 : bandTargetY;
+
+        // 出射光线：清晰优雅的 7 色特征波长高亮光束，指引各色折射角轨迹
+        const extRayRadius =
+          this.sourceMode === 'white'
+            ? 0.00085
+            : this.sourceMode === 'monochromatic'
+            ? 0.0022
+            : 0.0012;
+        const extRayOpacity = this.sourceMode === 'white' ? 0.85 : 0.95;
+        const rayColor = OpticalDispersionApparatusMesh.getContinuousSpectralColor(band.wavelengthNm);
 
         const extRayMesh = this.createRayCylinder(
           new THREE.Vector3(p2X, p2Y, 0.001),
-          new THREE.Vector3(endX, endY, 0.001),
-          band.color,
-          this.sourceMode === 'monochromatic' ? 0.0022 : 0.0013,
-          0.92
+          new THREE.Vector3(targetX, endY, targetZ),
+          rayColor,
+          extRayRadius,
+          extRayOpacity,
+          false
         );
         this.principalRaysGroup.add(extRayMesh);
 
         if (!isRecombActive) {
-          // 接收屏上的高亮彩色光谱聚焦点
+          // 接收屏上的高亮彩色光谱聚焦点 (光学辉光微球，精准对齐屏面)
           const spot = new THREE.Mesh(
-            new THREE.SphereGeometry(0.0032, 12, 12),
-            new THREE.MeshBasicMaterial({ color: band.color, transparent: true, opacity: 0.95, depthWrite: false })
+            new THREE.SphereGeometry(0.0028, 14, 14),
+            new THREE.MeshBasicMaterial({
+              color: rayColor,
+              transparent: true,
+              opacity: 0.92,
+              depthWrite: false,
+              blending: THREE.NormalBlending,
+            })
           );
-          spot.position.set(endX, endY, 0.002);
+          spot.position.set(targetX, endY, targetZ);
+          spot.visible = true;
           this.principalRaysGroup.add(spot);
         }
 
@@ -2067,14 +2253,16 @@ export class OpticalDispersionApparatusMesh {
     // 5. 若牛顿第二倒置复合三棱镜切入光路，渲染第二棱镜内收敛光束与复合平行白光束
     if (isRecombActive && hasRefractedTop) {
       const recombExitX = 0.088;
-      const recombMidY = (topRedY + bottomVioletY) * 0.5 + 0.014;
-      const screenHitY = recombMidY + Math.tan(psiIncRad * 0.12) * (screenX - recombExitX);
+      const screenHitY = screenCenterY + 0.008; // 精确对准 Canvas 白光中心 (centerY - 35)
+      const recombMidY = screenHitY;
 
       // 第二棱镜内部收敛光锥
       for (const band of activeBands) {
         if (band.isTotalInternalReflection) continue;
-        const theta4Rad = THREE.MathUtils.degToRad(band.emergenceAngleDeg);
-        const psiExitRad = halfAlpha - theta4Rad;
+        const normWl = THREE.MathUtils.clamp((700.0 - band.wavelengthNm) / (700.0 - 390.0), 0, 1);
+        const cauchyT = Math.pow(normWl, 0.78);
+        const bandPy = redTopPy + cauchyT * (violetBottomPy - redTopPy);
+        const bandTargetY = screenCenterY + (512 - bandPy) * pxToM;
         const theta2Rad = THREE.MathUtils.degToRad(band.refractionAngle1Deg);
         const psiIntRad = theta2Rad - halfAlpha;
         const hitP2 = intersectRayWithSegment2D(
@@ -2087,16 +2275,14 @@ export class OpticalDispersionApparatusMesh {
           cx1,
           cy1
         );
-        const p2X = hitP2 ? hitP2.x : p1X + 0.05;
         const p2Y = hitP2 ? hitP2.y : p1Y;
-        const dist = Math.max(0.01, (recombEntryX - p2X) / Math.max(0.15, Math.cos(psiExitRad)));
-        const entryY = p2Y + Math.sin(psiExitRad) * dist;
+        const entryY = p2Y + (bandTargetY - p2Y) * 0.35;
 
         const convRay = this.createRayCylinder(
           new THREE.Vector3(recombEntryX, entryY, 0.001),
           new THREE.Vector3(recombExitX, recombMidY, 0.001),
           band.color,
-          0.0014,
+          0.0010,
           0.90
         );
         this.recombinedBeamGroup.add(convRay);
@@ -2125,7 +2311,6 @@ export class OpticalDispersionApparatusMesh {
     }
 
     // 6. 同步光谱屏右侧竖向红/紫游标卡尺指针位置与手轮旋转
-    const screenCenterY = 0.215;
     if (this.redEdgeCaliperMesh) {
       this.redEdgeCaliperMesh.position.y = THREE.MathUtils.clamp(topRedY - screenCenterY, -0.095, 0.095);
     }
@@ -2261,9 +2446,43 @@ export class OpticalDispersionApparatusMesh {
     const w = 1024;
     const h = 1024;
 
-    // 1. 深邃海洋蓝黑高对比底色 (#08101e)，严格遵守零文字、零方框铁律
-    ctx.fillStyle = '#08101e';
+    // 1. 深邃海洋蓝黑高对比底色 (#060b17)，纯净沉浸式高科技光学屏（严格遵守零文字零方框铁律）
+    ctx.fillStyle = '#060b17';
     ctx.fillRect(0, 0, w, h);
+
+    // 2. 激光蚀刻光学准线网格 (仅线段 stroke，严禁调用 fillText/strokeText)
+    const centerX = w * 0.5;
+    const centerY = h * 0.5;
+
+    // 垂直光学准线 (微弱深青色虚线)
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
+    ctx.lineWidth = 1.0;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(centerX, 48);
+    ctx.lineTo(centerX, h - 48);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 水平零基准线
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.10)';
+    ctx.beginPath();
+    ctx.moveTo(centerX - 160, centerY);
+    ctx.lineTo(centerX + 160, centerY);
+    ctx.stroke();
+
+    // 右侧精密毫米刻度标尺线
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.18)';
+    ctx.lineWidth = 1.0;
+    for (let y = 80; y <= 944; y += 16) {
+      const isMajor = (y - 80) % 80 === 0;
+      const isMid = (y - 80) % 32 === 0;
+      const tickLen = isMajor ? 14 : isMid ? 9 : 5;
+      ctx.beginPath();
+      ctx.moveTo(centerX + 105, y);
+      ctx.lineTo(centerX + 105 + tickLen, y);
+      ctx.stroke();
+    }
 
     if (!this.laserPower) {
       this.screenTexture.needsUpdate = true;
@@ -2283,30 +2502,31 @@ export class OpticalDispersionApparatusMesh {
       return;
     }
 
-    const centerX = w * 0.5;
-    const centerY = h * 0.5;
-    const slitHalfW = 290;
+    // 狭缝投影半宽度（约 34mm，形成适度开阔、清晰大气的连续光谱投影带）
+    const slitHalfW = 200;
 
     // 若牛顿第二倒置三棱镜切入光路：七色光谱重新聚合并还原为璀璨明亮的复合白光狭缝条纹！
     if (this.enableRecombinationPrism) {
       const bandCenterY = centerY - 35;
-      const bandHalfH = 26;
+      const bandHalfH = 22;
       for (let py = Math.max(0, Math.floor(bandCenterY - bandHalfH * 2.5)); py < Math.min(h, Math.ceil(bandCenterY + bandHalfH * 2.5)); py++) {
         const dy = (py - bandCenterY) / bandHalfH;
-        const env = Math.exp(-dy * dy * 1.8);
-        if (env < 0.01) continue;
+        const env = Math.exp(-dy * dy * 2.0);
+        if (env < 0.008) continue;
 
-        // 边缘极细微色散残余晕边 + 中心纯白亮核
-        const r = Math.min(255, Math.round(255 * Math.exp(-Math.pow(dy + 0.15, 2) * 1.6)));
-        const g = Math.min(255, Math.round(252 * Math.exp(-dy * dy * 1.7)));
-        const b = Math.min(255, Math.round(255 * Math.exp(-Math.pow(dy - 0.15, 2) * 1.6)));
-        const alpha = Math.min(1.0, Math.pow(env, 0.5) * 1.25);
+        // 边缘呈现极其细微的红/紫微米级色散边缘 (微观真实衍射色差)，中心为高亮白光核心
+        const r = Math.min(255, Math.round(255 * Math.exp(-Math.pow(dy + 0.12, 2) * 1.8)));
+        const g = Math.min(255, Math.round(252 * Math.exp(-dy * dy * 2.0)));
+        const b = Math.min(255, Math.round(255 * Math.exp(-Math.pow(dy - 0.12, 2) * 1.8)));
+        const alpha = Math.min(1.0, env * 1.05);
 
         const grad = ctx.createLinearGradient(centerX - slitHalfW, 0, centerX + slitHalfW, 0);
         grad.addColorStop(0.00, `rgba(${r}, ${g}, ${b}, 0)`);
-        grad.addColorStop(0.15, `rgba(${r}, ${g}, ${b}, ${(alpha * 0.35).toFixed(3)})`);
-        grad.addColorStop(0.50, `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`);
-        grad.addColorStop(0.85, `rgba(${r}, ${g}, ${b}, ${(alpha * 0.35).toFixed(3)})`);
+        grad.addColorStop(0.18, `rgba(${r}, ${g}, ${b}, ${(alpha * 0.18).toFixed(3)})`);
+        grad.addColorStop(0.38, `rgba(${r}, ${g}, ${b}, ${(alpha * 0.72).toFixed(3)})`);
+        grad.addColorStop(0.50, `rgba(255, 255, 255, ${(alpha * 0.98).toFixed(3)})`);
+        grad.addColorStop(0.62, `rgba(${r}, ${g}, ${b}, ${(alpha * 0.72).toFixed(3)})`);
+        grad.addColorStop(0.82, `rgba(${r}, ${g}, ${b}, ${(alpha * 0.18).toFixed(3)})`);
         grad.addColorStop(1.00, `rgba(${r}, ${g}, ${b}, 0)`);
 
         ctx.fillStyle = grad;
@@ -2325,16 +2545,16 @@ export class OpticalDispersionApparatusMesh {
     const violetBottomPy = centerY + dispersionSpanPx * 0.52 + baseDevShiftPx;
 
     if (this.sourceMode === 'white') {
-      // 复合白光色散：从上至下呈现“上红、橙、黄、绿、青、蓝、下紫”连续高饱和度彩虹光谱带
-      const padPx = 42;
+      // 复合白光色散：从上至下呈现“上红、橙、黄、绿、青、蓝、下紫”物理连续高质感彩虹光谱带
+      const padPx = 36;
       const startPy = Math.max(0, Math.floor(redTopPy - padPx));
       const endPy = Math.min(h - 1, Math.ceil(violetBottomPy + padPx));
 
       for (let py = startPy; py <= endPy; py++) {
         const t = (py - redTopPy) / Math.max(1.0, violetBottomPy - redTopPy);
-        // 柯西非线性映射：短波（紫端）展开更宽，长波（红端）相对紧凑
+        // 柯西非线性色散映射：短波（紫端）偏折更大、色散展宽，长波（红端）偏折较小
         const cauchyT = Math.pow(THREE.MathUtils.clamp(t, 0, 1), 0.78);
-        const wl = 700.0 - cauchyT * (700.0 - 390.0);
+        const wl = 700.0 - cauchyT * (700.0 - 395.0);
 
         const trace = OpticalPhysics.tracePrismRay(
           wl,
@@ -2352,20 +2572,27 @@ export class OpticalDispersionApparatusMesh {
         }
         if (edgeFade < 0.005) continue;
 
-        const c = OpticalPhysics.wavelengthToColor(wl);
-        const r = Math.min(255, Math.round(Math.pow(c.r, 0.55) * 255));
-        const g = Math.min(255, Math.round(Math.pow(c.g, 0.55) * 255));
-        const b = Math.min(255, Math.round(Math.pow(c.b, 0.55) * 255));
-        const peakAlpha = Math.min(1.0, edgeFade * 0.96);
+        // 使用连续光谱物理插值，保持纯正饱和度
+        const c = OpticalDispersionApparatusMesh.getContinuousSpectralColor(wl);
+        const rBase = Math.round(c.r * 255);
+        const gBase = Math.round(c.g * 255);
+        const bBase = Math.round(c.b * 255);
+
+        // 核心区域保持 75% 纯正饱和光谱色，点缀 25% 柔和光学辉光，严禁惨白
+        const rCore = Math.min(255, Math.round(rBase + (255 - rBase) * 0.25));
+        const gCore = Math.min(255, Math.round(gBase + (255 - gBase) * 0.25));
+        const bCore = Math.min(255, Math.round(bBase + (255 - bBase) * 0.25));
+
+        const peakAlpha = Math.min(1.0, edgeFade * 0.98);
 
         const grad = ctx.createLinearGradient(centerX - slitHalfW, 0, centerX + slitHalfW, 0);
-        grad.addColorStop(0.00, `rgba(${r}, ${g}, ${b}, 0)`);
-        grad.addColorStop(0.14, `rgba(${r}, ${g}, ${b}, ${(peakAlpha * 0.28).toFixed(3)})`);
-        grad.addColorStop(0.32, `rgba(${r}, ${g}, ${b}, ${(peakAlpha * 0.82).toFixed(3)})`);
-        grad.addColorStop(0.50, `rgba(${r}, ${g}, ${b}, ${peakAlpha.toFixed(3)})`);
-        grad.addColorStop(0.68, `rgba(${r}, ${g}, ${b}, ${(peakAlpha * 0.82).toFixed(3)})`);
-        grad.addColorStop(0.86, `rgba(${r}, ${g}, ${b}, ${(peakAlpha * 0.28).toFixed(3)})`);
-        grad.addColorStop(1.00, `rgba(${r}, ${g}, ${b}, 0)`);
+        grad.addColorStop(0.00, `rgba(${rBase}, ${gBase}, ${bBase}, 0)`);
+        grad.addColorStop(0.12, `rgba(${rBase}, ${gBase}, ${bBase}, ${(peakAlpha * 0.25).toFixed(3)})`);
+        grad.addColorStop(0.32, `rgba(${rBase}, ${gBase}, ${bBase}, ${(peakAlpha * 0.82).toFixed(3)})`);
+        grad.addColorStop(0.50, `rgba(${rCore}, ${gCore}, ${bCore}, ${(peakAlpha * 0.98).toFixed(3)})`);
+        grad.addColorStop(0.68, `rgba(${rBase}, ${gBase}, ${bBase}, ${(peakAlpha * 0.82).toFixed(3)})`);
+        grad.addColorStop(0.88, `rgba(${rBase}, ${gBase}, ${bBase}, ${(peakAlpha * 0.25).toFixed(3)})`);
+        grad.addColorStop(1.00, `rgba(${rBase}, ${gBase}, ${bBase}, 0)`);
 
         ctx.fillStyle = grad;
         ctx.fillRect(centerX - slitHalfW, py, slitHalfW * 2, 1);
@@ -2384,7 +2611,7 @@ export class OpticalDispersionApparatusMesh {
 
         const normWl = (700.0 - wl) / (700.0 - 390.0);
         const linePy = redTopPy + Math.pow(normWl, 1 / 0.78) * (violetBottomPy - redTopPy);
-        this.drawSpectralSlitLineOnCanvas(ctx, centerX, linePy, slitHalfW, wl, 10.0);
+        this.drawSpectralSlitLineOnCanvas(ctx, centerX, linePy, slitHalfW, wl, 8.0);
       }
     } else {
       // 单色激光模式：仅在所选波长对应偏向角处呈现单条锐利高亮激光谱线（证明单色光不再发生色散）
@@ -2397,7 +2624,7 @@ export class OpticalDispersionApparatusMesh {
       if (!trace.isTotalInternalReflection) {
         const normWl = THREE.MathUtils.clamp((700.0 - this.wavelengthNm) / (700.0 - 390.0), 0, 1);
         const linePy = redTopPy + Math.pow(normWl, 1 / 0.78) * (violetBottomPy - redTopPy);
-        this.drawSpectralSlitLineOnCanvas(ctx, centerX, linePy, slitHalfW, this.wavelengthNm, 15.0);
+        this.drawSpectralSlitLineOnCanvas(ctx, centerX, linePy, slitHalfW, this.wavelengthNm, 12.0);
       }
     }
 
@@ -2412,29 +2639,31 @@ export class OpticalDispersionApparatusMesh {
     wavelengthNm: number,
     halfThicknessPx: number
   ): void {
-    const c = OpticalPhysics.wavelengthToColor(wavelengthNm);
-    const rBase = Math.round(Math.pow(c.r, 0.55) * 255);
-    const gBase = Math.round(Math.pow(c.g, 0.55) * 255);
-    const bBase = Math.round(Math.pow(c.b, 0.55) * 255);
+    const c = OpticalDispersionApparatusMesh.getContinuousSpectralColor(wavelengthNm);
+    const rBase = Math.round(c.r * 255);
+    const gBase = Math.round(c.g * 255);
+    const bBase = Math.round(c.b * 255);
 
     const startY = Math.max(0, Math.floor(linePy - halfThicknessPx * 2.2));
     const endY = Math.min(1023, Math.ceil(linePy + halfThicknessPx * 2.2));
 
     for (let py = startY; py <= endY; py++) {
       const dy = (py - linePy) / halfThicknessPx;
-      const profile = Math.exp(-dy * dy * 1.9);
+      const profile = Math.exp(-dy * dy * 2.2);
       if (profile < 0.01) continue;
 
-      const coreMix = Math.max(0, (profile - 0.5) / 0.5);
-      const r = Math.min(255, Math.round(rBase + (255 - rBase) * coreMix));
-      const g = Math.min(255, Math.round(gBase + (255 - gBase) * coreMix));
-      const b = Math.min(255, Math.round(bBase + (255 - bBase) * coreMix));
+      const coreMix = Math.max(0, (profile - 0.45) / 0.55);
+      const r = Math.min(255, Math.round(rBase + (255 - rBase) * coreMix * 0.30));
+      const g = Math.min(255, Math.round(gBase + (255 - gBase) * coreMix * 0.30));
+      const b = Math.min(255, Math.round(bBase + (255 - bBase) * coreMix * 0.30));
 
       const grad = ctx.createLinearGradient(centerX - slitHalfW, 0, centerX + slitHalfW, 0);
       grad.addColorStop(0.00, `rgba(${r}, ${g}, ${b}, 0)`);
-      grad.addColorStop(0.18, `rgba(${r}, ${g}, ${b}, ${(profile * 0.35).toFixed(3)})`);
-      grad.addColorStop(0.50, `rgba(${r}, ${g}, ${b}, ${profile.toFixed(3)})`);
-      grad.addColorStop(0.82, `rgba(${r}, ${g}, ${b}, ${(profile * 0.35).toFixed(3)})`);
+      grad.addColorStop(0.15, `rgba(${r}, ${g}, ${b}, ${(profile * 0.30).toFixed(3)})`);
+      grad.addColorStop(0.40, `rgba(${r}, ${g}, ${b}, ${(profile * 0.85).toFixed(3)})`);
+      grad.addColorStop(0.50, `rgba(${r}, ${g}, ${b}, ${(profile * 0.98).toFixed(3)})`);
+      grad.addColorStop(0.60, `rgba(${r}, ${g}, ${b}, ${(profile * 0.85).toFixed(3)})`);
+      grad.addColorStop(0.85, `rgba(${r}, ${g}, ${b}, ${(profile * 0.30).toFixed(3)})`);
       grad.addColorStop(1.00, `rgba(${r}, ${g}, ${b}, 0)`);
 
       ctx.fillStyle = grad;
@@ -2668,7 +2897,8 @@ export class OpticalDispersionApparatusMesh {
     pEnd: THREE.Vector3,
     color: THREE.Color,
     radius: number,
-    opacity: number
+    opacity: number,
+    useAdditive = true
   ): THREE.Mesh {
     const dir = new THREE.Vector3().subVectors(pEnd, pStart);
     const len = Math.max(0.001, dir.length());
@@ -2679,6 +2909,7 @@ export class OpticalDispersionApparatusMesh {
       transparent: true,
       opacity,
       depthWrite: false,
+      blending: useAdditive ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.copy(pStart).addScaledVector(dir, 0.5);

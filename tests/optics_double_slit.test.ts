@@ -604,10 +604,10 @@ console.log('=== Starting Young\'s Double-Slit Interference Analytical & Integra
 }
 
 // -------------------------------------------------------------
-// Test 16: 3D Wave Propagation & Huygens Dual-Source Wavefront Ripples ("波的形式" 区分特征)
+// Test 16: 3D Full-Field Wave Interference Pattern & Antinodal/Nodal Wave Propagation
 // -------------------------------------------------------------
 {
-  console.log('Test 16: 3D Wave Propagation & Huygens Dual-Source Wavefront Ripples');
+  console.log('Test 16: 3D Full-Field Wave Interference Pattern & Antinodal/Nodal Wave Propagation');
   const exp = new OpticsDoubleSlitExperiment();
   const mockContext = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), setParameter: () => {} } as any;
   exp.init(mockContext);
@@ -620,35 +620,58 @@ console.log('=== Starting Young\'s Double-Slit Interference Analytical & Integra
   const k0Ray = bench.interferenceRaysGroup.getObjectByName('ConstructiveOrderRay_k0') as THREE.Mesh;
   assert.ok(k0Ray, 'Central k=0 constructive interference straight laser ray must exist');
 
-  // 2. Verify overlaid pre-slit traveling sinusoidal wave ribbon & electric field vector comb exist
-  assert.strictEqual(bench.incidentWaveRibbonMesh.name, 'IncidentSinusoidalWaveRibbon');
-  assert.strictEqual(bench.incidentWaveVectorsMesh.name, 'IncidentElectricFieldVectors');
+  // 2. Verify pre-slit beam is pure collimated laser without wavy dynamic effect (incident wave ribbon invisible/disabled)
+  assert.strictEqual(bench.incidentWaveRibbonMesh.visible, false, 'Pre-slit wave ribbon must not be visible');
+  assert.strictEqual(bench.incidentWaveVectorsMesh.visible, false, 'Pre-slit wave vectors must not be visible');
 
-  // 3. Verify near-slit Huygens dual-source concentric wavefront ripple rings exist (S1 & S2)
-  assert.ok(bench.wavefrontArcsGroup, 'HuygensWavefrontRipplesGroup must exist');
-  assert.strictEqual(bench.wavefrontArcsGroup.name, 'HuygensWavefrontRipplesGroup');
-  assert(bench.wavefrontArcsGroup.children.length >= 12, 'Must have at least 6 pairs of concentric wavefront arcs for S1 & S2');
+  // 3. Verify full-field wave interference system exists and spans from double-slit to screen
+  assert.ok(bench.interferenceFieldMesh, 'FullFieldWaveInterferenceMesh must exist');
+  assert.strictEqual(bench.interferenceFieldMesh.name, 'FullFieldWaveInterferenceMesh');
+  assert.strictEqual(bench.interferenceFieldMesh.visible, true);
 
-  // 4. Verify real-time wave phase propagation animates sinusoidal vertices and expanding wavefront radii
-  const wavePosAttr = bench.incidentWaveRibbonMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
-  const sampleVertexIndex = 14 * 6 + 1; // Y coordinate of an intermediate wave ribbon vertex
-  const yBefore = (wavePosAttr.array as Float32Array)[sampleVertexIndex];
-
-  const ring0 = bench.wavefrontArcsGroup.children[0] as THREE.Mesh;
-  const scaleBefore = ring0.scale.x;
+  // 4. Verify wave phase propagation animates full-field wave interference while pre-slit beam remains straight
+  const mat = (bench as any).interferenceFieldMaterial as THREE.ShaderMaterial;
+  const phaseBefore = mat.uniforms.uPhase.value;
 
   exp.update(0.05, 0.05, mockContext);
 
-  const yAfter = (wavePosAttr.array as Float32Array)[sampleVertexIndex];
-  const scaleAfter = ring0.scale.x;
-
-  assert.notStrictEqual(yBefore, yAfter, 'Propagating sinusoidal wave ribbon vertices must oscillate with time');
-  assert.notStrictEqual(scaleBefore, scaleAfter, 'Huygens concentric wavefront ripple rings must expand outward with time');
+  const phaseAfter = mat.uniforms.uPhase.value;
+  assert.notStrictEqual(phaseBefore, phaseAfter, 'Full-field wave phase must propagate with time');
+  assert.strictEqual(bench.preBeamMesh.visible, true, 'Collimated core laser beam remains active');
+  assert.strictEqual(bench.incidentWaveRibbonMesh.visible, false, 'Pre-slit wave ribbon remains invisible');
 
   exp.dispose(mockContext);
-  console.log('✓ Test 16 passed: 3D wave propagation & Huygens dual-source wavefront ripples verified\n');
+  console.log('✓ Test 16 passed: 3D full-field wave interference pattern & wave phase propagation verified\n');
+}
+
+// -------------------------------------------------------------
+// Test 17: Ergonomic Operator-Facing Single-Knob Standard for Double Slit Invariant
+// -------------------------------------------------------------
+{
+  console.log('Test 17: Ergonomic Operator-Facing Single-Knob Standard for Double Slit Invariant');
+  const bench = new OpticalDoubleSlitBenchMesh();
+
+  assert.ok(bench.micrometerThimbleGroup, 'Micrometer knob assembly must exist');
+  assert(bench.micrometerThimbleGroup.position.z > 0, 'Micrometer knob must be located on the operator-facing side (+Z)');
+
+  const attachedTurret = bench.slitStageGroup.getObjectByName('SlitTurretWheel');
+  assert.strictEqual(attachedTurret, undefined, 'Turret wheel must NOT be attached to the 3D slit stage (rear side must have no protruding knob)');
+
+  bench.slitStageGroup.children.forEach((child) => {
+    if (child.position.z < -0.015) {
+      assert(
+        !child.name.toLowerCase().includes('knob') &&
+        !child.name.toLowerCase().includes('wheel') &&
+        !child.name.toLowerCase().includes('turret'),
+        `Unexpected rear knob/wheel detected on slit stage: ${child.name}`
+      );
+    }
+  });
+
+  bench.dispose();
+  console.log('✓ Test 17 passed: Ergonomic operator-facing single-knob standard for double slit stage verified\n');
 }
 
 console.log('========================================================');
-console.log('All Young\'s Double-Slit Interference Tests Passed (16/16)!');
+console.log('All Young\'s Double-Slit Interference Tests Passed (17/17)!');
 console.log('========================================================\n');

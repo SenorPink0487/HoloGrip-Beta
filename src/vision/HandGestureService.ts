@@ -249,6 +249,7 @@ export class HandGestureService {
   private inFlightFrame: { id: number; sessionId: number; startedAt: number; captureMs: number } | null = null;
   private lastVideoCurrentTime = -1;
   private lastDecodedFrameCount = -1;
+  private lastPresentedFrames = -1;
   private latestVideoFrameTime: number | null = null;
   private lastFrameSendTime = 0;
   private lastRvfCallTime = 0;
@@ -602,7 +603,10 @@ export class HandGestureService {
         this.videoElement = document.createElement('video');
         this.videoElement.setAttribute('autoplay', '');
         this.videoElement.setAttribute('playsinline', '');
+        this.videoElement.setAttribute('webkit-playsinline', 'true');
+        (this.videoElement as any).playsInline = true;
         this.videoElement.muted = true;
+        this.videoElement.autoplay = true;
         this.videoElement.style.position = 'fixed';
         this.videoElement.style.top = '0';
         this.videoElement.style.left = '0';
@@ -611,7 +615,14 @@ export class HandGestureService {
         this.videoElement.style.opacity = '0';
         this.videoElement.style.pointerEvents = 'none';
         this.videoElement.style.zIndex = '1';
+        this.videoElement.style.transform = 'translateZ(0)';
+        this.videoElement.style.willChange = 'transform';
         document.body.appendChild(this.videoElement);
+      } else {
+        this.videoElement.setAttribute?.('webkit-playsinline', 'true');
+        (this.videoElement as any).playsInline = true;
+        this.videoElement.muted = true;
+        this.videoElement.autoplay = true;
       }
 
       if (!this.mediaStream) {
@@ -636,6 +647,7 @@ export class HandGestureService {
       this.lastFrameSendTime = 0;
       this.lastVideoCurrentTime = -1;
       this.lastDecodedFrameCount = -1;
+      this.lastPresentedFrames = -1;
       this.latestVideoFrameTime = null;
       this.lastRvfCallTime = 0;
       this.notifyStatus();
@@ -679,6 +691,7 @@ export class HandGestureService {
     this.status = 'running';
     this.lastVideoCurrentTime = -1;
     this.lastDecodedFrameCount = -1;
+    this.lastPresentedFrames = -1;
     this.latestVideoFrameTime = null;
     this.notifyStatus();
     this.startLoop();
@@ -710,6 +723,7 @@ export class HandGestureService {
 
     this.lastVideoCurrentTime = -1;
     this.lastDecodedFrameCount = -1;
+    this.lastPresentedFrames = -1;
     this.latestVideoFrameTime = null;
     this.lastFrameSendTime = 0;
     this.lastRvfCallTime = 0;
@@ -764,7 +778,7 @@ export class HandGestureService {
         if (this.status !== 'running') return;
         this.lastRvfCallTime = performance.now();
         this.latestVideoFrameTime = metadata.mediaTime;
-        this.processFrame();
+        this.processFrame(true, metadata.presentedFrames);
         if (this.videoElement && typeof (this.videoElement as any).requestVideoFrameCallback === 'function') {
           this.videoFrameCallbackId = (this.videoElement as any).requestVideoFrameCallback(onVideoFrame);
         }
@@ -779,29 +793,48 @@ export class HandGestureService {
       // must never turn a stalled/unchanged video into duplicate inference.
       const hasActiveRvfc = this.videoFrameCallbackId !== null && (now - this.lastRvfCallTime < 80);
       if (!hasActiveRvfc && (now - this.lastFrameSendTime >= 25)) {
-        this.processFrame();
+        this.processFrame(false);
       }
       this.animFrameId = requestAnimationFrame(loop);
     };
     this.animFrameId = requestAnimationFrame(loop);
   }
 
-  private processFrame(): void {
+  private processFrame(fromRvfc = false, presentedFrames?: number): void {
     const video = this.videoElement;
     if (this.status !== 'running' || !video || video.readyState < 2) {
       return;
     }
 
+    const decodedFrameCount = video.getVideoPlaybackQuality?.().totalVideoFrames;
+    const hasDecodedFrameCount = decodedFrameCount !== undefined && decodedFrameCount > 0;
+    const videoTime = this.latestVideoFrameTime ?? video.currentTime;
+    const now = performance.now();
+    const isLiveStream = Boolean(video.srcObject);
+
+    // Frame deduplication & rate gating:
+    if (presentedFrames !== undefined && Number.isFinite(presentedFrames)) {
+      if (presentedFrames === this.lastPresentedFrames) return;
+    } else if (fromRvfc) {
+      // Direct notification from browser compositor that a new frame is ready
+    } else if (hasDecodedFrameCount) {
+      // Chrome/Chromium: totalVideoFrames tracks hardware decoded frames
+      if (decodedFrameCount === this.lastDecodedFrameCount) return;
+    } else if (isLiveStream) {
+      // iPadOS / Safari WebKit live camera stream:
+      // totalVideoFrames is unavailable on MediaStreams, and video.currentTime only updates at ~4 Hz (250ms).
+      // Rate is governed by watchdog cadence (>= 25ms). If called too rapidly (< 24ms), skip.
+      if (this.lastFrameSendTime > 0 && (now - this.lastFrameSendTime < 24)) return;
+    } else {
+      // Test mocks / static video: verify that video playback clock or rVFC mediaTime advanced
+      if (videoTime === this.lastVideoCurrentTime) return;
+    }
+
     // 1. 优先执行高性能主线程直连硬件 GPU 管线（对齐 HoloPhysics / wuli 生产架构）
     if (this.directTracker && this.directTracker.isInitialized()) {
-      const decodedFrameCount = video.getVideoPlaybackQuality?.().totalVideoFrames;
-      const hasDecodedFrameCount = decodedFrameCount !== undefined && decodedFrameCount > 0;
-      const videoTime = this.latestVideoFrameTime ?? video.currentTime;
-      if (hasDecodedFrameCount
-        ? decodedFrameCount === this.lastDecodedFrameCount
-        : videoTime === this.lastVideoCurrentTime) return;
-
-      const now = performance.now();
+      if (presentedFrames !== undefined && Number.isFinite(presentedFrames)) {
+        this.lastPresentedFrames = presentedFrames;
+      }
       this.lastVideoCurrentTime = videoTime;
       this.lastDecodedFrameCount = decodedFrameCount ?? -1;
       this.lastFrameSendTime = now;
@@ -832,22 +865,14 @@ export class HandGestureService {
       return;
     }
 
-    // currentTime is a continuously advancing playback clock, not a camera
-    // frame ID. Use decoded frame counts, or rVFC's media timestamp, to avoid
-    // repeatedly inferring the same pixels between camera frames.
-    const decodedFrameCount = video.getVideoPlaybackQuality?.().totalVideoFrames;
-    const hasDecodedFrameCount = decodedFrameCount !== undefined && decodedFrameCount > 0;
-    const videoTime = this.latestVideoFrameTime ?? video.currentTime;
-    if (hasDecodedFrameCount
-      ? decodedFrameCount === this.lastDecodedFrameCount
-      : videoTime === this.lastVideoCurrentTime) return;
-
     if (this.isWorkerBusy) {
       // Do not capture/queue older bitmaps. Completion will read the latest frame.
       return;
     }
 
-    const now = performance.now();
+    if (presentedFrames !== undefined && Number.isFinite(presentedFrames)) {
+      this.lastPresentedFrames = presentedFrames;
+    }
     this.lastVideoCurrentTime = videoTime;
     this.lastDecodedFrameCount = decodedFrameCount ?? -1;
     this.lastFrameSendTime = now;

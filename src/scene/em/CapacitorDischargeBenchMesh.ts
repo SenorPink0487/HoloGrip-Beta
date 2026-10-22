@@ -1006,15 +1006,9 @@ export class CapacitorDischargeBenchMesh {
     ctx.fillStyle = '#05101a';
     ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-    ctx.lineWidth = 2;
-    if (typeof ctx.strokeRect === 'function') {
-      ctx.strokeRect(3, 3, w - 6, h - 6);
-    }
-
     if (typeof ctx.fillText === 'function') {
       ctx.fillStyle = '#38bdf8';
-      ctx.font = '700 52px monospace';
+      ctx.font = '700 52px "JetBrains Mono", Menlo, Consolas, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(`${volts.toFixed(1)}V`, w / 2, h * 0.50);
@@ -1962,11 +1956,57 @@ export class CapacitorDischargeBenchMesh {
     // 5. 沉入式深色防眩框与深邃海洋蓝黑液晶数显视窗 (Sunken Bezel & Reticle)
     const bezelW = 0.088;
     const bezelD = 0.046;
-    const bezelH = 0.0022;
-    const bezelGeo = createChamferedBoxGeometry(bezelW, bezelH, bezelD, 0.003, 0.0008);
-    const bezelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.25, metalness: 0.45 });
+    const bezelH = 0.0016;
+    const dispW = 0.082;
+    const dispD = 0.040;
+
+    // 精密中空防眩边框（中空视窗结构，杜绝实体遮挡内部液晶屏）
+    const outerRadius = 0.003;
+    const innerRadius = 0.0015;
+    const frameShape = new THREE.Shape();
+    const ow = bezelW * 0.5 - outerRadius;
+    const od = bezelD * 0.5 - outerRadius;
+    frameShape.moveTo(-ow, -od - outerRadius);
+    frameShape.lineTo(ow, -od - outerRadius);
+    frameShape.quadraticCurveTo(ow + outerRadius, -od - outerRadius, ow + outerRadius, -od);
+    frameShape.lineTo(ow + outerRadius, od);
+    frameShape.quadraticCurveTo(ow + outerRadius, od + outerRadius, ow, od + outerRadius);
+    frameShape.lineTo(-ow, od + outerRadius);
+    frameShape.quadraticCurveTo(-ow - outerRadius, od + outerRadius, -ow - outerRadius, od);
+    frameShape.lineTo(-ow - outerRadius, -od);
+    frameShape.quadraticCurveTo(-ow - outerRadius, -od - outerRadius, -ow, -od - outerRadius);
+
+    const holePath = new THREE.Path();
+    const iw = dispW * 0.5 - innerRadius;
+    const id = dispD * 0.5 - innerRadius;
+    holePath.moveTo(-iw, -id - innerRadius);
+    holePath.lineTo(iw, -id - innerRadius);
+    holePath.quadraticCurveTo(iw + innerRadius, -id - innerRadius, iw + innerRadius, -id);
+    holePath.lineTo(iw + innerRadius, id);
+    holePath.quadraticCurveTo(iw + innerRadius, id + innerRadius, iw, id + innerRadius);
+    holePath.lineTo(-iw, id + innerRadius);
+    holePath.quadraticCurveTo(-iw - innerRadius, id + innerRadius, -iw - innerRadius, id);
+    holePath.lineTo(-iw - innerRadius, -id);
+    holePath.quadraticCurveTo(-iw - innerRadius, -id - innerRadius, -iw, -id - innerRadius);
+    frameShape.holes.push(holePath);
+
+    const bezelGeo = new THREE.ExtrudeGeometry(frameShape, {
+      depth: bezelH,
+      bevelEnabled: true,
+      bevelThickness: 0.0003,
+      bevelSize: 0.0003,
+      bevelSegments: 2,
+    });
+    bezelGeo.rotateX(Math.PI / 2);
+    bezelGeo.center();
+
+    const bezelMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.35,
+      metalness: 0.40,
+    });
     const bezelMesh = new THREE.Mesh(bezelGeo, bezelMat);
-    bezelMesh.position.set(0, bodyH * 0.5 + plateH + bezelH * 0.5, 0.004);
+    bezelMesh.position.set(0, bodyH * 0.5 + plateH + 0.0008, 0.004);
     tiltGroup.add(bezelMesh);
 
     // 液晶数显画布 (512x256 高清分辨率)
@@ -1977,25 +2017,16 @@ export class CapacitorDischargeBenchMesh {
     this.sensorDisplayTexture.colorSpace = THREE.SRGBColorSpace;
     this.renderCurrentSensorDisplay(0.0);
 
-    const dispGeo = new THREE.PlaneGeometry(0.082, 0.040);
+    const dispGeo = new THREE.PlaneGeometry(dispW, dispD);
     const dispMat = new THREE.MeshBasicMaterial({
       map: this.sensorDisplayTexture,
       toneMapped: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
+      side: THREE.DoubleSide,
     });
     const dispMesh = new THREE.Mesh(dispGeo, dispMat);
-    dispMesh.position.set(0, bodyH * 0.5 + plateH + bezelH + 0.0002, 0.004);
+    dispMesh.position.set(0, bodyH * 0.5 + plateH + 0.0009, 0.004);
     dispMesh.rotation.x = -Math.PI / 2;
     tiltGroup.add(dispMesh);
-
-    // 防护光学超白防眩透明保护镜片
-    const glassGeo = new THREE.PlaneGeometry(0.082, 0.040);
-    const glassMesh = new THREE.Mesh(glassGeo, labGlass(0.08));
-    glassMesh.position.set(0, bodyH * 0.5 + plateH + bezelH + 0.0004, 0.004);
-    glassMesh.rotation.x = -Math.PI / 2;
-    tiltGroup.add(glassMesh);
 
     // 6. 物理控制按键 (ZERO 归零校准键、RANGE 量程切换键与电源键)
     const btnMat = labMetal(0xd1d5db, 0.9, 0.25);
@@ -2074,92 +2105,42 @@ export class CapacitorDischargeBenchMesh {
     const w = this.sensorDisplayCanvas.width;
     const h = this.sensorDisplayCanvas.height;
 
-    // 1. 深邃海洋蓝黑渐变背景 (Deep Oceanic Sapphire)
-    if (typeof ctx.createLinearGradient === 'function') {
-      const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-      bgGrad.addColorStop(0, '#060f1e');
-      bgGrad.addColorStop(1, '#0a192f');
-      ctx.fillStyle = bgGrad;
-    } else {
-      ctx.fillStyle = '#060f1e';
-    }
+    // 纯净深色液晶屏幕底色 (Clean Dark LCD Screen，杜绝网格与无意义装饰)
+    ctx.fillStyle = '#060f1e';
     ctx.fillRect(0, 0, w, h);
 
-    // 2. 精细科研网格刻度底纹
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = 32; x < w; x += 32) {
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-    }
-    for (let y = 32; y < h; y += 32) {
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-    }
-    ctx.stroke();
-
-    // 工业内框高亮边缘
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-    ctx.lineWidth = 2;
-    if (typeof ctx.strokeRect === 'function') {
-      ctx.strokeRect(6, 6, w - 12, h - 12);
-    }
-
     if (typeof ctx.fillText === 'function') {
-      // 3. 顶部信息状态栏
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 22px monospace';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText('DIS-I02 TRANSDUCER', 18, 14);
-
-      // 右上状态指示
-      ctx.fillStyle = '#4ade80';
-      ctx.beginPath();
-      ctx.arc(w - 170, 24, 5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = 'bold 18px monospace';
-      ctx.fillText('10kS/s  [■■■■]', w - 158, 15);
-
-      // 4. 核心主读数区（动态高对比度发光字）
-      const isCharging = currentMa > 0.01;
-      const isDischarging = currentMa < -0.01;
+      const isCharging = currentMa > 0.005;
+      const isDischarging = currentMa < -0.005;
       const numColor = isCharging ? '#38bdf8' : isDischarging ? '#f59e0b' : '#4ade80';
 
+      const sign = currentMa > 0.005 ? '+' : '';
+      const numStr = `${sign}${currentMa.toFixed(2)}`;
+      const unitStr = 'mA';
+
+      ctx.save();
+      ctx.font = '700 116px "JetBrains Mono", Menlo, Consolas, monospace';
+      const numWidth = ctx.measureText ? ctx.measureText(numStr).width : 280;
+
+      ctx.font = '700 52px "JetBrains Mono", Menlo, Consolas, monospace';
+      const unitWidth = ctx.measureText ? ctx.measureText(unitStr).width : 65;
+
+      const gap = 16;
+      const totalWidth = numWidth + gap + unitWidth;
+      const startX = Math.max(20, (w - totalWidth) * 0.5);
+
+      // 主数字读数
+      ctx.font = '700 116px "JetBrains Mono", Menlo, Consolas, monospace';
       ctx.fillStyle = numColor;
-      ctx.font = '700 96px monospace';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-
-      const sign = currentMa > 0 ? '+' : '';
-      ctx.fillText(`${sign}${currentMa.toFixed(2)}`, w - 110, h * 0.54);
-
-      ctx.font = '700 44px monospace';
-      ctx.fillText('mA', w - 24, h * 0.50);
-
-      ctx.font = 'bold 18px monospace';
-      ctx.fillStyle = '#64748b';
-      ctx.fillText('DC CURRENT', w - 24, h * 0.65);
-
-      // 5. 底部状态与量程参数
-      ctx.fillStyle = '#475569';
-      ctx.fillRect(10, h - 42, w - 20, 1);
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = 'bold 18px monospace';
       ctx.textAlign = 'left';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText('RANGE: ±20.00mA', 18, h - 14);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(numStr, startX, h * 0.50);
 
-      ctx.textAlign = 'center';
-      ctx.fillText('R_sh: 10.0Ω', w * 0.5, h - 14);
-
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillText('CAL: ZERO OK', w - 18, h - 14);
+      // 电流物理单位
+      ctx.font = '700 52px "JetBrains Mono", Menlo, Consolas, monospace';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(unitStr, startX + numWidth + gap, h * 0.50 + 20);
+      ctx.restore();
     }
 
     this.sensorDisplayTexture.needsUpdate = true;
@@ -2490,65 +2471,20 @@ export class CapacitorDischargeBenchMesh {
     }
 
     ctx.stroke();
-
-    // 3.3 示波器电子束前沿实时高亮荧光光斑 (Phosphor Electron Beam Spot)
-    ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 16;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(liveX, liveY, 4.2, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#ffe600';
-    ctx.beginPath();
-    ctx.arc(liveX, liveY, 2.2, 0, Math.PI * 2);
-    ctx.fill();
     ctx.restore();
 
-    // 4. 紧凑、极简、高对比度微型仪器角落字符角标 (不遮挡中央大面积波形)
-    ctx.font = 'bold 13px monospace';
-    ctx.shadowBlur = 0;
+    // 4. 纯净真实的示波器标尺信息（仅保留标准通道分度与时基，去除无意义的状态与表情符号装饰）
+    if (typeof ctx.fillText === 'function') {
+      ctx.font = 'bold 15px "JetBrains Mono", Menlo, Consolas, monospace';
+      ctx.fillStyle = 'rgba(254, 240, 138, 0.90)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`CH1: ${voltsPerDiv.toFixed(2)}V/div`, padX + 8, padY + 6);
 
-    // 左上：CH1 刻度与耦合状态
-    ctx.fillStyle = 'rgba(254, 240, 138, 0.90)';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`CH1: ${voltsPerDiv.toFixed(2)}V/div  DC 1MΩ`, padX + 8, padY + 6);
-
-    // 顶部中央：DSO 触发采集中状态
-    ctx.fillStyle = '#4ade80';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('● ROLL  100Sa/s', cx, padY + 6);
-
-    // 右上：时基与时间常数物理指标
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.90)';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`τ(RC) = ${tau.toFixed(2)}s  500ms/div`, padX + plotW - 8, padY + 6);
-
-    // 左下：电容器当前实时端电压与瞬时电流
-    ctx.fillStyle = 'rgba(250, 204, 21, 0.95)';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'bottom';
-    const iSign = curI >= 0 ? '+' : '';
-    ctx.fillText(`Uc: ${curV.toFixed(2)}V   I: ${iSign}${curI.toFixed(2)}mA`, padX + 8, padY + plotH - 6);
-
-    // 右下：触发模式与当前状态
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'bottom';
-    if (switchPos === 'charge') {
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillText('⚡ TRIG: CHARGE (充电)', padX + plotW - 8, padY + plotH - 6);
-    } else if (switchPos === 'discharge') {
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillText('🔄 TRIG: DISCHG (放电)', padX + plotW - 8, padY + plotH - 6);
-    } else {
-      ctx.fillStyle = '#4ade80';
-      ctx.fillText('⚪ TRIG: READY (中立)', padX + plotW - 8, padY + plotH - 6);
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.90)';
+      ctx.textAlign = 'right';
+      ctx.fillText('500ms/div', padX + plotW - 8, padY + 6);
     }
-
-    ctx.restore();
 
     this.scopeDisplayTexture.needsUpdate = true;
   }
@@ -2564,11 +2500,11 @@ export class CapacitorDischargeBenchMesh {
     const wire1Pts = [
       new THREE.Vector3(-0.328, 0.050, -0.034), // 电池正极插头顶部
       new THREE.Vector3(-0.328, 0.060, -0.034), // 垂直上升
-      new THREE.Vector3(-0.385, 0.060, -0.034), // 直角折向左侧走线区
-      new THREE.Vector3(-0.385, 0.006, -0.034), // 直角折向下贴近台面
-      new THREE.Vector3(-0.385, 0.006, 0.168),  // 沿左侧纵向直行至前排主通道
-      new THREE.Vector3(-0.225, 0.006, 0.168),  // 直角折向右横向直行至开关左端通道
-      new THREE.Vector3(-0.225, 0.048, 0.168),  // 直角折向上垂直升起
+      new THREE.Vector3(-0.355, 0.060, -0.034), // 直角折向左侧走线区（收拢紧凑，绝不伸出台面）
+      new THREE.Vector3(-0.355, 0.006, -0.034), // 直角折向下贴近台面
+      new THREE.Vector3(-0.355, 0.006, 0.156),  // 沿左侧纵向直行至前排主通道
+      new THREE.Vector3(-0.225, 0.006, 0.156),  // 直角折向右横向直行至开关左端通道
+      new THREE.Vector3(-0.225, 0.048, 0.156),  // 直角折向上垂直升起
       new THREE.Vector3(-0.225, 0.048, 0.139),  // 直角折向后平移至插座正上方
       new THREE.Vector3(-0.225, 0.040, 0.139),  // 直角垂直插入开关左触点插头
     ];
@@ -2577,10 +2513,10 @@ export class CapacitorDischargeBenchMesh {
     const wire2Pts = [
       new THREE.Vector3(-0.180, 0.040, 0.139), // 开关公共极插头顶部
       new THREE.Vector3(-0.180, 0.048, 0.139), // 垂直上升
-      new THREE.Vector3(-0.180, 0.048, 0.168), // 直角折向前至前排主通道
-      new THREE.Vector3(-0.180, 0.006, 0.168), // 直角折向下贴近台面
-      new THREE.Vector3(0.014, 0.006, 0.168),  // 沿前排通道横向直行至传感器正极端
-      new THREE.Vector3(0.014, 0.048, 0.168),  // 直角折向上垂直升起
+      new THREE.Vector3(-0.180, 0.048, 0.156), // 直角折向前至前排主通道
+      new THREE.Vector3(-0.180, 0.006, 0.156), // 直角折向下贴近台面
+      new THREE.Vector3(0.014, 0.006, 0.156),  // 沿前排通道横向直行至传感器正极端
+      new THREE.Vector3(0.014, 0.048, 0.156),  // 直角折向上垂直升起
       new THREE.Vector3(0.014, 0.048, 0.139),  // 直角折向后平移至插座正上方
       new THREE.Vector3(0.014, 0.040, 0.139),  // 直角垂直插入电流传感器正极
     ];
@@ -2589,9 +2525,9 @@ export class CapacitorDischargeBenchMesh {
     const wire3Pts = [
       new THREE.Vector3(0.058, 0.040, 0.139),  // 传感器负极插头顶部
       new THREE.Vector3(0.058, 0.048, 0.139),  // 垂直上升
-      new THREE.Vector3(0.058, 0.048, 0.168),  // 直角折向前至前排主通道
-      new THREE.Vector3(0.058, 0.006, 0.168),  // 直角折向下贴近台面
-      new THREE.Vector3(0.168, 0.006, 0.168),  // 横向直行至电容器正极轴线
+      new THREE.Vector3(0.058, 0.048, 0.156),  // 直角折向前至前排主通道
+      new THREE.Vector3(0.058, 0.006, 0.156),  // 直角折向下贴近台面
+      new THREE.Vector3(0.168, 0.006, 0.156),  // 横向直行至电容器正极轴线
       new THREE.Vector3(0.168, 0.006, -0.015), // 直角折向后纵向直行至电容器基座前
       new THREE.Vector3(0.168, 0.048, -0.015), // 直角折向上垂直升起
       new THREE.Vector3(0.168, 0.048, -0.046), // 直角折向后平移至插头正上方
@@ -2646,8 +2582,8 @@ export class CapacitorDischargeBenchMesh {
       new THREE.Vector3(0.099, 0.014, 0.105),   // 传感器 BNC 输出端口
       new THREE.Vector3(0.125, 0.014, 0.105),   // 直角水平横向引出
       new THREE.Vector3(0.125, 0.006, 0.105),   // 直角折向下贴近台面
-      new THREE.Vector3(0.125, 0.006, 0.190),   // 直角折向前进入前外侧电缆通道
-      new THREE.Vector3(0.408, 0.006, 0.190),   // 横向直行至示波器 CH1 输入端口正前方
+      new THREE.Vector3(0.125, 0.006, 0.168),   // 直角折向前进入前外侧电缆通道
+      new THREE.Vector3(0.408, 0.006, 0.168),   // 横向直行至示波器 CH1 输入端口正前方
       new THREE.Vector3(0.408, 0.006, 0.010),   // 直角折向后纵向直行至示波器面板前
       new THREE.Vector3(0.408, 0.0252, 0.010),  // 直角垂直上升至 CH1 端口高度
       new THREE.Vector3(0.408, 0.0252, -0.0238),// 直角水平插入示波器 CH1 BNC 端口
@@ -2963,7 +2899,7 @@ export class CapacitorDischargeBenchMesh {
       const vol = telemetry.voltageCapacitor;
       const supply = telemetry.voltageSupply;
 
-      if (Math.abs(cur - this.lastRenderedCurrent) > 0.05 || telemetry.switchPosition !== this.lastSwitchPos) {
+      if (Math.abs(cur - this.lastRenderedCurrent) > 0.005 || telemetry.switchPosition !== this.lastSwitchPos) {
         this.lastRenderedCurrent = cur;
         this.renderCurrentSensorDisplay(cur);
       }

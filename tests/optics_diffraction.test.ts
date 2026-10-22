@@ -774,8 +774,95 @@ console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n
   console.log('✓ Test 15 passed: High-fidelity knob craftsmanship, rotational dynamics & hover prompt lifecycle verified\n');
 }
 
+// -------------------------------------------------------------
+// Test 16: Ergonomic Operator-Facing Single-Knob Standard for Slit Stage Invariant
+// -------------------------------------------------------------
+{
+  console.log('Test 16: Ergonomic Operator-Facing Single-Knob Standard for Slit Stage Invariant');
+  const bench = new OpticalDiffractionBenchMesh();
+
+  // 1. 中间实验器材在正对操作者一侧 (+Z) 必须包含高精度测微鼓轮旋钮
+  assert.ok(bench.micrometerThimbleGroup, 'Micrometer knob assembly must exist');
+  assert.ok(bench.micrometerKnob, 'Micrometer rotating knob must exist');
+  assert(bench.micrometerThimbleGroup.position.z > 0, 'Micrometer knob must be located on the operator-facing side (+Z)');
+
+  // 2. 中间实验器材背对操作者一侧 (-Z) 严禁挂载任何突兀的额外旋钮 (杜绝不合理的双向对称突兀旋钮)
+  const attachedTurret = bench.slitStageGroup.getObjectByName('SlitTurretWheel');
+  assert.strictEqual(attachedTurret, undefined, 'Turret wheel must NOT be attached to the 3D slit stage (rear side must have no protruding knob)');
+
+  const attachedTurretCue = bench.slitStageGroup.getObjectByName('TurretHoverCue');
+  assert.strictEqual(attachedTurretCue, undefined, 'Turret hover cue must NOT be attached to the 3D slit stage');
+
+  // 3. 校验 slitStageGroup 所有直接子构件：在负 Z 侧 (背向操作者) 绝不允许存在任何旋钮类机械构件
+  bench.slitStageGroup.children.forEach((child) => {
+    if (child.position.z < -0.015) {
+      assert(
+        !child.name.toLowerCase().includes('knob') &&
+        !child.name.toLowerCase().includes('wheel') &&
+        !child.name.toLowerCase().includes('turret'),
+        `Unexpected rear knob/wheel detected on slit stage: ${child.name}`
+      );
+    }
+  });
+
+  bench.dispose();
+  console.log('✓ Test 16 passed: Ergonomic operator-facing single-knob standard for slit stage verified\n');
+}
+
+// -------------------------------------------------------------
+// Test 17: Visible Slit Aperture Window, Ground Knife-Edge Blades & Slit Illumination Invariant
+// -------------------------------------------------------------
+{
+  console.log('Test 17: Visible Slit Aperture Window, Ground Knife-Edge Blades & Slit Illumination Invariant');
+  const bench = new OpticalDiffractionBenchMesh();
+
+  // 1. 验证中央挡板开有精密通光观测视窗，杜绝实心挡板遮蔽狭缝
+  assert.ok(bench.leftJawMesh, 'Left knife-edge blade must exist');
+  assert.ok(bench.rightJawMesh, 'Right knife-edge blade must exist');
+  assert.ok(bench.slitLightMesh, 'Slit transmission 3D light core must exist');
+
+  // 2. 验证两研磨刀口片之间存在真实物理开度狭缝 (visualGap > 0)
+  bench.setSlitWidth(0.08);
+  const gapAt008 = Math.abs(bench.rightJawMesh.position.z - bench.leftJawMesh.position.z);
+  assert(gapAt008 > 0.015, `Slit blades must be visibly separated: gapAt008=${gapAt008}`);
+
+  // 3. 验证狭缝发光光芯宽度与狭缝开度同步动态缩放
+  bench.setSlitWidth(0.04);
+  const scaleZSmall = bench.slitLightMesh.scale.z;
+  bench.setSlitWidth(0.20);
+  const scaleZLarge = bench.slitLightMesh.scale.z;
+  assert(scaleZLarge > scaleZSmall, `Slit light core must widen with slit width: ${scaleZLarge} > ${scaleZSmall}`);
+
+  // 4. 验证不同衍射孔径模式下插片元件的可见性切换
+  bench.setDiffractionType('double');
+  assert.strictEqual(bench.leftJawMesh.visible, false);
+  assert.strictEqual(bench.doubleSlitInsertMesh.visible, true, 'Double slit slide must be visible in double mode');
+
+  bench.setDiffractionType('circular');
+  assert.strictEqual(bench.doubleSlitInsertMesh.visible, false);
+  assert.strictEqual(bench.circularInsertMesh.visible, true, 'Circular aperture slide must be visible in circular mode');
+
+  bench.setDiffractionType('grating');
+  assert.strictEqual(bench.circularInsertMesh.visible, false);
+  assert.strictEqual(bench.gratingSlideMesh.visible, true, 'Grating slide must be visible in grating mode');
+
+  bench.setDiffractionType('single');
+  assert.strictEqual(bench.leftJawMesh.visible, true, 'Single slit knife edges must be visible in single mode');
+  assert.strictEqual(bench.rightJawMesh.visible, true);
+  assert.strictEqual(bench.slitLightMesh.visible, true, 'Slit light beam must be visible when laser is on in single mode');
+
+  // 5. 激光关闭时狭缝透光隐藏，但机械刀口狭缝依然真实可见
+  bench.setLaserPower(false);
+  assert.strictEqual(bench.slitLightMesh.visible, false, 'Slit light beam must be hidden when laser is off');
+  assert.strictEqual(bench.leftJawMesh.visible, true, 'Physical knife edge must remain visible even when laser is off');
+  assert.strictEqual(bench.rightJawMesh.visible, true);
+
+  bench.dispose();
+  console.log('✓ Test 17 passed: Visible slit aperture window, ground knife-edge blades & slit illumination verified\n');
+}
+
 console.log('========================================================');
-console.log('All Light Diffraction Tests Passed (15/15)!');
+console.log('All Light Diffraction Tests Passed (17/17)!');
 console.log('========================================================\n');
 
 

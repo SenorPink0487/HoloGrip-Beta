@@ -23,8 +23,8 @@ export default class OpticsDispersionExperiment extends BaseExperiment {
   private latestTelemetry: OpticalDispersionTelemetry | null = null;
 
   public init(context: ExperimentContext): void {
-    // 水平端正安放于全息实验桌近景交互区 (Y=0.063, Z=1.28)，正面 (+Z) 朝向操作者视线
-    this.rootGroup.position.set(0, 0.063, 1.28);
+    // 水平端正安放于全息实验桌近景交互区 (Y=0.0825 使减震脚垫稳固平贴桌面，Z=1.28)，正面 (+Z) 朝向操作者视线
+    this.rootGroup.position.set(0, 0.0825, 1.28);
     this.rootGroup.rotation.set(0, 0, 0);
 
     // 1. 实例化 3D 精密测角分光计与三棱镜色散实验仪器

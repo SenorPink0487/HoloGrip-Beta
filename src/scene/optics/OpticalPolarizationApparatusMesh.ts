@@ -458,18 +458,10 @@ export class OpticalPolarizationApparatusMesh {
     topPlate.position.set(0, this.railHeight + baseH + 0.002, 0);
     group.add(topPlate);
 
-    const lipGeo = createChamferedBlockGeometry(baseW, 0.009, 0.006, 0.0008);
-    const lipFront = new THREE.Mesh(lipGeo, titaniumSlateMat);
-    lipFront.position.set(0, this.railHeight + 0.004, baseD * 0.5 - 0.003);
-    const lipBack = new THREE.Mesh(lipGeo, titaniumSlateMat);
-    lipBack.position.set(0, this.railHeight + 0.004, -baseD * 0.5 + 0.003);
-    group.add(lipFront);
-    group.add(lipBack);
-
     // 正面香槟金游标对齐读数指针
     const indexLineGeo = new THREE.BoxGeometry(0.0022, 0.016, 0.0022);
     const indexLine = new THREE.Mesh(indexLineGeo, brassMat);
-    indexLine.position.set(0, this.railHeight + 0.004, baseD * 0.502);
+    indexLine.position.set(0, this.railHeight + 0.006, baseD * 0.502);
     group.add(indexLine);
 
     // 2. 中央立柱六角法兰与香槟金锁紧套筒

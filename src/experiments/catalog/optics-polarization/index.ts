@@ -23,8 +23,8 @@ export default class OpticsPolarizationExperiment extends BaseExperiment {
   private latestTelemetry: OpticalPolarizationTelemetry | null = null;
 
   public init(context: ExperimentContext): void {
-    // 水平端正安放于全息实验桌近景交互区 (Y=0.063, Z=1.28)，正面 (+Z) 朝向操作者视线
-    this.rootGroup.position.set(0, 0.063, 1.28);
+    // 水平端正安放于全息实验桌近景交互区 (Y=0.1365 使四角防震底脚稳固平贴桌面，彻底消除桌面穿模与Z-fighting闪烁，Z=1.28)，正面 (+Z) 朝向操作者视线
+    this.rootGroup.position.set(0, 0.1365, 1.28);
     this.rootGroup.rotation.set(0, 0, 0);
 
     // 1. 实例化 3D 偏振光学、圆偏振螺旋波、冰洲石双折射与光弹应力综合实验仪

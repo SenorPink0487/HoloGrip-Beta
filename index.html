@@ -36,6 +36,20 @@
       user-select: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
+
+    /* iPadOS / 移动端触控高灵敏极速响应：消除 300ms 点击延迟并赋能原生可点按语义 */
+    button, a, input, textarea, select, [role="button"],
+    .discipline-card, .experiment-card, .element-cell, .apple-pill-btn,
+    .vision-window-btn, .touch-elevate-btn, #touch-vision-launcher,
+    .category-chip, .pt-category-chip, .hall-seg-btn, .carnot-btn,
+    .apple-hero-btn, .apple-stepper-btn, .apple-circle-btn, .em-apple-btn,
+    .periodic-tab-btn, .beaker-tab-btn, .seg-btn, .mini-seg-btn,
+    .periodic-analysis-action-btn, .status-action-btn, .drawer-close-btn,
+    .topbar-btn, .topbar-icon-btn, .hud-interactive {
+      touch-action: manipulation;
+      cursor: pointer;
     }
 
     input:focus::placeholder,

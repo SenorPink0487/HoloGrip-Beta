@@ -22,8 +22,8 @@ export default class OpticsDoubleSlitExperiment extends BaseExperiment {
   private latestTelemetry: OpticalDoubleSlitTelemetry | null = null;
 
   public init(context: ExperimentContext): void {
-    // 将光学导轨水平正对操作者横放于实验桌面中央 (Y=0.063, Z=1.28)，平正无偏角，正对操作者视界 (+Z)
-    this.rootGroup.position.set(0, 0.063, 1.28);
+    // 将光学导轨水平正对操作者横放于实验桌面中央 (Y=0.1365 使底脚稳固平贴桌面，Z=1.28)，平正无偏角，正对操作者视界 (+Z)
+    this.rootGroup.position.set(0, 0.1365, 1.28);
     this.rootGroup.rotation.set(0, 0, 0);
 
     // 1. 实例化 3D 光学导轨与杨氏双缝干涉仪器

@@ -318,6 +318,19 @@ console.log('=== Starting Capacitor Charge & Discharge Analytical & Integration 
   assert.ok(bench.powerSwitchMesh, 'Power supply switch must exist');
   assert.ok(bench.scopeScreenMesh, 'Desk oscilloscope waveform screen mesh must exist on table');
   assert.ok(bench.scopeChassisMesh, 'Desk oscilloscope chassis mesh must exist');
+  assert.ok(bench.currentSensorGroup, 'Current sensor group must exist');
+
+  // Verify DIS sensor screen mesh and texture exists and is visible
+  let foundSensorScreen = false;
+  bench.currentSensorGroup.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.PlaneGeometry) {
+      const mat = child.material;
+      if (mat instanceof THREE.MeshBasicMaterial && mat.map instanceof THREE.CanvasTexture) {
+        foundSensorScreen = true;
+      }
+    }
+  });
+  assert.ok(foundSensorScreen, 'Current sensor digital display mesh with CanvasTexture must exist and be mounted');
 
   // Test switch position motion and oscilloscope waveform update
   bench.setSwitchPosition('charge', true);

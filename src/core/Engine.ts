@@ -627,16 +627,7 @@ export class Engine {
   }
 
   private isFreeCursorExperiment(id: string | null): boolean {
-    return (
-      id === 'math-stereometry' ||
-      id === 'mech-center-of-gravity' ||
-      id === 'mech-newton-third' ||
-      id === 'thermo-compression-ignition' ||
-      id === 'optics-dispersion' ||
-      id === 'optics-reflection-refraction' ||
-      id === 'optics-diffraction' ||
-      id === 'optics-double-slit'
-    );
+    return id === 'math-stereometry';
   }
 
   private initHUD(): void {
@@ -1376,7 +1367,7 @@ export class Engine {
     this.inputManager.player.onLockChange = (isLocked: boolean) => {
       const isDrawerOpen = this.hud?.drawer?.open ?? false;
       const isModalOpen = this.visionModal?.visible ?? false;
-      if (!this.labEntryActive && !this.isWhiteboardMode && !isModalOpen && !isDrawerOpen && this.currentExperimentId !== 'math-stereometry') {
+      if (!this.labEntryActive && !this.isWhiteboardMode && !isModalOpen && !isDrawerOpen && !this.isFreeCursorExperiment(this.currentExperimentId)) {
         this.crosshair.setVisible(true);
       } else {
         this.crosshair.setVisible(false);
@@ -1543,33 +1534,128 @@ export class Engine {
     }
   }
 
-  private getInteractiveBeakerAt(screenPos: THREE.Vector2): 'left' | 'right' | null {
-    this.raycaster.setFromCamera(screenPos, this.camera);
-    const ray = this.raycaster.ray;
+  public getScreenNDC(clientX: number, clientY: number): THREE.Vector2 {
+    const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
+    if (isPointerLocked) {
+      return this.centerScreen;
+    }
+    const canvas = this.renderer?.domElement;
+    const rect = canvas?.getBoundingClientRect();
+    if (rect && rect.width > 0 && rect.height > 0) {
+      return new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1
+      );
+    }
+    return new THREE.Vector2(
+      (clientX / window.innerWidth) * 2 - 1,
+      -(clientY / window.innerHeight) * 2 + 1
+    );
+  }
 
-    if (this.beakerLeft && this.beakerLeft.isInteractive()) {
-      _BEAKER_CENTER.copy(this.beakerLeft.group.position);
-      _BEAKER_CENTER.y += this.beakerLeft.beakerHeight * 0.5;
-      _BEAKER_SPHERE.center = _BEAKER_CENTER;
-      _BEAKER_SPHERE.radius = 0.25;
-      if (ray.intersectsSphere(_BEAKER_SPHERE)) {
-        const leftHits = this.raycaster.intersectObjects(this.beakerLeft.getInteractiveMeshes(), true);
-        if (leftHits.length > 0 && leftHits[0].distance < 8.0) {
-          return 'left';
+  /**
+   * 针对 iPad 及触控屏幕优化的高灵敏多点半径射线检测。
+   * 解决移动端/触控板手指接触面宽、点按中心易与细微 3D 部件微小偏移而导致“明明点了却没点到”的问题。
+   */
+  private raycastWithTouchRadius(
+    centerNDC: THREE.Vector2,
+    objects: THREE.Object3D[],
+    recursive = true,
+    clientX?: number,
+    clientY?: number,
+    isTouch = false,
+    radiusPx = 18
+  ): THREE.Intersection[] {
+    if (!this.camera) return [];
+
+    this.raycaster.setFromCamera(centerNDC, this.camera);
+    const directHits = this.raycaster.intersectObjects(objects, recursive);
+    if (directHits.length > 0) {
+      return directHits;
+    }
+
+    if (!isTouch || clientX === undefined || clientY === undefined) {
+      return [];
+    }
+
+    // 在触控点周围以不同角度进行 8 方向环形探测（半径 18px，覆盖人手手指接触面容差）
+    const sampleAngles = [0, Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.75, Math.PI, Math.PI * 1.25, Math.PI * 1.5, Math.PI * 1.75];
+    let bestHits: THREE.Intersection[] = [];
+    let minDistance = Infinity;
+
+    for (const angle of sampleAngles) {
+      const sx = clientX + Math.cos(angle) * radiusPx;
+      const sy = clientY + Math.sin(angle) * radiusPx;
+      const sampleNDC = this.getScreenNDC(sx, sy);
+      const subRay = new THREE.Raycaster();
+      subRay.setFromCamera(sampleNDC, this.camera);
+      const subHits = subRay.intersectObjects(objects, recursive);
+      if (subHits.length > 0) {
+        if (subHits[0].distance < minDistance) {
+          minDistance = subHits[0].distance;
+          bestHits = subHits;
         }
       }
     }
 
-    if (this.beakerRight && this.beakerRight.isInteractive()) {
-      _BEAKER_CENTER.copy(this.beakerRight.group.position);
-      _BEAKER_CENTER.y += this.beakerRight.beakerHeight * 0.5;
-      _BEAKER_SPHERE.center = _BEAKER_CENTER;
-      _BEAKER_SPHERE.radius = 0.25;
-      if (ray.intersectsSphere(_BEAKER_SPHERE)) {
-        const rightHits = this.raycaster.intersectObjects(this.beakerRight.getInteractiveMeshes(), true);
-        if (rightHits.length > 0 && rightHits[0].distance < 8.0) {
-          return 'right';
+    return bestHits;
+  }
+
+  private getInteractiveBeakerAt(
+    screenPos: THREE.Vector2,
+    clientX?: number,
+    clientY?: number,
+    isTouch = false
+  ): 'left' | 'right' | null {
+    if (!this.camera) return null;
+
+    const checkBeakers = (raycaster: THREE.Raycaster): 'left' | 'right' | null => {
+      const ray = raycaster.ray;
+
+      if (this.beakerLeft && this.beakerLeft.isInteractive()) {
+        _BEAKER_CENTER.copy(this.beakerLeft.group.position);
+        _BEAKER_CENTER.y += this.beakerLeft.beakerHeight * 0.5;
+        _BEAKER_SPHERE.center = _BEAKER_CENTER;
+        _BEAKER_SPHERE.radius = isTouch ? 0.38 : 0.25;
+        if (ray.intersectsSphere(_BEAKER_SPHERE)) {
+          const leftHits = raycaster.intersectObjects(this.beakerLeft.getInteractiveMeshes(), true);
+          if (leftHits.length > 0 && leftHits[0].distance < 8.0) {
+            return 'left';
+          }
         }
+      }
+
+      if (this.beakerRight && this.beakerRight.isInteractive()) {
+        _BEAKER_CENTER.copy(this.beakerRight.group.position);
+        _BEAKER_CENTER.y += this.beakerRight.beakerHeight * 0.5;
+        _BEAKER_SPHERE.center = _BEAKER_CENTER;
+        _BEAKER_SPHERE.radius = isTouch ? 0.38 : 0.25;
+        if (ray.intersectsSphere(_BEAKER_SPHERE)) {
+          const rightHits = raycaster.intersectObjects(this.beakerRight.getInteractiveMeshes(), true);
+          if (rightHits.length > 0 && rightHits[0].distance < 8.0) {
+            return 'right';
+          }
+        }
+      }
+
+      return null;
+    };
+
+    this.raycaster.setFromCamera(screenPos, this.camera);
+    const directHit = checkBeakers(this.raycaster);
+    if (directHit) return directHit;
+
+    if (isTouch && clientX !== undefined && clientY !== undefined) {
+      const radius = 18;
+      const sampleAngles = [0, Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.75, Math.PI, Math.PI * 1.25, Math.PI * 1.5, Math.PI * 1.75];
+      for (const angle of sampleAngles) {
+        const ox = clientX + Math.cos(angle) * radius;
+        const oy = clientY + Math.sin(angle) * radius;
+        const ndc = this.getScreenNDC(ox, oy);
+        const subRay = new THREE.Raycaster();
+        subRay.setFromCamera(ndc, this.camera);
+        const hit = checkBeakers(subRay);
+        if (hit) return hit;
       }
     }
 
@@ -1583,8 +1669,8 @@ export class Engine {
     if (beaker === 'left') return 'beaker-left';
     if (beaker === 'right') return 'beaker-right';
 
-    // 未挂载实验且烧杯隐藏/不可交互时，待机全息实验台支持交互
-    if (!this.currentExperimentId && (!this.beakerLeft || !this.beakerLeft.isInteractive())) {
+    // 未挂载实验时，全息实验台支持交互
+    if (!this.currentExperimentId) {
       if (this.holoTable && this.holoTable.isHologramVisible()) {
         const hits = this.raycaster.intersectObjects(this.holoTable.getInteractiveMeshes(), true);
         if (hits.length > 0 && hits[0].distance < 8.0) {
@@ -1655,14 +1741,14 @@ export class Engine {
       }
     });
 
-    // 左手长捏合：控制摄像机视角与观察朝向
+    // 左手长捏合：控制摄像机视角与观察朝向（在 60 FPS 渲染循环中通过阻尼平滑插值舒适追赶，消除 24Hz 阶跃卡顿，平滑舒适且无需前向预测）
     this.handGestureService.onCameraRotate((dx: number, dy: number) => {
       // 触控互斥：当移动设备上的虚拟摇杆正在被按压操作时，抑制手势视角旋转
       if (this.inputManager?.touch?.isJoystickActive()) {
         return;
       }
       if (this.inputManager?.player && !this.labEntryActive) {
-        this.inputManager.player.rotate(dx, dy, 0.0035);
+        this.inputManager.player.rotateSmooth(dx, dy, 0.0035);
       }
     });
 
@@ -1734,7 +1820,7 @@ export class Engine {
         }
       } else {
         if (this.inputManager?.player && !this.visionModal?.visible) {
-          this.inputManager.player.allowPointerLock = this.currentExperimentId !== 'math-stereometry';
+          this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
           this.inputManager.player.allowMouseRotation = true;
         }
       }
@@ -1806,21 +1892,25 @@ export class Engine {
       }
     });
 
-    // 3D 指针交互（单击选择试剂，长按拖拽倾倒）
+    // 3D 指针交互（单击选择试剂/操作器材，长按拖拽倾倒/调节）
     canvas.addEventListener('pointerdown', (e: PointerEvent) => {
       blurActiveInput(true);
       if (this.labEntryActive) return;
       if (this.visionModal && this.visionModal.visible) return;
 
       const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
-      const mouseNDC = isPointerLocked ? this.centerScreen : new THREE.Vector2(
-        (e.clientX / window.innerWidth) * 2 - 1,
-        -(e.clientY / window.innerHeight) * 2 + 1
-      );
+      const mouseNDC = this.getScreenNDC(e.clientX, e.clientY);
+      const isTouch = e.pointerType === 'touch' || ('ontouchstart' in window && (navigator.maxTouchPoints > 0 || (navigator as any).msMaxTouchPoints > 0));
 
-      const beakerHit = this.getInteractiveBeakerAt(mouseNDC);
+      const beakerHit = this.getInteractiveBeakerAt(mouseNDC, e.clientX, e.clientY, isTouch);
       if (beakerHit) {
         e.stopPropagation();
+        this.isExperimentInteracting = true;
+        this.inputManager.player.enabled = false;
+        if (!isPointerLocked) {
+          this.inputManager.player.allowPointerLock = false;
+        }
+
         const sourceId = beakerHit;
         const targetId = sourceId === 'left' ? 'right' : 'left';
         const sourceMesh = sourceId === 'left' ? this.beakerLeft : this.beakerRight;
@@ -1848,23 +1938,18 @@ export class Engine {
         return;
       }
 
-      // 若无活动实验或烧杯，点击全息实验台打开 VisionModal
-      if (!this.currentExperimentId && (!this.beakerLeft || !this.beakerLeft.isInteractive())) {
-        if (this.holoTable && this.holoTable.isHologramVisible()) {
-          this.raycaster.setFromCamera(mouseNDC, this.camera);
-          const tableHits = this.raycaster.intersectObjects(this.holoTable.getInteractiveMeshes(), true);
-          if (tableHits.length > 0 && tableHits[0].distance < 8.0) {
-            e.stopPropagation();
-            this.visionModal.open('disciplines');
-            return;
-          }
-        }
-      }
-
-      // 将 3D 交互事件转发至全息舞台上的活动实验
+      // 将 3D 交互事件转发至全息舞台上的活动实验（附带 iPad 触控宽容度探测）
       if (this.holoStage.activeExperiment?.onPointerDown) {
-        this.raycaster.setFromCamera(mouseNDC, this.camera);
-        const hits = this.raycaster.intersectObjects(this.holoStage.activeExperiment.rootGroup.children, true);
+        const hits = this.raycastWithTouchRadius(
+          mouseNDC,
+          this.holoStage.activeExperiment.rootGroup.children,
+          true,
+          e.clientX,
+          e.clientY,
+          isTouch,
+          18
+        );
+
         if (hits.length > 0) {
           for (const hit of hits) {
             const handled = this.holoStage.activeExperiment.onPointerDown(e, hit, this.currentContext);
@@ -1891,16 +1976,33 @@ export class Engine {
           }
         }
       }
+
+      // 点击全息实验台打开学科选择视窗（仅在无活动实验时触发）
+      if (!this.currentExperimentId) {
+        if (this.holoTable && this.holoTable.isHologramVisible()) {
+          const tableHits = this.raycastWithTouchRadius(
+            mouseNDC,
+            this.holoTable.getInteractiveMeshes(),
+            true,
+            e.clientX,
+            e.clientY,
+            isTouch,
+            18
+          );
+          if (tableHits.length > 0 && tableHits[0].distance < 8.0) {
+            e.stopPropagation();
+            this.visionModal.open('disciplines');
+            return;
+          }
+        }
+      }
     });
 
     window.addEventListener('pointermove', (e: PointerEvent) => {
       if (!this.lastPointerPos) {
         this.lastPointerPos = new THREE.Vector2();
       }
-      this.lastPointerPos.set(
-        (e.clientX / window.innerWidth) * 2 - 1,
-        -(e.clientY / window.innerHeight) * 2 + 1
-      );
+      this.lastPointerPos.copy(this.getScreenNDC(e.clientX, e.clientY));
 
       const now = performance.now();
       const shouldThrottleRaycast = (now - this.lastPointerRaycastTime) < 7.5;
@@ -1908,19 +2010,7 @@ export class Engine {
       if (
         !this.visionModal?.visible &&
         !shouldThrottleRaycast &&
-        (this.isExperimentInteracting ||
-          this.currentExperimentId === 'math-stereometry' ||
-          this.currentExperimentId === 'mech-galileo' ||
-          this.currentExperimentId === 'mech-free-fall' ||
-          this.currentExperimentId === 'mech-center-of-gravity' ||
-          this.currentExperimentId === 'mech-newton-third' ||
-          this.currentExperimentId === 'optics-diffraction' ||
-          this.currentExperimentId === 'optics-double-slit' ||
-          this.currentExperimentId === 'optics-reflection-refraction' ||
-          this.currentExperimentId === 'optics-dispersion' ||
-          this.currentExperimentId === 'optics-polarization' ||
-          this.currentExperimentId === 'em-capacitor-discharge' ||
-          this.currentExperimentId === 'thermo-compression-ignition') &&
+        (this.isExperimentInteracting || Boolean(this.holoStage.activeExperiment?.onPointerMove)) &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
         this.lastPointerRaycastTime = now;
@@ -1937,8 +2027,13 @@ export class Engine {
       const dist = Math.hypot(e.clientX - this.beakerDragState.downClientX, e.clientY - this.beakerDragState.downClientY);
       const elapsed = performance.now() - this.beakerDragState.downTime;
 
-      // 移动距离 > 8px 或按住 > 160ms 且移动 > 2px 时启动拖拽
-      if (!this.beakerDragState.isDragging && (dist > 8 || (elapsed > 160 && dist > 2))) {
+      const isTouchPointer = e.pointerType === 'touch' || ('ontouchstart' in window && (navigator.maxTouchPoints > 0 || (navigator as any).msMaxTouchPoints > 0));
+      const dragDistThreshold = isTouchPointer ? 16 : 8;
+      const dragElapsedThreshold = isTouchPointer ? 350 : 160;
+      const dragMinDist = isTouchPointer ? 10 : 2;
+
+      // 移动距离超出阈值，或长按并伴随明确移动时才启动拖拽
+      if (!this.beakerDragState.isDragging && (dist > dragDistThreshold || (elapsed > dragElapsedThreshold && dist > dragMinDist))) {
         this.beakerDragState.isDragging = true;
         this.crosshair?.setVisible(false);
         this.inputManager.player.enabled = false;
@@ -1990,15 +2085,54 @@ export class Engine {
         }
       }
 
+      if (this.beakerDragState) {
+        const state = this.beakerDragState;
+        this.beakerDragState = null;
+        this.isExperimentInteracting = false;
+        if (!this.labEntryActive) {
+          this.inputManager.player.enabled = true;
+        }
+        if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
+          this.crosshair.setVisible(true);
+        }
+
+        if (!state.isDragging) {
+          // 单击：打开被点击烧杯的元素周期表选择试剂
+          // “打开化学板块默认给左边的杯子选试剂，单击烧杯打开元素周期表页面自由选择”
+          this.activeBeakerId = state.sourceId;
+          this.visionModal.open('chemistry', state.sourceId);
+          return;
+        }
+
+        // 拖拽释放：复位源烧杯
+        state.sourceMesh.setTilt(0);
+        this.hidePourStream();
+        this.hidePourVolumeBadge();
+
+        // 若发生了液体转移，自动触发目标烧杯的成分分析视窗
+        // “视窗呈现：混合反应发生后，中央全息主视窗自动切换至该烧杯的成分分析面板进行大屏展示。”
+        if (state.lastPouredVolume > 0.01) {
+          this.activeBeakerId = state.targetId;
+          this.visionModal.open('beaker', state.targetId);
+        }
+      }
+    });
+
     window.addEventListener('pointercancel', (e: PointerEvent) => {
+      if (this.beakerDragState) {
+        this.beakerDragState.sourceMesh.setTilt(0);
+        this.hidePourStream();
+        this.hidePourVolumeBadge();
+        this.beakerDragState = null;
+      }
       if (this.isExperimentInteracting) {
         const exp = this.holoStage.activeExperiment as any;
         exp?.onPointerCancel?.(e);
         exp?.interactionManager?.onPointerCancel?.(e);
         this.isExperimentInteracting = false;
-        if (!this.labEntryActive) {
-          this.inputManager.player.enabled = true;
-        }
+      }
+      if (!this.labEntryActive) {
+        this.inputManager.player.enabled = true;
       }
     });
 
@@ -2085,38 +2219,6 @@ export class Engine {
       if (this.currentExperimentId === 'math-stereometry') {
         const exp = this.holoStage?.activeExperiment as any;
         exp?.onGestureEnd?.(e);
-      }
-    });
-
-      if (!this.beakerDragState) return;
-
-      const state = this.beakerDragState;
-      this.beakerDragState = null;
-      if (!this.labEntryActive) {
-        this.inputManager.player.enabled = true;
-      }
-      if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
-        this.crosshair.setVisible(true);
-      }
-
-      if (!state.isDragging) {
-        // 单击：打开被点击烧杯的元素周期表选择试剂
-        // “打开化学板块默认给左边的杯子选试剂，单击烧杯打开元素周期表页面自由选择”
-        this.activeBeakerId = state.sourceId;
-        this.visionModal.open('chemistry', state.sourceId);
-        return;
-      }
-
-      // 拖拽释放：复位源烧杯
-      state.sourceMesh.setTilt(0);
-      this.hidePourStream();
-      this.hidePourVolumeBadge();
-
-      // 若发生了液体转移，自动触发目标烧杯的成分分析视窗
-      // “视窗呈现：混合反应发生后，中央全息主视窗自动切换至该烧杯的成分分析面板进行大屏展示。”
-      if (state.lastPouredVolume > 0.01) {
-        this.activeBeakerId = state.targetId;
-        this.visionModal.open('beaker', state.targetId);
       }
     });
   }
@@ -2318,6 +2420,7 @@ export class Engine {
     player.pitch = pose.pitch;
     player.eyeHeight = pose.y;
     player.velocity.set(0, 0, 0);
+    player.syncTargetRotation();
     player.updateCameraRotation();
   }
 
