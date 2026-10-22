@@ -1,0 +1,40 @@
+name: Bug 报告 / Bug report
+description: 报告实验、渲染、手势或后端中的问题
+labels: [bug]
+body:
+  - type: input
+    id: experiment
+    attributes:
+      label: 涉及的实验或模块
+      placeholder: 例如：光的衍射 / 手势追踪 / 班级白板
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: "1. 打开...\n2. 拖动...\n3. 看到..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为与实际行为
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 运行平台
+      options: [浏览器, 桌面端 (Tauri), iPad]
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 系统与浏览器版本
+      placeholder: 例如：macOS 26 / Chrome 140
+  - type: textarea
+    id: media
+    attributes:
+      label: 截图、录屏或控制台日志

@@ -3,8 +3,8 @@ name = "virtuallab"
 version = "0.1.0"
 description = "3D Virtual Laboratory - Tauri 2 Core"
 authors = ["VirtualLab Team"]
-license = ""
-repository = ""
+license = "AGPL-3.0-only"
+repository = "https://github.com/SenorPink0487/HoloGrip-Beta"
 edition = "2021"
 rust-version = "1.77.2"
 

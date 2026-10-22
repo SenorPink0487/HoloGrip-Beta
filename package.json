@@ -1,8 +1,28 @@
 {
-  "name": "v03",
+  "name": "hologrip",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Open-source, gesture-driven 3D holographic virtual laboratory for STEM classrooms",
+  "license": "AGPL-3.0-only",
+  "author": "SenorPink0487",
+  "homepage": "https://hologrip.cn",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SenorPink0487/HoloGrip-Beta.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SenorPink0487/HoloGrip-Beta/issues"
+  },
+  "keywords": [
+    "virtual-lab",
+    "physics-simulation",
+    "education",
+    "threejs",
+    "hand-tracking",
+    "mediapipe",
+    "tauri",
+    "stem"
+  ],
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
