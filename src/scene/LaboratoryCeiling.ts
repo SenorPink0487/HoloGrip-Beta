@@ -20,28 +20,69 @@ export const LAB_CEILING = {
 
 export function createCeilingMaterials(): Record<string, THREE.Material> {
   return {
-    // Constant indirect floor bounce keeps down-facing panels readable without extra live lights.
-    ceilingWhite: new THREE.MeshStandardMaterial({ color: 0xe2e1de, emissive: 0xe2dfd9, emissiveIntensity: 0.34, roughness: 0.48, metalness: 0.12 }),
-    ceilingTrim: new THREE.MeshStandardMaterial({ color: 0xe3e1de, emissive: 0xe2ded7, emissiveIntensity: 0.40, roughness: 0.34, metalness: 0.42 }),
-    // Low-glare satin keeps the silver floor consistent across all five viewing directions.
+    // 航天级冷调太空舱天花板板面体系：与参考图墙面完全呼应的纯净冰灰科技配色
+    ceilingWhite: new THREE.MeshStandardMaterial({
+      color: 0xc8d4e2,
+      emissive: 0x182636,
+      emissiveIntensity: 0.28,
+      roughness: 0.38,
+      metalness: 0.20,
+      envMapIntensity: 0.90,
+    }),
+    // 镜面抛光 316L 不锈钢 / 液态铬卷边精密压条
+    ceilingTrim: new THREE.MeshStandardMaterial({
+      color: 0xf1f6fb,
+      emissive: 0x223448,
+      emissiveIntensity: 0.22,
+      roughness: 0.14,
+      metalness: 0.95,
+      envMapIntensity: 1.35,
+    }),
+    // 五向径向银灰结构肋：参考图风格的阳极氧化冷银金属肋与精密倒角光泽
     ceilingBridgeFace: new THREE.MeshStandardMaterial({
-      color: 0xd3d2cf, emissive: 0xd3d1cd, emissiveIntensity: 0.41,
-      roughness: 0.68, metalness: 0.12, envMapIntensity: 0.18,
+      color: 0xd8e4ef,
+      emissive: 0x1a2c40,
+      emissiveIntensity: 0.24,
+      roughness: 0.18,
+      metalness: 0.90,
+      envMapIntensity: 1.20,
     }),
-    // Groove returns stay shadowed even when they face the camera fill light.
+    // 阶梯阴影壁面与暗槽：深邃太空暗影，强化精密机械卡槽明暗对比
     ceilingRecessWall: new THREE.MeshStandardMaterial({
-      color: 0xa5a4a1, emissive: 0x9b9995, emissiveIntensity: 0.15,
-      roughness: 0.72, metalness: 0.08, envMapIntensity: 0.10,
+      color: 0x182534,
+      emissive: 0x0d1622,
+      emissiveIntensity: 0.20,
+      roughness: 0.48,
+      metalness: 0.50,
+      envMapIntensity: 0.45,
     }),
-    ceilingGroove: new THREE.MeshBasicMaterial({ color: 0x767574 }),
+    ceilingGroove: new THREE.MeshBasicMaterial({ color: 0x121c28 }),
+    // 五分区同心主漫射光带：参考图顶部的纯净高亮冷白/冰白科研漫射光
     quadrantDiffuser: new THREE.MeshStandardMaterial({
-      color: 0xfffcf8, emissive: 0xfff8ee, emissiveIntensity: 2.5,
-      roughness: 0.38, metalness: 0,
+      color: 0xf4faff,
+      emissive: 0xe4f4ff,
+      emissiveIntensity: 3.0,
+      roughness: 0.18,
+      metalness: 0.0,
     }),
-    haloRingLight: new THREE.MeshBasicMaterial({ color: 0xfff7ed, toneMapped: false }),
-    mullionDark: new THREE.MeshStandardMaterial({ color: 0xb6b4b0, emissive: 0xc6c2bc, emissiveIntensity: 0.24, roughness: 0.34, metalness: 0.5 }),
-    mullionGroove: new THREE.MeshStandardMaterial({ color: 0x858481, roughness: 0.44, metalness: 0.35 }),
-    downlightLens: new THREE.MeshBasicMaterial({ color: 0xfffaf4, toneMapped: false }),
+    // 外围天际线极薄同心连续光环：参考图天花板边沿的纯净冷白光带
+    haloRingLight: new THREE.MeshBasicMaterial({ color: 0xf2faff, toneMapped: false }),
+    // 结构边缘精密嵌条与嵌槽
+    mullionDark: new THREE.MeshStandardMaterial({
+      color: 0x223246,
+      emissive: 0x121e2c,
+      emissiveIntensity: 0.20,
+      roughness: 0.25,
+      metalness: 0.80,
+      envMapIntensity: 0.90,
+    }),
+    mullionGroove: new THREE.MeshStandardMaterial({
+      color: 0x152230,
+      roughness: 0.38,
+      metalness: 0.60,
+    }),
+    // 筒灯防眩光与精密冷光出光镜片
+    downlightLens: new THREE.MeshBasicMaterial({ color: 0xf0f8ff, toneMapped: false }),
   };
 }
 
@@ -193,8 +234,58 @@ export function createLaboratoryCeiling(materials: Record<string, THREE.Material
     [c.lightInnerRadius - 0.005, 4.380],
   ];
   ceiling.add(turned(lightWellProfile, groove, 'annular-light-well'));
-  ceiling.add(turned(ringProfile(c.lightInnerRadius - 0.012, c.lightInnerRadius + 0.014, 4.273, 0.111, 0.005), trim, 'light-inner-rolled-trim'));
-  ceiling.add(turned(ringProfile(5.891, 5.919, 4.277 - c.diffuserDrop, 0.107, 0.005), trim, 'light-outer-rolled-trim'));
+
+  // 保持天花板分隔区域竖长条（radial bridge）中间连续不断开：
+  // 光环内侧与外侧卷边饰条均采用与漫射片严格对齐的分区结构（sectorized），
+  // 在 5 道径向银灰分隔肋处完整避让，绝不横向截断竖长条。
+  const innerTrimSectors: THREE.BufferGeometry[] = [];
+  const outerTrimSectors: THREE.BufferGeometry[] = [];
+  const bridgeGap = c.bridgeWidth / 2 + 0.018;
+
+  for (let i = 0; i < c.bridgeAngles.length; i++) {
+    const start = c.bridgeAngles[i];
+    const end = c.bridgeAngles[(i + 1) % c.bridgeAngles.length] + (i === c.bridgeAngles.length - 1 ? TAU : 0);
+
+    // 1. 光环内侧卷边饰条扇区（避让竖长条，在分隔肋边缘利落收口）
+    const innerTrimGeo = annularSector(
+      c.lightInnerRadius - 0.012,
+      c.lightInnerRadius + 0.014,
+      start,
+      end,
+      bridgeGap,
+      4.273,
+      0.111
+    );
+    smoothSurfaceNormals(innerTrimGeo);
+    innerTrimSectors.push(innerTrimGeo);
+
+    // 2. 光环外侧卷边饰条扇区（避让竖长条）
+    const outerTrimGeo = annularSector(
+      5.891,
+      5.919,
+      start,
+      end,
+      bridgeGap,
+      4.277 - c.diffuserDrop,
+      0.107
+    );
+    smoothSurfaceNormals(outerTrimGeo);
+    outerTrimSectors.push(outerTrimGeo);
+  }
+
+  const mergedInnerTrim = mergeGeometries(innerTrimSectors)!;
+  innerTrimSectors.forEach(g => g.dispose());
+  const innerTrimMesh = new THREE.Mesh(mergedInnerTrim, trim);
+  innerTrimMesh.name = 'light-inner-rolled-trim';
+  innerTrimMesh.receiveShadow = true;
+  ceiling.add(innerTrimMesh);
+
+  const mergedOuterTrim = mergeGeometries(outerTrimSectors)!;
+  outerTrimSectors.forEach(g => g.dispose());
+  const outerTrimMesh = new THREE.Mesh(mergedOuterTrim, trim);
+  outerTrimMesh.name = 'light-outer-rolled-trim';
+  outerTrimMesh.receiveShadow = true;
+  ceiling.add(outerTrimMesh);
 
   const diffusers = new THREE.Group();
   diffusers.name = 'main-quadrant-diffusers';

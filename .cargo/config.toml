@@ -1,2 +1,2 @@
-[env]
-DEVELOPER_DIR = "/Library/Developer/CommandLineTools"
+# Use the developer directory selected by xcode-select (or the caller's
+# DEVELOPER_DIR). CommandLineTools does not contain the iOS SDKs.

@@ -130,6 +130,16 @@ npm run build:app    # 生产构建 → dist/
 npx tauri build      # 桌面应用
 ```
 
+### iPad / iOS 原生构建
+
+使用完整 Xcode，并通过 `xcode-select` 选择其开发目录；不要将 `DEVELOPER_DIR` 指向独立的 CommandLineTools。首次构建先运行 `npm run tauri -- ios init`，然后运行：
+
+```sh
+npm run tauri -- ios build --debug --target aarch64-sim --no-sign
+```
+
+Apple Vision 桥接源码位于 `src-tauri/native_ios/`，由 Cargo 编译为 Swift 静态库并链接。不要将这些 Swift 文件另行复制到生成的 Xcode 应用目标中。如果旧工程的 `src-tauri/gen/apple/Sources/virtuallab/` 下已有 `AppleVisionHandManager.swift` 和 `AppleVisionPlugin.swift` 副本，请移除这两个副本及其 Compile Sources 引用，保留 `native_ios/` 中的源码。
+
 ## 目录结构
 
 ```text

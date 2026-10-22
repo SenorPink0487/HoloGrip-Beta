@@ -17,15 +17,15 @@ console.log('=== Starting Apple Vision Hybrid Architecture Tests ===\n');
 // Test 1: Native Swift & Rust Native Files Integrity
 {
   console.log('Test 1: Native Swift & Rust Native Files Integrity');
-  const swiftManagerPath = path.join(rootDir, 'src-tauri/gen/apple/Sources/virtuallab/AppleVisionHandManager.swift');
-  const swiftPluginPath = path.join(rootDir, 'src-tauri/gen/apple/Sources/virtuallab/AppleVisionPlugin.swift');
+  const swiftManagerPath = path.join(rootDir, 'src-tauri/native_ios/AppleVisionHandManager.swift');
+  const swiftPluginPath = path.join(rootDir, 'src-tauri/native_ios/AppleVisionPlugin.swift');
   const rustBridgePath = path.join(rootDir, 'src-tauri/src/apple_vision.rs');
-  const projectYmlPath = path.join(rootDir, 'src-tauri/gen/apple/project.yml');
+  const packagePath = path.join(rootDir, 'src-tauri/native_ios/Package.swift');
 
   assert(fs.existsSync(swiftManagerPath), 'AppleVisionHandManager.swift must exist');
   assert(fs.existsSync(swiftPluginPath), 'AppleVisionPlugin.swift must exist');
   assert(fs.existsSync(rustBridgePath), 'apple_vision.rs must exist');
-  assert(fs.existsSync(projectYmlPath), 'project.yml must exist');
+  assert(fs.existsSync(packagePath), 'Native Swift package must exist in the repository');
 
   const swiftCode = fs.readFileSync(swiftManagerPath, 'utf-8');
   assert(swiftCode.includes('VNDetectHumanHandPoseRequest'), 'Must use VNDetectHumanHandPoseRequest');
@@ -34,16 +34,16 @@ console.log('=== Starting Apple Vision Hybrid Architecture Tests ===\n');
   assert(swiftCode.includes('window.__hologrip_onAppleVisionFrame'), 'Must dispatch via direct JS evaluateJavaScript');
   assert(swiftCode.includes('thumbTip') && swiftCode.includes('indexTip'), 'Must extract thumb and index joints');
 
-  const projectYml = fs.readFileSync(projectYmlPath, 'utf-8');
-  assert(projectYml.includes('AVFoundation.framework'), 'project.yml must link AVFoundation.framework');
-  assert(projectYml.includes('Vision.framework'), 'project.yml must link Vision.framework');
+  const nativePackage = fs.readFileSync(packagePath, 'utf-8');
+  assert(nativePackage.includes('.linkedFramework("AVFoundation")'), 'Native package must link AVFoundation');
+  assert(nativePackage.includes('.linkedFramework("Vision")'), 'Native package must link Vision');
 
   const rustCode = fs.readFileSync(rustBridgePath, 'utf-8');
   assert(rustCode.includes('apple_vision_is_supported'), 'Rust module must export apple_vision_is_supported command');
   assert(rustCode.includes('apple_vision_start'), 'Rust module must export apple_vision_start command');
   assert(rustCode.includes('apple_vision_stop'), 'Rust module must export apple_vision_stop command');
 
-  console.log('✓ Test 1 passed: Native Swift, Rust FFI & Xcode project files verified\n');
+  console.log('✓ Test 1 passed: Native Swift package and Rust FFI files verified\n');
 }
 
 // Test 2: AppleVisionTracker Environment Detection & Mock Support

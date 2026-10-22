@@ -98,6 +98,250 @@ export class TextureGenerator {
   }
 
   /**
+   * 生成 Apple Park 360° 全景风光高分辨率程序化画布贴图
+   * 包含：加州纯净湛蓝天空、温暖加州阳光光晕、远景圣克鲁斯山脉轮廓、
+   * 库比蒂诺经典起伏绿丘、百年加州活橡树群与苹果公园果园群落
+   */
+  static createAppleParkPanoramaTexture(): THREE.CanvasTexture {
+    if (typeof document === 'undefined') return new THREE.CanvasTexture({} as any);
+    const width = 2048;
+    const height = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+
+    // 1. 加州纯净高调天空渐变 (Zenith Deep Blue -> Horizon Warm Atmospheric Haze)
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, height * 0.55);
+    skyGrad.addColorStop(0, '#2d6ab0');
+    skyGrad.addColorStop(0.35, '#5c98d4');
+    skyGrad.addColorStop(0.70, '#9ec5e8');
+    skyGrad.addColorStop(0.92, '#eef4fb');
+    skyGrad.addColorStop(1.0, '#fff4e4');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, width, height * 0.55);
+
+    // 2. 温暖加州阳光光晕 (Sun Disc & Solar Bloom at x ≈ 720, y ≈ 260)
+    const sunX = width * 0.35;
+    const sunY = height * 0.26;
+    const sunGlow = ctx.createRadialGradient(sunX, sunY, 15, sunX, sunY, 380);
+    sunGlow.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+    sunGlow.addColorStop(0.12, 'rgba(255, 250, 235, 0.85)');
+    sunGlow.addColorStop(0.35, 'rgba(255, 235, 190, 0.40)');
+    sunGlow.addColorStop(0.65, 'rgba(255, 218, 160, 0.15)');
+    sunGlow.addColorStop(1.0, 'rgba(255, 200, 130, 0.0)');
+    ctx.fillStyle = sunGlow;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, 380, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. 高空微风卷云 (Subtle Cirrus Clouds)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    for (let c = 0; c < 8; c++) {
+      const cx = (c * 280 + 70) % width;
+      const cy = 90 + (c * 37) % 140;
+      ctx.beginPath();
+      if (typeof (ctx as any).ellipse === 'function') {
+        (ctx as any).ellipse(cx, cy, 140, 14, -0.05, 0, Math.PI * 2);
+      } else {
+        ctx.arc(cx, cy, 35, 0, Math.PI * 2);
+      }
+      ctx.fill();
+    }
+
+    // 4. 远景圣克鲁斯山峦轮廓 (Cupertino Foothills with Blue Atmospheric Depth)
+    ctx.fillStyle = '#7a9f93';
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.48);
+    for (let x = 0; x <= width; x += 16) {
+      const hillY = height * 0.47 + Math.sin(x * 0.004) * 32 + Math.cos(x * 0.012) * 14;
+      ctx.lineTo(x, hillY);
+    }
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
+    (ctx as any).closePath?.();
+    ctx.fill();
+
+    // 5. 中景起伏连绵的苹果公园草坪丘陵 (Apple Park Iconic Rolling Green Knolls)
+    const midGrad = ctx.createLinearGradient(0, height * 0.46, 0, height * 0.75);
+    midGrad.addColorStop(0, '#588a45');
+    midGrad.addColorStop(0.5, '#72a955');
+    midGrad.addColorStop(1.0, '#4a7d3b');
+    ctx.fillStyle = midGrad;
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.52);
+    for (let x = 0; x <= width; x += 16) {
+      const knollY = height * 0.52 + Math.sin(x * 0.007 + 1.2) * 48 + Math.cos(x * 0.018) * 22;
+      ctx.lineTo(x, knollY);
+    }
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
+    (ctx as any).closePath?.();
+    ctx.fill();
+
+    // 6. 前景草坪 (Forefront Vibrant California Turf)
+    const foreGrad = ctx.createLinearGradient(0, height * 0.65, 0, height);
+    foreGrad.addColorStop(0, '#6ea452');
+    foreGrad.addColorStop(0.4, '#84bc62');
+    foreGrad.addColorStop(1.0, '#5c9244');
+    ctx.fillStyle = foreGrad;
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.68);
+    for (let x = 0; x <= width; x += 16) {
+      const lawnY = height * 0.68 + Math.sin(x * 0.005 + 2.5) * 30 + Math.sin(x * 0.015) * 15;
+      ctx.lineTo(x, lawnY);
+    }
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
+    (ctx as any).closePath?.();
+    ctx.fill();
+
+    // 7. 苹果公园标志性树群（加州活橡树群 California Live Oaks 与传统杏树/果园）
+    const trees = [
+      { x: 120, y: height * 0.62, scale: 1.1, type: 'oak' },
+      { x: 260, y: height * 0.58, scale: 0.85, type: 'orchard' },
+      { x: 440, y: height * 0.66, scale: 1.25, type: 'oak' },
+      { x: 620, y: height * 0.56, scale: 0.75, type: 'orchard' },
+      { x: 820, y: height * 0.64, scale: 1.15, type: 'oak' },
+      { x: 1040, y: height * 0.68, scale: 1.3, type: 'oak' },
+      { x: 1220, y: height * 0.59, scale: 0.8, type: 'orchard' },
+      { x: 1420, y: height * 0.65, scale: 1.2, type: 'oak' },
+      { x: 1620, y: height * 0.57, scale: 0.9, type: 'oak' },
+      { x: 1800, y: height * 0.67, scale: 1.1, type: 'orchard' },
+      { x: 1980, y: height * 0.61, scale: 1.05, type: 'oak' },
+    ];
+
+    for (const tree of trees) {
+      const { x, y, scale, type } = tree;
+      ctx.fillStyle = 'rgba(25, 45, 20, 0.28)';
+      ctx.beginPath();
+      if (typeof (ctx as any).ellipse === 'function') {
+        (ctx as any).ellipse(x + 15 * scale, y + 20 * scale, 65 * scale, 18 * scale, 0.05, 0, Math.PI * 2);
+      } else {
+        ctx.arc(x + 15 * scale, y + 20 * scale, 30 * scale, 0, Math.PI * 2);
+      }
+      ctx.fill();
+
+      ctx.fillStyle = '#42372d';
+      ctx.beginPath();
+      ctx.moveTo(x - 8 * scale, y + 20 * scale);
+      ctx.lineTo(x - 4 * scale, y - 25 * scale);
+      ctx.lineTo(x + 6 * scale, y - 25 * scale);
+      ctx.lineTo(x + 10 * scale, y + 20 * scale);
+      ctx.fill();
+
+      if (type === 'oak') {
+        const foliage = [
+          { dx: 0, dy: -45, r: 42, color: '#254421' },
+          { dx: -32, dy: -32, r: 35, color: '#2e5129' },
+          { dx: 34, dy: -35, r: 38, color: '#386332' },
+          { dx: -18, dy: -60, r: 36, color: '#45793e' },
+          { dx: 18, dy: -58, r: 34, color: '#56914d' },
+          { dx: 5, dy: -42, r: 28, color: '#6fa864' },
+        ];
+        for (const f of foliage) {
+          ctx.fillStyle = f.color;
+          ctx.beginPath();
+          ctx.arc(x + f.dx * scale, y + f.dy * scale, f.r * scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        const foliage = [
+          { dx: 0, dy: -38, r: 32, color: '#3d6132' },
+          { dx: -24, dy: -28, r: 26, color: '#4d783e' },
+          { dx: 25, dy: -30, r: 28, color: '#629352' },
+          { dx: 0, dy: -48, r: 24, color: '#7aa869' },
+          { dx: -8, dy: -38, r: 18, color: '#fbe9e5' },
+          { dx: 12, dy: -42, r: 16, color: '#fff1ec' },
+        ];
+        for (const f of foliage) {
+          ctx.fillStyle = f.color;
+          ctx.beginPath();
+          ctx.arc(x + f.dx * scale, y + f.dy * scale, f.r * scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.generateMipmaps = true;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /**
+   * 生成 Apple 旗舰建筑标志性的欧洲白橡木（European White Oak）温暖天然木纹材质贴图
+   */
+  static createEuropeanOakTexture(): THREE.CanvasTexture {
+    if (typeof document === 'undefined') return new THREE.CanvasTexture({} as any);
+    const size = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.fillStyle = '#d5a777';
+    ctx.fillRect(0, 0, size, size);
+
+    let seed = 421976;
+    const rand = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+
+    for (let x = 0; x < size; x += 4) {
+      const wave = Math.sin(x * 0.02) * 0.5 + Math.sin(x * 0.08) * 0.3;
+      const shade = 0.5 + wave * 0.3 + (rand() - 0.5) * 0.15;
+      const r = Math.round(200 + shade * 24);
+      const g = Math.round(155 + shade * 22);
+      const b = Math.round(108 + shade * 18);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(x, 0, 4, size);
+    }
+
+    for (let i = 0; i < 4000; i++) {
+      const px = rand() * size;
+      const py = rand() * size;
+      const len = rand() * 18 + 6;
+      ctx.fillStyle = rand() > 0.4 ? 'rgba(150, 105, 62, 0.18)' : 'rgba(255, 235, 205, 0.15)';
+      ctx.fillRect(px, py, 1.2, len);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  static createEuropeanOakRoughnessMap(): THREE.CanvasTexture {
+    if (typeof document === 'undefined') return new THREE.CanvasTexture({} as any);
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.fillStyle = '#949494';
+    ctx.fillRect(0, 0, size, size);
+
+    for (let x = 0; x < size; x += 2) {
+      const v = Math.round(140 + Math.sin(x * 0.1) * 12);
+      ctx.fillStyle = `rgb(${v},${v},${v})`;
+      ctx.fillRect(x, 0, 2, size);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
+  }
+
+  /**
    * 生成地面粗糙度贴图（呈现微水泥缎面哑光质感）
    */
   static createFloorRoughnessMap(prebaked?: Uint8ClampedArray): THREE.CanvasTexture {

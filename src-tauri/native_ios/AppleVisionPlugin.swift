@@ -2,7 +2,6 @@ import Foundation
 import UIKit
 import WebKit
 
-#if canImport(Tauri)
 import Tauri
 
 @objc(AppleVisionPlugin)
@@ -47,4 +46,3 @@ func initPluginAppleVision() -> UnsafeMutableRawPointer {
     let plugin = AppleVisionPlugin()
     return Unmanaged.passRetained(plugin).toOpaque()
 }
-#endif

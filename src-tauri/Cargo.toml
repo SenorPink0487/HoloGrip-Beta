@@ -16,6 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+tauri-utils = { version = "2", features = ["build-2"] }
 
 [dependencies]
 serde_json = "1.0"
@@ -24,6 +25,9 @@ log = "0.4"
 tauri = { version = "2", features = [] }
 tauri-plugin-log = "2"
 rayon = "1.10"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
 
 [patch.crates-io]
 swift-rs = { git = "https://github.com/michakfromparis/swift-rs", rev = "3788d3d2bae8e7a863b3e281a59477438e12c632" }

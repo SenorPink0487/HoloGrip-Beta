@@ -283,10 +283,10 @@ export class Engine {
   private initImageBasedLighting(): void {
     const envScene = new THREE.Scene();
 
-    // 1. 周围圆柱形白色室体外壳
+    // 1. 周围圆柱形室体外壳（参考图纯净冷灰反射基底）
     const shell = new THREE.Mesh(
       new THREE.CylinderGeometry(8.2, 8.2, 5.0, 32, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xd9e2e8, side: THREE.BackSide }),
+      new THREE.MeshBasicMaterial({ color: 0xc4d1de, side: THREE.BackSide }),
     );
     shell.position.y = 2.2;
     envScene.add(shell);
@@ -307,7 +307,7 @@ export class Engine {
     // 6. 中央全息台发光圆盘
     const tableDisc = new THREE.Mesh(
       new THREE.CircleGeometry(1.2, 32),
-      new THREE.MeshBasicMaterial({ color: 0xf8f4ef, side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({ color: 0xf0f6fc, side: THREE.DoubleSide }),
     );
     tableDisc.position.y = 1.0;
     tableDisc.rotation.x = -Math.PI / 2;

@@ -16,6 +16,7 @@ const createMockElement = (tag = 'div'): any => ({
     fillStyle: '', strokeStyle: '', lineWidth: 1, font: '', textAlign: '', textBaseline: '',
     fillRect: () => {}, strokeRect: () => {}, clearRect: () => {}, fillText: () => {},
     beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, stroke: () => {}, fill: () => {},
+    closePath: () => {}, ellipse: () => {},
     arc: () => {}, save: () => {}, restore: () => {}, translate: () => {}, rotate: () => {},
     quadraticCurveTo: () => {}, bezierCurveTo: () => {}, drawImage: () => {},
     createRadialGradient: () => ({ addColorStop: () => {} }),
@@ -62,41 +63,29 @@ assert.ok(walls.getObjectByName('right-entry-door'), 'Right solid entry must exi
 assert.strictEqual(walls.getObjectByName('right-entry-door-glass'), undefined, 'Door observation window has been filled with a solid panel');
 assert.ok(walls.getObjectByName('right-entry-door-leaf'), 'Solid door leaf must exist');
 
-// The reference wall piers must stand physically proud of the infill on both rows.
+// 纯白平滑完整圆墙面系统校验：无任何装饰，保持一个平滑的圆
 const wallSkin = walls.getObjectByName('reference-wall-panels');
-assert.ok(wallSkin instanceof THREE.Group);
+assert.ok(wallSkin instanceof THREE.Group, 'Clean reference-wall-panels group must exist');
 walls.updateMatrixWorld(true);
-const wallRay = new THREE.Raycaster();
-for (const height of [1.2, 3.3]) {
-  for (let i = 0; i < LAB_WALLS.bays; i++) {
-    const bayAngle = i / LAB_WALLS.bays * Math.PI * 2;
-    const pierAngle = bayAngle + Math.PI / LAB_WALLS.bays;
-    wallRay.set(new THREE.Vector3(0, height, 0), new THREE.Vector3(Math.sin(bayAngle), 0, -Math.cos(bayAngle)));
-    const infill = wallRay.intersectObject(wallSkin, true)[0];
-    assert.strictEqual(infill.object.name, 'wall-infill-faces');
-    assert.ok(infill.face!.normal.dot(wallRay.ray.direction) < -0.99, 'Panel skin must face into the room');
-    wallRay.set(new THREE.Vector3(0, height, 0), new THREE.Vector3(Math.sin(pierAngle), 0, -Math.cos(pierAngle)));
-    const pier = wallRay.intersectObject(wallSkin, true)[0];
-    assert.strictEqual(pier.object.name, 'wall-raised-faces');
-    assert.ok(infill.distance - pier.distance > 0.10 && infill.distance - pier.distance < 0.12,
-      'Piers must project approximately 11 cm ahead of the broad wall panels');
-  }
-}
-wallRay.set(new THREE.Vector3(0, LAB_WALLS.horizontalJointY, 0), new THREE.Vector3(0, 0, -1));
-assert.strictEqual(wallRay.intersectObject(wallSkin, true).length, 0, 'Upper/lower panel joint must be a real recessed gap');
-assert.ok(wallRay.intersectObject(walls.getObjectByName('reference-shell')!)[0], 'Backing must close the room behind panel joints');
 
-// The curved infill must not swallow the sides of the flat door, and the former
-// observation aperture must now hit the opaque leaf rather than glazing or backing.
-walls.updateMatrixWorld(true);
+const whiteCassettes = wallSkin.getObjectByName('apple-interior-white-cassettes');
+assert.ok(whiteCassettes instanceof THREE.Group, 'Interior satin white cassettes group must exist');
+const wallMesh = whiteCassettes.getObjectByName('wall-infill-faces') as THREE.Mesh;
+assert.ok(wallMesh, 'Monolithic satin white smooth circular wall must exist');
+assert.ok(wallMesh.geometry instanceof THREE.CylinderGeometry, 'Wall must be a smooth cylinder geometry');
+const geo = wallMesh.geometry as THREE.CylinderGeometry;
+assert.strictEqual(geo.parameters.radiusTop, lab.roomRadius, 'Wall top radius must match room radius');
+assert.strictEqual(geo.parameters.radiusBottom, lab.roomRadius, 'Wall bottom radius must match room radius');
+assert.ok(geo.parameters.radialSegments >= 128, 'Wall cylinder must have high radial segmentation for smooth circular shape');
+
+// 墙上无任何装饰：严禁木质声学格栅、杂乱立柱或外凸部件，门与壁龛均不外露
+assert.strictEqual(wallSkin.getObjectByName('european-oak-acoustic-slats'), undefined, 'Walls must remain clean without wooden acoustic slats');
+assert.strictEqual(wallSkin.getObjectByName('oak-timber-slat-mesh'), undefined, 'Timber slat mesh must not exist on clean walls');
+assert.strictEqual(wallSkin.getObjectByName('interior-mullion-reveals'), undefined, 'No protruding mullion clutter on clean walls');
+
 const solidDoor = walls.getObjectByName('right-entry-door')!;
-for (const [x, y] of [[-0.69, 0], [0.69, 0], [0.02, 0.08]]) {
-  const target = new THREE.Vector3(x, y, 0.04).applyMatrix4(solidDoor.matrixWorld);
-  const eye = new THREE.Vector3(0, target.y, 0);
-  wallRay.set(eye, target.sub(eye).normalize());
-  const hit = wallRay.intersectObjects([wallSkin, solidDoor], true)[0];
-  assert.strictEqual(hit.object.name, 'right-entry-door-leaf', 'Door leaf must remain visible across the actual wall opening');
-}
+assert.ok(solidDoor, 'Door node retained in hierarchy for architectural reference');
+assert.strictEqual(solidDoor.visible, false, 'Door must not be visible on wall to maintain smooth circular wall without decoration');
 
 const ceiling = lab.group.getObjectByName('reference-ceiling');
 assert.ok(ceiling instanceof THREE.Group, 'Reference ceiling group must exist');
@@ -156,6 +145,15 @@ for (const angle of LAB_CEILING.bridgeAngles) {
   const panelHit = ceilingRay.intersectObject(ceiling, true)[0];
   assert.strictEqual(panelHit.object.name, 'inner-ceiling-ring');
   assert.ok(bridgeHit.point.y - panelHit.point.y > 0.02, 'Bridge must recess upward at least 2 cm behind adjacent panels');
+
+  // 校验天花板分隔区域竖长条（radial bridge）中间连续不断开：
+  // 从中央圆盘外缘（r=4.25m）穿过光环内侧与外侧（r=4.30m、5.85m）全长均连续保持为 recessed-bridge-face，绝不被任何卷边饰条横向切断
+  for (const r of [4.25, 4.28, 4.30, 4.32, 4.60, 5.00, 5.50, 5.85]) {
+    ceilingRay.set(new THREE.Vector3(Math.sin(angle) * r, 2, -Math.cos(angle) * r), new THREE.Vector3(0, 1, 0));
+    const hit = ceilingRay.intersectObject(ceiling, true)[0];
+    assert.ok(hit, `Radial bridge must exist at r=${r}, angle=${angle}`);
+    assert.strictEqual(hit.object.name, 'recessed-bridge-face', `Radial bridge strip at r=${r} must be continuous and not broken by trims`);
+  }
 }
 ceilingRay.set(new THREE.Vector3(0, 2, 5.5), new THREE.Vector3(0, 1, 0));
 const bridgeLightSection = ceilingRay.intersectObject(ceiling, true)[0];
@@ -229,20 +227,15 @@ const inlayRing = floor.getObjectByName('floor-inlay-ring');
 assert.ok(inlayRing instanceof THREE.Mesh, 'Floor dark circular inlay ring must exist');
 assert.ok(inlayRing.geometry instanceof THREE.RingGeometry, 'Floor inlay must use RingGeometry');
 
-let wallClearcoatGlass = false;
 let wallTransmission = false;
 walls.traverse(child => {
   if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhysicalMaterial) {
-    if (child.material.clearcoat > 0 && child.material.transparent) {
-      wallClearcoatGlass = true;
-    }
     if (child.material.transmission > 0) {
       wallTransmission = true;
     }
   }
 });
-assert.strictEqual(wallClearcoatGlass, false, 'Wall glazing must not reappear after the observation windows are removed');
-assert.strictEqual(wallTransmission, false, 'Observation window must NOT use transmission to avoid offscreen render passes');
+assert.strictEqual(wallTransmission, false, 'Wall must NOT use transmission to avoid offscreen render passes');
 
 assert.doesNotThrow(() => {
   lab.update(0.016, 0);

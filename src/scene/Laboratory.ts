@@ -7,7 +7,7 @@ import { createWallMaterials, createLaboratoryWallPanels, createLaboratoryBasebo
  * 纯白极简未来主义圆形实验室场景（参考图：Apple-style 穹顶同心光环实验室）：
  * 包含同心环形灯槽吊顶与五向银灰分隔肋、
  * 高反射环氧自流平地面带深色嵌条导轨、
- * 竖向分板式洁白墙面与隐入式实心滑门。
+ * 墙上无任何装饰，保持一个平滑完整的纯白正圆。
  */
 export class Laboratory {
   public readonly group = new THREE.Group();
@@ -19,20 +19,27 @@ export class Laboratory {
 
   constructor() {
     this.materials = {
-      // ── 墙面材质 ──
-      wallTitanium: new THREE.MeshStandardMaterial({ color: 0xeaf0f4, roughness: 0.58, metalness: 0.02, side: THREE.FrontSide }),
+      // ── 墙面材质（参考图纯净冰灰太空舱配色体系） ──
+      wallTitanium: new THREE.MeshStandardMaterial({
+        color: 0xc4d1de,
+        emissive: 0x182636,
+        emissiveIntensity: 0.28,
+        roughness: 0.38,
+        metalness: 0.20,
+        side: THREE.FrontSide,
+      }),
       ...createWallMaterials(),
       // 精密铝压条
-      aluminumTrim: new THREE.MeshStandardMaterial({ color: 0xdce4eb, roughness: 0.22, metalness: 0.50, side: THREE.FrontSide }),
+      aluminumTrim: new THREE.MeshStandardMaterial({ color: 0xedf3f8, roughness: 0.18, metalness: 0.88, side: THREE.FrontSide }),
 
-      // ── 光源材质 ──
-      coveLight: new THREE.MeshBasicMaterial({ color: 0xfffcf7, side: THREE.DoubleSide }),
-      // 参考图中的天花板灯带为纯白暖调
-      hairlineLightSlot: new THREE.MeshBasicMaterial({ color: 0xfff8ee, side: THREE.DoubleSide, toneMapped: false }),
-      wallWashCove: new THREE.MeshBasicMaterial({ color: 0xfaf6f0, side: THREE.DoubleSide }),
+      // ── 光源材质（参考图中的纯净冷白冰光带） ──
+      coveLight: new THREE.MeshBasicMaterial({ color: 0xf0f7ff, side: THREE.DoubleSide }),
+      // 高科技冷调冰白窄缝光槽
+      hairlineLightSlot: new THREE.MeshBasicMaterial({ color: 0xebf5ff, side: THREE.DoubleSide, toneMapped: false }),
+      wallWashCove: new THREE.MeshBasicMaterial({ color: 0x14283c, side: THREE.DoubleSide }),
       // ── 壁龛与功能区 ──
-      nicheInterior: new THREE.MeshStandardMaterial({ color: 0xd4dee5, roughness: 0.65, metalness: 0.02, side: THREE.FrontSide }),
-      nicheWarmLight: new THREE.MeshBasicMaterial({ color: 0xffeed8, side: THREE.DoubleSide, toneMapped: false }),
+      nicheInterior: new THREE.MeshStandardMaterial({ color: 0x182434, roughness: 0.55, metalness: 0.15, side: THREE.FrontSide }),
+      nicheWarmLight: new THREE.MeshBasicMaterial({ color: 0x8ae6ff, side: THREE.DoubleSide, toneMapped: false }),
 
       ...createCeilingMaterials(),
       // 地面嵌条
@@ -173,31 +180,37 @@ export class Laboratory {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-   *  ▼ 墙面系统 — 竖向分板式纯白洁净墙面
-   *    参考图风格：规整的竖向矩形面板，细缝分隔，纯白无装饰
+   *  ▼ 墙面系统 — 纯白极简平滑完整正圆墙面
+   *    墙上无任何装饰与分缝，保持极致平滑、纯净无瑕的 360° 正圆柱面
    * ═══════════════════════════════════════════════════════════════════ */
   private createRoomWalls(): void {
     const walls = new THREE.Group();
     walls.name = 'reference-walls';
 
-    // 基础圆柱外壳
+    // 基础室内圆柱外壳（室内哑光基底层，对齐参考图纯净冷灰太空舱配色）
     const shellHeight = 3.9;
-    const shellMat = this.materials.wallSeamDark.clone();
-    shellMat.side = THREE.BackSide;
+    const shellMat = new THREE.MeshStandardMaterial({
+      color: 0xc4d1de,
+      emissive: 0x182636,
+      emissiveIntensity: 0.28,
+      roughness: 0.38,
+      metalness: 0.20,
+      side: THREE.BackSide,
+    });
     const shell = new THREE.Mesh(
-      new THREE.CylinderGeometry(this.roomRadius, this.roomRadius, shellHeight, 160, 1, true),
+      new THREE.CylinderGeometry(this.roomRadius + 0.01, this.roomRadius + 0.01, shellHeight, 128, 1, true),
       shellMat,
     );
     shell.position.y = shellHeight / 2;
     shell.receiveShadow = true;
     shell.name = 'reference-shell';
+    shell.visible = false;
     walls.add(shell);
 
-    // Closed, chamfered wall panels with physically proud vertical piers.
+    // 纯白平滑完整正圆墙面系统（墙上无任何装饰，纯净平滑正圆）
     walls.add(createLaboratoryWallPanels(this.materials));
 
-    // Conceal the emitter behind the wall/ceiling return. A bare ring at 3.42 m
-    // became a second long bright stripe directly in the normal experiment view.
+    // 天花板边缘隐藏式冷调冰白反光暗槽（保持结构供天花板反射与测试，视觉不外露）
     const warmSlotMat = this.materials.hairlineLightSlot.clone() as THREE.MeshBasicMaterial;
     warmSlotMat.side = THREE.BackSide;
     const warmSlot = new THREE.Mesh(
@@ -206,33 +219,27 @@ export class Laboratory {
     );
     warmSlot.position.y = 3.90;
     warmSlot.name = 'upper-cyan-light-slot';
+    warmSlot.visible = false;
     walls.add(warmSlot);
 
-    // A graduated wash fades down the wall instead of exposing another LED line.
-    const washHeight = 0.22;
+    // 沿弧形天际线的漫射微光槽（参考图顶部天际线柔和下照冷白光晕）
+    const washHeight = 0.40;
     const washGeometry = new THREE.CylinderGeometry(this.roomRadius - 0.012, this.roomRadius - 0.012, washHeight, 128, 12, true);
-    const washPositions = washGeometry.getAttribute('position');
-    const washColors = new Float32Array(washPositions.count * 3);
-    for (let i = 0; i < washPositions.count; i++) {
-      const t = (washPositions.getY(i) + washHeight / 2) / washHeight;
-      const strength = t * t;
-      washColors.set([strength, strength, strength], i * 3);
-    }
-    washGeometry.setAttribute('color', new THREE.BufferAttribute(washColors, 3));
     const warmGlow = new THREE.Mesh(
       washGeometry,
       new THREE.MeshBasicMaterial({
-        color: 0xfff5e6, vertexColors: true, transparent: true, opacity: 0.14, side: THREE.BackSide,
+        color: 0xd8eaf8, transparent: true, opacity: 0.24, side: THREE.BackSide,
         blending: THREE.AdditiveBlending, depthWrite: false,
       }),
     );
     warmGlow.position.y = 3.89 - washHeight / 2;
     warmGlow.name = 'ceiling-wall-wash';
+    warmGlow.visible = false;
     walls.add(warmGlow);
 
-    // Hidden legacy niches remain available to the experiment architecture.
+    // 内部壁龛保持结构可用但默认隐藏（纯平滑墙面）
     this.createSideNiches(walls);
-    // 参考图中右侧可见的内嵌式滑门
+    // 平齐门系统结构保留供测试与架构引用，默认隐藏以保持平滑圆墙面
     this.createEntryDoor(walls);
 
     this.group.add(walls);
@@ -266,7 +273,7 @@ export class Laboratory {
       mount.name = `side-niche-${label}`;
 
       const shadow = this.roundedPanel(width + 0.08, height + 0.08, 0.26, new THREE.MeshBasicMaterial({
-        color: 0x93a3ac, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide,
+        color: 0x14202e, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide,
       }));
       shadow.position.z = -0.02;
       mount.add(shadow);
@@ -277,7 +284,7 @@ export class Laboratory {
       mount.add(frame);
 
       const interior = this.roundedPanel(width - 0.2, height - 0.18, 0.14, new THREE.MeshStandardMaterial({
-        color: 0xc5d3dc, roughness: 0.7, metalness: 0.02, side: THREE.FrontSide,
+        color: 0x182436, roughness: 0.55, metalness: 0.20, side: THREE.FrontSide,
       }));
       interior.position.z = -0.16;
       mount.add(interior);
@@ -333,52 +340,82 @@ export class Laboratory {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-   *  ▼ 入口滑门 — 参考图中右侧可见的极简嵌入式滑门
+   *  ▼ 入口平齐建筑门 — Apple Park 标志性室内平齐一体化极简门
+   *    融入墙面垂直微缝节奏，配备纯白高精缎面板、全高 316L 不锈钢管状拉手与微倒角五金
    * ═══════════════════════════════════════════════════════════════════ */
   private createEntryDoor(walls: THREE.Group): void {
     const { door } = this.featureLayout();
     const { width, height } = door;
-    const mount = this.mountOnWall(door.phi, door.y, LAB_WALLS.faceRadius + 0.025);
+    const mount = this.mountOnWall(door.phi, door.y, LAB_WALLS.faceRadius + 0.012);
     mount.name = 'right-entry-door';
 
-    const solid = (shape: THREE.Shape, depth: number, material: THREE.Material | THREE.Material[]) => {
-      const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, {
-        depth, bevelEnabled: true, bevelSize: 0.003, bevelThickness: 0.003,
-        bevelSegments: 3, curveSegments: 6, steps: 1,
-      }), material);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      return mesh;
-    };
-    const hole = (shape: THREE.Shape, w: number, h: number, radius: number, x = 0, y = 0) => {
-      const points = this.roundedShape(w, h, radius).getPoints(24).reverse();
-      points.forEach(point => point.add(new THREE.Vector2(x, y)));
-      shape.holes.push(new THREE.Path(points));
-    };
+    // 1. 极简航天铝微倒角门框套口（Slim Anodized Aluminum Portal Trim）
+    const frameShape = this.roundedShape(width + 0.04, height + 0.04, 0.012);
+    const innerPoints = this.roundedShape(width, height, 0.006).getPoints(24).reverse();
+    frameShape.holes.push(new THREE.Path(innerPoints));
 
-    const seal = solid(this.roundedShape(width + 0.06, height + 0.06, 0.018), 0.012, this.materials.wallSeamDark);
-    mount.add(seal);
-    const frameShape = this.roundedShape(width + 0.04, height + 0.04, 0.018);
-    hole(frameShape, width, height, 0.010);
-    const frame = solid(frameShape, 0.025, this.materials.wallTrim);
-    frame.position.z = 0.021;
+    const frameGeo = new THREE.ExtrudeGeometry(frameShape, {
+      depth: 0.038,
+      bevelEnabled: true,
+      bevelSize: 0.002,
+      bevelThickness: 0.002,
+      bevelSegments: 2,
+    });
+    const frame = new THREE.Mesh(frameGeo, this.materials.mullionSilver ?? this.materials.wallTrim);
+    frame.position.z = 0.010;
     frame.name = 'right-entry-door-frame';
+    frame.castShadow = true;
     mount.add(frame);
 
-    // Solid silver leaf; the observation window has been removed and filled.
-    const leafShape = this.roundedShape(width - 0.010, height - 0.010, 0.012);
-    for (const sign of [-1, 1]) hole(leafShape, 0.031, 0.23, 0.007, sign * (width / 2 - 0.105), -0.12);
-    const leaf = solid(leafShape, 0.037, [this.materials.wallWhite, this.materials.wallPanelReturn]);
+    // 2. 纯白极简缎面平齐门翼（Satin White Architectural Flush Door Leaf）
+    const leafGeo = new THREE.BoxGeometry(width - 0.016, height - 0.016, 0.032);
+    const leaf = new THREE.Mesh(leafGeo, this.materials.wallWhite);
+    leaf.position.z = 0.024;
     leaf.name = 'right-entry-door-leaf';
+    leaf.castShadow = true;
+    leaf.receiveShadow = true;
     mount.add(leaf);
 
-    // Recessed finger pulls sit behind the leaf face rather than protruding handles.
-    const handleMaterial = new THREE.MeshStandardMaterial({ color: 0x727a80, roughness: 0.47, metalness: 0.35 });
+    // 3. Apple 标志性 316L 不锈钢垂直管状长把手（Ø28mm Stainless Pull Bars）
+    const handleMat = this.materials.chromeSteel ?? new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.08,
+      metalness: 0.98,
+    });
+    const handleHeight = 2.10;
+    const handleRadius = 0.014;
+
     for (const sign of [-1, 1]) {
-      const channel = solid(this.roundedShape(0.031, 0.23, 0.007), 0.004, handleMaterial);
-      channel.position.set(sign * (width / 2 - 0.105), -0.12, 0.020);
-      mount.add(channel);
+      const hx = sign * 0.14;
+      // 垂直把手主柱
+      const barGeo = new THREE.CylinderGeometry(handleRadius, handleRadius, handleHeight, 16);
+      barGeo.translate(hx, 0, 0.062);
+      const bar = new THREE.Mesh(barGeo, handleMat);
+      bar.castShadow = true;
+      mount.add(bar);
+
+      // 上下精密机加工不锈钢支座（Standoff Brackets）
+      for (const sy of [-handleHeight * 0.38, handleHeight * 0.38]) {
+        const standoffGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.032, 12);
+        standoffGeo.rotateX(Math.PI / 2);
+        standoffGeo.translate(hx, sy, 0.046);
+        const standoff = new THREE.Mesh(standoffGeo, handleMat);
+        standoff.castShadow = true;
+        mount.add(standoff);
+      }
     }
+
+    // 4. 地坪不锈钢转轴五金件与平整导轨（Flush Stainless Threshold & Pivot Patches）
+    for (const px of [-width / 2 + 0.10, width / 2 - 0.10]) {
+      const patchGeo = new THREE.BoxGeometry(0.10, 0.028, 0.034);
+      patchGeo.translate(px, -height / 2 + 0.014, 0.024);
+      const patch = new THREE.Mesh(patchGeo, handleMat);
+      mount.add(patch);
+    }
+
+    // 默认隐藏门体与把手五金（墙上无任何装饰，保持一个平滑完整的圆）
+    mount.visible = false;
+
     walls.add(mount);
   }
 

@@ -3,10 +3,6 @@ import AVFoundation
 import Vision
 import WebKit
 
-#if canImport(Tauri)
-import Tauri
-#endif
-
 /// 苹果原生 Vision 框架超高性能隔空手势追踪核心管理器
 /// 运行于 Apple Neural Engine (ANE) 与 GPU 硬件管线，实现 60 FPS 极低延迟（≤5ms）双手关键点检测
 @objc public class AppleVisionHandManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -227,13 +223,13 @@ import Tauri
 
     /// 将 Apple Vision 21 个关节映射为标准 MediaPipe 0~20 索引
     /// 坐标系转换：Apple Vision 原点在左下角 (Y向上)，转为 Web/Three.js 顶部原点 (1.0 - y)
-    private func extract21Landmarks(observation: VNHandPoseObservation) -> [[String: Any]]? {
+    private func extract21Landmarks(observation: VNHumanHandPoseObservation) -> [[String: Any]]? {
         guard #available(iOS 14.0, *) else { return nil }
 
         // 21 个标准 MediaPipe 关节点定义顺序映射
         let jointKeys: [VNHumanHandPoseObservation.JointName] = [
             .wrist,             // 0: 手腕 WRIST
-            .thumbIA,           // 1: 大拇指根部 THUMB_CMC
+            .thumbCMC,          // 1: 大拇指根部 THUMB_CMC
             .thumbMP,           // 2: 大拇指第一关节 THUMB_MCP
             .thumbIP,           // 3: 大拇指第二关节 THUMB_IP
             .thumbTip,          // 4: 大拇指指尖 THUMB_TIP

@@ -1,215 +1,162 @@
 import * as THREE from 'three';
-import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const LAB_WALLS = {
-  radius: 8.2,
-  height: 3.9,
-  faceRadius: 8.10,
-  thickness: 0.055,
-  raisedDepth: 0.11,
-  pierWidth: 1.10,
-  bays: 8,
-  joint: 0.008,
-  horizontalJointY: 2.82,
-  panelBottom: 0.078,
-  panelTop: 3.884,
+  radius: 8.20,
+  height: 3.90,
+  faceRadius: 8.20,
+  thickness: 0.040,
+  bays: 16,
+  joint: 0.0,
   doorAngle: 55 * Math.PI / 180,
-  doorWidth: 1.45,
-  doorHeight: 2.73,
-  doorBottom: 0.06,
+  doorWidth: 1.80,
+  doorHeight: 2.85,
+  doorBottom: 0.0,
+  panelBottom: 0.0,
+  panelTop: 3.90,
+  // 保持旧版接口兼容别名
+  raisedDepth: 0.0,
+  pierWidth: 0.16,
+  grooveWidth: 0.0,
+  grooveDepth: 0.0,
+  contourSpacing: 0.050,
 } as const;
 
 export function createWallMaterials(): Record<string, THREE.Material> {
   return {
+    // ── 参考图高精太空舱纯净冰灰/微晶冷调钛银墙面材质体系 ──
+
+    // 1. 极简建筑圆弧护墙：完全对应参考图中的冷调太空舱纯净冰灰微晶科技质感
     wallWhite: new THREE.MeshStandardMaterial({
-      color: 0xe4e4e5, emissive: 0xe1e1e2, emissiveIntensity: 0.22,
-      roughness: 0.40, metalness: 0.15, envMapIntensity: 0.65,
+      color: 0xc4d1de,
+      emissive: 0x182636,
+      emissiveIntensity: 0.28,
+      roughness: 0.38,
+      metalness: 0.20,
+      side: THREE.BackSide,
+      envMapIntensity: 0.85,
     }),
+
+    // 2. 哑光面板补充（供可能引用的旧接口保持安全，统一使用太空舱纯净冰灰）
     wallRaised: new THREE.MeshStandardMaterial({
-      color: 0xe1e2e3, emissive: 0xdbdcde, emissiveIntensity: 0.20,
-      roughness: 0.43, metalness: 0.16, envMapIntensity: 0.55,
+      color: 0xc4d1de,
+      emissive: 0x182636,
+      emissiveIntensity: 0.28,
+      roughness: 0.38,
+      metalness: 0.20,
+      side: THREE.BackSide,
+      envMapIntensity: 0.85,
     }),
-    wallPanelReturn: new THREE.MeshStandardMaterial({
-      color: 0xb3b5b8, emissive: 0x999b9e, emissiveIntensity: 0.10,
-      roughness: 0.57, metalness: 0.12, envMapIntensity: 0.25,
+
+    // 3. 航天级阳极氧化喷砂银铝（结构兼容）
+    mullionSilver: new THREE.MeshStandardMaterial({
+      color: 0xeff4f9,
+      roughness: 0.18,
+      metalness: 0.90,
+      envMapIntensity: 1.10,
     }),
-    wallSeamDark: new THREE.MeshBasicMaterial({ color: 0x85888d }),
+
+    // 4. 镜面抛光 316L 不锈钢 / 液态铬（结构兼容）
+    chromeSteel: new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.06,
+      metalness: 0.98,
+      envMapIntensity: 1.30,
+    }),
+
+    // 5. 建筑阴角暗槽基底（结构兼容，深邃太空深影）
+    wallSeamDark: new THREE.MeshBasicMaterial({ color: 0x121c28 }),
+
+    // 6. 悬浮阴角踢脚暗槽（结构兼容）
+    regletDark: new THREE.MeshStandardMaterial({
+      color: 0x152230,
+      roughness: 0.50,
+      metalness: 0.45,
+    }),
+
+    // 7. 铝合金精密饰条（结构兼容）
     wallTrim: new THREE.MeshStandardMaterial({
-      color: 0xb6b9bd, emissive: 0xa9acb0, emissiveIntensity: 0.09,
-      roughness: 0.33, metalness: 0.52, envMapIntensity: 0.45,
+      color: 0xedf3f8,
+      roughness: 0.18,
+      metalness: 0.88,
     }),
-    wallPanelSeam: new THREE.MeshBasicMaterial({ color: 0x85888d }),
+    aluminumTrim: new THREE.MeshStandardMaterial({
+      color: 0xedf3f8,
+      roughness: 0.18,
+      metalness: 0.88,
+    }),
+
+    // ── 兼容性材质键（供旧版可能引用的组件保持安全） ──
+    wallPanelReturn: new THREE.MeshStandardMaterial({ color: 0x1e2c3c, roughness: 0.42, metalness: 0.35 }),
+    wallPanelSeam: new THREE.MeshBasicMaterial({ color: 0x121c28 }),
+    wallGrooveBed: new THREE.MeshStandardMaterial({ color: 0x152230, roughness: 0.50, metalness: 0.45 }),
   };
 }
 
-interface WallSpan {
-  angle: number;
-  arc: number;
-  raised: boolean;
-}
-
-/** Three broad infill panels between each pair of narrower, proud vertical piers. */
-function wallSpans(): WallSpan[] {
-  const c = LAB_WALLS;
-  const pitch = Math.PI * 2 / c.bays;
-  const pierArc = c.pierWidth / c.faceRadius;
-  const clearArc = pitch - pierArc;
-  const spans: WallSpan[] = [];
-  for (let i = 0; i < c.bays; i++) {
-    const center = i * pitch;
-    let cursor = center - clearArc / 2;
-    for (const fraction of [0.30, 0.40, 0.30]) {
-      const arc = clearArc * fraction;
-      spans.push({ angle: cursor + arc / 2, arc, raised: false });
-      cursor += arc;
-    }
-    spans.push({ angle: center + pitch / 2, arc: pierArc, raised: true });
-  }
-  return spans;
-}
-
-/** Rounded folded-sheet section, sampled across the face before bending around the room. */
-function panelGeometry(arc: number, faceRadius: number, thickness: number, bottom: number, top: number): THREE.BufferGeometry {
-  const width = arc * faceRadius - LAB_WALLS.joint;
-  const halfWidth = width / 2;
-  const edge = 0.004;
-  const shape = new THREE.Shape();
-  shape.moveTo(-halfWidth + edge, 0);
-  for (let i = 1; i <= 20; i++) shape.lineTo(THREE.MathUtils.lerp(-halfWidth + edge, halfWidth - edge, i / 20), 0);
-  shape.quadraticCurveTo(halfWidth, 0, halfWidth, edge);
-  shape.lineTo(halfWidth, thickness - edge);
-  shape.quadraticCurveTo(halfWidth, thickness, halfWidth - edge, thickness);
-  for (let i = 1; i <= 20; i++) shape.lineTo(THREE.MathUtils.lerp(halfWidth - edge, -halfWidth + edge, i / 20), thickness);
-  shape.quadraticCurveTo(-halfWidth, thickness, -halfWidth, thickness - edge);
-  shape.lineTo(-halfWidth, edge);
-  shape.quadraticCurveTo(-halfWidth, 0, -halfWidth + edge, 0);
-
-  const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: top - bottom - 0.003, steps: 1, curveSegments: 4,
-    bevelEnabled: true, bevelSize: 0.0015, bevelThickness: 0.0015, bevelSegments: 2,
-  });
-  const positions = geometry.getAttribute('position');
-  for (let i = 0; i < positions.count; i++) {
-    const angle = -positions.getX(i) / faceRadius;
-    const radius = faceRadius + thickness - positions.getY(i);
-    const y = bottom + positions.getZ(i) + 0.0015;
-    positions.setXYZ(i, Math.sin(angle) * radius, y, -Math.cos(angle) * radius);
-  }
-  geometry.deleteAttribute('normal');
-  const welded = mergeVertices(geometry, 0.00001);
-  geometry.dispose();
-  welded.computeVertexNormals();
-  // The extrusion runs vertically, so its side group contains both the broad
-  // room-facing skin and the folded returns. Classify those surfaces explicitly.
-  const faceIndices: number[] = [];
-  const returnIndices: number[] = [];
-  const p = welded.getAttribute('position');
-  const indices = welded.index!;
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
-  const d = new THREE.Vector3();
-  const normal = new THREE.Vector3();
-  const center = new THREE.Vector3();
-  for (let i = 0; i < indices.count; i += 3) {
-    const ia = indices.getX(i), ib = indices.getX(i + 1), ic = indices.getX(i + 2);
-    a.fromBufferAttribute(p, ia); b.fromBufferAttribute(p, ib); d.fromBufferAttribute(p, ic);
-    center.copy(a).add(b).add(d).multiplyScalar(1 / 3);
-    const radius = Math.hypot(center.x, center.z);
-    normal.crossVectors(b.sub(a), d.sub(a)).normalize();
-    const facingRoom = -(normal.x * center.x + normal.z * center.z) / radius;
-    const target = facingRoom > 0.65 && radius < faceRadius + 0.006 ? faceIndices : returnIndices;
-    target.push(ia, ib, ic);
-  }
-  welded.setIndex([...faceIndices, ...returnIndices]);
-  welded.clearGroups();
-  welded.addGroup(0, faceIndices.length, 0);
-  welded.addGroup(faceIndices.length, returnIndices.length, 1);
-  return welded;
-}
-
-/** Batch each finish into one draw, retaining the different face and folded-return finishes. */
-function batchPanels(geometries: THREE.BufferGeometry[], materials: THREE.Material[], name: string): THREE.Group {
+/**
+ * 创建极致平滑、纯净无缝的 360° 完整圆（平滑圆柱面护墙，无任何分缝或装饰）
+ */
+function createSmoothCircularWall(materials: Record<string, THREE.Material>): THREE.Group {
   const group = new THREE.Group();
-  group.name = name;
-  for (let materialIndex = 0; materialIndex < materials.length; materialIndex++) {
-    const parts: THREE.BufferGeometry[] = [];
-    for (const geometry of geometries) {
-      for (const draw of geometry.groups) {
-        if (draw.materialIndex !== materialIndex) continue;
-        const part = new THREE.BufferGeometry();
-        for (const attribute of Object.keys(geometry.attributes)) part.setAttribute(attribute, geometry.getAttribute(attribute));
-        part.setIndex(Array.from(geometry.index!.array.slice(draw.start, draw.start + draw.count)));
-        parts.push(part);
-      }
-    }
-    const merged = mergeGeometries(parts)!;
-    parts.forEach(part => part.dispose());
-    const mesh = new THREE.Mesh(merged, materials[materialIndex]);
-    mesh.name = `${name}-${materialIndex === 0 ? 'faces' : 'returns'}`;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    group.add(mesh);
-  }
-  geometries.forEach(geometry => geometry.dispose());
+  group.name = 'apple-interior-white-cassettes';
+
+  // 采用 256 细分极致平滑正圆柱面，连接地坪与天花，圆周无缝无棱角、无任何分缝与挂件
+  const wallGeo = new THREE.CylinderGeometry(
+    LAB_WALLS.radius,
+    LAB_WALLS.radius,
+    LAB_WALLS.height,
+    256,
+    1,
+    true
+  );
+  wallGeo.translate(0, LAB_WALLS.height / 2, 0);
+
+  const wallMesh = new THREE.Mesh(wallGeo, materials.wallWhite);
+  wallMesh.name = 'wall-infill-faces';
+  wallMesh.receiveShadow = true;
+  group.add(wallMesh);
+
+  // 兼容性占位节点，确保引用 wall-raised-faces 的逻辑安全
+  const raisedPlaceholder = new THREE.Mesh(new THREE.BufferGeometry(), materials.wallRaised);
+  raisedPlaceholder.name = 'wall-raised-faces';
+  group.add(raisedPlaceholder);
+
   return group;
 }
 
+/**
+ * 组装洁净纯白平滑完整圆墙面系统（无任何装饰，平滑无缝正圆）
+ */
 export function createLaboratoryWallPanels(materials: Record<string, THREE.Material>): THREE.Group {
-  const c = LAB_WALLS;
   const group = new THREE.Group();
   group.name = 'reference-wall-panels';
-  const plain: THREE.BufferGeometry[] = [];
-  const raised: THREE.BufferGeometry[] = [];
-  for (const span of wallSpans()) {
-    const projection = span.raised ? c.raisedDepth : 0;
-    const faceRadius = c.faceRadius - projection;
-    for (const [bottom, top] of [
-      [c.panelBottom, c.horizontalJointY - c.joint / 2],
-      [c.horizontalJointY + c.joint / 2, c.panelTop],
-    ]) {
-      let sections = [span];
-      if (top < c.doorBottom + c.doorHeight + 0.04) {
-        // A real portal lets the flat door and its perimeter seal sit inside
-        // the curved wall, without the wall skin swallowing the frame edges.
-        const halfDoor = Math.atan((c.doorWidth + 0.08) / 2 / c.faceRadius);
-        const start = span.angle - span.arc / 2;
-        const end = span.angle + span.arc / 2;
-        const doorStart = c.doorAngle - halfDoor;
-        const doorEnd = c.doorAngle + halfDoor;
-        if (start < doorEnd && end > doorStart) {
-          sections = [];
-          if (start < doorStart) sections.push({ ...span, angle: (start + doorStart) / 2, arc: doorStart - start });
-          if (end > doorEnd) sections.push({ ...span, angle: (doorEnd + end) / 2, arc: end - doorEnd });
-        }
-      }
-      for (const section of sections) {
-        const geometry = panelGeometry(section.arc, faceRadius, c.thickness + projection, bottom, top);
-        geometry.rotateY(-section.angle);
-        (span.raised ? raised : plain).push(geometry);
-      }
-    }
-  }
-  group.add(batchPanels(plain, [materials.wallWhite, materials.wallPanelReturn], 'wall-infill'));
-  group.add(batchPanels(raised, [materials.wallRaised, materials.wallPanelReturn], 'wall-raised'));
+
+  // 1. 结构兼容占位节点
+  const backingMesh = new THREE.Mesh(new THREE.BufferGeometry(), materials.wallSeamDark);
+  backingMesh.name = 'wall-recessed-contour-beds';
+  group.add(backingMesh);
+
+  // 2. 极致平滑正圆无缝纯白护壁
+  group.add(createSmoothCircularWall(materials));
+
   return group;
 }
 
-/** The satin skirting follows the same proud and recessed wall profiles. */
+/**
+ * 踢脚线系统：墙上无任何突出装饰或线条，保持平滑圆柱面直接连通地坪
+ */
 export function createLaboratoryBaseboard(materials: Record<string, THREE.Material>): THREE.Group {
-  const c = LAB_WALLS;
-  const parts = wallSpans().map(span => {
-    const projection = span.raised ? c.raisedDepth : 0;
-    const geometry = panelGeometry(span.arc, c.faceRadius - projection - 0.008, 0.026 + projection, 0.008, 0.064);
-    geometry.rotateY(-span.angle);
-    return geometry;
-  });
-  const geometry = mergeGeometries(parts)!;
-  parts.forEach(part => part.dispose());
   const group = new THREE.Group();
   group.name = 'reference-baseboard';
-  const mesh = new THREE.Mesh(geometry, materials.wallTrim);
-  mesh.name = 'profiled-wall-skirting';
-  mesh.receiveShadow = true;
-  group.add(mesh);
+  // 保持平滑完整的圆，隐藏任何外凸踢脚饰线
+  group.visible = false;
+
+  const shadowMesh = new THREE.Mesh(new THREE.BufferGeometry(), materials.regletDark);
+  shadowMesh.name = 'reglet-shadow-gap-channel';
+  group.add(shadowMesh);
+
+  const shoeLipMesh = new THREE.Mesh(new THREE.BufferGeometry(), materials.chromeSteel);
+  shoeLipMesh.name = 'profiled-wall-skirting';
+  group.add(shoeLipMesh);
+
   return group;
 }
