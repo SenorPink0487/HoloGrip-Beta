@@ -1,13 +1,10 @@
 import * as THREE from 'three';
 import { TextureGenerator } from './Textures.ts';
-import { createCeilingMaterials, createLaboratoryCeiling } from './LaboratoryCeiling.ts';
-import { createWallMaterials, createLaboratoryWallPanels, createLaboratoryBaseboard, LAB_WALLS } from './LaboratoryWalls.ts';
 
 /**
- * 纯白极简未来主义圆形实验室场景（参考图：Apple-style 穹顶同心光环实验室）：
- * 包含同心环形灯槽吊顶与五向银灰分隔肋、
- * 高反射环氧自流平地面带深色嵌条导轨、
- * 墙上无任何装饰，保持一个平滑完整的纯白正圆。
+ * 环形纯白高精实验室场景：
+ * 包含多面藻井穹顶与十字立柱采光天窗、青色基准光带、
+ * 双隔间内嵌置物壁龛、条纹吸音墙板及玻璃感应门。
  */
 export class Laboratory {
   public readonly group = new THREE.Group();
@@ -16,40 +13,47 @@ export class Laboratory {
 
   public materials: Record<string, THREE.Material>;
   private floorMesh: THREE.Mesh | null = null;
+  private observationWindowGroup: THREE.Group | null = null;
 
   constructor() {
     this.materials = {
-      // ── 墙面材质（参考图纯净冰灰太空舱配色体系） ──
-      wallTitanium: new THREE.MeshStandardMaterial({
-        color: 0xc4d1de,
-        emissive: 0x182636,
-        emissiveIntensity: 0.28,
-        roughness: 0.38,
-        metalness: 0.20,
-        side: THREE.FrontSide,
+      wallTitanium: new THREE.MeshStandardMaterial({ color: 0xeaf0f4, roughness: 0.58, metalness: 0.02, side: THREE.FrontSide }),
+      obsidianGlass: new THREE.MeshPhysicalMaterial({
+        color: 0xd8eaf4,
+        roughness: 0.06,
+        metalness: 0.02,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.04,
+        reflectivity: 0.90,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+        side: THREE.DoubleSide,
       }),
-      ...createWallMaterials(),
-      // 精密铝压条
-      aluminumTrim: new THREE.MeshStandardMaterial({ color: 0xedf3f8, roughness: 0.18, metalness: 0.88, side: THREE.FrontSide }),
-
-      // ── 光源材质（参考图中的纯净冷白冰光带） ──
-      coveLight: new THREE.MeshBasicMaterial({ color: 0xf0f7ff, side: THREE.DoubleSide }),
-      // 高科技冷调冰白窄缝光槽
-      hairlineLightSlot: new THREE.MeshBasicMaterial({ color: 0xebf5ff, side: THREE.DoubleSide, toneMapped: false }),
-      wallWashCove: new THREE.MeshBasicMaterial({ color: 0x14283c, side: THREE.DoubleSide }),
-      // ── 壁龛与功能区 ──
-      nicheInterior: new THREE.MeshStandardMaterial({ color: 0x182434, roughness: 0.55, metalness: 0.15, side: THREE.FrontSide }),
-      nicheWarmLight: new THREE.MeshBasicMaterial({ color: 0x8ae6ff, side: THREE.DoubleSide, toneMapped: false }),
-
-      ...createCeilingMaterials(),
-      // 地面嵌条
-      floorInlay: new THREE.MeshStandardMaterial({
-        color: 0x5a636c,
-        roughness: 0.28,
-        metalness: 0.45,
-        side: THREE.FrontSide,
+      wallWhite: new THREE.MeshStandardMaterial({ color: 0xe6edf2, roughness: 0.65, metalness: 0.02, side: THREE.FrontSide }),
+      wallTrim: new THREE.MeshStandardMaterial({ color: 0xc4d2dc, roughness: 0.35, metalness: 0.22, side: THREE.FrontSide }),
+      wallSeamDark: new THREE.MeshStandardMaterial({ color: 0x8ea2af, roughness: 0.5, metalness: 0.15, side: THREE.FrontSide }),
+      aluminumTrim: new THREE.MeshStandardMaterial({ color: 0xdce4eb, roughness: 0.22, metalness: 0.50, side: THREE.FrontSide }),
+      coveLight: new THREE.MeshBasicMaterial({ color: 0xfffcf7, side: THREE.DoubleSide }),
+      hairlineLightSlot: new THREE.MeshBasicMaterial({ color: 0x56d4f5, side: THREE.DoubleSide, toneMapped: false }),
+      wallWashCove: new THREE.MeshBasicMaterial({ color: 0xd2edfa, side: THREE.DoubleSide }),
+      glassBackglow: new THREE.MeshBasicMaterial({
+        color: 0x8eddf5, transparent: true, opacity: 0.45, side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending, depthWrite: false,
       }),
-      // 竖向条纹面板
+      nicheInterior: new THREE.MeshStandardMaterial({ color: 0xd4dee5, roughness: 0.65, metalness: 0.02, side: THREE.FrontSide }),
+      nicheWarmLight: new THREE.MeshBasicMaterial({ color: 0xffeed8, side: THREE.DoubleSide, toneMapped: false }),
+      ceilingWhite: new THREE.MeshStandardMaterial({ color: 0xeef3f7, roughness: 0.60, metalness: 0.02, side: THREE.FrontSide }),
+      ceilingTrim: new THREE.MeshStandardMaterial({ color: 0xcbd8e2, roughness: 0.30, metalness: 0.22, side: THREE.FrontSide }),
+      ceilingGroove: new THREE.MeshBasicMaterial({ color: 0xa4b8c6, transparent: true, opacity: 0.45, side: THREE.DoubleSide }),
+      coveDiffuser: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xf6faff,
+        emissiveIntensity: 0.65,
+        roughness: 0.25,
+        metalness: 0.05,
+        side: THREE.DoubleSide,
+      }),
       flutedPanel: new THREE.MeshStandardMaterial({ color: 0xe4ebf0, roughness: 0.62, metalness: 0.02, side: THREE.FrontSide }),
     };
 
@@ -59,9 +63,6 @@ export class Laboratory {
     this.createBaseboard();
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-   *  ▼ 地面系统 — 高反射抛光环氧自流平地面 + 深色同心嵌条导轨
-   * ═══════════════════════════════════════════════════════════════════ */
   private createFloor(): void {
     const floorTex = TextureGenerator.createFloorTexture();
     const roughnessMap = TextureGenerator.createFloorRoughnessMap();
@@ -76,13 +77,13 @@ export class Laboratory {
         map: floorTex,
         roughnessMap,
         bumpMap,
-        bumpScale: 0.0015,
-        roughness: 0.10,
-        metalness: 0.02,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.06,
-        envMapIntensity: 1.0,
-        reflectivity: 0.98,
+        bumpScale: 0.003,
+        roughness: 0.18,
+        metalness: 0.04,
+        clearcoat: 0.85,
+        clearcoatRoughness: 0.14,
+        envMapIntensity: 0.75,
+        reflectivity: 0.82,
       }),
     );
     floor.rotation.x = -Math.PI / 2;
@@ -91,27 +92,26 @@ export class Laboratory {
     this.floorMesh = floor;
     this.group.add(floor);
 
-    const seamMat = new THREE.MeshBasicMaterial({ color: 0x8294a0, transparent: true, opacity: 0.45, depthWrite: false });
+    const seamMat = new THREE.MeshBasicMaterial({ color: 0x90a4ae, transparent: true, opacity: 0.48, depthWrite: false });
     const seams = new THREE.Group();
     seams.name = 'reference-floor-seams';
-
-    // 参考图中标志性的地面深色同心圆嵌条（约 60% 半径处）
-    const inlay = new THREE.Mesh(new THREE.RingGeometry(4.71, 4.79, 160), this.materials.floorInlay);
-    inlay.position.z = 0.008;
-    inlay.name = 'floor-inlay-ring';
-    seams.add(inlay);
-
-    // 嵌条内外精密微倒角工艺缝
-    const inlayInnerLip = new THREE.Mesh(new THREE.RingGeometry(4.704, 4.71, 160), seamMat);
-    inlayInnerLip.position.z = 0.0082;
-    const inlayOuterLip = new THREE.Mesh(new THREE.RingGeometry(4.79, 4.796, 160), seamMat);
-    inlayOuterLip.position.z = 0.0082;
-    seams.add(inlayInnerLip, inlayOuterLip);
-
-    // 外围同心细环基准缝（呼应墙面下沿）
-    const outerSeam = new THREE.Mesh(new THREE.RingGeometry(6.592, 6.608, 160), seamMat);
-    outerSeam.position.z = 0.008;
-    seams.add(outerSeam);
+    // 地面同心圆装饰环带
+    for (const radius of [1.82, 3.75, 6.25]) {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.008, radius + 0.008, 160), seamMat);
+      ring.position.z = 0.008;
+      seams.add(ring);
+    }
+    // 8 条径向伸缩缝
+    for (let i = 0; i < 8; i++) {
+      const line = new THREE.Mesh(new THREE.PlaneGeometry(this.roomRadius * 1.58, 0.012), seamMat);
+      line.rotation.z = (i / 8) * Math.PI;
+      line.position.z = 0.009;
+      seams.add(line);
+    }
+    // 中环上的地面定位对齐凹槽标记
+    const notch = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.28), seamMat);
+    notch.position.set(0, -3.75, 0.01);
+    seams.add(notch);
 
     floor.add(seams);
   }
@@ -127,21 +127,191 @@ export class Laboratory {
     this.floorMesh.material.needsUpdate = true;
   }
 
-  /** Reference ceiling: opaque disc, five silver bridges and recessed concentric lighting. */
+  /**
+   * 连接内外半径的平滑四边形穹顶藻井环带，具备高精度建筑细节
+   */
+  private facetBand(innerR: number, outerR: number, segments: number, y0: number, y1: number, phase = 0): THREE.BufferGeometry {
+    const positions: number[] = [];
+    for (let i = 0; i < segments; i++) {
+      const a0 = phase + (i / segments) * Math.PI * 2;
+      const a1 = phase + ((i + 1) / segments) * Math.PI * 2;
+      const cos0 = Math.cos(a0);
+      const sin0 = Math.sin(a0);
+      const cos1 = Math.cos(a1);
+      const sin1 = Math.sin(a1);
+
+      const o0 = [cos0 * outerR, y0, sin0 * outerR];
+      const o1 = [cos1 * outerR, y0, sin1 * outerR];
+      const i0 = [cos0 * innerR, y1, sin0 * innerR];
+      const i1 = [cos1 * innerR, y1, sin1 * innerR];
+
+      // 两个三角形拼合为平滑的四边形藻井嵌板
+      positions.push(...o0, ...i0, ...o1, ...o1, ...i0, ...i1);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
   private createCeiling(): void {
-    this.group.add(createLaboratoryCeiling(this.materials));
+    const ceiling = new THREE.Group();
+    ceiling.name = 'reference-ceiling';
+
+    // 1. 外侧建筑穹顶藻井环带（从墙壁向中间跨度平滑隆起）
+    const outerFacets = new THREE.Mesh(
+      this.facetBand(4.85, this.roomRadius - 0.04, 32, 3.86, 4.12, 0),
+      this.materials.ceilingWhite,
+    );
+    outerFacets.name = 'ceiling-facets';
+    outerFacets.receiveShadow = true;
+    ceiling.add(outerFacets);
+
+    // 精细的径向藻井阴影凹槽
+    ceiling.add(new THREE.LineSegments(
+      new THREE.EdgesGeometry(outerFacets.geometry, 1),
+      this.materials.ceilingGroove,
+    ));
+
+    // 2. 内侧建筑穹顶藻井环带（从跨中向天窗灯槽平滑隆起）
+    const innerFacets = new THREE.Mesh(
+      this.facetBand(3.32, 4.85, 32, 4.12, 4.28, 0),
+      this.materials.ceilingWhite,
+    );
+    innerFacets.receiveShadow = true;
+    ceiling.add(innerFacets);
+
+    const innerEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(innerFacets.geometry, 1),
+      this.materials.ceilingGroove,
+    );
+    innerEdges.position.y = 0.002;
+    ceiling.add(innerEdges);
+
+    // 3. 高精度建筑内嵌圆形暗藏灯槽结构（彻底消除 2D Canvas 贴图导致的移动端/iPad 色彩噪点 Bug）
+    // 3.1 凹槽基座顶面（深处水平顶板）
+    const step = new THREE.Mesh(new THREE.RingGeometry(2.45, 3.32, 128), this.materials.ceilingWhite);
+    step.rotation.x = Math.PI / 2;
+    step.position.y = 4.35;
+    step.receiveShadow = true;
+    ceiling.add(step);
+
+    // 3.2 凹槽外侧垂直收口立面（封闭藻井环口 y=4.28 到灯槽顶 y=4.35 之间的建筑结构面）
+    const coveRiserMat = (this.materials.ceilingTrim as THREE.MeshStandardMaterial).clone();
+    coveRiserMat.side = THREE.BackSide;
+    const coveRiser = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.32, 3.32, 0.07, 128, 1, true),
+      coveRiserMat,
+    );
+    coveRiser.position.y = 4.315;
+    ceiling.add(coveRiser);
+
+    // 3.3 藻井内口精细机械倒角金属包边压条
+    const stepLip = new THREE.Mesh(new THREE.TorusGeometry(3.32, 0.016, 12, 128), this.materials.ceilingTrim);
+    stepLip.rotation.x = Math.PI / 2;
+    stepLip.position.y = 4.28;
+    ceiling.add(stepLip);
+
+    // 3.4 环形光学级纯白柔光漫射透光环（实体物理透光板，完全摒弃 Canvas 纹理与 Mipmap 伪影）
+    const diffuser = new THREE.Mesh(
+      new THREE.RingGeometry(2.62, 3.18, 128),
+      this.materials.coveDiffuser,
+    );
+    diffuser.rotation.x = Math.PI / 2;
+    diffuser.position.y = 4.346;
+    diffuser.name = 'oculus-cove-diffuser';
+    ceiling.add(diffuser);
+
+    // 3.5 漫射透光板内侧与外侧航空缎面铝合金精密定位扣圈
+    const innerTrimRing = new THREE.Mesh(new THREE.TorusGeometry(2.62, 0.008, 10, 128), this.materials.aluminumTrim);
+    innerTrimRing.rotation.x = Math.PI / 2;
+    innerTrimRing.position.y = 4.345;
+    ceiling.add(innerTrimRing);
+
+    const outerTrimRing = new THREE.Mesh(new THREE.TorusGeometry(3.18, 0.008, 10, 128), this.materials.aluminumTrim);
+    outerTrimRing.rotation.x = Math.PI / 2;
+    outerTrimRing.position.y = 4.345;
+    ceiling.add(outerTrimRing);
+
+    // 4. 天窗边框压条
+    const bezel = new THREE.Mesh(new THREE.RingGeometry(2.36, 2.45, 96), this.materials.ceilingTrim);
+    bezel.rotation.x = Math.PI / 2;
+    bezel.position.y = 4.38;
+    ceiling.add(bezel);
+
+    // 5. 中央圆形透光天窗（纯净漫射白日光盘）
+    const skylight = new THREE.Mesh(
+      new THREE.CircleGeometry(2.40, 96),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, toneMapped: false }),
+    );
+    skylight.rotation.x = Math.PI / 2;
+    skylight.position.y = 4.40;
+    skylight.name = 'central-skylight';
+    ceiling.add(skylight);
+
+    const skylightRing = new THREE.Mesh(new THREE.TorusGeometry(2.40, 0.02, 12, 96), this.materials.aluminumTrim);
+    skylightRing.rotation.x = Math.PI / 2;
+    skylightRing.position.y = 4.39;
+    ceiling.add(skylightRing);
+
+    // 6. 8 分割径向天窗立柱骨架组件
+    const cross = new THREE.Group();
+    cross.name = 'skylight-cross';
+    const mullionMat = new THREE.MeshStandardMaterial({
+      color: 0xecf2f7, roughness: 0.28, metalness: 0.35, side: THREE.FrontSide,
+    });
+
+    // 中央圆形立柱轮毂核心
+    const centerHub = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.035, 48), mullionMat);
+    centerHub.position.y = 4.385;
+    cross.add(centerHub);
+
+    // 连接中心轮毂与外围圆环的 8 根径向辐条
+    const spokeCount = 8;
+    const spokeLength = 2.40 - 0.28;
+    const spokeGeom = new THREE.BoxGeometry(spokeLength, 0.028, 0.04);
+    for (let i = 0; i < spokeCount; i++) {
+      const angle = (i * Math.PI * 2) / spokeCount;
+      const spoke = new THREE.Mesh(spokeGeom, mullionMat);
+      const midDist = 0.28 + spokeLength / 2;
+      spoke.position.set(Math.cos(angle) * midDist, 4.385, Math.sin(angle) * midDist);
+      spoke.rotation.y = -angle;
+      cross.add(spoke);
+    }
+    ceiling.add(cross);
+
+    // 7. 天花板与墙壁交接处的外圈暗藏灯槽
+    const perimeterCove = new THREE.Mesh(
+      new THREE.TorusGeometry(this.roomRadius - 0.20, 0.04, 12, 128),
+      this.materials.coveLight,
+    );
+    perimeterCove.rotation.x = Math.PI / 2;
+    perimeterCove.position.y = 3.84;
+    perimeterCove.name = 'perimeter-cove';
+    ceiling.add(perimeterCove);
+
+    this.group.add(ceiling);
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-   *  ▼ 踢脚线系统
-   * ═══════════════════════════════════════════════════════════════════ */
   private createBaseboard(): void {
-    this.group.add(createLaboratoryBaseboard(this.materials));
+    const base = new THREE.Group();
+    base.name = 'reference-baseboard';
+    const trim = new THREE.Mesh(
+      new THREE.CylinderGeometry(this.roomRadius - 0.03, this.roomRadius - 0.03, 0.045, 128, 1, true),
+      this.materials.wallTrim,
+    );
+    trim.position.y = 0.022;
+    base.add(trim);
+
+    const shadowGap = new THREE.Mesh(
+      new THREE.CylinderGeometry(this.roomRadius - 0.015, this.roomRadius - 0.015, 0.012, 128, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x9aa8b0, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
+    );
+    shadowGap.position.y = 0.006;
+    base.add(shadowGap);
+    this.group.add(base);
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-   *  ▼ 形状工具辅助函数
-   * ═══════════════════════════════════════════════════════════════════ */
   private roundedShape(width: number, height: number, radius: number): THREE.Shape {
     const shape = new THREE.Shape();
     const r = Math.min(radius, width / 2 - 0.001, height / 2 - 0.001);
@@ -179,90 +349,201 @@ export class Laboratory {
     return group;
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-   *  ▼ 墙面系统 — 纯白极简平滑完整正圆墙面
-   *    墙上无任何装饰与分缝，保持极致平滑、纯净无瑕的 360° 正圆柱面
-   * ═══════════════════════════════════════════════════════════════════ */
   private createRoomWalls(): void {
     const walls = new THREE.Group();
     walls.name = 'reference-walls';
 
-    // 基础室内圆柱外壳（室内哑光基底层，对齐参考图纯净冷灰太空舱配色）
     const shellHeight = 3.9;
-    const shellMat = new THREE.MeshStandardMaterial({
-      color: 0xc4d1de,
-      emissive: 0x182636,
-      emissiveIntensity: 0.28,
-      roughness: 0.38,
-      metalness: 0.20,
-      side: THREE.BackSide,
-    });
+    const shellMat = (this.materials.wallWhite as THREE.MeshStandardMaterial).clone();
+    shellMat.side = THREE.BackSide;
     const shell = new THREE.Mesh(
-      new THREE.CylinderGeometry(this.roomRadius + 0.01, this.roomRadius + 0.01, shellHeight, 128, 1, true),
+      new THREE.CylinderGeometry(this.roomRadius, this.roomRadius, shellHeight, 160, 1, true),
       shellMat,
     );
     shell.position.y = shellHeight / 2;
     shell.receiveShadow = true;
     shell.name = 'reference-shell';
-    shell.visible = false;
     walls.add(shell);
 
-    // 纯白平滑完整正圆墙面系统（墙上无任何装饰，纯净平滑正圆）
-    walls.add(createLaboratoryWallPanels(this.materials));
+    this.createPanelJoints(walls);
+    this.createRibbedWallPanels(walls);
 
-    // 天花板边缘隐藏式冷调冰白反光暗槽（保持结构供天花板反射与测试，视觉不外露）
-    const warmSlotMat = this.materials.hairlineLightSlot.clone() as THREE.MeshBasicMaterial;
-    warmSlotMat.side = THREE.BackSide;
-    const warmSlot = new THREE.Mesh(
-      new THREE.CylinderGeometry(this.roomRadius + 0.012, this.roomRadius + 0.012, 0.012, 160, 1, true),
-      warmSlotMat,
+    const cyanSlotMat = (this.materials.hairlineLightSlot as THREE.MeshBasicMaterial).clone();
+    cyanSlotMat.side = THREE.BackSide;
+    const cyanSlot = new THREE.Mesh(
+      new THREE.CylinderGeometry(this.roomRadius - 0.02, this.roomRadius - 0.02, 0.02, 160, 1, true),
+      cyanSlotMat,
     );
-    warmSlot.position.y = 3.90;
-    warmSlot.name = 'upper-cyan-light-slot';
-    warmSlot.visible = false;
-    walls.add(warmSlot);
+    cyanSlot.position.y = 3.42;
+    cyanSlot.name = 'upper-cyan-light-slot';
+    walls.add(cyanSlot);
 
-    // 沿弧形天际线的漫射微光槽（参考图顶部天际线柔和下照冷白光晕）
-    const washHeight = 0.40;
-    const washGeometry = new THREE.CylinderGeometry(this.roomRadius - 0.012, this.roomRadius - 0.012, washHeight, 128, 12, true);
-    const warmGlow = new THREE.Mesh(
-      washGeometry,
+    const cyanGlow = new THREE.Mesh(
+      new THREE.CylinderGeometry(this.roomRadius - 0.045, this.roomRadius - 0.045, 0.055, 128, 1, true),
       new THREE.MeshBasicMaterial({
-        color: 0xd8eaf8, transparent: true, opacity: 0.24, side: THREE.BackSide,
+        color: 0x9ae8ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending, depthWrite: false,
       }),
     );
-    warmGlow.position.y = 3.89 - washHeight / 2;
-    warmGlow.name = 'ceiling-wall-wash';
-    warmGlow.visible = false;
-    walls.add(warmGlow);
+    cyanGlow.position.y = 3.42;
+    walls.add(cyanGlow);
 
-    // 内部壁龛保持结构可用但默认隐藏（纯平滑墙面）
+    this.createObservationWindow(walls);
     this.createSideNiches(walls);
-    // 平齐门系统结构保留供测试与架构引用，默认隐藏以保持平滑圆墙面
     this.createEntryDoor(walls);
-
+    this.createVerticalCyanLights(walls);
     this.group.add(walls);
   }
 
   /**
    * 建筑立面各功能舱位分布：
-   * phi +-0.92：深凹带照明置物壁龛
-   * phi ≈ 0.96：带细倒角边框与内凹把手的实心滑门
+   * phi 0：带背光远景的观察视窗
+   * phi +-0.38：竖向条纹质感墙板
+   * phi +-0.66：垂直青色基准 LED 灯带凹槽
+   * phi +-0.92：深凹带照明置物壁龛（左侧壁龛内嵌全息 HUD 屏幕）
+   * phi 1.42：带圆角与内嵌把手的玻璃感应移门
    */
   private featureLayout() {
     const y = 2.15;
     return {
       y,
+      window: { phi: 0, width: 2.85, height: 1.25, y },
       niche: { width: 2.25, height: 1.36, y, phis: [0.92, -0.92, 2.25, -2.25] as const },
       cyan: [0.66, -0.66, 1.20, -1.22] as const,
-      door: { phi: LAB_WALLS.doorAngle, width: LAB_WALLS.doorWidth, height: LAB_WALLS.doorHeight, y: LAB_WALLS.doorBottom + LAB_WALLS.doorHeight / 2 },
+      door: { phi: 1.42, width: 1.45, height: 2.62, y: 1.36 },
     };
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-   *  ▼ 壁龛系统（默认隐藏 — 参考图为纯净白墙）
-   * ═══════════════════════════════════════════════════════════════════ */
+  private wallHalfAngle(width: number, radius: number): number {
+    return Math.atan((width / 2) / radius);
+  }
+
+  private blockedWallSpans(): Array<[number, number]> {
+    const layout = this.featureLayout();
+    const radius = this.roomRadius - 0.16;
+    const spans: Array<[number, number]> = [];
+    const block = (phi: number, width: number, pad = 0.045) => {
+      const half = this.wallHalfAngle(width, radius) + pad;
+      spans.push([phi - half, phi + half]);
+    };
+    block(layout.window.phi, layout.window.width, 0.05);
+    for (const phi of layout.niche.phis) block(phi, layout.niche.width);
+    for (const phi of layout.cyan) block(phi, 0.14, 0.02);
+    block(layout.door.phi, layout.door.width, 0.06);
+    return spans;
+  }
+
+  private spanContains(phi: number, span: [number, number]): boolean {
+    const wrap = (angle: number) => {
+      let value = angle;
+      while (value > Math.PI) value -= Math.PI * 2;
+      while (value < -Math.PI) value += Math.PI * 2;
+      return value;
+    };
+    const target = wrap(phi);
+    const start = wrap(span[0]);
+    const end = wrap(span[1]);
+    if (start <= end) return target >= start && target <= end;
+    return target >= start || target <= end;
+  }
+
+  private createPanelJoints(walls: THREE.Group): void {
+    const spans = this.blockedWallSpans();
+    const seamMat = new THREE.MeshBasicMaterial({ color: 0xc5d0d6, transparent: true, opacity: 0.4 });
+    const count = 24;
+    for (let i = 0; i < count; i++) {
+      const phi = -Math.PI + (i / count) * Math.PI * 2;
+      if (spans.some(span => this.spanContains(phi, span))) continue;
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.008, 3.05, 0.01), seamMat);
+      const radius = this.roomRadius - 0.012;
+      seam.position.set(Math.sin(phi) * radius, 1.72, -Math.cos(phi) * radius);
+      seam.rotation.y = -phi;
+      walls.add(seam);
+    }
+  }
+
+  /**
+   * 位于视窗与壁龛两侧的竖向条纹质感墙板
+   */
+  private createRibbedWallPanels(walls: THREE.Group): void {
+    const panels = [
+      { phi: -0.38, width: 1.15, count: 18 },
+      { phi: 0.38, width: 1.15, count: 18 },
+      { phi: -1.48, width: 1.35, count: 20 },
+      { phi: 2.55, width: 1.45, count: 22 },
+      { phi: -2.55, width: 1.45, count: 22 },
+    ];
+    const slatH = 2.45;
+    const slatW = 0.024;
+    const slatD = 0.022;
+    const slatMat = this.materials.flutedPanel || this.materials.wallWhite;
+    const slatGeom = new THREE.BoxGeometry(slatW, slatH, slatD);
+
+    const dummy = new THREE.Object3D();
+    for (const p of panels) {
+      const mount = this.mountOnWall(p.phi, 2.15, this.roomRadius - 0.04);
+      mount.name = `ribbed-panel-phi-${Math.round(p.phi * 100)}`;
+
+      const step = p.width / (p.count - 1);
+      const startX = -p.width / 2;
+      const instMesh = new THREE.InstancedMesh(slatGeom, slatMat, p.count);
+      instMesh.castShadow = false;
+      instMesh.receiveShadow = true;
+      for (let i = 0; i < p.count; i++) {
+        dummy.position.set(startX + i * step, 0, 0.012);
+        dummy.updateMatrix();
+        instMesh.setMatrixAt(i, dummy.matrix);
+      }
+      instMesh.instanceMatrix.needsUpdate = true;
+      mount.add(instMesh);
+      walls.add(mount);
+    }
+  }
+
+  private createObservationWindow(walls: THREE.Group): void {
+    const { window: spec } = this.featureLayout();
+    const { width, height } = spec;
+    const mount = this.mountOnWall(spec.phi, spec.y, this.roomRadius - 0.2);
+    mount.name = 'central-observation-window';
+
+    const frame = this.roundedFrame(width, height, width - 0.16, height - 0.14, 0.24, this.materials.wallTrim);
+    frame.position.z = 0.02;
+    frame.name = 'central-observation-window-frame';
+    mount.add(frame);
+
+    const bead = this.roundedFrame(width - 0.16, height - 0.14, width - 0.24, height - 0.22, 0.18, this.materials.aluminumTrim);
+    bead.position.z = 0.012;
+    mount.add(bead);
+
+    // 全景无尘实验室观察窗背景
+    const obsTex = TextureGenerator.createWindowObservationTexture();
+    const obsMat = new THREE.MeshBasicMaterial({
+      map: obsTex,
+      side: THREE.DoubleSide,
+    });
+    const back = this.roundedPanel(width - 0.28, height - 0.26, 0.16, obsMat);
+    back.position.z = -0.14;
+    mount.add(back);
+
+    const glass = this.roundedPanel(width - 0.26, height - 0.24, 0.16, this.materials.obsidianGlass);
+    glass.position.z = 0.004;
+    glass.name = 'central-observation-window-glass';
+    mount.add(glass);
+
+    const reflection = new THREE.Mesh(new THREE.PlaneGeometry(width * 0.62, 0.014), this.materials.glassBackglow);
+    reflection.position.set(0, 0.02, 0.028);
+    mount.add(reflection);
+
+    walls.add(mount);
+    this.observationWindowGroup = mount;
+  }
+
+  public setObservationWindowVisible(visible: boolean): void {
+    if (this.observationWindowGroup) {
+      this.observationWindowGroup.visible = visible;
+    }
+  }
+
   private createSideNiches(walls: THREE.Group): void {
     const { niche } = this.featureLayout();
     const labels = ['right', 'left', 'quarter-right', 'quarter-left'] as const;
@@ -273,7 +554,7 @@ export class Laboratory {
       mount.name = `side-niche-${label}`;
 
       const shadow = this.roundedPanel(width + 0.08, height + 0.08, 0.26, new THREE.MeshBasicMaterial({
-        color: 0x14202e, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide,
+        color: 0x93a3ac, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide,
       }));
       shadow.position.z = -0.02;
       mount.add(shadow);
@@ -284,7 +565,7 @@ export class Laboratory {
       mount.add(frame);
 
       const interior = this.roundedPanel(width - 0.2, height - 0.18, 0.14, new THREE.MeshStandardMaterial({
-        color: 0x182436, roughness: 0.55, metalness: 0.20, side: THREE.FrontSide,
+        color: 0xc5d3dc, roughness: 0.7, metalness: 0.02, side: THREE.FrontSide,
       }));
       interior.position.z = -0.16;
       mount.add(interior);
@@ -332,91 +613,74 @@ export class Laboratory {
       lowerGlow.name = `side-niche-warm-shelf-${label}`;
       mount.add(lowerGlow);
 
-      // 默认隐藏壁龛 — 参考图为纯净白墙
-      mount.visible = false;
-
       walls.add(mount);
     });
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-   *  ▼ 入口平齐建筑门 — Apple Park 标志性室内平齐一体化极简门
-   *    融入墙面垂直微缝节奏，配备纯白高精缎面板、全高 316L 不锈钢管状拉手与微倒角五金
-   * ═══════════════════════════════════════════════════════════════════ */
   private createEntryDoor(walls: THREE.Group): void {
     const { door } = this.featureLayout();
     const { width, height } = door;
-    const mount = this.mountOnWall(door.phi, door.y, LAB_WALLS.faceRadius + 0.012);
+    const mount = this.mountOnWall(door.phi, door.y, this.roomRadius - 0.16);
     mount.name = 'right-entry-door';
 
-    // 1. 极简航天铝微倒角门框套口（Slim Anodized Aluminum Portal Trim）
-    const frameShape = this.roundedShape(width + 0.04, height + 0.04, 0.012);
-    const innerPoints = this.roundedShape(width, height, 0.006).getPoints(24).reverse();
-    frameShape.holes.push(new THREE.Path(innerPoints));
+    const seal = this.roundedPanel(width + 0.1, height + 0.08, 0.22, this.materials.wallSeamDark);
+    seal.position.z = -0.15;
+    mount.add(seal);
 
-    const frameGeo = new THREE.ExtrudeGeometry(frameShape, {
-      depth: 0.038,
-      bevelEnabled: true,
-      bevelSize: 0.002,
-      bevelThickness: 0.002,
-      bevelSegments: 2,
-    });
-    const frame = new THREE.Mesh(frameGeo, this.materials.mullionSilver ?? this.materials.wallTrim);
-    frame.position.z = 0.010;
+    const frame = this.roundedFrame(width, height, width - 0.14, height - 0.12, 0.16, this.materials.aluminumTrim);
+    frame.position.z = 0.02;
     frame.name = 'right-entry-door-frame';
-    frame.castShadow = true;
     mount.add(frame);
 
-    // 2. 纯白极简缎面平齐门翼（Satin White Architectural Flush Door Leaf）
-    const leafGeo = new THREE.BoxGeometry(width - 0.016, height - 0.016, 0.032);
-    const leaf = new THREE.Mesh(leafGeo, this.materials.wallWhite);
-    leaf.position.z = 0.024;
-    leaf.name = 'right-entry-door-leaf';
-    leaf.castShadow = true;
-    leaf.receiveShadow = true;
-    mount.add(leaf);
+    const glass = this.roundedPanel(width - 0.18, height - 0.16, 0.12, this.materials.obsidianGlass);
+    glass.position.z = 0.004;
+    glass.name = 'right-entry-door-glass';
+    mount.add(glass);
 
-    // 3. Apple 标志性 316L 不锈钢垂直管状长把手（Ø28mm Stainless Pull Bars）
-    const handleMat = this.materials.chromeSteel ?? new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.08,
-      metalness: 0.98,
-    });
-    const handleHeight = 2.10;
-    const handleRadius = 0.014;
-
-    for (const sign of [-1, 1]) {
-      const hx = sign * 0.14;
-      // 垂直把手主柱
-      const barGeo = new THREE.CylinderGeometry(handleRadius, handleRadius, handleHeight, 16);
-      barGeo.translate(hx, 0, 0.062);
-      const bar = new THREE.Mesh(barGeo, handleMat);
-      bar.castShadow = true;
-      mount.add(bar);
-
-      // 上下精密机加工不锈钢支座（Standoff Brackets）
-      for (const sy of [-handleHeight * 0.38, handleHeight * 0.38]) {
-        const standoffGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.032, 12);
-        standoffGeo.rotateX(Math.PI / 2);
-        standoffGeo.translate(hx, sy, 0.046);
-        const standoff = new THREE.Mesh(standoffGeo, handleMat);
-        standoff.castShadow = true;
-        mount.add(standoff);
-      }
-    }
-
-    // 4. 地坪不锈钢转轴五金件与平整导轨（Flush Stainless Threshold & Pivot Patches）
-    for (const px of [-width / 2 + 0.10, width / 2 - 0.10]) {
-      const patchGeo = new THREE.BoxGeometry(0.10, 0.028, 0.034);
-      patchGeo.translate(px, -height / 2 + 0.014, 0.024);
-      const patch = new THREE.Mesh(patchGeo, handleMat);
-      mount.add(patch);
-    }
-
-    // 默认隐藏门体与把手五金（墙上无任何装饰，保持一个平滑完整的圆）
-    mount.visible = false;
+    // 垂直内凹门把手
+    const handleMat = this.materials.wallTrim;
+    const handleRecess = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.72, 0.02), handleMat);
+    handleRecess.position.set(-width / 2 + 0.12, 0, 0.03);
+    mount.add(handleRecess);
 
     walls.add(mount);
+  }
+
+  private createVerticalCyanLights(walls: THREE.Group): void {
+    const layout = this.featureLayout();
+    const slots = [
+      { phi: layout.cyan[1], name: 'vertical-cyan-light-left' },
+      { phi: layout.cyan[0], name: 'vertical-cyan-light-right' },
+      { phi: layout.cyan[2], name: 'vertical-cyan-light-rear-right' },
+      { phi: layout.cyan[3], name: 'vertical-cyan-light-rear-left' },
+    ];
+    const height = 3.28;
+    for (const slot of slots) {
+      const radius = this.roomRadius - 0.02;
+      const group = new THREE.Group();
+      group.name = slot.name;
+      group.position.set(Math.sin(slot.phi) * radius, 1.74, -Math.cos(slot.phi) * radius);
+      group.rotation.y = -slot.phi;
+
+      const core = new THREE.Mesh(new THREE.BoxGeometry(0.014, height, 0.01), this.materials.hairlineLightSlot);
+      group.add(core);
+      const glow = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.07, height - 0.08),
+        new THREE.MeshBasicMaterial({
+          color: 0x9ae8ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        }),
+      );
+      glow.position.z = 0.012;
+      group.add(glow);
+
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.02), this.materials.aluminumTrim);
+      cap.position.y = height / 2;
+      const foot = cap.clone();
+      foot.position.y = -height / 2;
+      group.add(cap, foot);
+      walls.add(group);
+    }
   }
 
   public update(_delta: number, _elapsed: number): void {

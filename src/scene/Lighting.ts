@@ -9,17 +9,17 @@ export class Lighting {
   }
 
   private setupLights(): void {
-    // 柔和均衡的冷调环境补光，完美呈现参考图通透高调的太空舱纯净微晶质感
-    const ambientLight = new THREE.AmbientLight(0xf0f6fb, 0.35);
+    // 柔和均衡的环境光补光，避免阴影死黑并维持画面对比度
+    const ambientLight = new THREE.AmbientLight(0xf0f4f8, 0.28);
     this.scene.add(ambientLight);
 
-    // 天空到地面的高精科技冷暖对比半球光
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xb8c8d8, 0.40);
+    // 天空到地面的微弱冷暖对比半球光
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xb8c5ce, 0.35);
     hemiLight.position.set(0, 7, 0);
     this.scene.add(hemiLight);
 
-    // 自穹顶天窗倾泻至工作台面的 6500K 纯白科研主方向光
-    const key = new THREE.DirectionalLight(0xf8fbff, 1.35);
+    // 自穹顶天窗倾泻至工作台面的主方向光
+    const key = new THREE.DirectionalLight(0xfffef8, 1.35);
     key.position.set(0.15, 9.2, 0.3);
     key.target.position.set(0, 0.99, 0);
     key.castShadow = true;

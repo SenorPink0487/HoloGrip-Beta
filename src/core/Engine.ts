@@ -283,31 +283,58 @@ export class Engine {
   private initImageBasedLighting(): void {
     const envScene = new THREE.Scene();
 
-    // 1. 周围圆柱形室体外壳（参考图纯净冷灰反射基底）
+    // 1. 周围圆柱形白色室体外壳
     const shell = new THREE.Mesh(
       new THREE.CylinderGeometry(8.2, 8.2, 5.0, 32, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xc4d1de, side: THREE.BackSide }),
+      new THREE.MeshBasicMaterial({ color: 0xd9e2e8, side: THREE.BackSide }),
     );
     shell.position.y = 2.2;
     envScene.add(shell);
 
-    const wallPanels = this.lab.group.getObjectByName('reference-wall-panels');
-    if (wallPanels) envScene.add(wallPanels.clone());
-    const wallDoor = this.lab.group.getObjectByName('right-entry-door');
-    if (wallDoor) envScene.add(wallDoor.clone());
+    // 2. 天花板圆形发光天窗
+    const oculus = new THREE.Mesh(
+      new THREE.CircleGeometry(2.4, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    );
+    oculus.position.y = 4.4;
+    oculus.rotation.x = Math.PI / 2;
+    envScene.add(oculus);
 
-    // Use the visible ceiling itself so specular reflections share its disc and five light sectors.
-    const ceiling = this.lab.group.getObjectByName('reference-ceiling');
-    if (ceiling) envScene.add(ceiling.clone());
+    // 3. 顶部嵌入式环形灯槽
+    const coveRing = new THREE.Mesh(
+      new THREE.RingGeometry(2.8, 3.3, 32),
+      new THREE.MeshBasicMaterial({ color: 0xfff2e0, side: THREE.DoubleSide }),
+    );
+    coveRing.position.y = 4.3;
+    coveRing.rotation.x = Math.PI / 2;
+    envScene.add(coveRing);
 
-    // Reflect the same concealed, graduated wall wash as the visible room.
-    const wallWash = this.lab.group.getObjectByName('ceiling-wall-wash');
-    if (wallWash) envScene.add(wallWash.clone());
+    // 4. 墙面垂直青色灯带
+    for (const phi of [0.66, -0.66, 1.20, -1.22]) {
+      const strip = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.08, 3.2),
+        new THREE.MeshBasicMaterial({ color: 0x64e5ff, side: THREE.DoubleSide }),
+      );
+      strip.position.set(Math.sin(phi) * 8.1, 2.1, -Math.cos(phi) * 8.1);
+      strip.rotation.y = -phi;
+      envScene.add(strip);
+    }
 
-    // 6. 中央全息台发光圆盘
+    // 5. 墙壁壁龛暖色发光板
+    for (const phi of [0.92, -0.92]) {
+      const pad = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.0, 1.2),
+        new THREE.MeshBasicMaterial({ color: 0xffeedd, side: THREE.DoubleSide }),
+      );
+      pad.position.set(Math.sin(phi) * 8.0, 2.15, -Math.cos(phi) * 8.0);
+      pad.rotation.y = -phi;
+      envScene.add(pad);
+    }
+
+    // 6. 中央全息台青色发光圆盘
     const tableDisc = new THREE.Mesh(
       new THREE.CircleGeometry(1.2, 32),
-      new THREE.MeshBasicMaterial({ color: 0xf0f6fc, side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({ color: 0x40d5ff, side: THREE.DoubleSide }),
     );
     tableDisc.position.y = 1.0;
     tableDisc.rotation.x = -Math.PI / 2;
@@ -327,9 +354,10 @@ export class Engine {
 
   private initWorld(): void {
     this.lighting = new Lighting(this.scene);
+    this.initImageBasedLighting();
+
     this.lab = new Laboratory();
     this.scene.add(this.lab.group);
-    this.initImageBasedLighting();
 
     if (this.computeBridge) {
       TextureGenerator.bakeAllTexturesAsync(this.computeBridge)
@@ -757,6 +785,7 @@ export class Engine {
       onClose: () => {
         this.spatialWindowObject.visible = false;
         this.inputManager?.touch?.setVisionModalOpen(false);
+        this.lab?.setObservationWindowVisible(true);
         this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
         if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !this.isFreeCursorExperiment(this.currentExperimentId)) {
           this.crosshair.setVisible(true);
@@ -769,6 +798,7 @@ export class Engine {
         this.positionWindowDefault(true);
         this.spatialWindowObject.visible = true;
         this.inputManager?.touch?.setVisionModalOpen(true);
+        this.lab?.setObservationWindowVisible(false);
         this.inputManager.player.exitLock();
         this.inputManager.player.allowPointerLock = false;
         this.crosshair.setVisible(false);
