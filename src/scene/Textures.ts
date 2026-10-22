@@ -55,17 +55,17 @@ export class TextureGenerator {
       const offCtx = off.getContext('2d')!;
       offCtx.putImageData(new ImageData(prebakedFbm as any, 512, 512), 0, 0);
       ctx.drawImage(off, 0, 0, size, size);
-      ctx.fillStyle = 'rgba(232, 238, 244, 0.85)';
+      ctx.fillStyle = 'rgba(244, 247, 251, 0.88)';
       ctx.fillRect(0, 0, size, size);
     } else {
-      ctx.fillStyle = '#cfdbe3';
+      ctx.fillStyle = '#dbe5ec';
       ctx.fillRect(0, 0, size, size);
-      // 匹配天窗光锥的柔和径向漫射光照渐变
+      // 匹配天窗光锥与穹顶弧光环的柔和径向漫射光照渐变
       const glow = ctx.createRadialGradient(size * 0.5, size * 0.5, 30, size * 0.5, size * 0.5, size * 0.60);
-      glow.addColorStop(0, 'rgba(245, 248, 252, 0.75)');
-      glow.addColorStop(0.45, 'rgba(235, 240, 246, 0.45)');
-      glow.addColorStop(0.85, 'rgba(215, 225, 232, 0.15)');
-      glow.addColorStop(1, 'rgba(195, 208, 218, 0.25)');
+      glow.addColorStop(0, 'rgba(252, 254, 255, 0.85)');
+      glow.addColorStop(0.45, 'rgba(240, 246, 251, 0.55)');
+      glow.addColorStop(0.85, 'rgba(224, 233, 240, 0.22)');
+      glow.addColorStop(1, 'rgba(206, 218, 228, 0.30)');
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, size, size);
     }
@@ -82,10 +82,10 @@ export class TextureGenerator {
       const r = rand() * 0.9 + 0.3;
       const shade = rand();
       ctx.fillStyle = shade > 0.6
-        ? 'rgba(255,255,255,0.55)'
+        ? 'rgba(255,255,255,0.50)'
         : shade > 0.25
-          ? 'rgba(155, 170, 180, 0.18)'
-          : 'rgba(120, 135, 145, 0.10)';
+          ? 'rgba(175, 192, 204, 0.14)'
+          : 'rgba(135, 152, 165, 0.08)';
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
@@ -107,8 +107,8 @@ export class TextureGenerator {
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
 
-    // 精细缎面光泽粗糙度（基准约 0.18），防止高光过曝眩光
-    ctx.fillStyle = '#2c2c2c';
+    // 镜面高光洁净室自流平粗糙度（基准约 0.12），倒映穹顶弧光环
+    ctx.fillStyle = '#1e1e1e';
     ctx.fillRect(0, 0, size, size);
 
     // 相关的微观粗糙度扰动
@@ -132,7 +132,7 @@ export class TextureGenerator {
         for (let x = 0; x < 256; x++) {
           const u = x / 256;
           const n = 0.65 * this.sampleNoise(g1, 16, 16, u * 2, v * 2) + 0.35 * this.sampleNoise(g2, 32, 32, u * 4, v * 4);
-          const val = Math.round(43 + n * 26);
+          const val = Math.round(26 + n * 12);
           const idx = (y * 256 + x) * 4;
           d[idx] = val;
           d[idx + 1] = val;

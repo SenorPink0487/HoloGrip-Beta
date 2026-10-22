@@ -1308,13 +1308,18 @@ export class HandTrackingHUD {
       ctx.drawImage(video, 0, 0, w, h);
       ctx.restore();
     } else {
-      ctx.fillStyle = '#1c1c1e';
+      ctx.fillStyle = '#0f172a';
       ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = '#8e8e93';
-      ctx.font = '12px -apple-system, sans-serif';
+      ctx.fillStyle = '#64748b';
+      ctx.font = '11px -apple-system, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('等待前置摄像头画面...', w / 2, h / 2);
-      return;
+      const isAppleVision = this.service.getTelemetry().isAppleVision;
+      if (isAppleVision) {
+        ctx.fillText('Apple Vision ANE 原生神经加速', w / 2, h / 2);
+      } else {
+        ctx.fillText('等待前置摄像头画面...', w / 2, h / 2);
+        return;
+      }
     }
 
     const handsToRender: {

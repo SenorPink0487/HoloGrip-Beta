@@ -5,3 +5,4 @@ export * from './HandGestureService.ts';
 export * from './VisionProCursor.ts';
 export * from './HandTrackingHUD.ts';
 export * from './DirectHandTracker.ts';
+export * from './AppleVisionTracker.ts';

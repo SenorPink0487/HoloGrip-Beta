@@ -109,6 +109,8 @@ export interface TrackerTelemetry {
   isLeftLongPinch: boolean;
   isLocalModel: boolean;
   isWorkerMode?: boolean;
-  delegate?: 'GPU' | 'CPU' | 'unknown';
+  delegate?: 'GPU' | 'CPU' | 'Apple Vision (ANE)' | 'unknown';
   errorMessage?: string;
+  backend?: string;
+  isAppleVision?: boolean;
 }

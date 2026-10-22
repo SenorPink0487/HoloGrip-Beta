@@ -9,12 +9,12 @@ export class Lighting {
   }
 
   private setupLights(): void {
-    // 柔和均衡的环境光补光，避免阴影死黑并维持画面对比度
-    const ambientLight = new THREE.AmbientLight(0xf0f4f8, 0.28);
+    // 柔和均衡的环境光补光，避免阴影死黑并维持洁净室通透纯白的高调对比度
+    const ambientLight = new THREE.AmbientLight(0xf2f6fa, 0.32);
     this.scene.add(ambientLight);
 
     // 天空到地面的微弱冷暖对比半球光
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xb8c5ce, 0.35);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xc0cdd8, 0.38);
     hemiLight.position.set(0, 7, 0);
     this.scene.add(hemiLight);
 

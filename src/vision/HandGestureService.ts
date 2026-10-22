@@ -1,4 +1,5 @@
 import { PointFilter2D } from './OneEuroFilter.ts';
+import { AppleVisionTracker } from './AppleVisionTracker.ts';
 import type {
   DualHandPinchEvent,
   HandGestureFrame,
@@ -278,7 +279,11 @@ export class HandGestureService {
   private lastLatencyMs = 0;
   private lastInferenceMs = 0;
   private lastCaptureMs = 0;
-  private delegate: 'GPU' | 'CPU' | 'unknown' = 'unknown';
+  private delegate: 'GPU' | 'CPU' | 'Apple Vision (ANE)' | 'unknown' = 'unknown';
+
+  // 苹果原生 Vision 框架混合架构适配器
+  private appleVisionTracker: AppleVisionTracker = new AppleVisionTracker();
+  private isAppleVisionMode = false;
 
   // 双手协同捏合缩放状态
   private isDualPinchActive = false;
@@ -333,7 +338,15 @@ export class HandGestureService {
   }
 
   public isWorkerMode(): boolean {
-    return Boolean(this.worker && this.isWorkerReady);
+    return Boolean(this.worker && this.isWorkerReady && !this.isAppleVisionMode);
+  }
+
+  public isAppleVision(): boolean {
+    return this.isAppleVisionMode;
+  }
+
+  public getAppleVisionTracker(): AppleVisionTracker {
+    return this.appleVisionTracker;
   }
 
   public getTelemetry(): TrackerTelemetry {
@@ -352,9 +365,13 @@ export class HandGestureService {
       rightHandDetected: this.lastRightHandDetected,
       isLeftLongPinch: this.leftTracker.isLongPinch,
       isLocalModel: true,
-      isWorkerMode: Boolean(this.worker && this.isWorkerReady),
+      isWorkerMode: this.isWorkerMode(),
       delegate: this.delegate,
       errorMessage: this.errorMessage || undefined,
+      backend: this.isAppleVisionMode
+        ? 'Apple Vision Framework (ANE Native)'
+        : (this.isWorkerMode() ? 'MediaPipe Dedicated Worker' : 'Unknown'),
+      isAppleVision: this.isAppleVisionMode,
     };
   }
 
@@ -424,14 +441,52 @@ export class HandGestureService {
     }
   }
 
+  private handleAppleVisionFrame(
+    landmarksList: NormalizedLandmark[][],
+    handednessList: any[][],
+    timestamp: number,
+    latencyMs: number
+  ): void {
+    if (this.status !== 'running') return;
+
+    this.lastLatencyMs = latencyMs;
+    this.currentFps = this.appleVisionTracker.getFps() || 60;
+    this.lastInferenceMs = latencyMs * 0.8;
+    this.lastCaptureMs = latencyMs * 0.2;
+
+    const frame = this.processMultiHands(landmarksList, handednessList, timestamp);
+    this.broadcastFrame(frame);
+    this.notifyStatus();
+  }
+
   /**
-   * 专属在独立的 Web Worker 中初始化 MediaPipe HandLandmarker 运算。
+   * 专属在独立的 Web Worker 中初始化 MediaPipe HandLandmarker 运算，
+   * 或在苹果原生客户端（Apple Native App）中直接对接 Apple Vision 硬件神经计算管线。
    * 彻底移除主线程回退执行，防止 3D 物理渲染过程出现任何掉帧或卡顿。
    */
   public async init(): Promise<void> {
     if (this.status === 'ready' || this.status === 'running') return;
     this.status = 'loading';
     this.notifyStatus();
+
+    // 混合架构：优先检查是否运行于苹果原生客户端环境（Apple Native App）
+    if (await this.appleVisionTracker.isSupported()) {
+      try {
+        console.log('[HandGestureService] Apple Native App detected: activating Apple Vision Framework (ANE) pipeline.');
+        await this.appleVisionTracker.init((landmarksList, handednessList, timestamp, latencyMs) => {
+          this.handleAppleVisionFrame(landmarksList, handednessList, timestamp, latencyMs);
+        });
+        this.isAppleVisionMode = true;
+        this.delegate = 'Apple Vision (ANE)';
+        this.status = 'ready';
+        this.errorMessage = '';
+        this.notifyStatus();
+        return;
+      } catch (appleErr) {
+        console.warn('[HandGestureService] Failed to initialize Apple Vision, falling back to Web Worker:', appleErr);
+        this.isAppleVisionMode = false;
+      }
+    }
 
     if (!this.config.useWorker) {
       const err = new Error('Main-thread fallback has been removed. Dedicated Web Worker is strictly required.');
@@ -456,17 +511,28 @@ export class HandGestureService {
       await this.initWorker();
       console.log('[HandGestureService] Hand tracking worker ready.');
 
-      // 并发启动高性能主线程直连硬件 GPU 追踪器（对齐 HoloPhysics / wuli 生产架构）
-      // 零拷贝直接处理 HTMLVideoElement，获得 ≤25ms 的超低延迟与 30~60 FPS
-      try {
-        const { DirectHandTracker } = await import('./DirectHandTracker.ts');
-        this.directTracker = new DirectHandTracker(this.config);
-        const del = await this.directTracker.init();
-        if (del) {
-          this.delegate = del;
+      // 并发启动高性能主线程直连硬件 GPU 追踪器（仅限非触控移动端桌面环境）
+      // 移动端/iPadOS 严禁在主线程执行 AI 同步推理，避免挤占 Three.js 帧时间导致 3D 帧率暴跌至 30 FPS
+      const isMobileOrTablet =
+        typeof navigator !== 'undefined' &&
+        (/iPad|iPhone|Android/i.test(navigator.userAgent) ||
+          (/Macintosh/i.test(navigator.userAgent) && (navigator.maxTouchPoints || 0) > 1) ||
+          (navigator.maxTouchPoints || 0) > 0);
+
+      if (!isMobileOrTablet) {
+        try {
+          const { DirectHandTracker } = await import('./DirectHandTracker.ts');
+          this.directTracker = new DirectHandTracker(this.config);
+          const del = await this.directTracker.init();
+          if (del) {
+            this.delegate = del;
+          }
+        } catch (directErr) {
+          console.warn('[HandGestureService] Direct GPU tracker initialization fallback to worker:', directErr);
+          this.directTracker = null;
         }
-      } catch (directErr) {
-        console.warn('[HandGestureService] Direct GPU tracker initialization fallback to worker:', directErr);
+      } else {
+        console.log('[HandGestureService] Mobile/iPad device detected: routing hand tracking to dedicated Web Worker to protect 60+ FPS 3D rendering.');
         this.directTracker = null;
       }
 
@@ -594,8 +660,21 @@ export class HandGestureService {
    */
   public async start(): Promise<void> {
     if (this.status === 'running') return;
-    if (!this.isWorkerReady) {
+    if (!this.isWorkerReady && !this.isAppleVisionMode) {
       await this.init();
+    }
+
+    if (this.isAppleVisionMode) {
+      this.status = 'running';
+      this.frameCount = 0;
+      this.currentFps = 60;
+      this.lastFpsTimestamp = performance.now();
+      this.leftTracker.reset();
+      this.rightTracker.reset();
+      this.notifyStatus();
+      await this.appleVisionTracker.start();
+      console.log('[HandGestureService] Apple Vision Native tracking started.');
+      return;
     }
 
     try {
@@ -673,6 +752,12 @@ export class HandGestureService {
 
   public pause(): void {
     if (this.status !== 'running') return;
+    if (this.isAppleVisionMode) {
+      this.appleVisionTracker.stop();
+      this.status = 'paused';
+      this.notifyStatus();
+      return;
+    }
     this.status = 'paused';
     this.sessionId++;
     if (this.animFrameId !== null) {
@@ -688,6 +773,12 @@ export class HandGestureService {
 
   public resume(): void {
     if (this.status !== 'paused') return;
+    if (this.isAppleVisionMode) {
+      this.appleVisionTracker.start();
+      this.status = 'running';
+      this.notifyStatus();
+      return;
+    }
     this.status = 'running';
     this.lastVideoCurrentTime = -1;
     this.lastDecodedFrameCount = -1;
@@ -698,6 +789,19 @@ export class HandGestureService {
   }
 
   public stop(): void {
+    if (this.isAppleVisionMode) {
+      this.appleVisionTracker.stop();
+      this.leftTracker.reset();
+      this.rightTracker.reset();
+      this.lastHasHand = false;
+      this.lastLeftHandDetected = false;
+      this.lastRightHandDetected = false;
+      this.lastRightPinchRatio = 0;
+      this.lastRightPinchStrength = 0;
+      this.status = 'ready';
+      this.notifyStatus();
+      return;
+    }
     this.sessionId++;
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
@@ -743,6 +847,10 @@ export class HandGestureService {
   }
 
   public destroy(): void {
+    if (this.isAppleVisionMode) {
+      this.appleVisionTracker.destroy();
+      this.isAppleVisionMode = false;
+    }
     this.stop();
     this.disposeWorker();
     this.frameListeners.clear();
@@ -830,8 +938,13 @@ export class HandGestureService {
       if (videoTime === this.lastVideoCurrentTime) return;
     }
 
-    // 1. 优先执行高性能主线程直连硬件 GPU 管线（对齐 HoloPhysics / wuli 生产架构）
+    // 1. 优先执行高性能主线程直连硬件 GPU 管线（仅限桌面环境）
     if (this.directTracker && this.directTracker.isInitialized()) {
+      // 桌面环境限速至 ≤ 30 FPS 以保护 60+ FPS 3D 渲染与 VSync 节拍
+      if (this.lastFrameSendTime > 0 && (now - this.lastFrameSendTime < 30)) {
+        return;
+      }
+
       if (presentedFrames !== undefined && Number.isFinite(presentedFrames)) {
         this.lastPresentedFrames = presentedFrames;
       }
