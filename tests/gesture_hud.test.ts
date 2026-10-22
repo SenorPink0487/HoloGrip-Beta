@@ -189,8 +189,8 @@ console.log('=== Starting Active Gesture HUD & MediaPipe Integration Verificatio
   const title = pill.querySelector('.vp-pill-title');
   assert.ok(title, 'Must contain .vp-pill-title');
   assert.strictEqual(title.textContent, '手势交互', 'Title must be "手势交互"');
-  const icon = pill.querySelector('.vp-pill-icon');
-  assert.ok(icon, 'Must contain .vp-pill-icon');
+  const hasIcon = pill.children.some(c => c.className.includes('vp-pill-icon'));
+  assert.strictEqual(hasIcon, false, 'Must NOT contain .vp-pill-icon per user request to delete hand icon');
 
   const toggleBtn = pill.querySelector('.vp-pill-toggle-btn');
   assert.ok(toggleBtn, 'Must contain .vp-pill-toggle-btn');

@@ -39,3 +39,17 @@
 4. **Direct Operator Facing Standard (实验器材必须正对操作者视线)**:
    - Apparatus layout on the HoloTable must be oriented so that the primary observation screen, measurement graduations, telemetry readouts, and control knobs squarely face the user (+Z direction toward operator camera).
    - Long rail instruments (e.g., optical benches) must stretch horizontally along the X-axis, with scales and knobs directly facing forward (+Z), never angling backwards away from the user.
+
+---
+
+## 3. Safe Code Search Standard & Resource Protection (严禁根目录盲目 grep，防止后台常驻高负载)
+
+1. **Strictly Forbid Unconstrained `grep -rn .` in Root**:
+   - The workspace contains Tauri/Rust compilation artifacts in `src-tauri/target/` (including 12GB+ binary caches like `CompilationCache.noindex/.../index.v1`) and extensive `node_modules/`.
+   - Running unconstrained `grep -rn <pattern> .` at root traps the process scanning massive binary blobs, burning 100% CPU indefinitely and leaving orphan background processes.
+
+2. **Mandatory Safe Search Practices**:
+   - **Primary**: Always use `git grep -in "<keyword>"` (automatically respects `.gitignore` and ignores binary caches in milliseconds).
+   - **Targeted**: Restrict searches to explicit code directories, e.g., `grep -rn "<keyword>" src/ tests/`.
+   - **Explicit Exclusions**: If `grep` must be used from root, always supply exclusions: `--exclude-dir={node_modules,target,.git,dist}`.
+

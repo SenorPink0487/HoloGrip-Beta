@@ -37,14 +37,17 @@ export class StereometryTouchZoomWidget {
           right: calc(32px + env(safe-area-inset-right, 0px));
           display: flex;
           align-items: center;
-          gap: 3px;
-          padding: 4px;
-          border-radius: 980px;
-          background: radial-gradient(circle at 40% 30%, rgba(18, 30, 48, 0.94) 0%, rgba(8, 16, 28, 0.98) 100%);
-          border: 1.5px solid rgba(255, 255, 255, 0.18);
-          box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45),
-                      inset 0 1px 1.5px rgba(255, 255, 255, 0.28),
-                      0 0 24px rgba(0, 240, 255, 0.12);
+          gap: 6px;
+          height: 44px;
+          padding: 0 6px;
+          border-radius: 22px;
+          background: rgba(255, 255, 255, 0.72);
+          border: 0.5px solid rgba(0, 0, 0, 0.12);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
+                      inset 0 1px 1px rgba(255, 255, 255, 0.85);
+          backdrop-filter: blur(28px) saturate(180%);
+          -webkit-backdrop-filter: blur(28px) saturate(180%);
+          font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
           z-index: 950;
           pointer-events: auto;
           user-select: none;
@@ -52,7 +55,16 @@ export class StereometryTouchZoomWidget {
           touch-action: manipulation;
           transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
                       opacity 0.25s ease,
-                      box-shadow 0.25s ease;
+                      background 0.2s ease,
+                      border-color 0.2s ease,
+                      box-shadow 0.2s ease;
+        }
+
+        .stereometry-touch-zoom-pill:hover {
+          background: rgba(255, 255, 255, 0.85);
+          border-color: rgba(0, 0, 0, 0.18);
+          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16),
+                      inset 0 1px 1px rgba(255, 255, 255, 0.95);
         }
 
         /* 触控设备与 iPad 响应式布局：位于 Vision 启动按钮正上方 */
@@ -66,6 +78,10 @@ export class StereometryTouchZoomWidget {
 
         @media (pointer: coarse) and (min-width: 768px) {
           .stereometry-touch-zoom-pill {
+            height: 48px;
+            border-radius: 24px;
+            padding: 0 6px;
+            gap: 7px;
             bottom: calc(112px + env(safe-area-inset-bottom, 0px));
             right: calc(40px + env(safe-area-inset-right, 0px));
           }
@@ -90,12 +106,13 @@ export class StereometryTouchZoomWidget {
         }
 
         .zoom-touch-btn {
-          width: 42px;
-          height: 42px;
+          width: 34px;
+          height: 34px;
           border-radius: 50%;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          background: rgba(255, 255, 255, 0.08);
-          color: #f0f6fc;
+          border: 0.5px solid rgba(0, 0, 0, 0.12);
+          background: rgba(0, 0, 0, 0.05);
+          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3);
+          color: #000000;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -107,39 +124,39 @@ export class StereometryTouchZoomWidget {
           -webkit-tap-highlight-color: transparent;
           transition: background 0.18s ease,
                       border-color 0.18s ease,
-                      transform 0.15s cubic-bezier(0.2, 0.8, 0.4, 1),
-                      box-shadow 0.18s ease;
+                      transform 0.12s ease,
+                      box-shadow 0.18s ease,
+                      color 0.18s ease;
         }
 
         @media (pointer: coarse) and (min-width: 768px) {
           .zoom-touch-btn {
-            width: 46px;
-            height: 46px;
+            width: 38px;
+            height: 38px;
           }
         }
 
         .zoom-touch-btn:hover {
-          background: rgba(255, 255, 255, 0.18);
-          border-color: rgba(255, 255, 255, 0.3);
-          color: #ffffff;
+          background: rgba(0, 0, 0, 0.09);
+          border-color: rgba(0, 0, 0, 0.2);
+          color: #000000;
+          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4), 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
         .zoom-touch-btn:active,
         .zoom-touch-btn.is-active {
-          transform: scale(0.90);
-          background: rgba(0, 240, 255, 0.28);
-          border-color: rgba(0, 240, 255, 0.6);
-          box-shadow: 0 0 14px rgba(0, 240, 255, 0.4);
-          color: #38bdf8;
+          transform: scale(0.92);
+          background: rgba(0, 0, 0, 0.14);
+          color: #000000;
         }
 
         .zoom-touch-btn svg {
-          stroke: currentColor;
+          stroke: #000000;
           transition: transform 0.15s ease;
         }
 
         .zoom-touch-btn:active svg {
-          transform: scale(1.1);
+          transform: scale(1.08);
         }
 
         /* 缩放指示器与重置徽章 */
@@ -148,54 +165,61 @@ export class StereometryTouchZoomWidget {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 0 12px;
-          height: 42px;
-          border-radius: 21px;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          background: rgba(255, 255, 255, 0.06);
-          color: #38bdf8;
+          padding: 0 10px;
+          height: 34px;
+          border-radius: 17px;
+          border: 0.5px solid rgba(0, 0, 0, 0.12);
+          background: rgba(0, 0, 0, 0.05);
+          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3);
+          color: #000000;
           cursor: pointer;
           outline: none;
           touch-action: manipulation;
           -webkit-tap-highlight-color: transparent;
-          transition: background 0.18s, border-color 0.18s, transform 0.15s;
+          transition: background 0.18s ease,
+                      border-color 0.18s ease,
+                      transform 0.12s ease,
+                      box-shadow 0.18s ease;
         }
 
         @media (pointer: coarse) and (min-width: 768px) {
           .zoom-touch-badge {
-            height: 46px;
-            padding: 0 14px;
-            border-radius: 23px;
+            height: 38px;
+            padding: 0 12px;
+            border-radius: 19px;
           }
         }
 
         .zoom-touch-badge:hover {
-          background: rgba(0, 240, 255, 0.15);
-          border-color: rgba(0, 240, 255, 0.35);
+          background: rgba(0, 0, 0, 0.09);
+          border-color: rgba(0, 0, 0, 0.2);
+          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4), 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
         .zoom-touch-badge:active {
-          transform: scale(0.92);
-          background: rgba(0, 240, 255, 0.25);
+          transform: scale(0.94);
+          background: rgba(0, 0, 0, 0.14);
         }
 
         .zoom-scale-percent {
-          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", monospace;
-          font-size: 13.5px;
+          font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+          font-size: 13px;
           font-weight: 600;
           font-variant-numeric: tabular-nums;
           letter-spacing: -0.2px;
-          color: #e0f2fe;
-          text-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+          color: #000000;
+          line-height: 1.1;
           white-space: nowrap;
         }
 
         .zoom-scale-hint {
-          font-size: 9px;
+          font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+          font-size: 8.5px;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.55);
-          letter-spacing: 0.2px;
-          margin-top: -1px;
+          color: rgba(0, 0, 0, 0.5);
+          letter-spacing: -0.1px;
+          line-height: 1;
+          margin-top: 1px;
           white-space: nowrap;
         }
       `;
@@ -211,7 +235,7 @@ export class StereometryTouchZoomWidget {
     this.element.innerHTML = `
       <!-- Zoom Out Button (-) -->
       <button type="button" class="zoom-touch-btn" id="btn-touch-zoom-out" aria-label="缩小立体几何图像" title="缩小 (快捷键 - 或双指捏合)">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke-width="2.4" stroke-linecap="round">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke-width="2.2" stroke-linecap="round">
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
       </button>
@@ -224,7 +248,7 @@ export class StereometryTouchZoomWidget {
 
       <!-- Zoom In Button (+) -->
       <button type="button" class="zoom-touch-btn" id="btn-touch-zoom-in" aria-label="放大立体几何图像" title="放大 (快捷键 + 或双指扩张)">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke-width="2.4" stroke-linecap="round">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke-width="2.2" stroke-linecap="round">
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>

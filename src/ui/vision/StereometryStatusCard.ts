@@ -273,25 +273,41 @@ export class StereometryStatusCard {
   }
 
   private bindEvents(): void {
-    // 1. 点击对应的模型进入更改长度的页面
+    // 1. 3D模型列表交互：点击未选定的模型仅切换选中与3D展示；点击已选定的模型才进入尺寸调整页面
     this.element.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('.math-model-card') as HTMLElement;
       if (!btn) return;
       const model = btn.getAttribute('data-model') as HighSchoolModelType;
       if (!model) return;
 
-      this.currentModel = model;
-      this.element.querySelectorAll('.math-model-card').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
+      const isAlreadySelected = this.currentModel === model && btn.classList.contains('active');
 
-      this.callbacks.onModelChange?.(model);
-      this.callbacks.onClearSegments?.();
+      if (!isAlreadySelected) {
+        // 首次点击未选定的模型：选定该模型并切换场景展示，留在模型列表主视图
+        this.currentModel = model;
+        this.element.querySelectorAll('.math-model-card').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
 
-      const dims = this.modelDimensions[model] || { a: 1, h: 1 };
-      this.syncPreservationDimensions(dims);
-      this.callbacks.onDimensionChange?.(dims);
+        this.callbacks.onModelChange?.(model);
+        this.callbacks.onClearSegments?.();
 
-      this.openParamPage(model);
+        const dims = this.modelDimensions[model] || { a: 1, h: 1 };
+        this.syncPreservationDimensions(dims);
+        this.callbacks.onDimensionChange?.(dims);
+      } else {
+        // 点击已选定的模型：进入尺寸调整页面
+        this.openParamPage(model);
+      }
+    });
+
+    this.element.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        const btn = (e.target as HTMLElement).closest('.math-model-card') as HTMLElement;
+        if (btn) {
+          e.preventDefault();
+          btn.click();
+        }
+      }
     });
 
     // 2. 返回按钮退出更改长度页面

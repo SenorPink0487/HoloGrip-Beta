@@ -85,6 +85,7 @@ export class StereometryMesh {
 
   // 可复用动态预览连线资源（零内存分配保障 120 FPS）
   private previewPipeMesh: THREE.Mesh | null = null;
+  private previewLineMesh: THREE.Line | null = null;
   private previewStartBead: THREE.Mesh | null = null;
   private previewEndBead: THREE.Mesh | null = null;
   private previewBadgeSprite: THREE.Sprite | null = null;
@@ -135,7 +136,7 @@ export class StereometryMesh {
   private sharedMidpointGeo = new THREE.SphereGeometry(0.0036, 12, 12);
   private sharedThirdGeo = new THREE.SphereGeometry(0.0032, 12, 12);
   private sharedCenterGeo = new THREE.SphereGeometry(0.0032, 12, 12);
-  private unitCylinderGeo = new THREE.CylinderGeometry(0.0012, 0.0012, 1.0, 16);
+  private unitCylinderGeo = new THREE.CylinderGeometry(0.0014, 0.0014, 1.0, 8);
 
   // 材质定义 - 水晶玻璃美学与深度测试消隐
   private depthMaskMaterial: THREE.MeshBasicMaterial;
@@ -282,15 +283,15 @@ export class StereometryMesh {
       emissiveIntensity: 0.25,
     });
 
-    // 3. 高精度 3D 圆柱形棱结构杆（精抛钴钛合金微型结构杆）
+    // 3. 高精度 3D 棱清晰结构杆（清晰适度、哑光无刺目反光金属管道感）
     this.strutMaterial = new THREE.MeshStandardMaterial({
       color: 0x0284c7,            // 高精钴钛合金
-      metalness: 0.50,            // 柔和缎面光泽（无刺目金属眩光）
-      roughness: 0.35,
+      metalness: 0.05,            // 消除粗大反光金属管道感
+      roughness: 0.85,            // 哑光质感
       emissive: 0x0284c7,
-      emissiveIntensity: 0.40,
+      emissiveIntensity: 0.55,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.96,
     });
 
     // 3.1 内部锐利发光核心线
@@ -336,7 +337,7 @@ export class StereometryMesh {
     });
 
     this.crossSectionLineMat = new THREE.LineBasicMaterial({
-      color: 0xff1744,            // 鲜明绯红霓虹边缘
+      color: 0xf43f5e,            // 与截面填充色保持严格一致
       linewidth: 3,
     });
 
@@ -1300,15 +1301,14 @@ export class StereometryMesh {
     const len = dir.length();
     if (len < 1e-4) return;
 
-    const pipeGeo = new THREE.CylinderGeometry(0.0042, 0.0042, 1.0, 16);
-    const pipeMat = new THREE.MeshStandardMaterial({
+    // 醒目平光线芯（无光照阴影，消除立体圆柱高光，粗细清晰适中）
+    const pipeGeo = new THREE.CylinderGeometry(0.0020, 0.0020, 1.0, 10);
+    const pipeMat = new THREE.MeshBasicMaterial({
       color: seg.color,
-      emissive: seg.color,
-      emissiveIntensity: 0.95,
-      roughness: 0.15,
-      metalness: 0.85,
       transparent: true,
-      opacity: 0.95,
+      opacity: 1.0,
+      depthTest: true,
+      depthWrite: false,
     });
     const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
     pipeMesh.position.copy(posA);
@@ -1318,11 +1318,9 @@ export class StereometryMesh {
     this.segmentAnimGroup.add(pipeMesh);
 
     // 从 posA 运动至 posB 的发光端点指示器
-    const tipGeo = new THREE.SphereGeometry(0.0062, 12, 12);
-    const tipMat = new THREE.MeshStandardMaterial({
+    const tipGeo = new THREE.SphereGeometry(0.0050, 12, 12);
+    const tipMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      emissive: seg.color,
-      emissiveIntensity: 1.6,
     });
     const glowTipMesh = new THREE.Mesh(tipGeo, tipMat);
     glowTipMesh.position.copy(posA);
@@ -1400,20 +1398,36 @@ export class StereometryMesh {
       const len = dir.length();
       const mid = new THREE.Vector3().addVectors(kpA.position, kpB.position).multiplyScalar(0.5);
 
-      const pipeGeo = new THREE.CylinderGeometry(0.0035, 0.0035, len, 16);
-      const pipeMat = new THREE.MeshStandardMaterial({
+      // 1. 原生 3D 几何线段
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([kpA.position, kpB.position]);
+      const lineMat = new THREE.LineBasicMaterial({
         color: seg.color,
-        emissive: seg.color,
-        emissiveIntensity: 0.55,
-        roughness: 0.15,
-        metalness: 0.85,
+        linewidth: 2.5,
+        transparent: true,
+        opacity: 1.0,
+        depthTest: true,
+        depthWrite: false,
       });
-      const pipe = new THREE.Mesh(pipeGeo, pipeMat);
-      pipe.name = `perm_seg_${seg.id}`;
-      pipe.position.copy(mid);
-      pipe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-      pipe.renderOrder = 5;
-      this.segmentsGroup.add(pipe);
+      const lineMesh = new THREE.Line(lineGeo, lineMat);
+      lineMesh.name = `perm_seg_line_${seg.id}`;
+      lineMesh.renderOrder = 7;
+      this.segmentsGroup.add(lineMesh);
+
+      // 2. 醒目平光微型线芯（清晰粗细 4mm，纯平无光照阴影，消除立体圆柱高光与侧边阴影，绝不呈现金属管道效果）
+      const coreGeo = new THREE.CylinderGeometry(0.0020, 0.0020, len, 10);
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: seg.color,
+        transparent: true,
+        opacity: 1.0,
+        depthTest: true,
+        depthWrite: false,
+      });
+      const core = new THREE.Mesh(coreGeo, coreMat);
+      core.name = `perm_seg_${seg.id}`;
+      core.position.copy(mid);
+      core.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+      core.renderOrder = 6;
+      this.segmentsGroup.add(core);
     }
 
     this.rebuildAuxiliaryFaces();
@@ -1432,7 +1446,9 @@ export class StereometryMesh {
       const verts = face.vertices3D;
       if (!verts || verts.length < 3) continue;
 
-      // 1. 半透明辅助面多边形（使用预编译共享材质，无重新编译卡顿）
+      const faceColor = typeof face.color === 'number' ? face.color : 0x38d9a9;
+
+      // 1. 半透明辅助面多边形（切面颜色与线严格一致）
       const fillPositions: number[] = [];
       const centroid = face.centroid;
       for (let i = 0; i < verts.length; i++) {
@@ -1447,19 +1463,38 @@ export class StereometryMesh {
       fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fillPositions, 3));
       fillGeo.computeVertexNormals();
 
-      const faceMesh = new THREE.Mesh(fillGeo, this.auxFaceFillMat);
+      const faceMat = new THREE.MeshStandardMaterial({
+        color: faceColor,
+        emissive: faceColor,
+        emissiveIntensity: 0.22,
+        roughness: 0.20,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+
+      const faceMesh = new THREE.Mesh(fillGeo, faceMat);
       faceMesh.name = `aux_face_${face.id}`;
       faceMesh.renderOrder = 4;
       this.auxFacesGroup.add(faceMesh);
 
-      // 2. 发光轮廓闭合线框（共享材质）
+      // 2. 发光轮廓闭合线框（与线颜色严格一致）
       const contourPositions: number[] = [];
       for (const v of verts) {
         contourPositions.push(v.x, v.y, v.z);
       }
       const contourGeo = new THREE.BufferGeometry();
       contourGeo.setAttribute('position', new THREE.Float32BufferAttribute(contourPositions, 3));
-      const contourLoop = new THREE.LineLoop(contourGeo, this.auxFaceContourMat);
+      const contourMat = new THREE.LineBasicMaterial({
+        color: faceColor,
+        linewidth: 2,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
+      const contourLoop = new THREE.LineLoop(contourGeo, contourMat);
       contourLoop.name = `aux_face_contour_${face.id}`;
       contourLoop.renderOrder = 6;
       this.auxFacesGroup.add(contourLoop);
@@ -1905,9 +1940,19 @@ export class StereometryMesh {
 
   public findClosestSnapPoint(
     ray: THREE.Ray,
-    threshold = 0.060
+    threshold = 0.045,
+    options?: { onlyOnEdgeOrLine?: boolean; drawnSegments?: Array<{ pointIdA: string; pointIdB: string; label?: string }> }
   ): { keyPoint: KeyPoint; snapType: string; distance: number; snapLabel: string } | null {
-    return GeometrySolver.findClosestSnapPoint(ray, this.currentModelDef, this.modelContainer.matrixWorld, threshold);
+    return GeometrySolver.findClosestSnapPoint(
+      ray,
+      this.currentModelDef,
+      this.modelContainer.matrixWorld,
+      threshold,
+      {
+        drawnSegments: options?.drawnSegments ?? this.drawnSegments,
+        ...options,
+      }
+    );
   }
 
   public getKeyPointMeshes(): THREE.Mesh[] {
@@ -2059,31 +2104,51 @@ export class StereometryMesh {
 
     const mid = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
 
-    // 1. 可复用的动态预览连线柱体
+    // 1. 可复用的动态预览连线微芯（醒目平光线芯，消除立体圆柱高光，粗细清晰适中）
     if (!this.previewPipeMesh) {
-      const pipeGeo = new THREE.CylinderGeometry(0.0024, 0.0024, 1.0, 12);
-      const pipeMat = new THREE.MeshStandardMaterial({
+      const pipeGeo = new THREE.CylinderGeometry(0.0020, 0.0020, 1.0, 10);
+      const pipeMat = new THREE.MeshBasicMaterial({
         color,
-        emissive: color,
-        emissiveIntensity: 0.85,
-        roughness: 0.15,
-        metalness: 0.85,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.96,
+        depthTest: true,
+        depthWrite: false,
       });
       this.previewPipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
       this.previewPipeMesh.renderOrder = 7;
       this.previewSegmentGroup.add(this.previewPipeMesh);
     }
 
-    const pMat = this.previewPipeMesh.material as THREE.MeshStandardMaterial;
-    pMat.color.setHex(color);
-    pMat.emissive.setHex(color);
-    pMat.emissiveIntensity = 0.95;
+    const pMat = this.previewPipeMesh.material as THREE.MeshBasicMaterial;
+    if (pMat && typeof pMat.color?.setHex === 'function') {
+      pMat.color.setHex(color);
+    }
 
     this.previewPipeMesh.scale.set(1, len, 1);
     this.previewPipeMesh.position.copy(mid);
     this.previewPipeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+
+    // 1.1 原生 3D 预览线段（真实几何线条）
+    if (!this.previewLineMesh) {
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([startPos, endPos]);
+      const lineMat = new THREE.LineBasicMaterial({
+        color,
+        linewidth: 2,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: true,
+        depthWrite: false,
+      });
+      this.previewLineMesh = new THREE.Line(lineGeo, lineMat);
+      this.previewLineMesh.renderOrder = 8;
+      this.previewSegmentGroup.add(this.previewLineMesh);
+    } else {
+      const posAttr = this.previewLineMesh.geometry.attributes.position as THREE.BufferAttribute;
+      posAttr.setXYZ(0, startPos.x, startPos.y, startPos.z);
+      posAttr.setXYZ(1, endPos.x, endPos.y, endPos.z);
+      posAttr.needsUpdate = true;
+      (this.previewLineMesh.material as THREE.LineBasicMaterial).color.setHex(color);
+    }
 
     // 2. 可复用的端点锚点珠
     if (!this.previewStartBead) {
@@ -2413,6 +2478,16 @@ export class StereometryMesh {
     }
     if (this.snapCursorSprite) {
       this.snapCursorSprite.material.dispose();
+    }
+    if (this.previewPipeMesh) {
+      this.previewPipeMesh.geometry.dispose();
+      (this.previewPipeMesh.material as THREE.Material).dispose();
+      this.previewPipeMesh = null;
+    }
+    if (this.previewLineMesh) {
+      this.previewLineMesh.geometry.dispose();
+      (this.previewLineMesh.material as THREE.Material).dispose();
+      this.previewLineMesh = null;
     }
   }
 }

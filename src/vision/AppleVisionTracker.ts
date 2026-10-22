@@ -14,13 +14,15 @@ export interface AppleVisionNativePayload {
   latencyMs?: number;
   frameId?: number;
   backend?: string;
+  frameImage?: string;
 }
 
 export type AppleVisionFrameCallback = (
   landmarks: NormalizedLandmark[][],
   handedness: any[][],
   timestamp: number,
-  latencyMs: number
+  latencyMs: number,
+  frameImage?: string
 ) => void;
 
 /**
@@ -39,6 +41,7 @@ export class AppleVisionTracker {
   private lastFpsUpdate = performance.now();
   private currentFps = 0;
   private lastLatencyMs = 0;
+  private lastFrameImage: string | null = null;
 
   constructor() {}
 
@@ -189,10 +192,13 @@ export class AppleVisionTracker {
 
     this.lastLatencyMs = payload.latencyMs ?? 4.0;
     const timestamp = payload.timestamp || now;
+    if (payload.frameImage) {
+      this.lastFrameImage = payload.frameImage;
+    }
 
     if (!payload.hasHand || !payload.hands || payload.hands.length === 0) {
       if (this.onFrameCallback) {
-        this.onFrameCallback([], [], timestamp, this.lastLatencyMs);
+        this.onFrameCallback([], [], timestamp, this.lastLatencyMs, payload.frameImage);
       }
       return;
     }
@@ -215,8 +221,12 @@ export class AppleVisionTracker {
     }
 
     if (this.onFrameCallback) {
-      this.onFrameCallback(landmarksList, handednessList, timestamp, this.lastLatencyMs);
+      this.onFrameCallback(landmarksList, handednessList, timestamp, this.lastLatencyMs, payload.frameImage);
     }
+  }
+
+  public getLastFrameImage(): string | null {
+    return this.lastFrameImage;
   }
 
   public getFps(): number {

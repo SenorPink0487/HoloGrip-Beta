@@ -42,3 +42,18 @@
 4. **正对操作者与人体工学布局 (Direct Operator Facing Standard)**：
    - 实验器材在台面上生成与排布时，主要观测界面、测量标尺、状态指示与交互控制旋钮必须端正正对用户（+Z 方向朝向操作者视线），确保操作者视线一览无遗。
    - 严禁仪器背对操作者或呈现难以看清的背角或生硬侧面。长导轨实验沿 X 轴水平左右舒展，刻度线与操作把手全部面向正前方（+Z）。
+
+---
+
+## 核心铁律三：严禁根目录盲目 grep，防止后台常驻高负载 (Safe Code Search Standard)
+
+1. **绝对禁止在工作区根目录执行无排除项的 `grep -rn <pattern> .`**：
+   - 项目 `src-tauri/target/` 目录中包含超过 12GB 的二进制编译缓存文件（如 `CompilationCache.noindex/.../index.v1`），以及数以万计的 `node_modules/` 依赖文件。
+   - 直接执行无约束的 `grep -rn .` 会陷入逐字节遍历超大二进制文件的死循环，单核 CPU 占用率达 90%~100%，耗时数小时无法退出，沦为后台孤儿进程。
+
+2. **强制使用高效安全检索方案**：
+   - **首选**：使用 `git grep -in "<keyword>"`，自动根据 `.gitignore` 跳过编译产物与二进制文件，毫秒级返回结果；
+   - **限定目录**：限定在代码目录中检索，如 `grep -rn "<keyword>" src/ tests/`；
+   - **显式排除**：若必须在根目录执行 grep，必须明确排除编译与依赖目录：
+     `grep -rn --exclude-dir={node_modules,target,.git,dist} "<keyword>" .`
+

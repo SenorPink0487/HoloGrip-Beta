@@ -33,6 +33,10 @@ console.log('=== Starting Apple Vision Hybrid Architecture Tests ===\n');
   assert(swiftCode.includes('AVCaptureSession'), 'Must manage native AVCaptureSession');
   assert(swiftCode.includes('window.__hologrip_onAppleVisionFrame'), 'Must dispatch via direct JS evaluateJavaScript');
   assert(swiftCode.includes('thumbTip') && swiftCode.includes('indexTip'), 'Must extract thumb and index joints');
+  assert(swiftCode.includes('currentInterfaceVideoOrientation'), 'Must dynamically sync videoOrientation with UI');
+  assert(!swiftCode.includes('points.append(["x": 0.5, "y": 0.5'), 'Must NEVER snap missing joints to (0.5, 0.5)');
+  assert(swiftCode.includes('smoothLandmarks'), 'Must provide temporal smoothing for bone stability');
+  assert(swiftCode.includes('encodePixelBufferToJpegBase64'), 'Must encode video preview frames for HUD');
 
   const nativePackage = fs.readFileSync(packagePath, 'utf-8');
   assert(nativePackage.includes('.linkedFramework("AVFoundation")'), 'Native package must link AVFoundation');
@@ -210,6 +214,47 @@ await (async () => {
   console.log('✓ Test 5 passed: Non-Apple / Browser environments cleanly fallback to Web Worker\n');
 })();
 
+// Test 6: Right Hand Anatomical Mapping Invariance (Anti-Inversion Protection)
+await (async () => {
+  console.log('Test 6: Right Hand Anatomical Mapping Invariance (Anti-Inversion Protection)');
+  (globalThis as any).__hologrip_mock_apple_vision = true;
+
+  const service = new HandGestureService({ mirrorX: true });
+  await service.init();
+  assert.strictEqual(service.isAppleVision(), true);
+
+  let capturedFrame: HandGestureFrame | null = null;
+  service.onFrame((f) => {
+    capturedFrame = f;
+  });
+  await service.start();
+
+  // 模拟用户举起右手（Swift 发送 handedness='right', x 在相机中心偏左 0.4）
+  const rightHandPoints: NormalizedLandmark[] = Array.from({ length: 21 }, () => ({ x: 0.4, y: 0.5, z: 0 }));
+  rightHandPoints[0] = { x: 0.4, y: 0.7, z: 0 };
+  rightHandPoints[4] = { x: 0.41, y: 0.40, z: 0 };
+  rightHandPoints[8] = { x: 0.42, y: 0.40, z: 0 };
+  rightHandPoints[9] = { x: 0.40, y: 0.45, z: 0 };
+
+  const tracker = service.getAppleVisionTracker();
+  tracker.handleNativePayload({
+    hasHand: true,
+    timestamp: performance.now(),
+    latencyMs: 3.5,
+    hands: [{ landmarks: rightHandPoints, handedness: 'right', confidence: 0.98 }],
+    frameImage: 'data:image/jpeg;base64,mockdata',
+  });
+
+  assert(capturedFrame !== null, 'Frame must be delivered');
+  assert(capturedFrame!.rightHand !== null, 'Anatomical Right Hand must be recognized as Right Hand, NEVER inverted to Left!');
+  assert.strictEqual(capturedFrame!.leftHand, null, 'Left Hand must remain null when only Right Hand is present');
+  assert.strictEqual(service.getLastFrameImage(), 'data:image/jpeg;base64,mockdata', 'Frame image must be cached');
+
+  service.destroy();
+  delete (globalThis as any).__hologrip_mock_apple_vision;
+  console.log('✓ Test 6 passed: Right Hand anatomical mapping & camera preview image verified\n');
+})();
+
 console.log('========================================================');
-console.log('All Apple Vision Hybrid Architecture Tests Passed Successfully (5/5)!');
+console.log('All Apple Vision Hybrid Architecture Tests Passed Successfully (6/6)!');
 console.log('========================================================\n');

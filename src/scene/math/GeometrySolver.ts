@@ -185,34 +185,27 @@ export class GeometrySolver {
 
   /**
    * 查找离射线最近的磁吸目标：
-   * 检查与关键点的直接射线距离，以及棱向投影并吸附到 0, 1/3, 1/2, 2/3, 1.0。
+   * 严格遵循“起点应当只在线上”原则：
+   * 当 onlyOnEdgeOrLine 为 true 时，起点必须属于几何体的棱 (edges) 或绘制的辅助线 (drawnSegments)，
+   * 严格排除面心 (face_*)、体心 (body_center) 以及面内部/空白区域的误触。
    */
   public static findClosestSnapPoint(
     ray: THREE.Ray,
     model: PolyhedronModelDef,
     modelMatrixWorld: THREE.Matrix4,
-    threshold = 0.055
+    threshold = 0.045,
+    options?: {
+      onlyOnEdgeOrLine?: boolean;
+      drawnSegments?: Array<{ pointIdA: string; pointIdB: string; label?: string }>;
+    }
   ): { keyPoint: KeyPoint; snapType: 'vertex' | 'midpoint' | 'third' | 'center' | 'apex'; distance: number; snapLabel: string } | null {
     let bestKp: KeyPoint | null = null;
     let minDistance = threshold;
     const worldPos = new THREE.Vector3();
+    const onlyOnEdgeOrLine = options?.onlyOnEdgeOrLine ?? true;
 
-    // 1. 关键点直接距离判定
-    for (const kp of model.keyPoints) {
-      worldPos.copy(kp.position).applyMatrix4(modelMatrixWorld);
-      const dist = ray.distanceToPoint(worldPos);
-      let effectiveDist = dist;
-      if (kp.type === 'vertex') effectiveDist *= 0.85;
-      else if (kp.type === 'midpoint' || kp.type === 'third') effectiveDist *= 0.90;
-
-      if (effectiveDist < minDistance) {
-        minDistance = effectiveDist;
-        bestKp = kp;
-      }
-    }
-
-    // 2. 棱向引导磁吸
-    const edgeThreshold = threshold * 1.25;
+    // 1. 棱向引导磁吸（天然保证候选点严格位于几何体的棱线上）
+    const edgeThreshold = threshold * 1.15;
     const vA = new THREE.Vector3();
     const vB = new THREE.Vector3();
     const edgeDir = new THREE.Vector3();
@@ -266,6 +259,66 @@ export class GeometrySolver {
           minDistance = dist;
           bestKp = candidateKp;
         }
+      }
+    }
+
+    // 2. 检查已绘制的辅助线段 (drawnSegments)
+    if (options?.drawnSegments && options.drawnSegments.length > 0) {
+      for (const seg of options.drawnSegments) {
+        const kpA = model.keyPoints.find((k) => k.id === seg.pointIdA);
+        const kpB = model.keyPoints.find((k) => k.id === seg.pointIdB);
+        if (!kpA || !kpB) continue;
+
+        vA.copy(kpA.position).applyMatrix4(modelMatrixWorld);
+        vB.copy(kpB.position).applyMatrix4(modelMatrixWorld);
+        edgeDir.subVectors(vB, vA);
+        const edgeLenSq = edgeDir.lengthSq();
+        if (edgeLenSq < 1e-8) continue;
+
+        w0.subVectors(ray.origin, vA);
+        const b = ray.direction.dot(edgeDir);
+        const c = edgeLenSq;
+        const d = ray.direction.dot(w0);
+        const e = edgeDir.dot(w0);
+        const denom = c - b * b;
+
+        let s = 0;
+        let t = 0;
+        if (denom < 1e-6) {
+          t = THREE.MathUtils.clamp(e / c, 0, 1);
+        } else {
+          s = (b * e - c * d) / denom;
+          if (s < 0) continue;
+          t = THREE.MathUtils.clamp((e - b * d) / denom, 0, 1);
+        }
+
+        const ptOnEdge = new THREE.Vector3().copy(vA).addScaledVector(edgeDir, t);
+        const ptOnRay = new THREE.Vector3().copy(ray.origin).addScaledVector(ray.direction, Math.max(0, s));
+        const dist = ptOnEdge.distanceTo(ptOnRay);
+
+        if (dist < edgeThreshold && dist < minDistance) {
+          const targetKp = t < 0.5 ? kpA : kpB;
+          minDistance = dist;
+          bestKp = targetKp;
+        }
+      }
+    }
+
+    // 3. 关键点直接距离判定
+    // 若 onlyOnEdgeOrLine 为 true，严格排除非线上的点 (kp.type === 'center' 如面心、体心)
+    for (const kp of model.keyPoints) {
+      if (onlyOnEdgeOrLine && kp.type === 'center') {
+        continue; // 严禁面心与体心作为连线起点
+      }
+      worldPos.copy(kp.position).applyMatrix4(modelMatrixWorld);
+      const dist = ray.distanceToPoint(worldPos);
+      let effectiveDist = dist;
+      if (kp.type === 'vertex') effectiveDist *= 0.85;
+      else if (kp.type === 'midpoint' || kp.type === 'third') effectiveDist *= 0.90;
+
+      if (effectiveDist < minDistance) {
+        minDistance = effectiveDist;
+        bestKp = kp;
       }
     }
 

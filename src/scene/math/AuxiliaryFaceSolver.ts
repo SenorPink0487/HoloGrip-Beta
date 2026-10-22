@@ -163,6 +163,22 @@ export class AuxiliaryFaceSolver {
         const faceLabel = `面 ${labels.join('')}`;
         const faceId = `aux_face_${cycle.join('_')}`;
 
+        // 查找构成此三角形的线段颜色，使切面颜色与线段保持完全一致
+        let faceColor = 0x38d9a9;
+        for (let i = 0; i < 3; i++) {
+          const uId = cycle[i];
+          const vId = cycle[(i + 1) % 3];
+          const matchedSeg = segments.find(
+            (s) =>
+              (s.pointIdA === uId && s.pointIdB === vId) ||
+              (s.pointIdA === vId && s.pointIdB === uId)
+          );
+          if (matchedSeg && typeof matchedSeg.color === 'number') {
+            faceColor = matchedSeg.color;
+            break;
+          }
+        }
+
         faces.push({
           id: faceId,
           pointIds: [...cycle],
@@ -173,7 +189,7 @@ export class AuxiliaryFaceSolver {
           perimeter: Math.round(perimeter * 1000) / 1000,
           normal,
           centroid,
-          color: 0x0284c7, // 蔚蓝水晶色
+          color: faceColor,
           vertices3D: positions,
         });
       } else {
@@ -250,6 +266,22 @@ export class AuxiliaryFaceSolver {
         const faceLabel = `面 ${labels.join('')}`;
         const faceId = `aux_face_${cycle.join('_')}`;
 
+        // 查找构成此闭合环的线段颜色，使切面颜色与线段保持完全一致
+        let faceColor = 0x38d9a9;
+        for (let i = 0; i < m; i++) {
+          const uId = cycle[i];
+          const vId = cycle[(i + 1) % m];
+          const matchedSeg = segments.find(
+            (s) =>
+              (s.pointIdA === uId && s.pointIdB === vId) ||
+              (s.pointIdA === vId && s.pointIdB === uId)
+          );
+          if (matchedSeg && typeof matchedSeg.color === 'number') {
+            faceColor = matchedSeg.color;
+            break;
+          }
+        }
+
         faces.push({
           id: faceId,
           pointIds: [...cycle],
@@ -260,7 +292,7 @@ export class AuxiliaryFaceSolver {
           perimeter: Math.round(perimeter * 1000) / 1000,
           normal,
           centroid,
-          color: 0x0284c7,
+          color: faceColor,
           vertices3D: positions,
         });
       }

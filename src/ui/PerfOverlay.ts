@@ -218,23 +218,26 @@ export class PerfOverlay {
       this.renderCount = 0;
       this.lastTime = now;
 
-      // 帧率状态颜色与警示（适配当前屏幕的实际目标刷新率）
+      // 帧率状态颜色与警示（适配当前屏幕的实际目标刷新率与纯黑高对比度统一风格）
       const targetFps = this.detectedRefreshRate;
-      let color = '#34c759'; // 绿（平稳跑满硬件刷新率）
+      let dotColor = '#30d158'; // 绿（平稳跑满硬件刷新率）
+      let fpsColor = '#000000'; // 纯黑高对比度
       if (this.fps < targetFps * 0.7) {
-        color = '#ff453a'; // 严重掉帧（低于标称刷新率 70%）
+        dotColor = '#ff453a'; // 严重掉帧（低于标称刷新率 70%）
+        fpsColor = '#dc2626';
       } else if (this.fps < targetFps - 4) {
-        color = '#ff9f0a'; // 轻度波动
+        dotColor = '#ff9f0a'; // 轻度波动
+        fpsColor = '#d97706';
       }
 
       if (this.fpsEl) {
         this.fpsEl.textContent = `${this.fps}`;
-        this.fpsEl.style.color = color;
+        this.fpsEl.style.color = fpsColor;
       }
 
       if (this.statusDotEl) {
-        this.statusDotEl.style.background = color;
-        this.statusDotEl.style.boxShadow = `0 0 8px ${color}`;
+        this.statusDotEl.style.background = dotColor;
+        this.statusDotEl.style.boxShadow = `0 0 10px ${dotColor}`;
       }
 
       if (this.latencyEl) {

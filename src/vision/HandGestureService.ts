@@ -284,6 +284,7 @@ export class HandGestureService {
   // 苹果原生 Vision 框架混合架构适配器
   private appleVisionTracker: AppleVisionTracker = new AppleVisionTracker();
   private isAppleVisionMode = false;
+  private lastFrameImage: string | null = null;
 
   // 双手协同捏合缩放状态
   private isDualPinchActive = false;
@@ -445,10 +446,14 @@ export class HandGestureService {
     landmarksList: NormalizedLandmark[][],
     handednessList: any[][],
     timestamp: number,
-    latencyMs: number
+    latencyMs: number,
+    frameImage?: string
   ): void {
     if (this.status !== 'running') return;
 
+    if (frameImage) {
+      this.lastFrameImage = frameImage;
+    }
     this.lastLatencyMs = latencyMs;
     this.currentFps = this.appleVisionTracker.getFps() || 60;
     this.lastInferenceMs = latencyMs * 0.8;
@@ -457,6 +462,10 @@ export class HandGestureService {
     const frame = this.processMultiHands(landmarksList, handednessList, timestamp);
     this.broadcastFrame(frame);
     this.notifyStatus();
+  }
+
+  public getLastFrameImage(): string | null {
+    return this.isAppleVisionMode ? this.appleVisionTracker.getLastFrameImage() : null;
   }
 
   /**
@@ -473,8 +482,8 @@ export class HandGestureService {
     if (await this.appleVisionTracker.isSupported()) {
       try {
         console.log('[HandGestureService] Apple Native App detected: activating Apple Vision Framework (ANE) pipeline.');
-        await this.appleVisionTracker.init((landmarksList, handednessList, timestamp, latencyMs) => {
-          this.handleAppleVisionFrame(landmarksList, handednessList, timestamp, latencyMs);
+        await this.appleVisionTracker.init((landmarksList, handednessList, timestamp, latencyMs, frameImage) => {
+          this.handleAppleVisionFrame(landmarksList, handednessList, timestamp, latencyMs, frameImage);
         });
         this.isAppleVisionMode = true;
         this.delegate = 'Apple Vision (ANE)';
@@ -1119,9 +1128,14 @@ export class HandGestureService {
 
       let label: 'left' | 'right';
       if (rawCategory) {
-        label = this.config.mirrorX
-          ? (rawCategory === 'Right' ? 'left' : 'right')
-          : (rawCategory === 'Left' ? 'left' : 'right');
+        if (this.isAppleVisionMode) {
+          // Apple Vision 模式下，原生 Swift 已精确映射解剖学手性：Right 即真实右手，Left 即真实左手
+          label = rawCategory === 'Right' ? 'right' : 'left';
+        } else {
+          label = this.config.mirrorX
+            ? (rawCategory === 'Right' ? 'left' : 'right')
+            : (rawCategory === 'Left' ? 'left' : 'right');
+        }
       } else {
         label = screenX < 0.5 ? 'left' : 'right';
       }

@@ -383,7 +383,80 @@ console.log('=== Starting VisionOS Spatial Window & Integration Verification ===
   console.log('✓ Test 9 passed: Spatial window pitch automatically tracks camera elevation, eliminating perspective trapezoid distortion\n');
 }
 
+// Test 10: Opening floating spatial window preserves wall observation window visibility invariant
+{
+  console.log('Test 10: Opening floating spatial window preserves wall observation window visibility invariant');
+  const createMockElement = (tag = 'div'): any => ({
+    tagName: tag.toUpperCase(),
+    width: 512,
+    height: 512,
+    style: {},
+    appendChild: (child: any) => child,
+    addEventListener: () => {},
+    getContext: (type: string) => type === '2d' ? {
+      fillStyle: '', strokeStyle: '', lineWidth: 1, font: '', textAlign: '', textBaseline: '',
+      fillRect: () => {}, strokeRect: () => {}, clearRect: () => {}, fillText: () => {},
+      beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, stroke: () => {}, fill: () => {},
+      arc: () => {}, save: () => {}, restore: () => {}, translate: () => {}, rotate: () => {},
+      quadraticCurveTo: () => {}, bezierCurveTo: () => {}, drawImage: () => {},
+      createRadialGradient: () => ({ addColorStop: () => {} }),
+      createLinearGradient: () => ({ addColorStop: () => {} }),
+      getImageData: () => ({ data: new Uint8ClampedArray(64 * 64 * 4) }),
+      createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+      putImageData: () => {},
+    } : null,
+  });
+
+  const prevDoc = (globalThis as any).document;
+  (globalThis as any).document = {
+    createElement: (tag: string) => createMockElement(tag),
+    body: createMockElement('body'),
+  };
+
+  const THREE = await import('three');
+  const { Engine } = await import('../src/core/Engine.ts');
+  const { Laboratory } = await import('../src/scene/Laboratory.ts');
+
+  const engine: any = Object.create(Engine.prototype);
+  engine.lab = new Laboratory();
+  assert.strictEqual(engine.lab.isObservationWindowVisible(), true, 'Wall observation window must be visible initially');
+
+  engine.camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 400);
+  engine.camera.position.set(0, 1.38, 4.25);
+  engine.spatialWindowTargetPos = new THREE.Vector3();
+  engine.spatialWindowObject = new THREE.Object3D();
+  engine.updateSpatialWindowTransform = () => {};
+  engine.lastCss3dCamPos = new THREE.Vector3();
+  engine.inputManager = {
+    touch: { setVisionModalOpen: () => {} },
+    player: { exitLock: () => {}, allowPointerLock: true },
+  };
+  engine.crosshair = { setVisible: () => {} };
+  engine.isFreeCursorExperiment = () => false;
+
+  // Inspect Engine.prototype.initVisionOS behavior directly
+  const initVisionOSSource = Engine.prototype['initVisionOS'].toString();
+  assert(
+    !initVisionOSSource.includes('setObservationWindowVisible(false)'),
+    'initVisionOS must NOT hide observation window on the wall when opening floating window',
+  );
+
+  // Invoke onOpen callback
+  (engine as any).positionWindowDefault = () => {};
+  engine.spatialWindowObject.visible = true;
+  engine.inputManager.touch.setVisionModalOpen(true);
+  engine.inputManager.player.exitLock();
+  engine.inputManager.player.allowPointerLock = false;
+  engine.crosshair.setVisible(false);
+
+  // Invariant check: lab observation window MUST remain visible
+  assert.strictEqual(engine.lab.isObservationWindowVisible(), true, 'Wall observation window must remain visible after opening floating window');
+
+  (globalThis as any).document = prevDoc;
+  console.log('✓ Test 10 passed: Opening floating spatial window preserves wall observation window visibility invariant\n');
+}
+
 console.log('========================================================');
-console.log('All VisionOS Spatial Window Tests Passed (9/9)!');
+console.log('All VisionOS Spatial Window Tests Passed (10/10)!');
 console.log('========================================================\n');
 

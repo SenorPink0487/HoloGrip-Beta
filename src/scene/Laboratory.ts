@@ -531,6 +531,10 @@ export class Laboratory {
     }
   }
 
+  public isObservationWindowVisible(): boolean {
+    return this.observationWindowGroup ? this.observationWindowGroup.visible : true;
+  }
+
   private createSideNiches(walls: THREE.Group): void {
     const { niche } = this.featureLayout();
     const labels = ['right', 'left', 'quarter-right', 'quarter-left'] as const;

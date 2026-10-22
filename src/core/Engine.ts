@@ -785,7 +785,6 @@ export class Engine {
       onClose: () => {
         this.spatialWindowObject.visible = false;
         this.inputManager?.touch?.setVisionModalOpen(false);
-        this.lab?.setObservationWindowVisible(true);
         this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
         if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !this.isFreeCursorExperiment(this.currentExperimentId)) {
           this.crosshair.setVisible(true);
@@ -798,7 +797,6 @@ export class Engine {
         this.positionWindowDefault(true);
         this.spatialWindowObject.visible = true;
         this.inputManager?.touch?.setVisionModalOpen(true);
-        this.lab?.setObservationWindowVisible(false);
         this.inputManager.player.exitLock();
         this.inputManager.player.allowPointerLock = false;
         this.crosshair.setVisible(false);

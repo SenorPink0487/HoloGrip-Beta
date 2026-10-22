@@ -37,20 +37,12 @@ export class HandTrackingHUD {
   private logCountHeader!: HTMLElement;
   private logAvgStat!: HTMLElement;
   private logToggleBtn!: HTMLButtonElement;
-  private leftLiveBadge!: HTMLElement;
-  private rightLiveBadge!: HTMLElement;
   private leftDurationVal!: HTMLElement;
   private rightDurationVal!: HTMLElement;
 
   // DOM 状态缓存，彻底杜绝强制同步重排
-  private cachedLeftTxt = '';
-  private cachedLeftClass = '';
-  private cachedLeftBadge = '';
   private cachedLeftDur = '';
   private cachedLeftDurClass = '';
-  private cachedRightTxt = '';
-  private cachedRightClass = '';
-  private cachedRightBadge = '';
   private cachedRightDur = '';
   private cachedRightDurClass = '';
   private cachedRatioTxt = '';
@@ -69,27 +61,20 @@ export class HandTrackingHUD {
     this.container = document.createElement('div');
     this.container.id = 'vision-pro-tracking-hud';
 
-    // 1. 右上角悬浮状态胶囊
+    // 1. 右上角悬浮状态胶囊（匹配右下角 visionOS 极简高透流体毛玻璃质感）
     this.pillEl = document.createElement('div');
     this.pillEl.className = 'vp-hud-pill';
     this.pillEl.innerHTML = `
       <div class="vp-pill-status-dot"></div>
-      <div class="vp-pill-icon">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 11V6a2 2 0 0 0-4 0v5"></path>
-          <path d="M14 10V4a2 2 0 0 0-4 0v6"></path>
-          <path d="M10 10.5V6a2 2 0 0 0-4 0v8"></path>
-          <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path>
-        </svg>
-      </div>
       <span class="vp-pill-title">手势交互</span>
-      <button class="vp-pill-btn vp-pill-cam-btn" title="显示摄像头画面">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <div class="vp-pill-divider"></div>
+      <button class="vp-pill-btn vp-pill-cam-btn" type="button" aria-label="显示摄像头画面" title="显示摄像头画面">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
           <circle cx="12" cy="13" r="4"></circle>
         </svg>
       </button>
-      <button class="vp-pill-btn vp-pill-toggle-btn" title="开启/关闭手势识别">开启</button>
+      <button class="vp-pill-btn vp-pill-toggle-btn" type="button" aria-label="开启或关闭手势识别" title="开启/关闭手势识别">开启</button>
     `;
 
     // 2. 画中画摄像头预览浮窗
@@ -98,12 +83,14 @@ export class HandTrackingHUD {
     this.previewModalEl.innerHTML = `
       <div class="vp-modal-header">
         <div class="vp-modal-header-left">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-            <circle cx="12" cy="13" r="4"></circle>
-          </svg>
-          <span class="vp-modal-title">双手手势跟踪 (离线 MediaPipe)</span>
-          <span class="vp-offline-tag">离线模型</span>
+          <div class="vp-header-icon-wrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+          </div>
+          <span class="vp-modal-title">双手手势跟踪</span>
+          <span class="vp-offline-tag"><span class="vp-tag-dot"></span>离线 MediaPipe</span>
         </div>
         <div class="vp-modal-header-actions">
           <button class="vp-modal-action-btn vp-modal-log-toggle-btn active" title="显示/收起捏合时长记录">
@@ -130,28 +117,45 @@ export class HandTrackingHUD {
         </div>
       </div>
       <div class="vp-modal-video-wrap">
-        <canvas class="vp-modal-canvas" width="320" height="240"></canvas>
-        <div class="vp-dual-indicator">
-          <div class="vp-ind-row left">
-            <span class="vp-ind-dot left"></span>
-            <span class="vp-ind-name">左手(悬浮窗口/拖拽视角):</span>
-            <span class="vp-left-txt">未检测</span>
-            <span class="vp-left-live-badge hidden">0 ms</span>
-          </div>
-          <div class="vp-ind-row right">
-            <span class="vp-ind-dot right"></span>
-            <span class="vp-ind-name">右手(点击/拖拽):</span>
-            <span class="vp-right-txt">未检测</span>
-            <span class="vp-right-live-badge hidden">0 ms</span>
-          </div>
-        </div>
+        <canvas class="vp-modal-canvas" width="380" height="240"></canvas>
       </div>
       <div class="vp-modal-footer">
-        <div class="vp-footer-stat"><span class="vp-stat-label">帧率:</span> <span class="vp-fps-val">0 FPS</span></div>
-        <div class="vp-footer-stat"><span class="vp-stat-label">延迟:</span> <span class="vp-latency-val">0 ms</span></div>
-        <div class="vp-footer-stat"><span class="vp-stat-label">加速:</span> <span class="vp-delegate-val">GPU</span></div>
-        <div class="vp-footer-stat"><span class="vp-stat-label">左捏合:</span> <span class="vp-left-duration-val">-</span></div>
-        <div class="vp-footer-stat"><span class="vp-stat-label">右捏合:</span> <span class="vp-right-duration-val">-</span></div>
+        <div class="vp-pinch-monitor-grid">
+          <div class="vp-pinch-monitor-card left">
+            <div class="vp-card-label">
+              <span class="vp-card-dot left"></span>
+              <span>左手捏合</span>
+            </div>
+            <div class="vp-card-val-wrap">
+              <span class="vp-left-duration-val">-</span>
+            </div>
+          </div>
+          <div class="vp-pinch-monitor-card right">
+            <div class="vp-card-label">
+              <span class="vp-card-dot right"></span>
+              <span>右手捏合</span>
+            </div>
+            <div class="vp-card-val-wrap">
+              <span class="vp-right-duration-val">-</span>
+            </div>
+          </div>
+        </div>
+        <div class="vp-pipeline-telemetry">
+          <div class="vp-telem-item">
+            <span class="vp-telem-label">帧率</span>
+            <span class="vp-fps-val">0 FPS</span>
+          </div>
+          <div class="vp-telem-divider"></div>
+          <div class="vp-telem-item">
+            <span class="vp-telem-label">延迟</span>
+            <span class="vp-latency-val">0 ms</span>
+          </div>
+          <div class="vp-telem-divider"></div>
+          <div class="vp-telem-item">
+            <span class="vp-telem-label">加速</span>
+            <span class="vp-delegate-val">GPU</span>
+          </div>
+        </div>
       </div>
       <div class="vp-pinch-log-section">
         <div class="vp-pinch-log-header">
@@ -188,8 +192,6 @@ export class HandTrackingHUD {
     this.logCountHeader = this.previewModalEl.querySelector('.vp-pinch-log-count') as HTMLElement;
     this.logAvgStat = this.previewModalEl.querySelector('.vp-pinch-avg-stat') as HTMLElement;
     this.logToggleBtn = this.previewModalEl.querySelector('.vp-modal-log-toggle-btn') as HTMLButtonElement;
-    this.leftLiveBadge = this.previewModalEl.querySelector('.vp-left-live-badge') as HTMLElement;
-    this.rightLiveBadge = this.previewModalEl.querySelector('.vp-right-live-badge') as HTMLElement;
     this.leftDurationVal = this.previewModalEl.querySelector('.vp-left-duration-val') as HTMLElement;
     this.rightDurationVal = this.previewModalEl.querySelector('.vp-right-duration-val') as HTMLElement;
 
@@ -203,12 +205,16 @@ export class HandTrackingHUD {
       #vision-pro-tracking-hud {
         position: fixed;
         top: calc(16px + env(safe-area-inset-top, 0px));
-        right: calc(20px + env(safe-area-inset-right, 0px));
+        right: calc(18px + env(safe-area-inset-right, 0px));
         z-index: 8500;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
         user-select: none;
+        -webkit-user-select: none;
         pointer-events: auto;
-        transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
+        opacity: 0.94;
+        transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+                    visibility 0.25s ease;
       }
 
       /* 处于白板模式或正在返回白板时，自动隐藏手部追踪 HUD */
@@ -225,106 +231,227 @@ export class HandTrackingHUD {
       }
 
       .vp-hud-pill {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 8px;
-        background: rgba(28, 28, 30, 0.82);
-        backdrop-filter: blur(28px) saturate(190%);
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-top: 1px solid rgba(255, 255, 255, 0.28);
-        border-radius: 980px;
-        padding: 5px 10px 5px 12px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25);
-        color: #f5f5f7;
-        font-size: 12px;
-        font-weight: 500;
-        letter-spacing: -0.1px;
-        transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+        height: 44px;
+        border-radius: 22px;
+        padding: 0 6px 0 14px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 0.5px solid rgba(0, 0, 0, 0.12);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
+                    inset 0 1px 1px rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(28px) saturate(180%);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+        color: #000000;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+        cursor: default;
+        transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+                    background 0.2s ease,
+                    border-color 0.2s ease,
+                    box-shadow 0.2s ease,
+                    color 0.2s ease;
+        will-change: transform, opacity;
       }
 
       .vp-hud-pill:hover {
-        background: rgba(38, 38, 42, 0.88);
-        border-color: rgba(255, 255, 255, 0.24);
+        opacity: 0.98;
+        background: rgba(255, 255, 255, 0.85);
+        border-color: rgba(0, 0, 0, 0.18);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16),
+                    inset 0 1px 1px rgba(255, 255, 255, 0.95);
+        color: #000000;
       }
 
       .vp-pill-status-dot {
         width: 7px;
         height: 7px;
         border-radius: 50%;
-        background: #8e8e93;
-        transition: background-color 0.2s ease, box-shadow 0.2s ease;
+        background: rgba(0, 0, 0, 0.35);
+        flex-shrink: 0;
+        transition: background-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
       }
 
       .vp-pill-status-dot.active {
         background: #30d158;
-        box-shadow: 0 0 8px #30d158;
+        box-shadow: 0 0 10px rgba(48, 209, 88, 0.7);
+        transform: scale(1.1);
       }
 
       .vp-pill-status-dot.loading {
         background: #ff9f0a;
-        box-shadow: 0 0 8px #ff9f0a;
+        box-shadow: 0 0 10px rgba(255, 159, 10, 0.7);
+        animation: vp-pulse-loading 1.2s ease-in-out infinite;
+      }
+
+      @keyframes vp-pulse-loading {
+        0%, 100% { opacity: 0.6; transform: scale(0.9); }
+        50% { opacity: 1; transform: scale(1.15); }
       }
 
       .vp-pill-status-dot.error {
         background: #ff453a;
-        box-shadow: 0 0 8px #ff453a;
-      }
-
-      .vp-pill-icon {
-        display: flex;
-        align-items: center;
-        color: #0a84ff;
+        box-shadow: 0 0 10px rgba(255, 69, 58, 0.7);
       }
 
       .vp-pill-title {
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: -0.15px;
+        line-height: 1;
         white-space: nowrap;
+        color: #000000;
+      }
+
+      .vp-pill-divider {
+        width: 0.5px;
+        height: 18px;
+        background: rgba(0, 0, 0, 0.15);
+        pointer-events: none;
+        flex-shrink: 0;
+        margin: 0 2px;
       }
 
       .vp-pill-btn {
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: #ffffff;
-        border-radius: 12px;
-        padding: 4px 9px;
-        font-size: 11px;
-        font-weight: 600;
+        background: rgba(0, 0, 0, 0.05);
+        border: 0.5px solid rgba(0, 0, 0, 0.12);
+        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3);
+        color: #000000;
+        height: 32px;
         cursor: pointer;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.16s ease;
+        outline: none;
+        padding: 0;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
       }
 
       .vp-pill-btn:hover {
-        background: rgba(255, 255, 255, 0.2);
-        border-color: rgba(255, 255, 255, 0.25);
+        background: rgba(0, 0, 0, 0.09);
+        border-color: rgba(0, 0, 0, 0.2);
+        color: #000000;
+        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4), 0 2px 8px rgba(0, 0, 0, 0.08);
       }
 
       .vp-pill-btn:active {
-        transform: scale(0.95);
+        transform: scale(0.92);
+      }
+
+      .vp-pill-cam-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        color: #000000;
+      }
+
+      .vp-pill-cam-btn svg {
+        flex-shrink: 0;
+        color: #000000;
+        stroke: currentColor;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .vp-pill-cam-btn:hover svg {
+        transform: scale(1.08);
+      }
+
+      .vp-pill-cam-btn.active,
+      .vp-pill-cam-btn.is-open {
+        background: rgba(10, 132, 255, 0.15);
+        border-color: rgba(10, 132, 255, 0.4);
+        color: #0071e3;
+        box-shadow: 0 0 12px rgba(10, 132, 255, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+      }
+
+      .vp-pill-cam-btn.active svg,
+      .vp-pill-cam-btn.is-open svg {
+        color: #0071e3;
+      }
+
+      .vp-pill-toggle-btn {
+        padding: 0 13px;
+        border-radius: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: -0.1px;
+        color: #000000;
       }
 
       .vp-pill-toggle-btn.active {
-        background: rgba(10, 132, 255, 0.25);
-        color: #0a84ff;
-        border-color: rgba(10, 132, 255, 0.5);
+        background: rgba(48, 209, 88, 0.18);
+        color: #000000;
+        border-color: rgba(48, 209, 88, 0.45);
+        box-shadow: 0 0 12px rgba(48, 209, 88, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+      }
+
+      /* 响应式：iPad / 大屏适配，与右下角 touch-controls 严格对齐 */
+      @media (pointer: coarse) and (min-width: 768px) {
+        #vision-pro-tracking-hud {
+          top: calc(24px + env(safe-area-inset-top, 0px));
+          right: calc(40px + env(safe-area-inset-right, 0px));
+        }
+        .vp-hud-pill {
+          height: 48px;
+          border-radius: 24px;
+          padding: 0 8px 0 16px;
+          gap: 10px;
+        }
+        .vp-pill-title {
+          font-size: 14px;
+        }
+        .vp-pill-divider {
+          height: 20px;
+          margin: 0 3px;
+        }
+        .vp-pill-btn {
+          height: 36px;
+        }
+        .vp-pill-cam-btn {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+        }
+        .vp-pill-toggle-btn {
+          padding: 0 15px;
+          border-radius: 18px;
+          font-size: 13px;
+        }
+      }
+
+      @media (max-width: 768px) {
+        #vision-pro-tracking-hud {
+          top: calc(14px + env(safe-area-inset-top, 0px));
+          right: calc(20px + env(safe-area-inset-right, 0px));
+        }
       }
 
       /* 画中画摄像头预览浮窗样式 */
       .vp-hud-preview-modal {
         position: absolute;
-        top: calc(100% + 10px);
+        top: calc(100% + 12px);
         right: 0;
-        width: 324px;
-        background: rgba(24, 24, 28, 0.9);
-        backdrop-filter: blur(36px) saturate(200%);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        border-top: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 16px;
+        width: 380px;
+        max-width: calc(100vw - 32px);
+        background: radial-gradient(135% 120% at 50% 0%, rgba(20, 26, 38, 0.96) 0%, rgba(10, 14, 22, 0.98) 100%);
+        backdrop-filter: blur(40px) saturate(190%);
+        -webkit-backdrop-filter: blur(40px) saturate(190%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-top: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 18px;
         overflow: hidden;
-        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.3);
-        transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1),
-                    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 24px 56px rgba(0, 0, 0, 0.62),
+                    0 4px 18px rgba(0, 0, 0, 0.35),
+                    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+        transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
         transform-origin: top right;
       }
 
@@ -338,55 +465,92 @@ export class HandTrackingHUD {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 9px 12px;
+        padding: 10px 14px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
       }
 
       .vp-modal-header-left {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         color: #f5f5f7;
+        min-width: 0;
+      }
+
+      .vp-header-icon-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 0.5px solid rgba(255, 255, 255, 0.12);
+        color: #64d2ff;
+        flex-shrink: 0;
       }
 
       .vp-modal-title {
-        font-size: 11.5px;
+        font-size: 13px;
         font-weight: 600;
-        letter-spacing: -0.1px;
+        letter-spacing: -0.2px;
+        color: #ffffff;
+        white-space: nowrap;
       }
 
       .vp-offline-tag {
-        font-size: 9.5px;
-        font-weight: 600;
-        padding: 1px 5px;
-        border-radius: 4px;
-        background: rgba(48, 209, 88, 0.16);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        font-weight: 500;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: rgba(48, 209, 88, 0.12);
         color: #30d158;
-        border: 1px solid rgba(48, 209, 88, 0.28);
+        border: 0.5px solid rgba(48, 209, 88, 0.32);
+        box-shadow: 0 0 10px rgba(48, 209, 88, 0.12);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .vp-tag-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #30d158;
+        box-shadow: 0 0 6px #30d158;
+        display: inline-block;
       }
 
       .vp-modal-header-actions {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
+        flex-shrink: 0;
       }
 
       .vp-modal-action-btn {
-        background: transparent;
-        border: none;
-        color: rgba(255, 255, 255, 0.65);
+        background: rgba(255, 255, 255, 0.06);
+        border: 0.5px solid rgba(255, 255, 255, 0.14);
+        color: rgba(255, 255, 255, 0.72);
         cursor: pointer;
-        padding: 4px;
-        border-radius: 6px;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+        touch-action: manipulation;
+        transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
       }
 
       .vp-modal-action-btn:hover {
         color: #ffffff;
-        background: rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.28);
       }
 
       .vp-modal-action-btn:active {
@@ -394,8 +558,10 @@ export class HandTrackingHUD {
       }
 
       .vp-modal-action-btn.active {
-        color: #0a84ff;
+        color: #64d2ff;
         background: rgba(10, 132, 255, 0.22);
+        border-color: rgba(10, 132, 255, 0.45);
+        box-shadow: 0 0 10px rgba(10, 132, 255, 0.25);
       }
 
       .vp-modal-action-btn svg.hidden {
@@ -411,15 +577,15 @@ export class HandTrackingHUD {
         line-height: 14px;
         text-align: center;
         border-radius: 7px;
-        background: rgba(10, 132, 255, 0.4);
+        background: rgba(10, 132, 255, 0.5);
         color: #ffffff;
-        margin-left: 3px;
+        margin-left: 2px;
         font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
       }
 
       .vp-modal-video-wrap {
         position: relative;
-        width: 324px;
+        width: 100%;
         height: 240px;
         background: #000000;
         overflow: hidden;
@@ -432,121 +598,129 @@ export class HandTrackingHUD {
         display: block;
       }
 
-      .vp-dual-indicator {
-        position: absolute;
-        bottom: 8px;
-        left: 8px;
-        right: 8px;
-        background: rgba(0, 0, 0, 0.72);
-        backdrop-filter: blur(10px);
-        padding: 6px 10px;
-        border-radius: 8px;
-        font-size: 10.5px;
-        color: #f5f5f7;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+      /* 底部状态区域：双卡片 + 遥测底栏 */
+      .vp-modal-footer {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 8px;
+        padding: 10px 12px;
+        background: rgba(14, 18, 28, 0.92);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
       }
 
-      .vp-ind-row {
+      .vp-pinch-monitor-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .vp-pinch-monitor-card {
+        background: rgba(255, 255, 255, 0.035);
+        border: 0.5px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 7px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        transition: border-color 0.2s ease, background 0.2s ease;
+      }
+
+      .vp-card-label {
         display: flex;
         align-items: center;
         gap: 5px;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.5);
+        font-weight: 500;
+        white-space: nowrap;
       }
 
-      .vp-ind-dot {
-        width: 6px;
-        height: 6px;
+      .vp-card-dot {
+        width: 5px;
+        height: 5px;
         border-radius: 50%;
         flex-shrink: 0;
       }
 
-      .vp-ind-dot.left {
+      .vp-card-dot.left {
         background: #ff9f0a;
       }
 
-      .vp-ind-dot.right {
+      .vp-card-dot.right {
         background: #0a84ff;
       }
 
-      .vp-ind-name {
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 10px;
+      .vp-card-val-wrap {
+        display: flex;
+        align-items: center;
+        min-height: 18px;
       }
 
-      .vp-left-txt, .vp-right-txt {
+      .vp-left-duration-val, .vp-right-duration-val {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
+        font-size: 11.5px;
         font-weight: 600;
-        color: #8e8e93;
-      }
-
-      .vp-left-txt.active {
-        color: #ff9f0a;
-      }
-
-      .vp-right-txt.active {
-        color: #30d158;
-      }
-
-      .vp-left-live-badge, .vp-right-live-badge {
-        margin-left: auto;
-        font-size: 9.5px;
-        font-weight: 700;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
-        padding: 1px 5px;
-        border-radius: 4px;
-        background: rgba(48, 209, 88, 0.2);
-        color: #30d158;
-        border: 1px solid rgba(48, 209, 88, 0.4);
-      }
-
-      .vp-left-live-badge {
-        background: rgba(255, 159, 10, 0.2);
-        color: #ff9f0a;
-        border-color: rgba(255, 159, 10, 0.4);
-      }
-
-      .vp-left-live-badge.hidden, .vp-right-live-badge.hidden {
-        display: none !important;
-      }
-
-      .vp-modal-footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 7px 10px;
-        background: rgba(255, 255, 255, 0.03);
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-        font-size: 10px;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
-      }
-
-      .vp-footer-stat {
-        display: flex;
-        align-items: center;
-        gap: 3px;
-        color: #f5f5f7;
-      }
-
-      .vp-stat-label {
-        color: rgba(255, 255, 255, 0.5);
+        color: rgba(255, 255, 255, 0.65);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .vp-left-duration-val.active {
         color: #ff9f0a;
         font-weight: 700;
+        text-shadow: 0 0 8px rgba(255, 159, 10, 0.4);
       }
 
       .vp-right-duration-val.active {
         color: #30d158;
         font-weight: 700;
+        text-shadow: 0 0 8px rgba(48, 209, 88, 0.4);
       }
 
-      /* 捏合持续时长历史记录列表区域 */
+      .vp-pipeline-telemetry {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 5px 10px;
+        background: rgba(255, 255, 255, 0.025);
+        border-radius: 6px;
+        border: 0.5px solid rgba(255, 255, 255, 0.05);
+        font-size: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
+      }
+
+      .vp-telem-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+      }
+
+      .vp-telem-label {
+        color: rgba(255, 255, 255, 0.45);
+      }
+
+      .vp-fps-val, .vp-latency-val, .vp-delegate-val {
+        color: #f5f5f7;
+        font-weight: 500;
+      }
+
+      .vp-delegate-val {
+        color: #30d158;
+      }
+
+      .vp-telem-divider {
+        width: 1px;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      /* 捏合时长历史记录列表区域 */
       .vp-pinch-log-section {
         display: flex;
         flex-direction: column;
-        background: rgba(18, 18, 22, 0.75);
+        background: rgba(12, 16, 24, 0.95);
         border-top: 1px solid rgba(255, 255, 255, 0.08);
         transition: max-height 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
         overflow: hidden;
@@ -562,7 +736,7 @@ export class HandTrackingHUD {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 6px 12px;
+        padding: 8px 12px;
         background: rgba(255, 255, 255, 0.02);
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         font-size: 11px;
@@ -574,13 +748,14 @@ export class HandTrackingHUD {
       .vp-pinch-log-title {
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
         font-weight: 600;
         letter-spacing: -0.1px;
+        color: #ffffff;
       }
 
       .vp-pinch-log-count {
-        color: rgba(255, 255, 255, 0.5);
+        color: rgba(255, 255, 255, 0.45);
         font-size: 10px;
       }
 
@@ -591,35 +766,39 @@ export class HandTrackingHUD {
       }
 
       .vp-pinch-avg-stat {
-        font-size: 10px;
-        color: rgba(255, 255, 255, 0.55);
+        font-size: 9.5px;
+        color: rgba(255, 255, 255, 0.6);
         font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.5px 6px;
+        border-radius: 4px;
+        border: 0.5px solid rgba(255, 255, 255, 0.08);
       }
 
       .vp-pinch-clear-btn {
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+        border: 0.5px solid rgba(255, 255, 255, 0.12);
         border-radius: 4px;
-        color: rgba(255, 255, 255, 0.75);
+        color: rgba(255, 255, 255, 0.7);
         font-size: 10px;
-        padding: 1px 6px;
+        padding: 2px 7px;
         cursor: pointer;
         transition: all 0.15s ease;
       }
 
       .vp-pinch-clear-btn:hover {
-        background: rgba(255, 69, 58, 0.2);
+        background: rgba(255, 69, 58, 0.18);
         color: #ff453a;
-        border-color: rgba(255, 69, 58, 0.35);
+        border-color: rgba(255, 69, 58, 0.4);
       }
 
       .vp-pinch-log-list {
-        max-height: 125px;
+        max-height: 135px;
         overflow-y: auto;
-        padding: 4px 6px;
+        padding: 6px 8px;
         display: flex;
         flex-direction: column;
-        gap: 3px;
+        gap: 4px;
         scrollbar-width: thin;
         scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
       }
@@ -635,8 +814,8 @@ export class HandTrackingHUD {
 
       .vp-pinch-log-empty {
         text-align: center;
-        padding: 14px 10px;
-        color: rgba(255, 255, 255, 0.38);
+        padding: 16px 10px;
+        color: rgba(255, 255, 255, 0.35);
         font-size: 10.5px;
         font-style: italic;
       }
@@ -645,10 +824,10 @@ export class HandTrackingHUD {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 4px 8px;
-        border-radius: 6px;
+        padding: 5px 9px;
+        border-radius: 7px;
         background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.04);
+        border: 0.5px solid rgba(255, 255, 255, 0.05);
         font-size: 10.5px;
         transition: background 0.12s ease;
       }
@@ -660,7 +839,7 @@ export class HandTrackingHUD {
       .vp-log-item-left {
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
         min-width: 0;
         overflow: hidden;
       }
@@ -675,25 +854,25 @@ export class HandTrackingHUD {
       .vp-log-hand-tag {
         font-size: 9.5px;
         font-weight: 600;
-        padding: 0 4px;
-        border-radius: 3px;
+        padding: 1px 5px;
+        border-radius: 4px;
         flex-shrink: 0;
       }
 
       .vp-log-hand-tag.left {
-        background: rgba(255, 159, 10, 0.18);
+        background: rgba(255, 159, 10, 0.15);
         color: #ff9f0a;
-        border: 1px solid rgba(255, 159, 10, 0.35);
+        border: 0.5px solid rgba(255, 159, 10, 0.35);
       }
 
       .vp-log-hand-tag.right {
-        background: rgba(10, 132, 255, 0.18);
+        background: rgba(10, 132, 255, 0.15);
         color: #0a84ff;
-        border: 1px solid rgba(10, 132, 255, 0.35);
+        border: 0.5px solid rgba(10, 132, 255, 0.35);
       }
 
       .vp-log-action-tag {
-        font-size: 9.5px;
+        font-size: 10px;
         color: rgba(255, 255, 255, 0.85);
         white-space: nowrap;
         overflow: hidden;
@@ -725,20 +904,21 @@ export class HandTrackingHUD {
         font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
         font-weight: 600;
         font-size: 10px;
-        padding: 1px 5px;
+        padding: 1.5px 6px;
         border-radius: 4px;
+        white-space: nowrap;
       }
 
       .vp-log-duration.quick {
-        background: rgba(48, 209, 88, 0.15);
+        background: rgba(48, 209, 88, 0.12);
         color: #30d158;
-        border: 1px solid rgba(48, 209, 88, 0.3);
+        border: 0.5px solid rgba(48, 209, 88, 0.3);
       }
 
       .vp-log-duration.long {
-        background: rgba(255, 159, 10, 0.15);
+        background: rgba(255, 159, 10, 0.12);
         color: #ff9f0a;
-        border: 1px solid rgba(255, 159, 10, 0.3);
+        border: 0.5px solid rgba(255, 159, 10, 0.3);
       }
 
       /* ========================================================== */
@@ -758,7 +938,7 @@ export class HandTrackingHUD {
         border-radius: 0 !important;
         z-index: 999999 !important;
         margin: 0 !important;
-        background: rgba(10, 10, 12, 0.96) !important;
+        background: rgba(8, 12, 20, 0.96) !important;
         backdrop-filter: none !important;
         display: flex !important;
         flex-direction: column !important;
@@ -808,32 +988,31 @@ export class HandTrackingHUD {
         margin: auto;
       }
 
-      .vp-hud-preview-modal.fullscreen .vp-dual-indicator {
-        position: absolute;
-        bottom: 24px;
-        left: 50%;
-        right: auto;
-        transform: translateX(-50%);
-        min-width: 380px;
-        max-width: 90vw;
-        padding: 10px 18px;
-        border-radius: 12px;
-        font-size: 12px;
-        background: rgba(20, 20, 24, 0.85);
-        backdrop-filter: blur(24px);
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
-        gap: 6px;
+      .vp-hud-preview-modal.fullscreen .vp-modal-footer {
+        padding: 12px 32px;
+        background: rgba(18, 22, 30, 0.85);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 32px;
+        flex-shrink: 0;
       }
 
-      .vp-hud-preview-modal.fullscreen .vp-modal-footer {
-        padding: 10px 24px;
-        background: rgba(22, 22, 26, 0.75);
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        font-size: 12px;
-        flex-shrink: 0;
-        justify-content: center;
-        gap: 32px;
+      .vp-hud-preview-modal.fullscreen .vp-pinch-monitor-grid {
+        display: flex;
+        gap: 16px;
+      }
+
+      .vp-hud-preview-modal.fullscreen .vp-pinch-monitor-card {
+        padding: 8px 16px;
+        min-width: 160px;
+      }
+
+      .vp-hud-preview-modal.fullscreen .vp-pipeline-telemetry {
+        padding: 8px 16px;
+        gap: 16px;
       }
 
       .vp-hud-preview-modal.fullscreen .vp-pinch-log-section {
@@ -984,9 +1163,11 @@ export class HandTrackingHUD {
       toggleBtn.textContent = '关闭';
       toggleBtn.classList.add('active');
       dot.className = 'vp-pill-status-dot active';
+      this.pillEl.classList.add('is-active');
     } catch (err) {
       console.error('[HandTrackingHUD] Enable failed:', err);
       dot.className = 'vp-pill-status-dot error';
+      this.pillEl.classList.remove('is-active');
       toggleBtn.textContent = '重试';
       toggleBtn.classList.remove('active');
       this.isEnabled = false;
@@ -1002,16 +1183,20 @@ export class HandTrackingHUD {
     toggleBtn.textContent = '开启';
     toggleBtn.classList.remove('active');
     dot.className = 'vp-pill-status-dot';
+    this.pillEl.classList.remove('is-active');
   }
 
   public togglePreview(forceOpen?: boolean): void {
     this.isPreviewOpen = forceOpen !== undefined ? forceOpen : !this.isPreviewOpen;
+    const camBtn = this.pillEl.querySelector('.vp-pill-cam-btn') as HTMLButtonElement | null;
     if (this.isPreviewOpen) {
+      camBtn?.classList.add('active', 'is-open');
       this.previewModalEl.classList.remove('hidden');
       if (this.isFullscreen) {
         this.updateFullscreenCanvasSize();
       }
     } else {
+      camBtn?.classList.remove('active', 'is-open');
       if (this.isFullscreen) {
         this.toggleFullscreen(false);
       }
@@ -1051,7 +1236,7 @@ export class HandTrackingHUD {
 
       this.previewCanvas.style.width = '';
       this.previewCanvas.style.height = '';
-      this.previewCanvas.width = 320;
+      this.previewCanvas.width = 380;
       this.previewCanvas.height = 240;
     }
   }
@@ -1090,8 +1275,6 @@ export class HandTrackingHUD {
     const latencyVal = this.previewModalEl.querySelector('.vp-latency-val') as HTMLElement;
     const delegateVal = this.previewModalEl.querySelector('.vp-delegate-val') as HTMLElement | null;
     const ratioVal = this.previewModalEl.querySelector('.vp-ratio-val') as HTMLElement | null;
-    const leftTxt = this.previewModalEl.querySelector('.vp-left-txt') as HTMLElement;
-    const rightTxt = this.previewModalEl.querySelector('.vp-right-txt') as HTMLElement;
 
     this.service.onStatusChange((telemetry: TrackerTelemetry) => {
       if (telemetry.status === 'running') {
@@ -1132,26 +1315,7 @@ export class HandTrackingHUD {
       if (frame.leftHand) {
         const dur = Math.round(frame.leftHand.pinchDuration);
         if (frame.leftHand.isPinching) {
-          const txt = frame.isDualPinching
-            ? `双手缩放中 (${dur} ms)`
-            : frame.leftHand.isLongPinch
-            ? `拖拽视角中 (${dur} ms)`
-            : `快速捏合中 (${dur} ms)`;
-          if (this.cachedLeftTxt !== txt) {
-            this.cachedLeftTxt = txt;
-            leftTxt.textContent = txt;
-          }
-          if (this.cachedLeftClass !== 'vp-left-txt active') {
-            this.cachedLeftClass = 'vp-left-txt active';
-            leftTxt.className = 'vp-left-txt active';
-          }
           const badgeTxt = `${dur} ms`;
-          if (this.cachedLeftBadge !== badgeTxt) {
-            this.cachedLeftBadge = badgeTxt;
-            this.leftLiveBadge.textContent = badgeTxt;
-          }
-          this.leftLiveBadge.classList.remove('hidden');
-
           if (this.cachedLeftDur !== badgeTxt) {
             this.cachedLeftDur = badgeTxt;
             this.leftDurationVal.textContent = badgeTxt;
@@ -1161,15 +1325,6 @@ export class HandTrackingHUD {
             this.leftDurationVal.className = 'vp-left-duration-val active';
           }
         } else {
-          if (this.cachedLeftTxt !== '就绪 (张开)') {
-            this.cachedLeftTxt = '就绪 (张开)';
-            leftTxt.textContent = '就绪 (张开)';
-          }
-          if (this.cachedLeftClass !== 'vp-left-txt') {
-            this.cachedLeftClass = 'vp-left-txt';
-            leftTxt.className = 'vp-left-txt';
-          }
-          this.leftLiveBadge.classList.add('hidden');
           if (this.cachedLeftDurClass !== 'vp-left-duration-val') {
             this.cachedLeftDurClass = 'vp-left-duration-val';
             this.leftDurationVal.className = 'vp-left-duration-val';
@@ -1187,16 +1342,6 @@ export class HandTrackingHUD {
           this.cachedLeftDur = durStr;
           this.leftDurationVal.textContent = durStr;
         }
-      } else {
-        if (this.cachedLeftTxt !== '未检测') {
-          this.cachedLeftTxt = '未检测';
-          if (leftTxt) leftTxt.textContent = '未检测';
-        }
-        if (this.cachedLeftClass !== 'vp-left-txt') {
-          this.cachedLeftClass = 'vp-left-txt';
-          if (leftTxt) leftTxt.className = 'vp-left-txt';
-        }
-        this.leftLiveBadge.classList.add('hidden');
       }
 
       // 更新右手交互状态
@@ -1211,26 +1356,7 @@ export class HandTrackingHUD {
 
         const dur = Math.round(frame.rightHand.pinchDuration);
         if (frame.rightHand.isPinching) {
-          const txt = frame.isDualPinching
-            ? `双手缩放中 (${dur} ms)`
-            : dur >= 350
-            ? `长按拖拽中 (${dur} ms)`
-            : `点按选择中 (${dur} ms)`;
-          if (this.cachedRightTxt !== txt) {
-            this.cachedRightTxt = txt;
-            if (rightTxt) rightTxt.textContent = txt;
-          }
-          if (this.cachedRightClass !== 'vp-right-txt active') {
-            this.cachedRightClass = 'vp-right-txt active';
-            if (rightTxt) rightTxt.className = 'vp-right-txt active';
-          }
           const badgeTxt = `${dur} ms`;
-          if (this.cachedRightBadge !== badgeTxt) {
-            this.cachedRightBadge = badgeTxt;
-            this.rightLiveBadge.textContent = badgeTxt;
-          }
-          this.rightLiveBadge.classList.remove('hidden');
-
           if (this.cachedRightDur !== badgeTxt) {
             this.cachedRightDur = badgeTxt;
             this.rightDurationVal.textContent = badgeTxt;
@@ -1240,15 +1366,6 @@ export class HandTrackingHUD {
             this.rightDurationVal.className = 'vp-right-duration-val active';
           }
         } else {
-          if (this.cachedRightTxt !== '光标瞄准') {
-            this.cachedRightTxt = '光标瞄准';
-            if (rightTxt) rightTxt.textContent = '光标瞄准';
-          }
-          if (this.cachedRightClass !== 'vp-right-txt') {
-            this.cachedRightClass = 'vp-right-txt';
-            if (rightTxt) rightTxt.className = 'vp-right-txt';
-          }
-          this.rightLiveBadge.classList.add('hidden');
           if (this.cachedRightDurClass !== 'vp-right-duration-val') {
             this.cachedRightDurClass = 'vp-right-duration-val';
             if (this.rightDurationVal) this.rightDurationVal.className = 'vp-right-duration-val';
@@ -1271,15 +1388,6 @@ export class HandTrackingHUD {
           this.cachedRatioTxt = '0%';
           if (ratioVal) ratioVal.textContent = '0%';
         }
-        if (this.cachedRightTxt !== '未检测') {
-          this.cachedRightTxt = '未检测';
-          if (rightTxt) rightTxt.textContent = '未检测';
-        }
-        if (this.cachedRightClass !== 'vp-right-txt') {
-          this.cachedRightClass = 'vp-right-txt';
-          if (rightTxt) rightTxt.className = 'vp-right-txt';
-        }
-        this.rightLiveBadge.classList.add('hidden');
       }
 
       if (this.isPreviewOpen) {

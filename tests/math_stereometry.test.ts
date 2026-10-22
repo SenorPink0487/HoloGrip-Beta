@@ -1480,8 +1480,281 @@ skewMesh.dispose();
 managerMesh.dispose();
 console.log('✓ Test 26 passed: Skew non-planar cycle rejection & interaction guidance lifecycle verified\n');
 
+// ========================================================
+// Test 27: 触摸屏滑动旋转视角 vs 轻触选点接线隔离测试
+// ========================================================
+console.log('Test 27: 触摸屏滑动旋转视角 vs 轻触选点接线隔离测试');
+
+const touchMesh = new StereometryMesh();
+touchMesh.setOptions({ modelType: 'cube' });
+let guidanceText = '';
+const touchManager = new StereometryInteractionManager(touchMesh, {
+  onGuidanceChange: (hint) => {
+    guidanceText = hint;
+  },
+});
+
+const touchMockCam = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+touchMockCam.position.set(0, 0, 2);
+touchMockCam.lookAt(0, 0, 0);
+const touchContext = {
+  ...mockContext,
+  camera: touchMockCam,
+};
+
+// 场景 A: 触摸屏单指在模型上按下并滑动 (移动 30px) -> 必须旋转视角，绝对不误触发接线
+const initialRotY = touchMesh.modelContainer.rotation.y;
+const touchDownEvent = {
+  button: 0,
+  clientX: 200,
+  clientY: 200,
+  pointerId: 1,
+  pointerType: 'touch',
+} as PointerEvent;
+
+touchManager.onPointerDown(touchDownEvent, null, touchContext);
+
+// 此时刚刚按下，位移为 0，不能被死锁为连线
+assert.strictEqual((touchManager as any).isOrbitDragging, false);
+assert.strictEqual((touchManager as any).hasMovedPastDragThreshold, false);
+
+// 手指滑动 30px
+const touchMoveEvent = {
+  button: 0,
+  clientX: 230,
+  clientY: 215,
+  pointerId: 1,
+  pointerType: 'touch',
+} as PointerEvent;
+
+touchManager.onPointerMove(touchMoveEvent, null, touchContext);
+
+// 验证模型顺畅旋转
+assert((touchManager as any).isOrbitDragging, 'Finger dragging must activate orbit dragging');
+assert((touchManager as any).hasMovedPastDragThreshold, 'Must mark moved past drag threshold');
+assert.notStrictEqual(touchMesh.modelContainer.rotation.y, initialRotY, 'Model rotation Y must change upon dragging');
+
+// 手指抬起
+const touchUpEvent = {
+  button: 0,
+  clientX: 230,
+  clientY: 215,
+  pointerId: 1,
+  pointerType: 'touch',
+} as PointerEvent;
+
+touchManager.onPointerUp(touchUpEvent, touchContext);
+
+// 验证滑动释放后绝对没有暂存连线起点
+assert.strictEqual((touchManager as any).pendingStartPoint, null, 'Dragging to rotate must NEVER retain a connection start point');
+assert.strictEqual((touchManager as any).isOrbitDragging, false, 'Orbit dragging must be reset upon pointer up');
+
+// 场景 B: 触摸屏轻触 (Tap，位移 2px) 在棱线上 -> 必须选定为连线起点
+const kpVertexA = touchMesh.getModelDef().keyPoints.find((k) => k.id === 'v_0')!;
+const kpVertexB = touchMesh.getModelDef().keyPoints.find((k) => k.id === 'v_1')!;
+
+// 模拟轻触点击顶点 A
+(touchManager as any).handleClickOnPoint(kpVertexA);
+assert.strictEqual((touchManager as any).pendingStartPoint?.id, 'v_0', 'Tapping vertex A must set it as connection start point');
+assert(guidanceText.includes('已选起点 A'), `Guidance must announce start point A, got: ${guidanceText}`);
+
+// 在选定起点 A 期间，用户再次单指滑动旋转模型以看清背面
+const rotBefore = touchMesh.modelContainer.rotation.y;
+touchManager.onPointerDown({ button: 0, clientX: 100, clientY: 100, pointerId: 1, pointerType: 'touch' } as PointerEvent, null, touchContext);
+touchManager.onPointerMove({ button: 0, clientX: 150, clientY: 100, pointerId: 1, pointerType: 'touch' } as PointerEvent, null, touchContext);
+assert.notStrictEqual(touchMesh.modelContainer.rotation.y, rotBefore, 'Model must rotate while start point is pending');
+touchManager.onPointerUp({ button: 0, clientX: 150, clientY: 100, pointerId: 1, pointerType: 'touch' } as PointerEvent, touchContext);
+
+// 验证旋转后起点 A 依然保留，等待连接目标点
+assert.strictEqual((touchManager as any).pendingStartPoint?.id, 'v_0', 'Pending start point A must be preserved through rotation');
+
+// 此时轻触目标顶点 B -> 成功完成连线
+(touchManager as any).handleClickOnPoint(kpVertexB);
+assert.strictEqual((touchManager as any).pendingStartPoint, null, 'Connecting target B must clear pending start point');
+assert.strictEqual(touchMesh.getSegments().length, 1, 'Auxiliary line between A and B must be successfully created');
+
+touchMesh.dispose();
+console.log('✓ Test 27 passed: 触摸屏滑动旋转视角 vs 轻触选点接线完全隔离验证通过\n');
+
+// ========================================================
+// Test 28: “起点应当只在线上”严格不变性测试
+// ========================================================
+console.log('Test 28: “起点应当只在线上”严格不变性测试');
+
+const snapTestMesh = new StereometryMesh();
+snapTestMesh.setOptions({ modelType: 'cube' });
+const cubeDef = snapTestMesh.getModelDef();
+
+// 1. 验证面心 (Face Center, 如 face_front, face_top) 和体心 (body_center) 绝对不在线上
+const faceCenterPoint = cubeDef.keyPoints.find((k) => k.type === 'center')!;
+assert(faceCenterPoint, 'Cube must have center keypoints');
+
+const identityMat = new THREE.Matrix4();
+
+// 构建一条正对正方体面中心（穿过面心与体心，远离棱）的射线
+// 正方体顶面为 Y = 0.5，面心在 (0, 0.5, 0)，底面中心在 (0, -0.5, 0)
+const rayThroughFaceCenter = new THREE.Ray(
+  new THREE.Vector3(0, 2, 0),
+  new THREE.Vector3(0, -1, 0)
+);
+
+// 严格开启 onlyOnEdgeOrLine: true 查找起点
+const faceSnapResult = GeometrySolver.findClosestSnapPoint(
+  rayThroughFaceCenter,
+  cubeDef,
+  identityMat,
+  0.045,
+  { onlyOnEdgeOrLine: true }
+);
+
+// 面心与体心不在棱线上，距离棱线(x=±0.5, z=±0.5)均为 0.5，远大于阈值 0.045，必须严格返回 null！
+assert.strictEqual(faceSnapResult, null, 'Ray through face center must strictly return null when onlyOnEdgeOrLine: true (起点应当只在线上)');
+
+// 2. 验证靠近棱线 (Edge) 上的点可以被精准吸附
+// 棱 AB 在 y = -0.5, z = 0.5，x 从 -0.5 到 0.5
+// 投射一条经过棱 AB 中点的射线
+const edgeV0 = cubeDef.vertices[0]; // A (0.5, -0.5, 0.5)
+const edgeV1 = cubeDef.vertices[1]; // B (0.5, -0.5, -0.5)
+const midWorld = new THREE.Vector3().addVectors(edgeV0, edgeV1).multiplyScalar(0.5);
+
+const rayNearEdge = new THREE.Ray(
+  new THREE.Vector3(midWorld.x + 0.5, midWorld.y, midWorld.z),
+  new THREE.Vector3(-1, 0, 0)
+);
+
+const edgeSnapResult = GeometrySolver.findClosestSnapPoint(
+  rayNearEdge,
+  cubeDef,
+  identityMat,
+  0.045,
+  { onlyOnEdgeOrLine: true }
+);
+
+assert(edgeSnapResult !== null, 'Ray near edge AB must snap to an on-line keypoint');
+assert(edgeSnapResult.keyPoint.type === 'midpoint' || edgeSnapResult.keyPoint.type === 'vertex' || edgeSnapResult.keyPoint.type === 'third', 'Snapped point must be an edge-based point (vertex/midpoint/third)');
+assert(edgeSnapResult.snapLabel.includes('棱') || edgeSnapResult.snapLabel.includes('中点') || edgeSnapResult.snapLabel.includes('顶点'), 'Snap label must indicate edge or vertex');
+
+snapTestMesh.dispose();
+console.log('✓ Test 28 passed: “起点应当只在线上”严格不变性验证通过\n');
+
+// -------------------------------------------------------------
+// Test 29: 3D模型列表切换与尺寸调整页面进入逻辑（点击已选定模型才进入尺寸调整页面）
+// -------------------------------------------------------------
+console.log('Test 29: 3D模型列表点击已选定模型才进入尺寸调整页面验证');
+let changedModelType = '';
+const testCard = new StereometryStatusCard({
+  onModelChange: (model) => {
+    changedModelType = model;
+  },
+});
+
+const selView = (testCard as any).selectionViewEl as any;
+const paramView = (testCard as any).paramViewEl as any;
+
+// 1. 模拟未选定的正四面体卡片
+const tetraCard = testCard.element.querySelector('.math-model-card[data-model="tetrahedron"]') as any;
+tetraCard.setAttribute('data-model', 'tetrahedron');
+
+// 首次点击未选定的模型（例如：正四面体）
+testCard.element.dispatch('click', { target: tetraCard });
+
+// 验证：仅切换模型选中状态，并不进入尺寸调整页面
+assert.strictEqual(changedModelType, 'tetrahedron', 'Model change callback must be fired with tetrahedron');
+assert.strictEqual((testCard as any).currentModel, 'tetrahedron', 'Current model state must be updated to tetrahedron');
+assert.strictEqual(tetraCard.classList.contains('active'), true, 'Tetrahedron card must be marked as active');
+assert.strictEqual(paramView.style.display, undefined, 'Clicking an unselected card must NOT open the param view');
+
+// 2. 再次点击已经选定的模型（正四面体）
+testCard.element.dispatch('click', { target: tetraCard });
+
+// 验证：点击已选定的模型，才打开尺寸调整页面
+assert.strictEqual(paramView.style.display, 'flex', 'Clicking ALREADY selected model MUST open the param view');
+assert.strictEqual(selView.style.display, 'none', 'Selection view must be hidden when param view is open');
+assert.strictEqual(testCard.element.querySelector('#math-param-title')?.textContent, '正四面体', 'Param title must match tetrahedron');
+
+// 3. 返回模型选择主界面后，点击已选定的模型（正四面体）依然能正常进入
+testCard.closeParamPage();
+assert.strictEqual(paramView.style.display, 'none', 'Param view must be closed');
+assert.strictEqual(selView.style.display, 'flex', 'Selection view must be restored');
+
+testCard.element.dispatch('click', { target: tetraCard });
+assert.strictEqual(paramView.style.display, 'flex', 'Clicking the active model again must reopen the param view');
+
+testCard.dispose();
+console.log('✓ Test 29 passed: 3D模型列表点击已选定模型才进入尺寸调整页面验证通过\n');
+
+// -------------------------------------------------------------
+// Test 30: 某切面用与线一致的颜色验证
+// -------------------------------------------------------------
+console.log('Test 30: 辅助切面颜色与线段严格保持一致验证');
+const colorMesh = new StereometryMesh();
+colorMesh.setOptions({ modelType: 'cube' });
+
+// 使用绿色线段绘制封闭三角形 ABC（点 v_0, v_1, v_2）
+const greenColor = 0x38d9a9;
+colorMesh.addSegment('v_0', 'v_1', greenColor);
+colorMesh.addSegment('v_1', 'v_2', greenColor);
+colorMesh.addSegment('v_2', 'v_0', greenColor);
+
+const auxFaces = colorMesh.getAuxiliaryFaces();
+assert.strictEqual(auxFaces.length, 1, 'Closing 3 lines must generate 1 auxiliary face');
+assert.strictEqual(auxFaces[0].color, greenColor, 'Auxiliary face color must match green line color (0x38d9a9)');
+
+// 验证 auxFacesGroup 内部的 3D 网格材质颜色
+const auxChildren = colorMesh.getAuxFacesGroup().children;
+const surfMesh = auxChildren.find((c) => c.name.startsWith('aux_face_') && !c.name.includes('contour')) as THREE.Mesh;
+const contLoop = auxChildren.find((c) => c.name.startsWith('aux_face_contour_')) as THREE.LineLoop;
+
+assert(surfMesh !== null, 'Surface mesh must exist');
+assert(contLoop !== null, 'Contour loop must exist');
+
+const surfMat = surfMesh.material as THREE.MeshStandardMaterial;
+const contMat = contLoop.material as THREE.LineBasicMaterial;
+
+assert.strictEqual(surfMat.color.getHex(), greenColor, 'Face fill color must match green line color exactly (NOT old 0x0284c7 blue)');
+assert.strictEqual(contMat.color.getHex(), greenColor, 'Face contour line color must match green line color exactly');
+
+colorMesh.dispose();
+console.log('✓ Test 30 passed: 辅助切面颜色与线段严格保持一致验证通过\n');
+
+// -------------------------------------------------------------
+// Test 31: 空间连线纯净几何线条规范（消除粗大立体圆柱与反光金属管道）
+// -------------------------------------------------------------
+console.log('Test 31: 空间连线纯净几何线条规范（消除粗大立体圆柱）验证');
+const lineNormMesh = new StereometryMesh();
+lineNormMesh.setOptions({ modelType: 'cube' });
+
+lineNormMesh.addSegment('v_0', 'v_1', 0x38d9a9);
+const segChildren = (lineNormMesh as any).segmentsGroup.children as THREE.Object3D[];
+
+// 1. 验证包含原生 3D 几何线条 (THREE.Line)
+const hasNativeLine = segChildren.some((c) => c instanceof THREE.Line && c.name.startsWith('perm_seg_line_'));
+assert.strictEqual(hasNativeLine, true, 'Permanent segment group must contain a native THREE.Line for crisp line rendering');
+
+// 2. 验证线芯使用平光无反光的 MeshBasicMaterial 且粗细清晰适度（半径约 2mm，远小于原 3.5mm 粗大管道，又具备极高辨识度）
+const coreMesh = segChildren.find((c) => c.name.startsWith('perm_seg_') && !(c instanceof THREE.Line)) as THREE.Mesh;
+assert(coreMesh !== null, 'Core mesh must exist for backwards compatibility');
+assert(coreMesh.material instanceof THREE.MeshBasicMaterial, 'Core line mesh must use MeshBasicMaterial to prevent cylindrical lighting/specular shine');
+
+const coreGeo = coreMesh.geometry as THREE.CylinderGeometry;
+assert(coreGeo.parameters.radiusTop <= 0.0025 && coreGeo.parameters.radiusTop >= 0.0015, 'Core line mesh radiusTop must be comfortable visible size (~2mm, was 3.5mm cylinder)');
+assert(coreGeo.parameters.radiusBottom <= 0.0025 && coreGeo.parameters.radiusBottom >= 0.0015, 'Core line mesh radiusBottom must be comfortable visible size (~2mm)');
+
+// 3. 验证动态预览线同样具备原生线条与无高光平光微芯
+lineNormMesh.updatePreviewWire(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.5, 0, 0), 0x38d9a9);
+const normPreviewGroup = (lineNormMesh as any).previewSegmentGroup as THREE.Group;
+const previewLine = normPreviewGroup.children.find((c) => c instanceof THREE.Line);
+const previewPipe = (lineNormMesh as any).previewPipeMesh as THREE.Mesh;
+
+assert(previewLine !== null, 'Preview group must contain native THREE.Line');
+assert(previewPipe.material instanceof THREE.MeshBasicMaterial, 'Preview pipe must use MeshBasicMaterial');
+assert((previewPipe.geometry as THREE.CylinderGeometry).parameters.radiusTop <= 0.0025 && (previewPipe.geometry as THREE.CylinderGeometry).parameters.radiusTop >= 0.0015, 'Preview pipe radius must be comfortable visible size (~2mm)');
+
+lineNormMesh.dispose();
+console.log('✓ Test 31 passed: 空间连线纯净几何线条规范验证通过\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (26/26)!');
+console.log('All High School Stereometry Tests Passed Successfully (31/31)!');
 console.log('========================================================');
 
 
