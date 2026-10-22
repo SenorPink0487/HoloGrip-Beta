@@ -167,12 +167,6 @@ export class Laboratory {
     outerFacets.receiveShadow = true;
     ceiling.add(outerFacets);
 
-    // 精细的径向藻井阴影凹槽
-    ceiling.add(new THREE.LineSegments(
-      new THREE.EdgesGeometry(outerFacets.geometry, 1),
-      this.materials.ceilingGroove,
-    ));
-
     // 2. 内侧建筑穹顶藻井环带（从跨中向天窗灯槽平滑隆起）
     const innerFacets = new THREE.Mesh(
       this.facetBand(3.32, 4.85, 32, 4.12, 4.28, 0),
@@ -180,13 +174,6 @@ export class Laboratory {
     );
     innerFacets.receiveShadow = true;
     ceiling.add(innerFacets);
-
-    const innerEdges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(innerFacets.geometry, 1),
-      this.materials.ceilingGroove,
-    );
-    innerEdges.position.y = 0.002;
-    ceiling.add(innerEdges);
 
     // 3. 高精度建筑内嵌圆形暗藏灯槽结构（彻底消除 2D Canvas 贴图导致的移动端/iPad 色彩噪点 Bug）
     // 3.1 凹槽基座顶面（深处水平顶板）
