@@ -24,7 +24,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: 'thermodynamics',
     name: '热学物理',
     icon: 'thermo',
-    description: '理想气体状态方程、分子动理论、卡诺热机循环与热传导精密实验台',
+    description: '理想气体状态方程、分子动理论、卡诺热机循环、焦耳热功当量测定与热传导精密实验台',
   },
   {
     id: 'physics',

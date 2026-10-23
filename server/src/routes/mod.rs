@@ -20,6 +20,7 @@ mod chemistry;
 mod classes;
 mod math_recognition;
 mod me;
+mod password;
 mod whiteboard;
 
 pub fn router(state: AppState) -> Router {
@@ -40,6 +41,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/me", get(me::me).patch(me::update_me))
         .route("/api/v1/me/preferences", patch(me::update_preferences))
+        .route("/api/v1/me/password/code", post(password::send_code))
+        .route("/api/v1/me/password", post(password::change_password))
         .route("/api/v1/classes/current", patch(classes::update_class))
         .route("/api/v1/classes/join", post(classes::join_class))
         .merge(admin_routes(state.clone()))

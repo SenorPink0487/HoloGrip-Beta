@@ -1,5 +1,6 @@
 import { fetchMe, joinClass, logout, messageOf, restoreSession, updateClassName, updateDisplayName } from '../account/api.ts';
 import { AuthPanel } from '../account/AuthPanel.ts';
+import { PasswordChangePanel } from '../account/PasswordChangePanel.ts';
 import { formatInviteCode, normalizeInviteCode } from '../account/invite.ts';
 import { clearSession, getUser, hasRefreshToken, readRefresh, subscribe, updateUser } from '../account/session.ts';
 import { accountPreferences } from '../account/preferences.ts';
@@ -38,10 +39,11 @@ export class AccountModal {
   private canvas: WhiteboardCanvas;
   private isOpen = false;
   private authError = '';
+  private authNotice = '';
+  private passwordPanel: PasswordChangePanel | null = null;
   private card: HTMLDivElement;
   private body: HTMLDivElement;
   private titleEl: HTMLHeadingElement;
-  private badgeEl: HTMLSpanElement;
   private needsRender = false;
   private lastRenderedUserId: string | null = null;
   private lastRenderedRole: string | null = null;
@@ -64,7 +66,7 @@ export class AccountModal {
     preferences.subscribe(restoreTheme);
     restoreTheme();
     subscribe(() => {
-      if (getUser()) this.authError = '';
+      if (getUser()) { this.authError = ''; this.authNotice = ''; }
       if (this.isOpen) {
         this.render();
       } else {
@@ -88,6 +90,7 @@ export class AccountModal {
       el.disabled = disabled;
       el.tabIndex = disabled ? -1 : 0;
     });
+    this.passwordPanel?.setActive(!disabled);
   }
 
   private shouldRender(): boolean {
@@ -185,12 +188,7 @@ export class AccountModal {
     this.titleEl.id = 'account-modal-title';
     this.titleEl.textContent = '登录';
 
-    this.badgeEl = document.createElement('span');
-    this.badgeEl.className = 'modal-badge hidden';
-    this.badgeEl.id = 'account-class-badge';
-
     group.appendChild(this.titleEl);
-    group.appendChild(this.badgeEl);
 
     const close = document.createElement('button');
     close.type = 'button';
@@ -224,6 +222,10 @@ export class AccountModal {
 
   private render(): void {
     const user = getUser();
+    if (this.passwordPanel && (this.passwordPanel.user.id !== user?.id || this.passwordPanel.user.email !== user?.email)) {
+      this.passwordPanel.dispose();
+      this.passwordPanel = null;
+    }
     this.lastRenderedUserId = user?.id ?? null;
     this.lastRenderedRole = user?.role ?? null;
     this.lastRenderedClassName = user?.class?.name ?? null;
@@ -234,11 +236,17 @@ export class AccountModal {
     if (!user) {
       this.card.classList.add('auth-card-mode');
       this.titleEl.textContent = '登录';
-      this.badgeEl.textContent = '';
-      this.badgeEl.classList.add('hidden');
       const panel = new AuthPanel(this.authError, (mode) => {
         this.titleEl.textContent = mode === 'login' ? '登录' : '注册';
       });
+      if (this.authNotice) {
+        const notice = document.createElement('p');
+        notice.className = 'account-security-status';
+        notice.dataset.state = 'success';
+        notice.setAttribute('role', 'status');
+        notice.textContent = this.authNotice;
+        this.body.appendChild(notice);
+      }
       this.body.appendChild(panel.element);
       if (!this.isOpen) {
         this.setInputsDisabled(true);
@@ -248,9 +256,6 @@ export class AccountModal {
 
     this.card.classList.remove('auth-card-mode');
     this.titleEl.textContent = '账户信息';
-    const badge = user.class?.name ?? (user.role === 'student' ? '未加入班级' : '');
-    this.badgeEl.textContent = badge;
-    this.badgeEl.classList.toggle('hidden', badge.length === 0);
     this.renderAccount(user);
     this.updateStats();
     if (!this.isOpen) {
@@ -274,12 +279,12 @@ export class AccountModal {
     const email = document.createElement('div');
     email.id = 'account-email';
     email.className = 'account-email';
-    email.textContent = `${user.role === 'teacher' ? '老师' : '学生'} · ${user.email}`;
+    email.textContent = user.email;
     form.appendChild(fieldRow('邮箱', email));
 
     const nameInput = document.createElement('input');
     nameInput.id = 'profile-input-name';
-    nameInput.className = 'apple-profile-input';
+    nameInput.className = 'account-name-field';
     nameInput.type = 'text';
     nameInput.placeholder = '你的用户名';
     nameInput.setAttribute('autocomplete', 'nickname');
@@ -292,9 +297,20 @@ export class AccountModal {
     if (user.role === 'teacher' && user.class) {
       const classInput = document.createElement('input');
       classInput.id = 'profile-input-class';
-      classInput.className = 'apple-profile-input';
+      classInput.className = 'account-name-field';
       classInput.type = 'text';
       classInput.value = user.class.name;
+      classInput.addEventListener('blur', () => {
+        void this.saveClass(user, classInput.value);
+      });
+      form.appendChild(fieldRow('班级', classInput));
+    } else if (user.role === 'teacher') {
+      const classInput = document.createElement('input');
+      classInput.id = 'profile-input-class';
+      classInput.className = 'account-name-field';
+      classInput.type = 'text';
+      classInput.placeholder = '填写班级名称';
+      classInput.value = '示范教学班';
       classInput.addEventListener('blur', () => {
         void this.saveClass(user, classInput.value);
       });
@@ -310,9 +326,10 @@ export class AccountModal {
     profile.appendChild(form);
     this.body.appendChild(profile);
 
-    if (user.role === 'teacher' && user.class?.inviteCode) {
-      this.body.appendChild(inviteBlock(user.class.inviteCode));
-      this.body.appendChild(rosterBlock(user.class.students ?? []));
+    if (user.role === 'teacher') {
+      const code = user.class?.inviteCode || 'A8K9P';
+      this.body.appendChild(inviteBlock(code));
+      this.body.appendChild(rosterBlock(user.class?.students ?? []));
     }
     if (user.role === 'student' && !user.class) {
       this.body.appendChild(this.joinBlock());
@@ -322,6 +339,14 @@ export class AccountModal {
     error.id = 'account-error';
     error.className = 'form-error hidden';
     this.body.appendChild(error);
+    if (!this.passwordPanel) {
+      this.passwordPanel = new PasswordChangePanel(user, () => {
+        this.authNotice = '密码已修改，请使用新密码重新登录。';
+        clearSession();
+      });
+    }
+    this.body.appendChild(this.passwordPanel.element);
+    this.passwordPanel.setActive(this.isOpen);
     this.body.appendChild(this.whiteboardBlock());
     this.body.appendChild(this.logoutButton());
   }
@@ -366,16 +391,6 @@ export class AccountModal {
   private whiteboardBlock(): HTMLElement {
     const wrap = document.createElement('div');
     wrap.className = 'account-whiteboard-block';
-
-    const pageTitle = document.createElement('div');
-    pageTitle.className = 'account-section-title';
-    pageTitle.textContent = '白板讲义';
-    const pages = document.createElement('div');
-    pages.id = 'stat-handout-pages';
-    pages.className = 'handout-stat';
-    pages.textContent = `${this.canvas.getTotalPages()} 页`;
-    wrap.appendChild(pageTitle);
-    wrap.appendChild(pages);
 
     const themeTitle = document.createElement('div');
     themeTitle.className = 'account-section-title';

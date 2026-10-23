@@ -10,6 +10,18 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     pub fast_hash: bool,
     pub deepseek_api_key: Option<String>,
+    pub smtp: Option<SmtpConfig>,
+}
+
+// Deliberately do not derive Debug: SMTP credentials must never enter logs.
+#[derive(Clone)]
+pub struct SmtpConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: String,
+    pub from: String,
+    pub starttls: bool,
 }
 
 impl std::fmt::Debug for Config {
@@ -48,6 +60,48 @@ impl Config {
             .ok()
             .map(|key| key.trim().to_string())
             .filter(|key| !key.is_empty());
+        let smtp = match env::var("SMTP_HOST")
+            .ok()
+            .filter(|host| !host.trim().is_empty())
+        {
+            Some(_) if env::var("SMTP_PASSWORD").map_or(true, |value| value.trim().is_empty()) => {
+                tracing::warn!(
+                    "SMTP_PASSWORD is not configured; email verification is unavailable"
+                );
+                None
+            }
+            Some(host) => {
+                let required = |name: &str| {
+                    env::var(name)
+                        .ok()
+                        .filter(|value| !value.trim().is_empty())
+                        .ok_or_else(|| format!("缺少 {name}"))
+                };
+                let starttls = match env::var("SMTP_SECURITY").as_deref().unwrap_or("tls") {
+                    "tls" => false,
+                    "starttls" => true,
+                    _ => return Err("SMTP_SECURITY 必须为 tls 或 starttls".to_string()),
+                };
+                let port = env::var("SMTP_PORT")
+                    .unwrap_or_else(|_| if starttls { "587" } else { "465" }.to_string())
+                    .parse::<u16>()
+                    .ok()
+                    .filter(|port| *port > 0)
+                    .ok_or_else(|| "SMTP_PORT 必须是有效端口".to_string())?;
+                let from = required("SMTP_FROM")?;
+                from.parse::<lettre::message::Mailbox>()
+                    .map_err(|_| "SMTP_FROM 邮箱格式不正确".to_string())?;
+                Some(SmtpConfig {
+                    host: host.trim().to_string(),
+                    port,
+                    starttls,
+                    from,
+                    username: required("SMTP_USERNAME")?,
+                    password: required("SMTP_PASSWORD")?,
+                })
+            }
+            None => None,
+        };
 
         Ok(Self {
             database_url,
@@ -58,6 +112,7 @@ impl Config {
             cors_origins,
             fast_hash: false,
             deepseek_api_key,
+            smtp,
         })
     }
 
@@ -71,6 +126,7 @@ impl Config {
             cors_origins: Vec::new(),
             fast_hash: true,
             deepseek_api_key: None,
+            smtp: None,
         }
     }
 }

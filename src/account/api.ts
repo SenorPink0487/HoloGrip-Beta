@@ -174,6 +174,16 @@ export async function fetchMe(): Promise<AccountUser> {
   return request<AccountUser>('/api/v1/me', { method: 'GET' }, true, true);
 }
 
+export async function sendPasswordCode(userId: string): Promise<{ retryAfterSeconds: number; expiresInSeconds: number }> {
+  return request('/api/v1/me/password/code', { method: 'POST' }, true, true, userId);
+}
+
+export async function changePassword(userId: string, code: string, newPassword: string): Promise<void> {
+  return request('/api/v1/me/password', {
+    method: 'POST', body: JSON.stringify({ code, newPassword }),
+  }, true, true, userId);
+}
+
 export async function saveAccountPreferences(
   userId: string,
   preferences: AccountPreferences,

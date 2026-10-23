@@ -2,7 +2,7 @@ import type { ExperimentMetadata } from '../../../core/types.ts';
 
 export const metadata: ExperimentMetadata = {
   id: 'thermo-idealgas',
-  name: '理想气体状态与分子运动论',
+  name: '理想气体状态方程实验',
   category: 'thermodynamics',
   categoryName: '热学物理',
   description: '精密透明石英气缸与活塞台架，联动微观分子弹性碰撞动力学，直观验证玻意耳定律、查理定律、理想气体状态方程 PV=nRT 与麦克斯韦-玻尔兹曼速率分布。',

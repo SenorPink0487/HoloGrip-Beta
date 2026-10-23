@@ -1,3 +1,4 @@
+import { labPointerNDC } from '../../../controls/LabPointerInput.ts';
 /**
  * 悬挂法测物体重心 (Determination of Center of Gravity by Suspension)
  * 经典力学交互式 3D 实验主控模块
@@ -250,7 +251,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
     if (context.camera) {
       this.getPlateWorldPlane(this.dragPlane);
 
-      const mouse = this.getNormalizedMouse(event);
+      const mouse = this.getNormalizedMouse(event, context);
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouse, context.camera);
 
@@ -294,7 +295,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   ): void {
     if (!context.camera) return;
 
-    const mouse = this.getNormalizedMouse(event);
+    const mouse = this.getNormalizedMouse(event, context);
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, context.camera);
 
@@ -380,6 +381,13 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   /**
    * 鼠标/触控指针抬起 (Pointer Up)
    */
+  public override onPointerCancel(): void {
+    this.isDraggingPlate = false;
+    this.candidateHoleToSnap = null;
+    this.stand.setSnapAuraHighlighted(false);
+    this.plate.setHoleHovered(null);
+  }
+
   public override onPointerUp(_event: PointerEvent, _context: ExperimentContext): void {
     if (!this.isDraggingPlate) return;
     this.isDraggingPlate = false;
@@ -646,15 +654,8 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   /**
    * 换算屏幕归一化坐标 (支持指针锁定与普通鼠标)
    */
-  private getNormalizedMouse(event: PointerEvent): THREE.Vector2 {
-    const isLocked = typeof document !== 'undefined' && document.pointerLockElement !== null;
-    if (isLocked) {
-      return new THREE.Vector2(0, 0);
-    }
-    return new THREE.Vector2(
-      (event.clientX / window.innerWidth) * 2 - 1,
-      -(event.clientY / window.innerHeight) * 2 + 1
-    );
+  private getNormalizedMouse(event: PointerEvent, context?: ExperimentContext): THREE.Vector2 {
+    return labPointerNDC(event, context?.renderer?.domElement);
   }
 
   /**

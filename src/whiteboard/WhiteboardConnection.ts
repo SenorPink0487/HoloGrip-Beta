@@ -24,14 +24,13 @@ export class WhiteboardConnection {
   private pageToSelect?: string;
   private warning = '';
 
-  constructor(canvas: WhiteboardCanvas, parent: HTMLElement) {
+  constructor(canvas: WhiteboardCanvas, _parent: HTMLElement) {
     this.canvas = canvas;
     this.status = document.createElement('div');
     this.status.className = 'whiteboard-sync-status';
     this.status.setAttribute('role', 'status');
     this.status.setAttribute('aria-live', 'polite');
     if (this.status.style) this.status.style.display = 'none';
-    parent.appendChild(this.status);
     this.unsubscribe = subscribe(() => this.sessionChanged());
     window.addEventListener('online', this.onOnline);
     this.sessionChanged();
@@ -56,7 +55,7 @@ export class WhiteboardConnection {
       if (this.status.style) this.status.style.display = 'none';
       return;
     }
-    if (this.status.style) this.status.style.display = '';
+    if (this.status.style) this.status.style.display = 'none';
     try {
       const saved = JSON.parse(sessionStorage.getItem(this.storageKey()) || '[]');
       if (Array.isArray(saved) && saved.length <= 100) this.pending = saved.filter(c => c && typeof c.opId === 'string' && typeof c.pageId === 'string' && durable(c));
@@ -77,7 +76,7 @@ export class WhiteboardConnection {
       if (this.status.style) this.status.style.display = 'none';
       return;
     }
-    if (this.status.style) this.status.style.display = '';
+    if (this.status.style) this.status.style.display = 'none';
     this.status.textContent = text || this.warning || (this.ready
       ? this.pending.length ? `班级白板 · ${this.pending.length} 项正在保存` : '班级白板 · 已同步'
       : this.synced ? '班级白板 · 正在重连，笔迹暂存本机' : '班级白板 · 连接中');

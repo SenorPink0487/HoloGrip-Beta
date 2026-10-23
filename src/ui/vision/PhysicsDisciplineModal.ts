@@ -210,7 +210,7 @@ export class PhysicsDisciplineModal {
   public static readonly THERMO_EXPERIMENTS: OpticsExperimentDef[] = [
     {
       id: 'thermo-idealgas',
-      name: '理想气体状态与分子运动论',
+      name: '理想气体状态方程实验',
       category: '统计与动理论',
       formula: 'PV = nRT · v_rms = √(3RT/M)',
       iconSvg: `
@@ -316,6 +316,33 @@ export class PhysicsDisciplineModal {
           <!-- Combustion Flash at Bottom -->
           <circle cx="18" cy="26" r="2.5" fill="currentColor"/>
           <path d="M16 25 Q 18 21.5 20 25" stroke-width="1.3"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'thermo-joule',
+      name: '焦耳热功当量与做功等效实验',
+      category: '热力学第一定律与能量守恒',
+      formula: 'ΔU = W_mech + W_elec + Q · J = 4.186 J/cal',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Central Adiabatic Calorimeter Vessel -->
+          <rect x="12" y="13" width="12" height="17" rx="2" stroke-width="1.8" fill="currentColor" fill-opacity="0.08"/>
+          <!-- Top Winding Drum & Spindle -->
+          <line x1="18" y1="4" x2="18" y2="27" stroke-width="1.8"/>
+          <rect x="15" y="6" width="6" height="4" rx="1" stroke-width="1.5" fill="currentColor" fill-opacity="0.25"/>
+          <!-- Rotating Paddle Blades inside Calorimeter -->
+          <line x1="14" y1="18" x2="22" y2="18" stroke-width="1.6"/>
+          <line x1="14" y1="23" x2="22" y2="23" stroke-width="1.6"/>
+          <!-- Twin Pulleys & Cords -->
+          <line x1="6" y1="8" x2="30" y2="8" stroke-width="1.4"/>
+          <circle cx="6" cy="8" r="2.2" stroke-width="1.5"/>
+          <circle cx="30" cy="8" r="2.2" stroke-width="1.5"/>
+          <line x1="6" y1="10.2" x2="6" y2="20" stroke-width="1.4"/>
+          <line x1="30" y1="10.2" x2="30" y2="20" stroke-width="1.4"/>
+          <!-- Falling Slotted Brass Weights (2m) -->
+          <rect x="3.5" y="20" width="5" height="6" rx="1" fill="currentColor" fill-opacity="0.35" stroke-width="1.4"/>
+          <rect x="27.5" y="20" width="5" height="6" rx="1" fill="currentColor" fill-opacity="0.35" stroke-width="1.4"/>
         </svg>
       `,
     },

@@ -10,6 +10,8 @@ const raycaster = new THREE.Raycaster();
 export interface Viewport {
   width: number;
   height: number;
+  left?: number;
+  top?: number;
 }
 
 /**
@@ -25,7 +27,8 @@ export function localPointOnBenchFace(
 ): THREE.Vector3 | null {
   const width = viewport?.width || (typeof window !== 'undefined' ? window.innerWidth : 0) || 1;
   const height = viewport?.height || (typeof window !== 'undefined' ? window.innerHeight : 0) || 1;
-  ndc.set((event.clientX / width) * 2 - 1, -(event.clientY / height) * 2 + 1);
+  ndc.set(((event.clientX - (viewport?.left ?? 0)) / width) * 2 - 1,
+    -((event.clientY - (viewport?.top ?? 0)) / height) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
   bench.updateWorldMatrix(true, false);
   planeNormal.set(0, 0, 1).transformDirection(bench.matrixWorld);

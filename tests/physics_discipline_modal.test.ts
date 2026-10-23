@@ -289,7 +289,7 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(!html.includes('physics-nav-bar'), 'Level 2 thermo must not contain redundant inner navigation bar');
 
   // Verify 4 core thermodynamics experiments
-  assert(html.includes('理想气体状态与分子运动论'), 'Must contain 理想气体状态与分子运动论');
+  assert(html.includes('理想气体状态方程实验'), 'Must contain 理想气体状态方程实验');
   assert(html.includes('卡诺热机与循环效率'), 'Must contain 卡诺热机与循环效率');
   assert(html.includes('热传导与傅里叶定律'), 'Must contain 热传导与傅里叶定律');
   assert(html.includes('物态相变与潜热曲线'), 'Must contain 物态相变与潜热曲线');

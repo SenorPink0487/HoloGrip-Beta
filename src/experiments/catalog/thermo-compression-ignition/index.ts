@@ -40,8 +40,8 @@ export default class ThermoCompressionIgnitionExperiment extends BaseExperiment 
   private lastDragTimestamp = 0;
 
   public init(_context: ExperimentContext): void {
-    // 根节点定位至台前近景工作台视界 (Y=0.04, Z=1.15)，端正正对用户视线 (+Z)
-    this.rootGroup.position.set(0, 0.04, 1.15);
+    // 根节点定位至台前近景工作台视界 (Y=0.082 匹配实验台台面 Y=0.990，Z=1.15)，端正正对用户视线 (+Z)
+    this.rootGroup.position.set(0, 0.082, 1.15);
 
     // 1. 实例化热力学动力学求解器
     this.solver = new CompressionIgnitionDynamicsSolver();
@@ -127,27 +127,20 @@ export default class ThermoCompressionIgnitionExperiment extends BaseExperiment 
   public override onPointerMove(
     event: PointerEvent,
     _hit: THREE.Intersection | null,
-    _context: ExperimentContext
+    context: ExperimentContext
   ): void {
     if (!this.isDragging || this.isDisposed) return;
 
     // 获取当前相机光线投射至拖拽平面的交点
-    const camera = (this as any).contextCamera || (window as any).__THREE_CAMERA__;
-    if (!camera) {
-      // 备用：基于屏幕像素位移粗略换算
-      const now = performance.now();
-      const dt = Math.max(0.001, (now - this.lastDragTimestamp) / 1000);
-      this.lastDragTimestamp = now;
+    const camera = context.camera;
+    if (!camera) return;
 
-      const screenDeltaY = event.movementY || 0;
-      const strokeDelta = screenDeltaY * 0.0055;
-      this.solver.updateManualDrag(this.solver.stroke + strokeDelta, dt);
-      return;
-    }
-
+    const rect = context.renderer?.domElement?.getBoundingClientRect();
+    const width = rect?.width || window.innerWidth;
+    const height = rect?.height || window.innerHeight;
     const mouseNDC = new THREE.Vector2(
-      (event.clientX / window.innerWidth) * 2 - 1,
-      -(event.clientY / window.innerHeight) * 2 + 1
+      ((event.clientX - (rect?.left ?? 0)) / width) * 2 - 1,
+      -((event.clientY - (rect?.top ?? 0)) / height) * 2 + 1
     );
 
     const raycaster = new THREE.Raycaster();

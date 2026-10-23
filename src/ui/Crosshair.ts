@@ -5,8 +5,10 @@ export class Crosshair {
 
   private isHovered = false;
   private isVisible = true;
+  private readonly touchMode: boolean;
 
-  constructor(parent: HTMLElement = document.body) {
+  constructor(parent: HTMLElement = document.body, touchMode = false) {
+    this.touchMode = touchMode;
     this.createElements(parent);
   }
 
@@ -21,10 +23,13 @@ export class Crosshair {
     this.ringEl = this.element.querySelector('.crosshair-ring') as HTMLElement;
     this.tooltipEl = this.element.querySelector('.crosshair-tooltip') as HTMLElement;
 
+    // Apply before mounting so the reticle never flashes on iPad at startup.
+    this.setVisible(!this.touchMode);
     parent.appendChild(this.element);
   }
 
   public setHovered(hovered: boolean, label = '✦ 点击开启 VisionOS 实验视窗'): void {
+    if (this.touchMode) return;
     if (this.isHovered === hovered && (!hovered || this.tooltipEl.textContent === label)) return;
     this.isHovered = hovered;
 
@@ -39,6 +44,7 @@ export class Crosshair {
   }
 
   public setVisible(visible: boolean): void {
+    visible = visible && !this.touchMode;
     if (this.isVisible === visible) return;
     this.isVisible = visible;
 

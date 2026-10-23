@@ -182,6 +182,10 @@ export default class MathStereometryExperiment extends BaseExperiment {
     this.interactionManager?.onPointerUp(event, context);
   }
 
+  public override onPointerCancel(): void {
+    this.interactionManager?.clearHover();
+  }
+
   public override onParameterChange(id: string, value: any, _context: ExperimentContext): void {
     if (!this.mesh) return;
 

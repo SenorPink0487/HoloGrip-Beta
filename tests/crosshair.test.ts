@@ -181,8 +181,8 @@ isWhiteboardMode = true;
 assert.strictEqual(computeExpectedCrosshairVisibility(), false, 'Hidden when returning to whiteboard');
 console.log('✓ Test 4 passed: All state matrix conditions verified\n');
 
-// Test 5: All Physics Experiments Center Crosshair & Pointer Lock Invariants
-console.log('Test 5: All Physics Experiments Crosshair Activation Invariants');
+// Test 5: Every directly manipulated desk experiment uses a free cursor.
+console.log('Test 5: Desk Experiment Free Cursor Invariants');
 const allPhysicsExperiments = [
   'mech-galileo',
   'mech-free-fall',
@@ -202,28 +202,47 @@ const allPhysicsExperiments = [
   'thermo-idealgas',
   'thermo-phase',
   'thermo-compression-ignition',
+  'thermo-joule',
 ];
 
-const isFreeCursorExp = (id: string | null): boolean => id === 'math-stereometry';
+const { Engine } = await import('../src/core/Engine.ts');
+const engine: any = Object.create(Engine.prototype);
 
 for (const expId of allPhysicsExperiments) {
+  const { default: Experiment } = await import(`../src/experiments/catalog/${expId}/index.ts`);
+  const experiment = new Experiment();
+  engine.holoStage = { activeExperiment: experiment };
   assert.strictEqual(
-    isFreeCursorExp(expId),
-    false,
-    `Physics experiment [${expId}] must NOT be classified as free cursor; center crosshair must activate`
+    engine.isFreeCursorExperiment(expId),
+    Boolean(experiment.onPointerDown),
+    `Direct manipulation in [${expId}] must use a free cursor`
   );
 }
 
-// Math stereometry remains the sole dedicated free cursor mode
 assert.strictEqual(
-  isFreeCursorExp('math-stereometry'),
+  engine.isFreeCursorExperiment('math-stereometry'),
   true,
-  'Math stereometry must remain dedicated free cursor mode'
+  'Math stereometry retains its free cursor mode'
 );
 
-console.log('✓ Test 5 passed: Center crosshair activation guaranteed across all 18 physics experiments\n');
+console.log('✓ Test 5 passed: All 18 physics experiments checked against their actual interaction hooks\n');
+
+console.log('Test 6: iPad Touch Mode Never Shows a Crosshair');
+const touchCrosshair = new Crosshair(body, true);
+const touchEl = body.children.filter((c: any) => c.id === 'vision-crosshair').at(-1);
+assert.strictEqual(touchCrosshair.getVisible(), false, 'Hidden from the first mount');
+assert.strictEqual(touchEl.classList.contains('hidden'), true);
+for (let transition = 0; transition < 4; transition++) {
+  touchCrosshair.setVisible(false);
+  touchCrosshair.setVisible(true);
+  assert.strictEqual(touchCrosshair.getVisible(), false, 'Experiment/menu transitions cannot restore a touch reticle');
+}
+touchCrosshair.setHovered(true, 'A touch reticle must never show a tooltip');
+assert.strictEqual(touchEl.querySelector('.crosshair-tooltip').classList.contains('visible'), false);
+touchCrosshair.destroy();
+console.log('✓ Test 6 passed: Touch crosshair and tooltip stay hidden across all visibility requests\n');
 
 crosshair.destroy();
 console.log('========================================================');
-console.log('All Crosshair & Reticle Tests Passed Successfully (5/5)!');
+console.log('All Crosshair & Reticle Tests Passed Successfully (6/6)!');
 console.log('========================================================\n');

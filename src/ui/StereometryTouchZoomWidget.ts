@@ -33,46 +33,48 @@ export class StereometryTouchZoomWidget {
       style.textContent = `
         .stereometry-touch-zoom-pill {
           position: fixed;
-          bottom: calc(32px + env(safe-area-inset-bottom, 0px));
-          right: calc(32px + env(safe-area-inset-right, 0px));
+          bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+          right: calc(28px + env(safe-area-inset-right, 0px));
           display: flex;
           align-items: center;
           gap: 6px;
           height: 44px;
           padding: 0 6px;
           border-radius: 22px;
-          background: rgba(255, 255, 255, 0.72);
-          border: 0.5px solid rgba(0, 0, 0, 0.12);
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
-                      inset 0 1px 1px rgba(255, 255, 255, 0.85);
-          backdrop-filter: blur(28px) saturate(180%);
-          -webkit-backdrop-filter: blur(28px) saturate(180%);
+          background: rgba(15, 23, 42, 0.45);
+          border: 0.5px solid rgba(255, 255, 255, 0.22);
+          box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32),
+                      inset 0 1px 1px rgba(255, 255, 255, 0.25);
+          backdrop-filter: blur(28px) saturate(190%);
+          -webkit-backdrop-filter: blur(28px) saturate(190%);
           font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
           z-index: 950;
           pointer-events: auto;
           user-select: none;
           -webkit-user-select: none;
           touch-action: manipulation;
-          transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-                      opacity 0.25s ease,
+          transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                      right 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                      bottom 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                      opacity 0.28s ease,
                       background 0.2s ease,
                       border-color 0.2s ease,
                       box-shadow 0.2s ease;
         }
 
         .stereometry-touch-zoom-pill:hover {
-          background: rgba(255, 255, 255, 0.85);
-          border-color: rgba(0, 0, 0, 0.18);
-          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16),
-                      inset 0 1px 1px rgba(255, 255, 255, 0.95);
+          background: rgba(15, 23, 42, 0.58);
+          border-color: rgba(255, 255, 255, 0.36);
+          box-shadow: 0 10px 32px rgba(0, 0, 0, 0.38),
+                      inset 0 1px 1px rgba(255, 255, 255, 0.35);
         }
 
-        /* 触控设备与 iPad 响应式布局：位于 Vision 启动按钮正上方 */
+        /* 触控设备与移动端响应式布局：置于右下角底排、全息视窗按钮左侧，与上升下降按钮完全解耦错开，绝不重叠 */
         body.has-touch-controls .stereometry-touch-zoom-pill,
         @media (pointer: coarse) {
           .stereometry-touch-zoom-pill {
-            bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-            right: calc(32px + env(safe-area-inset-right, 0px));
+            bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+            right: calc(160px + env(safe-area-inset-right, 0px));
           }
         }
 
@@ -80,10 +82,22 @@ export class StereometryTouchZoomWidget {
           .stereometry-touch-zoom-pill {
             height: 48px;
             border-radius: 24px;
-            padding: 0 6px;
+            padding: 0 7px;
             gap: 7px;
-            bottom: calc(112px + env(safe-area-inset-bottom, 0px));
-            right: calc(40px + env(safe-area-inset-right, 0px));
+            bottom: calc(36px + env(safe-area-inset-bottom, 0px));
+            right: calc(186px + env(safe-area-inset-right, 0px));
+          }
+        }
+
+        /* 手势追踪激活时，视窗启动器与升降胶囊优雅淡出，缩放胶囊顺滑归位到右下角基准位 */
+        body.hand-tracking-active .stereometry-touch-zoom-pill {
+          right: calc(28px + env(safe-area-inset-right, 0px)) !important;
+          bottom: calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+        }
+        @media (pointer: coarse) and (min-width: 768px) {
+          body.hand-tracking-active .stereometry-touch-zoom-pill {
+            right: calc(36px + env(safe-area-inset-right, 0px)) !important;
+            bottom: calc(36px + env(safe-area-inset-bottom, 0px)) !important;
           }
         }
 
@@ -109,10 +123,10 @@ export class StereometryTouchZoomWidget {
           width: 34px;
           height: 34px;
           border-radius: 50%;
-          border: 0.5px solid rgba(0, 0, 0, 0.12);
-          background: rgba(0, 0, 0, 0.05);
-          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3);
-          color: #000000;
+          border: 0.5px solid rgba(255, 255, 255, 0.18);
+          background: rgba(255, 255, 255, 0.08);
+          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.20);
+          color: rgba(255, 255, 255, 0.92);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -137,26 +151,27 @@ export class StereometryTouchZoomWidget {
         }
 
         .zoom-touch-btn:hover {
-          background: rgba(0, 0, 0, 0.09);
-          border-color: rgba(0, 0, 0, 0.2);
-          color: #000000;
-          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4), 0 2px 8px rgba(0, 0, 0, 0.08);
+          background: rgba(255, 255, 255, 0.18);
+          border-color: rgba(255, 255, 255, 0.35);
+          color: #ffffff;
+          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 0 12px rgba(255, 255, 255, 0.15);
         }
 
         .zoom-touch-btn:active,
         .zoom-touch-btn.is-active {
           transform: scale(0.92);
-          background: rgba(0, 0, 0, 0.14);
-          color: #000000;
+          background: rgba(255, 255, 255, 0.28);
+          border-color: rgba(255, 255, 255, 0.50);
+          color: #ffffff;
         }
 
         .zoom-touch-btn svg {
-          stroke: #000000;
+          stroke: currentColor;
           transition: transform 0.15s ease;
         }
 
         .zoom-touch-btn:active svg {
-          transform: scale(1.08);
+          transform: scale(1.10);
         }
 
         /* 缩放指示器与重置徽章 */
@@ -168,10 +183,10 @@ export class StereometryTouchZoomWidget {
           padding: 0 10px;
           height: 34px;
           border-radius: 17px;
-          border: 0.5px solid rgba(0, 0, 0, 0.12);
-          background: rgba(0, 0, 0, 0.05);
-          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3);
-          color: #000000;
+          border: 0.5px solid rgba(255, 255, 255, 0.18);
+          background: rgba(255, 255, 255, 0.08);
+          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.20);
+          color: #ffffff;
           cursor: pointer;
           outline: none;
           touch-action: manipulation;
@@ -191,14 +206,15 @@ export class StereometryTouchZoomWidget {
         }
 
         .zoom-touch-badge:hover {
-          background: rgba(0, 0, 0, 0.09);
-          border-color: rgba(0, 0, 0, 0.2);
-          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4), 0 2px 8px rgba(0, 0, 0, 0.08);
+          background: rgba(255, 255, 255, 0.18);
+          border-color: rgba(255, 255, 255, 0.35);
+          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 0 12px rgba(255, 255, 255, 0.15);
         }
 
         .zoom-touch-badge:active {
           transform: scale(0.94);
-          background: rgba(0, 0, 0, 0.14);
+          background: rgba(255, 255, 255, 0.28);
+          border-color: rgba(255, 255, 255, 0.50);
         }
 
         .zoom-scale-percent {
@@ -207,7 +223,7 @@ export class StereometryTouchZoomWidget {
           font-weight: 600;
           font-variant-numeric: tabular-nums;
           letter-spacing: -0.2px;
-          color: #000000;
+          color: #ffffff;
           line-height: 1.1;
           white-space: nowrap;
         }
@@ -216,7 +232,7 @@ export class StereometryTouchZoomWidget {
           font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
           font-size: 8.5px;
           font-weight: 500;
-          color: rgba(0, 0, 0, 0.5);
+          color: rgba(255, 255, 255, 0.60);
           letter-spacing: -0.1px;
           line-height: 1;
           margin-top: 1px;

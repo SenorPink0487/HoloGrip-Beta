@@ -2842,6 +2842,11 @@ export class CapacitorDischargeBenchMesh {
   }
 
   // ================= 动态状态同步与渲染帧更新 =================
+  public cancelBladeDrag(): void {
+    this.targetBladeAngle = this.lastSwitchPos === 'charge' ? 0.96 :
+      this.lastSwitchPos === 'discharge' ? -0.96 : 0;
+  }
+
   public setSwitchPosition(pos: SwitchPosition, instant = false): void {
     this.lastSwitchPos = pos;
     if (pos === 'charge') {

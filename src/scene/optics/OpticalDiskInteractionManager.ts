@@ -15,6 +15,7 @@ export class OpticalDiskInteractionManager {
   private isHovered = false;
   private dragPlane = new THREE.Plane();
   private raycasterPlanePoint = new THREE.Vector3();
+  private dragAngleOffsetRad = 0;
 
   constructor(
     apparatus: OpticalDiskApparatusMesh,
@@ -51,7 +52,18 @@ export class OpticalDiskInteractionManager {
     for (const hit of hits) {
       let cur: THREE.Object3D | null = hit.object;
       while (cur && cur !== this.apparatus.group) {
-        if (cur.name === 'LaserHandleHit' || cur.userData?.isLaserHandle || cur.name === 'LaserCarriage') {
+        if (
+          cur.name === 'LaserHandleHit' ||
+          cur.userData?.isLaserHandle ||
+          cur.name === 'LaserCarriage' ||
+          cur.name === 'IncidentBeamHit' ||
+          cur.name === 'IncidentLaserBeam' ||
+          cur.name === 'IncidentLaserGlow' ||
+          cur.name === 'IncidentAngleBadge' ||
+          cur.name === 'IncidentAngleArc' ||
+          cur.name === 'IncidentAngleFan' ||
+          cur.userData?.isIncidentBeam
+        ) {
           this.isHovered = true;
           return {
             id: 'laser_handle',
@@ -70,25 +82,80 @@ export class OpticalDiskInteractionManager {
   /**
    * 鼠标/触控指针按下
    */
-  public onPointerDown(event: PointerEvent, hit: THREE.Intersection | null): boolean {
+  public onPointerDown(event: PointerEvent, hit: THREE.Intersection | null, raycaster?: THREE.Raycaster): boolean {
     if (!hit) return false;
+
+    const normal = new THREE.Vector3(0, 0, 1).transformDirection(this.rootGroup.matrixWorld);
+    const centerWorld = new THREE.Vector3(0, this.apparatus.diskCenterY, 0).applyMatrix4(this.rootGroup.matrixWorld);
+    this.dragPlane.setFromNormalAndCoplanarPoint(normal, centerWorld);
+    const planePoint = raycaster?.ray.intersectPlane(this.dragPlane, this.raycasterPlanePoint);
 
     let targetIsLaser = false;
     let cur: THREE.Object3D | null = hit.object;
+
+    // 1. 直接命中激光发射器构件、光束、角标或触控碰撞体
     while (cur && cur !== this.apparatus.group) {
-      if (cur.name === 'LaserHandleHit' || cur.userData?.isLaserHandle || cur.name === 'LaserCarriage') {
+      if (
+        cur.name === 'LaserHandleHit' ||
+        cur.userData?.isLaserHandle ||
+        cur.name === 'LaserCarriage' ||
+        cur.name === 'IncidentBeamHit' ||
+        cur.name === 'IncidentLaserBeam' ||
+        cur.name === 'IncidentLaserGlow' ||
+        cur.name === 'IncidentAngleBadge' ||
+        cur.name === 'IncidentAngleArc' ||
+        cur.name === 'IncidentAngleFan' ||
+        cur.userData?.isIncidentBeam
+      ) {
         targetIsLaser = true;
         break;
       }
       cur = cur.parent;
     }
 
+    // 2. 触控屏高宽容度拾取：当点击落在分度盘底盘、滑轨或发射器附近时智能识别
+    if (!targetIsLaser && hit.point) {
+      // A THREE.Line hit reports a point on the line, not necessarily under the
+      // finger. Use the actual pointer's projection for proximity picking.
+      const localPoint = this.rootGroup.worldToLocal((planePoint ?? hit.point).clone());
+      const dx = localPoint.x;
+      const dy = localPoint.y - this.apparatus.diskCenterY;
+      const distFromCenter = Math.hypot(dx, dy);
+
+      // 发射器当前在局部坐标系中的中心点
+      const laserAngleRad = this.apparatus.isAirToWater
+        ? THREE.MathUtils.degToRad(90 - this.apparatus.incidentAngleDeg)
+        : THREE.MathUtils.degToRad(-90 + this.apparatus.incidentAngleDeg);
+      const laserX = Math.cos(laserAngleRad) * this.apparatus.railRadius;
+      const laserY = Math.sin(laserAngleRad) * this.apparatus.railRadius;
+      const distToLaser = Math.hypot(dx - laserX, dy - laserY);
+
+      const isTouch = event.pointerType === 'touch';
+      const touchAngleRad = Math.atan2(dy, dx);
+      let angleDiff = Math.abs(touchAngleRad - laserAngleRad);
+      if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+
+      // A. 点击在发射器近周（手指贴边触碰）
+      if (distToLaser <= (isTouch ? 0.22 : 0.12)) {
+        targetIsLaser = true;
+      }
+      // B. 点击在外圈刻度/导轨区域，且角度与发射器接近
+      else if (distFromCenter >= 0.20 && distFromCenter <= 0.44 && angleDiff <= THREE.MathUtils.degToRad(isTouch ? 45 : 25)) {
+        targetIsLaser = true;
+      }
+    }
+
     if (targetIsLaser) {
       this.isDraggingLaser = true;
-      // 设置圆盘所在的前向平面 (法向量为 rootGroup 旋转后的世界前向 +Z 轴)
-      const normal = new THREE.Vector3(0, 0, 1).transformDirection(this.rootGroup.matrixWorld);
-      const centerWorld = new THREE.Vector3(0, this.apparatus.diskCenterY, 0).applyMatrix4(this.rootGroup.matrixWorld);
-      this.dragPlane.setFromNormalAndCoplanarPoint(normal, centerWorld);
+      // Preserve the angular grab offset, including a near-miss touch rescued
+      // by a neighbouring ray. Pressing a barrel/beam must never teleport it.
+      const startPoint = planePoint ?? hit.point;
+      const localPoint = this.rootGroup.worldToLocal(startPoint.clone());
+      const pointerAngle = Math.atan2(localPoint.y - this.apparatus.diskCenterY, localPoint.x);
+      const emitterAngle = THREE.MathUtils.degToRad(this.apparatus.isAirToWater
+        ? 90 - this.apparatus.incidentAngleDeg : -90 + this.apparatus.incidentAngleDeg);
+      this.dragAngleOffsetRad = emitterAngle - pointerAngle;
+
       return true; // 拦截事件，触发 Engine.ts 锁定指针并关闭自由转头
     }
 
@@ -96,28 +163,26 @@ export class OpticalDiskInteractionManager {
   }
 
   /**
-   * 鼠标/触控指针拖拽移动
+   * 根据前向平面交点更新入射角度及遥测
    */
-  public onPointerMove(event: PointerEvent, raycaster: THREE.Raycaster): void {
-    if (!this.isDraggingLaser) return;
-
-    const hit = raycaster.ray.intersectPlane(this.dragPlane, this.raycasterPlanePoint);
-    if (!hit) return;
-
+  private updateAngleFromPlanePoint(worldPoint: THREE.Vector3): void {
     // 转换到 rootGroup 内部局部坐标系
-    const localPoint = this.raycasterPlanePoint.clone().applyMatrix4(this.rootGroup.matrixWorld.clone().invert());
+    const localPoint = worldPoint.clone().applyMatrix4(this.rootGroup.matrixWorld.clone().invert());
 
     // 相对圆盘中心 (0, diskCenterY) 的局部平面夹角
     const dx = localPoint.x;
     const dy = localPoint.y - this.apparatus.diskCenterY;
 
+    // 防止在圆心极近处产生奇异点与角度跳变
+    if (Math.hypot(dx, dy) < 0.03) return;
+
     // 计算极坐标角 (-PI ~ PI)
-    const angleRad = Math.atan2(dy, dx);
-    const angleDeg = THREE.MathUtils.radToDeg(angleRad);
+    const angleRad = Math.atan2(dy, dx) + this.dragAngleOffsetRad;
+    const angleDeg = THREE.MathUtils.radToDeg(Math.atan2(Math.sin(angleRad), Math.cos(angleRad)));
 
     // 根据指针所在的上下半部动态判断入射方向
     // Y > 0: 上半球 (空气 -> 水); Y < 0: 下半球 (水 -> 空气)
-    const isInUpperHalf = dy >= 0;
+    const isInUpperHalf = Math.sin(angleRad) >= 0;
     if (isInUpperHalf !== this.apparatus.isAirToWater) {
       this.apparatus.setIncidentDirection(isInUpperHalf);
       this.callbacks.onDirectionToggle?.(isInUpperHalf);
@@ -150,9 +215,28 @@ export class OpticalDiskInteractionManager {
   }
 
   /**
+   * 鼠标/触控指针拖拽移动
+   */
+  public onPointerMove(event: PointerEvent, raycaster: THREE.Raycaster): void {
+    if (!this.isDraggingLaser) return;
+
+    const hit = raycaster.ray.intersectPlane(this.dragPlane, this.raycasterPlanePoint);
+    if (!hit) return;
+
+    this.updateAngleFromPlanePoint(this.raycasterPlanePoint);
+  }
+
+  /**
    * 鼠标/触控指针松开
    */
   public onPointerUp(event: PointerEvent): void {
+    this.isDraggingLaser = false;
+  }
+
+  /**
+   * 触控指针取消或手势中断
+   */
+  public onPointerCancel(event?: PointerEvent): void {
     this.isDraggingLaser = false;
   }
 }

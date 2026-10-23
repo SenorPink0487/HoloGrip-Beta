@@ -31,6 +31,7 @@ async fn fresh_pool() -> MySqlPool {
 async fn truncate(pool: &MySqlPool) {
     let mut conn = pool.acquire().await.unwrap();
     for statement in [
+        "DELETE FROM password_email_verifications",
         "DELETE FROM refresh_tokens",
         "DELETE FROM class_members",
         "DELETE FROM classes",
@@ -92,6 +93,119 @@ async fn call(
 
 fn error_message(body: &Value) -> String {
     body["error"]["message"].as_str().unwrap_or("").to_string()
+}
+
+async fn seed_password_code(pool: &MySqlPool, user_id: &str, code: &str) {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    let (email, version): (String, i64) = sqlx::query_as("SELECT email, auth_version FROM users WHERE id = ?")
+        .bind(user_id).fetch_one(pool).await.unwrap();
+    let mut mac = Hmac::<Sha256>::new_from_slice(Config::for_test().jwt_secret.as_bytes()).unwrap();
+    mac.update(format!("password-change\0{user_id}\0{email}\0{version}\0{code}").as_bytes());
+    let hash = mac.finalize().into_bytes().to_vec();
+    sqlx::query("INSERT INTO password_email_verifications (user_id, request_id, email, auth_version, code_hash, sent_at, expires_at, delivered) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(3), DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 10 MINUTE), TRUE) ON DUPLICATE KEY UPDATE email = VALUES(email), auth_version = VALUES(auth_version), code_hash = VALUES(code_hash), expires_at = VALUES(expires_at), failed_attempts = 0, delivered = TRUE")
+        .bind(user_id).bind(uuid::Uuid::now_v7().to_string()).bind(email).bind(version).bind(hash)
+        .execute(pool).await.unwrap();
+}
+
+#[tokio::test]
+async fn password_change_requires_email_proof_and_revokes_all_sessions() {
+    with_app(|app| async move {
+        let pool = fresh_pool().await;
+        let (_, registered) = call(&app, "POST", "/api/v1/auth/register", None, Some(json!({
+            "role":"student", "displayName":"Password test", "email":"password@school.edu", "password":"old-password"
+        }))).await;
+        let token = registered["accessToken"].as_str();
+        let id = registered["user"]["id"].as_str().unwrap();
+        let change = json!({"code":"012345", "newPassword":"new-password"});
+        assert_eq!(call(&app, "POST", "/api/v1/me/password", None, Some(change.clone())).await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(call(&app, "POST", "/api/v1/me/password/code", None, None).await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(call(&app, "POST", "/api/v1/me/password", token, Some(change.clone())).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+        let (status, unavailable) = call(&app, "POST", "/api/v1/me/password/code", token, None).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(unavailable["error"]["code"], "email_not_configured");
+        seed_password_code(&pool, id, "012345").await;
+        assert_eq!(call(&app, "POST", "/api/v1/me/password", token, Some(json!({"code":"012345","newPassword":"short"}))).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(call(&app, "POST", "/api/v1/me/password", token, Some(json!({"code":"012345","newPassword":"密".repeat(25)}))).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+        let (_, other_session) = call(&app, "POST", "/api/v1/auth/login", None, Some(json!({"email":"password@school.edu", "password":"old-password"}))).await;
+        let (status, body) = call(&app, "POST", "/api/v1/me/password", token, Some(change.clone())).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert_eq!(body, Value::Null);
+        for session in [&registered, &other_session] {
+            assert_eq!(call(&app, "GET", "/api/v1/me", session["accessToken"].as_str(), None).await.0, StatusCode::UNAUTHORIZED);
+            assert_eq!(call(&app, "POST", "/api/v1/auth/refresh", None, Some(json!({"refreshToken":session["refreshToken"]}))).await.0, StatusCode::UNAUTHORIZED);
+        }
+        assert_eq!(call(&app, "POST", "/api/v1/auth/login", None, Some(json!({"email":"password@school.edu","password":"old-password"}))).await.0, StatusCode::UNAUTHORIZED);
+        let (status, fresh) = call(&app, "POST", "/api/v1/auth/login", None, Some(json!({"email":"password@school.edu","password":"new-password"}))).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(call(&app, "POST", "/api/v1/me/password", fresh["accessToken"].as_str(), Some(change)).await.0, StatusCode::UNPROCESSABLE_ENTITY, "a code cannot be reused after re-login");
+    }).await;
+}
+
+#[tokio::test]
+async fn password_email_delivery_failure_never_creates_a_usable_code_and_resends_are_limited() {
+    let _guard = LOCK.lock().await;
+    let pool = fresh_pool().await;
+    truncate(&pool).await;
+    let mut config = Config::for_test();
+    config.smtp = Some(server::SmtpConfig {
+        host: "localhost".to_string(), port: 1, starttls: false,
+        username: "test".to_string(), password: "test".to_string(),
+        from: "HoloGrip <test@example.com>".to_string(),
+    });
+    let app = router(AppState { pool: pool.clone(), config: Arc::new(config) });
+    let (_, registered) = call(&app, "POST", "/api/v1/auth/register", None, Some(json!({
+        "role":"student", "displayName":"Delivery test", "email":"delivery@school.edu", "password":"old-password"
+    }))).await;
+    let token = registered["accessToken"].as_str();
+    let id = registered["user"]["id"].as_str().unwrap();
+    let (status, error) = call(&app, "POST", "/api/v1/me/password/code", token, Some(json!({"email":"attacker@example.com"}))).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(error["error"]["code"], "email_unavailable");
+    assert!(error.get("code").is_none(), "verification codes must never be returned in API responses");
+    let (email, delivered): (String, bool) = sqlx::query_as("SELECT email, delivered FROM password_email_verifications WHERE user_id = ?")
+        .bind(id).fetch_one(&pool).await.unwrap();
+    assert_eq!(email, "delivery@school.edu", "the destination always comes from the authenticated account");
+    assert!(!delivered, "an SMTP failure cannot produce a usable code");
+    assert_eq!(call(&app, "POST", "/api/v1/me/password/code", token, None).await.0, StatusCode::TOO_MANY_REQUESTS);
+    sqlx::query("UPDATE password_email_verifications SET sent_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 61 SECOND) WHERE user_id = ?")
+        .bind(id).execute(&pool).await.unwrap();
+    assert_eq!(call(&app, "POST", "/api/v1/me/password/code", token, None).await.0, StatusCode::SERVICE_UNAVAILABLE, "resending is allowed after the server cooldown");
+}
+
+#[tokio::test]
+async fn password_codes_expire_limit_attempts_and_bind_to_account_credentials() {
+    with_app(|app| async move {
+        let pool = fresh_pool().await;
+        let (_, registered) = call(&app, "POST", "/api/v1/auth/register", None, Some(json!({
+            "role":"student", "displayName":"Code test", "email":"code@school.edu", "password":"old-password"
+        }))).await;
+        let token = registered["accessToken"].as_str();
+        let id = registered["user"]["id"].as_str().unwrap();
+        let valid = json!({"code":"012345", "newPassword":"new-password"});
+        seed_password_code(&pool, id, "012345").await;
+        for code in ["111111", "222222", "333333", "444444", "bad"] {
+            assert_eq!(call(&app, "POST", "/api/v1/me/password", token, Some(json!({"code":code,"newPassword":"new-password"}))).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+        }
+        assert_eq!(call(&app, "POST", "/api/v1/me/password", token, Some(valid.clone())).await.0, StatusCode::UNPROCESSABLE_ENTITY, "five mistakes invalidate the correct code");
+        for update in [
+            "expires_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 SECOND)",
+            "delivered = FALSE",
+            "email = 'another@school.edu'",
+            "auth_version = auth_version + 1",
+        ] {
+            seed_password_code(&pool, id, "012345").await;
+            sqlx::query(&format!("UPDATE password_email_verifications SET {update} WHERE user_id = ?"))
+                .bind(id).execute(&pool).await.unwrap();
+            assert_eq!(call(&app, "POST", "/api/v1/me/password", token, Some(valid.clone())).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+        }
+        seed_password_code(&pool, id, "012345").await;
+        let (a, b) = tokio::join!(
+            call(&app, "POST", "/api/v1/me/password", token, Some(valid.clone())),
+            call(&app, "POST", "/api/v1/me/password", token, Some(valid)),
+        );
+        assert_eq!([a.0, b.0].iter().filter(|s| **s == StatusCode::NO_CONTENT).count(), 1, "concurrent submissions can consume a code only once");
+    }).await;
 }
 
 #[tokio::test]

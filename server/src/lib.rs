@@ -9,7 +9,7 @@ mod reset;
 mod routes;
 mod state;
 
-pub use config::Config;
+pub use config::{Config, SmtpConfig};
 pub use db::{connect, migrate};
 pub use routes::router;
 pub use state::AppState;

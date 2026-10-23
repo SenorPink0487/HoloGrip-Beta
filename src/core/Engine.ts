@@ -11,6 +11,7 @@ import { Lighting } from '../scene/Lighting.ts';
 import { TextureGenerator } from '../scene/Textures.ts';
 import { HologramStage } from './HologramStage.ts';
 import { InputManager } from '../controls/InputManager.ts';
+import { LabPointerSession, raycastTouchCandidates } from '../controls/LabPointerInput.ts';
 import { WorkerPool } from '../workers/WorkerPool.ts';
 import { ComputeBridge } from './platform/ComputeBridge.ts';
 import { ExperimentRegistry } from '../experiments/ExperimentRegistry.ts';
@@ -139,6 +140,7 @@ export class Engine {
   private lastPointerPos: THREE.Vector2 | null = null;
   private currentHoveredTarget: string | null = null;
   private isExperimentInteracting = false;
+  private labPointers = new LabPointerSession();
   private lastThermoTelemetrySync = 0;
   private lastMathTelemetrySync = 0;
   private lastEmTelemetrySync = 0;
@@ -627,7 +629,9 @@ export class Engine {
   }
 
   private isFreeCursorExperiment(id: string | null): boolean {
-    return id === 'math-stereometry';
+    return id === 'math-stereometry' || Boolean(
+      id && this.holoStage?.activeExperiment?.onPointerDown
+    ) || Boolean(!id && this.beakerLeft?.isInteractive());
   }
 
   private initHUD(): void {
@@ -638,6 +642,7 @@ export class Engine {
 
     this.hud.drawer.onToggle = (isOpen: boolean) => {
       if (isOpen) {
+        this.cancelLabInteraction();
         this.inputManager.player.exitLock();
         this.inputManager.player.allowPointerLock = false;
         this.crosshair.setVisible(false);
@@ -651,7 +656,7 @@ export class Engine {
       }
     };
 
-    this.crosshair = new Crosshair();
+    this.crosshair = new Crosshair(document.body, Boolean(this.inputManager.touch));
   }
 
   private updateSpatialWindowTransform(delta: number, snap = false): void {
@@ -794,6 +799,7 @@ export class Engine {
         exp?.clearHover?.();
       },
       onOpen: () => {
+        this.cancelLabInteraction();
         this.positionWindowDefault(true);
         this.spatialWindowObject.visible = true;
         this.inputManager?.touch?.setVisionModalOpen(true);
@@ -1006,6 +1012,65 @@ export class Engine {
           if (exp && typeof exp.setTimeAcceleration === 'function') {
             exp.setTimeAcceleration(scale);
           }
+        }
+      },
+      // 焦耳热功当量与做功等效回调
+      onJouleWeightMassChange: (massKg: number) => {
+        if (this.currentExperimentId === 'thermo-joule') {
+          this.currentContext.setParameter('weightMassKg', massKg);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setWeightMass?.(massKg);
+        }
+      },
+      onJouleCurrentChange: (amp: number) => {
+        if (this.currentExperimentId === 'thermo-joule') {
+          this.currentContext.setParameter('currentAmp', amp);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setCurrentAmp?.(amp);
+        }
+      },
+      onJouleModeChange: (mode) => {
+        if (this.currentExperimentId === 'thermo-joule') {
+          this.currentContext.setParameter('operationMode', mode);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setOperationMode?.(mode);
+        }
+      },
+      onJouleFluidChange: (fluid) => {
+        if (this.currentExperimentId === 'thermo-joule') {
+          this.currentContext.setParameter('fluidType', fluid);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setFluidType?.(fluid);
+        }
+      },
+      onJouleReleaseDrop: () => {
+        if (this.currentExperimentId === 'thermo-joule') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.releaseDrop?.();
+        }
+      },
+      onJouleToggleHeater: () => {
+        if (this.currentExperimentId === 'thermo-joule') {
+          const exp = this.holoStage?.activeExperiment as any;
+          const active = exp?.toggleHeater?.();
+          if (typeof active === 'boolean') {
+            this.currentContext.setParameter('heaterActive', active ? 'on' : 'off');
+          }
+        }
+      },
+      onJouleToggleBaffles: () => {
+        if (this.currentExperimentId === 'thermo-joule') {
+          const exp = this.holoStage?.activeExperiment as any;
+          const engaged = exp?.toggleBaffles?.();
+          if (typeof engaged === 'boolean') {
+            this.currentContext.setParameter('bafflesEngaged', engaged ? 'engaged' : 'disengaged');
+          }
+        }
+      },
+      onJouleReset: () => {
+        if (this.currentExperimentId === 'thermo-joule') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.resetExperiment?.();
         }
       },
       // 电磁学霍尔效应回调
@@ -1374,6 +1439,7 @@ export class Engine {
   }
 
   public async switchExperiment(id: string): Promise<void> {
+    this.cancelLabInteraction();
     const requestId = ++this.currentSwitchRequestId;
     this.hud.showTransition(true, '全息粒子解聚与参数重构...');
 
@@ -1475,6 +1541,7 @@ export class Engine {
   }
 
   public clearExperiment(): void {
+    this.cancelLabInteraction();
     if (this.holoStage) {
       this.holoStage.clearExperiment(this.currentContext);
     }
@@ -1566,37 +1633,13 @@ export class Engine {
   ): THREE.Intersection[] {
     if (!this.camera) return [];
 
-    this.raycaster.setFromCamera(centerNDC, this.camera);
-    const directHits = this.raycaster.intersectObjects(objects, recursive);
-    if (directHits.length > 0) {
-      return directHits;
-    }
-
     if (!isTouch || clientX === undefined || clientY === undefined) {
-      return [];
+      this.raycaster.setFromCamera(centerNDC, this.camera);
+      return this.raycaster.intersectObjects(objects, recursive);
     }
-
-    // 在触控点周围以不同角度进行 8 方向环形探测（半径 18px，覆盖人手手指接触面容差）
-    const sampleAngles = [0, Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.75, Math.PI, Math.PI * 1.25, Math.PI * 1.5, Math.PI * 1.75];
-    let bestHits: THREE.Intersection[] = [];
-    let minDistance = Infinity;
-
-    for (const angle of sampleAngles) {
-      const sx = clientX + Math.cos(angle) * radiusPx;
-      const sy = clientY + Math.sin(angle) * radiusPx;
-      const sampleNDC = this.getScreenNDC(sx, sy);
-      const subRay = new THREE.Raycaster();
-      subRay.setFromCamera(sampleNDC, this.camera);
-      const subHits = subRay.intersectObjects(objects, recursive);
-      if (subHits.length > 0) {
-        if (subHits[0].distance < minDistance) {
-          minDistance = subHits[0].distance;
-          bestHits = subHits;
-        }
-      }
-    }
-
-    return bestHits;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return raycastTouchCandidates(this.raycaster, this.camera, centerNDC, objects, recursive,
+      { width: rect.width, height: rect.height }, radiusPx);
   }
 
   private getInteractiveBeakerAt(
@@ -1825,15 +1868,64 @@ export class Engine {
     });
   }
 
+  private claimLabPointer(event: PointerEvent): void {
+    this.labPointers.claim(event, this.renderer.domElement);
+    this.lastPointerPos = this.getScreenNDC(event.clientX, event.clientY);
+    this.isExperimentInteracting = true;
+    this.inputManager.player.enabled = false;
+    this.inputManager.player.allowPointerLock = false;
+    this.crosshair?.setVisible(false);
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+  }
+
+  private restoreLabInput(): void {
+    this.isExperimentInteracting = this.labPointers.active;
+    if (this.labPointers.active) return;
+    this.inputManager.player.enabled = !this.labEntryActive;
+    this.inputManager.player.allowPointerLock = !this.labEntryActive &&
+      !this.visionModal?.visible && !this.hud?.drawer?.open &&
+      this.handGestureService?.getStatus() !== 'running' && !this.isFreeCursorExperiment(this.currentExperimentId);
+    this.crosshair?.setVisible(!this.labEntryActive && !this.visionModal?.visible &&
+      !this.hud?.drawer?.open && !this.isWhiteboardMode &&
+      !this.isFreeCursorExperiment(this.currentExperimentId));
+  }
+
+  private cancelLabInteraction(): void {
+    if (!this.labPointers?.active && !this.beakerDragState) return;
+    const hadPointers = this.labPointers.active;
+    this.labPointers.cancel(this.renderer.domElement, event => {
+      this.holoStage.activeExperiment?.onPointerCancel?.(event, this.currentContext);
+    });
+    if (this.beakerDragState) {
+      this.beakerDragState.sourceMesh.setTilt(0);
+      this.beakerDragState = null;
+      this.hidePourStream();
+      this.hidePourVolumeBadge();
+    }
+    if (hadPointers) {
+      document.body.style.cursor = 'default';
+      this.restoreLabInput();
+    }
+  }
+
   private initEvents(): void {
     window.addEventListener('resize', () => this.onResize());
 
     // WebGL 上下文丢失与恢复保护（保护 iPadOS/iOS/macOS 后台切换与息屏恢复）
     const canvas = this.renderer.domElement;
+    canvas.style.touchAction = 'none';
+    canvas.style.userSelect = 'none';
+    canvas.style.setProperty('-webkit-touch-callout', 'none');
+    window.addEventListener('blur', () => this.cancelLabInteraction());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.cancelLabInteraction();
+    });
 
     canvas.addEventListener('webglcontextlost', (e: Event) => {
       e.preventDefault(); // WebGL 规范要求阻止默认行为以允许上下文恢复
       console.warn('[Engine] WebGL Context Lost! Pausing render loop to avoid GPU crash.');
+      this.cancelLabInteraction();
       this.isContextLost = true;
       this.hud?.showTransition(true, 'GPU 渲染上下文休眠中...');
     });
@@ -1896,18 +1988,13 @@ export class Engine {
       if (this.labEntryActive) return;
       if (this.visionModal && this.visionModal.visible) return;
 
-      const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
+      if (!this.labPointers.canStart(e, this.currentExperimentId === 'math-stereometry')) return;
       const mouseNDC = this.getScreenNDC(e.clientX, e.clientY);
-      const isTouch = e.pointerType === 'touch' || ('ontouchstart' in window && (navigator.maxTouchPoints > 0 || (navigator as any).msMaxTouchPoints > 0));
+      const isTouch = e.pointerType === 'touch';
 
       const beakerHit = this.getInteractiveBeakerAt(mouseNDC, e.clientX, e.clientY, isTouch);
       if (beakerHit) {
-        e.stopPropagation();
-        this.isExperimentInteracting = true;
-        this.inputManager.player.enabled = false;
-        if (!isPointerLocked) {
-          this.inputManager.player.allowPointerLock = false;
-        }
+        this.claimLabPointer(e);
 
         const sourceId = beakerHit;
         const targetId = sourceId === 'left' ? 'right' : 'left';
@@ -1938,38 +2025,41 @@ export class Engine {
 
       // 将 3D 交互事件转发至全息舞台上的活动实验（附带 iPad 触控宽容度探测）
       if (this.holoStage.activeExperiment?.onPointerDown) {
+        const experiment = this.holoStage.activeExperiment;
         const hits = this.raycastWithTouchRadius(
           mouseNDC,
           this.holoStage.activeExperiment.rootGroup.children,
           true,
           e.clientX,
           e.clientY,
-          isTouch,
+          false,
           18
         );
 
-        if (hits.length > 0) {
-          for (const hit of hits) {
-            const handled = this.holoStage.activeExperiment.onPointerDown(e, hit, this.currentContext);
+        const tryHits = (candidates: THREE.Intersection[]): boolean => {
+          for (const hit of candidates) {
+            const handled = experiment.onPointerDown?.(e, hit, this.currentContext);
             if (handled) {
-              e.stopPropagation();
-              this.isExperimentInteracting = true;
-              this.inputManager.player.enabled = false;
-              if (!isPointerLocked) {
-                this.inputManager.player.allowPointerLock = false;
-              }
-              return;
+              this.claimLabPointer(e);
+              return true;
             }
           }
-        } else if (this.currentExperimentId === 'math-stereometry') {
+          return false;
+        };
+        if (tryHits(hits)) return;
+        // Most grabs resolve with one ray. Broaden the search only for a miss
+        // or a static surface, keeping detailed apparatus responsive on iPad.
+        if (isTouch) {
+          const directObjects = new Set(hits.map(hit => hit.object));
+          const nearbyHits = this.raycastWithTouchRadius(mouseNDC,
+            this.holoStage.activeExperiment.rootGroup.children, true,
+            e.clientX, e.clientY, true, 18);
+          if (tryHits(nearbyHits.filter(hit => !directObjects.has(hit.object)))) return;
+        }
+        if (this.currentExperimentId === 'math-stereometry') {
           const handled = this.holoStage.activeExperiment.onPointerDown(e, null, this.currentContext);
           if (handled) {
-            e.stopPropagation();
-            this.isExperimentInteracting = true;
-            if (!isPointerLocked) {
-              this.inputManager.player.enabled = false;
-              this.inputManager.player.allowPointerLock = false;
-            }
+            this.claimLabPointer(e);
             return;
           }
         }
@@ -1996,7 +2086,10 @@ export class Engine {
       }
     });
 
-    window.addEventListener('pointermove', (e: PointerEvent) => {
+    const moveLabPointer = (e: PointerEvent) => {
+      if (this.labPointers.active && !this.labPointers.owns(e)) return;
+      if (e.pointerType === 'touch' && !this.labPointers.owns(e)) return;
+      this.labPointers.update(e);
       if (!this.lastPointerPos) {
         this.lastPointerPos = new THREE.Vector2();
       }
@@ -2025,7 +2118,7 @@ export class Engine {
       const dist = Math.hypot(e.clientX - this.beakerDragState.downClientX, e.clientY - this.beakerDragState.downClientY);
       const elapsed = performance.now() - this.beakerDragState.downTime;
 
-      const isTouchPointer = e.pointerType === 'touch' || ('ontouchstart' in window && (navigator.maxTouchPoints > 0 || (navigator as any).msMaxTouchPoints > 0));
+      const isTouchPointer = e.pointerType === 'touch';
       const dragDistThreshold = isTouchPointer ? 16 : 8;
       const dragElapsedThreshold = isTouchPointer ? 350 : 160;
       const dragMinDist = isTouchPointer ? 10 : 2;
@@ -2064,35 +2157,24 @@ export class Engine {
           }
         }
       }
-    });
+    };
+    window.addEventListener('pointermove', moveLabPointer);
+
 
     window.addEventListener('pointerup', (e: PointerEvent) => {
-      if (this.isExperimentInteracting) {
+      if (!this.labPointers.owns(e)) return;
+      // Flush the release position even if the final move was coalesced/throttled.
+      this.lastPointerRaycastTime = -Infinity;
+      moveLabPointer(e);
+      if (!this.beakerDragState) {
         this.holoStage.activeExperiment?.onPointerUp?.(e, this.currentContext);
-        const exp = this.holoStage.activeExperiment as any;
-        const stillPinching = typeof exp?.interactionManager?.isPinchingActive === 'function' && exp.interactionManager.isPinchingActive();
-        if (!stillPinching) {
-          this.isExperimentInteracting = false;
-          if (!this.labEntryActive) {
-            this.inputManager.player.enabled = true;
-            this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
-            if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !this.isFreeCursorExperiment(this.currentExperimentId)) {
-              this.crosshair.setVisible(true);
-            }
-          }
-        }
       }
+      this.labPointers.release(e, canvas);
+      this.restoreLabInput();
 
       if (this.beakerDragState) {
         const state = this.beakerDragState;
         this.beakerDragState = null;
-        this.isExperimentInteracting = false;
-        if (!this.labEntryActive) {
-          this.inputManager.player.enabled = true;
-        }
-        if (this.crosshair && !this.labEntryActive && (!this.visionModal || !this.visionModal.visible) && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open)) {
-          this.crosshair.setVisible(true);
-        }
 
         if (!state.isDragging) {
           // 单击：打开被点击烧杯的元素周期表选择试剂
@@ -2117,21 +2199,10 @@ export class Engine {
     });
 
     window.addEventListener('pointercancel', (e: PointerEvent) => {
-      if (this.beakerDragState) {
-        this.beakerDragState.sourceMesh.setTilt(0);
-        this.hidePourStream();
-        this.hidePourVolumeBadge();
-        this.beakerDragState = null;
-      }
-      if (this.isExperimentInteracting) {
-        const exp = this.holoStage.activeExperiment as any;
-        exp?.onPointerCancel?.(e);
-        exp?.interactionManager?.onPointerCancel?.(e);
-        this.isExperimentInteracting = false;
-      }
-      if (!this.labEntryActive) {
-        this.inputManager.player.enabled = true;
-      }
+      if (this.labPointers.owns(e)) this.cancelLabInteraction();
+    });
+    canvas.addEventListener('lostpointercapture', (e: PointerEvent) => {
+      if (this.labPointers.owns(e)) this.cancelLabInteraction();
     });
 
     // iPad 及移动端触摸屏上的原生画布触摸事件支持
@@ -2141,7 +2212,7 @@ export class Engine {
         if (this.labEntryActive) return;
         if (this.visionModal && this.visionModal.visible) return;
 
-        if (this.currentExperimentId === 'math-stereometry') {
+        if (typeof window.PointerEvent === 'undefined' && this.currentExperimentId === 'math-stereometry') {
           const exp = this.holoStage?.activeExperiment as any;
           if (exp && typeof exp.onTouchStart === 'function') {
             const handled = exp.onTouchStart(e, this.currentContext);
@@ -2163,7 +2234,7 @@ export class Engine {
     window.addEventListener(
       'touchmove',
       (e: TouchEvent) => {
-        if (this.currentExperimentId === 'math-stereometry') {
+        if (typeof window.PointerEvent === 'undefined' && this.currentExperimentId === 'math-stereometry') {
           const exp = this.holoStage?.activeExperiment as any;
           if (exp && typeof exp.onTouchMove === 'function') {
             const handled = exp.onTouchMove(e, this.currentContext);
@@ -2177,7 +2248,7 @@ export class Engine {
     );
 
     window.addEventListener('touchend', (e: TouchEvent) => {
-      if (this.currentExperimentId === 'math-stereometry') {
+      if (typeof window.PointerEvent === 'undefined' && this.currentExperimentId === 'math-stereometry') {
         const exp = this.holoStage?.activeExperiment as any;
         if (exp && typeof exp.onTouchEnd === 'function') {
           exp.onTouchEnd(e, this.currentContext);
@@ -2189,7 +2260,7 @@ export class Engine {
     });
 
     window.addEventListener('touchcancel', (e: TouchEvent) => {
-      if (this.currentExperimentId === 'math-stereometry') {
+      if (typeof window.PointerEvent === 'undefined' && this.currentExperimentId === 'math-stereometry') {
         const exp = this.holoStage?.activeExperiment as any;
         if (exp && typeof exp.onTouchCancel === 'function') {
           exp.onTouchCancel(e);
@@ -2200,21 +2271,21 @@ export class Engine {
 
     // Safari WebKit 手势事件支持（iPadOS gesturestart, gesturechange, gestureend）
     canvas.addEventListener('gesturestart', (e: any) => {
-      if (this.currentExperimentId === 'math-stereometry') {
+      if (typeof window.PointerEvent === 'undefined' && this.currentExperimentId === 'math-stereometry') {
         const exp = this.holoStage?.activeExperiment as any;
         exp?.onGestureStart?.(e);
       }
     });
 
     canvas.addEventListener('gesturechange', (e: any) => {
-      if (this.currentExperimentId === 'math-stereometry') {
+      if (typeof window.PointerEvent === 'undefined' && this.currentExperimentId === 'math-stereometry') {
         const exp = this.holoStage?.activeExperiment as any;
         exp?.onGestureChange?.(e);
       }
     });
 
     canvas.addEventListener('gestureend', (e: any) => {
-      if (this.currentExperimentId === 'math-stereometry') {
+      if (typeof window.PointerEvent === 'undefined' && this.currentExperimentId === 'math-stereometry') {
         const exp = this.holoStage?.activeExperiment as any;
         exp?.onGestureEnd?.(e);
       }
@@ -2247,17 +2318,17 @@ export class Engine {
   }
 
   private checkCrosshairIntersection(now: number): void {
+    const freeCursor = this.isFreeCursorExperiment(this.currentExperimentId);
+    if (freeCursor && this.crosshair?.getVisible()) this.crosshair.setVisible(false);
     if (
       !this.crosshair ||
-      !this.crosshair.getVisible() ||
+      (!freeCursor && !this.crosshair.getVisible()) ||
       (this.visionModal && this.visionModal.visible) ||
-      this.isFreeCursorExperiment(this.currentExperimentId)
+      this.labEntryActive || this.isWhiteboardMode || this.hud?.drawer?.open
     ) {
-      if (this.isFreeCursorExperiment(this.currentExperimentId) && this.crosshair?.getVisible()) {
-        this.crosshair.setVisible(false);
-      }
       return;
     }
+    if (freeCursor && !this.lastPointerPos) return;
 
     // 将光线投射节流至每 50ms 一次（约 20Hz），避免主线程场景遍历卡顿
     if (now - this.lastCrosshairCheck < 50) {
@@ -2266,10 +2337,10 @@ export class Engine {
     this.lastCrosshairCheck = now;
 
     const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
-    let targetType = this.getInteractiveTargetAt(this.centerScreen);
+    let targetType = this.getInteractiveTargetAt(freeCursor && this.lastPointerPos ? this.lastPointerPos : this.centerScreen);
 
     // 若未锁定指针且屏幕中心准星未命中，检查自由鼠标指针位置
-    if (!targetType && !isPointerLocked && this.lastPointerPos) {
+    if (!freeCursor && !targetType && !isPointerLocked && this.lastPointerPos) {
       targetType = this.getInteractiveTargetAt(this.lastPointerPos);
     }
 
@@ -2293,7 +2364,7 @@ export class Engine {
       const expHover = this.holoStage.activeExperiment.getHoverTarget(this.raycaster);
       if (expHover) {
         this.currentHoveredTarget = expHover.id;
-        this.crosshair.setHovered(true, expHover.label);
+        if (!freeCursor) this.crosshair.setHovered(true, expHover.label);
         if (this.renderer?.domElement) {
           const nextCursor = expHover.cursor || 'pointer';
           if (this.renderer.domElement.style.cursor !== nextCursor) {
@@ -2305,7 +2376,7 @@ export class Engine {
     }
 
     this.currentHoveredTarget = targetType;
-    this.crosshair.setHovered(hovered, label);
+    if (!freeCursor) this.crosshair.setHovered(hovered, label);
 
     // 3D 交互反馈：高亮烧杯主体与光环
     if (this.beakerLeft) {
@@ -2532,6 +2603,8 @@ export class Engine {
             this.visionModal.conductionCard.updateTelemetry(exp.getConductionTelemetry());
           } else if (this.currentExperimentId === 'thermo-phase' && typeof exp?.getPhaseTelemetry === 'function') {
             this.visionModal.phaseCard.updateTelemetry(exp.getPhaseTelemetry());
+          } else if (this.currentExperimentId === 'thermo-joule' && typeof exp?.getJouleTelemetry === 'function') {
+            this.visionModal.jouleCard.updateTelemetry(exp.getJouleTelemetry());
           } else if (exp && typeof exp.getThermodynamicTelemetry === 'function') {
             this.visionModal.thermoCard.updateTelemetry(exp.getThermodynamicTelemetry());
           }

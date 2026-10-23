@@ -360,6 +360,14 @@ export class CapacitorInteractionManager {
     }
   }
 
+  public onPointerCancel(): void {
+    // A system interruption must not cycle the electrical switch.
+    this.dragMode = 'none';
+    this.switchAccumX = 0;
+    this.hasDragged = false;
+    this.callbacks.bench.cancelBladeDrag();
+  }
+
   public onPointerUp(event: PointerEvent, _context: ExperimentContext): void {
     if (this.dragMode === 'switch_blade') {
       if (this.hasDragged) {

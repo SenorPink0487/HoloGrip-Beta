@@ -91,6 +91,10 @@ export default class EmCapacitorDischargeExperiment extends BaseExperiment {
     this.interactionManager?.onPointerUp(event, context);
   }
 
+  public override onPointerCancel(): void {
+    this.interactionManager?.onPointerCancel();
+  }
+
   public update(delta: number, _elapsed: number, _context: ExperimentContext): void {
     // 1. 毫秒级电路瞬态物理推演
     this.model.step(delta);

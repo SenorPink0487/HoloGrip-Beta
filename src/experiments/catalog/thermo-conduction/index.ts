@@ -54,8 +54,8 @@ export default class ThermoConductionExperiment extends BaseExperiment {
   }
 
   public init(_context: ExperimentContext): void {
-    // 将实验主体直接放置于交互工作区台面上
-    this.rootGroup.position.set(0, -0.056, 0.92);
+    // 将实验主体直接放置于交互工作区台面上 (Y=0.082 匹配实验台台面 Y=0.990)
+    this.rootGroup.position.set(0, 0.082, 0.92);
 
     // 1. 高精度 3D 热传导实验台
     this.bench = this.track(new ConductionBenchMesh({

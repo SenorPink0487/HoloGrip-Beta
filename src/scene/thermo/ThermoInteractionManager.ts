@@ -69,7 +69,6 @@ export class ThermoInteractionManager {
       if (obj === this.callbacks.heater.knobMesh) {
         this.dragTarget = 'heater_knob';
         this.startClientX = event.clientX;
-        this.startTempK = 300; // 将通过当前温度传入
         return true;
       }
       obj = obj.parent;

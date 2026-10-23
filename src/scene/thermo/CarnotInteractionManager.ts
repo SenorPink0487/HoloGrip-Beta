@@ -89,7 +89,8 @@ export class CarnotInteractionManager {
     const dx = event.clientX - this.startClientX;
     const dy = event.clientY - this.startClientY;
 
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+    const tapSlop = event.pointerType === 'touch' ? 10 : 3;
+    if (Math.abs(dx) > tapSlop || Math.abs(dy) > tapSlop) {
       this.hasMoved = true;
     }
 
@@ -100,6 +101,11 @@ export class CarnotInteractionManager {
       this.startClientX = event.clientX;
       this.startClientY = event.clientY;
     }
+  }
+
+  public onPointerCancel(): void {
+    this.dragTarget = 'none';
+    this.hasMoved = false;
   }
 
   public onPointerUp(_event: PointerEvent, _context: ExperimentContext): void {

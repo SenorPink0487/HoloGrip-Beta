@@ -1,3 +1,4 @@
+import { labPointerNDC } from '../../../controls/LabPointerInput.ts';
 import * as THREE from 'three';
 import { BaseExperiment } from '../../base/BaseExperiment.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
@@ -206,13 +207,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
   ): void {
     if (!this.is3DDragging || !context.camera) return;
 
-    const isLocked = typeof document !== 'undefined' && document.pointerLockElement !== null;
-    const mouse = isLocked
-      ? new THREE.Vector2(0, 0)
-      : new THREE.Vector2(
-          (event.clientX / window.innerWidth) * 2 - 1,
-          -(event.clientY / window.innerHeight) * 2 + 1
-        );
+    const mouse = labPointerNDC(event, context.renderer?.domElement);
 
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, context.camera);

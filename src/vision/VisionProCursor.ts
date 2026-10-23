@@ -651,12 +651,16 @@ export class VisionProCursor {
       this.triggerRightPinchRipple();
 
       this.dragTarget = currentElement;
-      this.dragStartX = x;
-      this.dragStartY = y;
+      const startX = this.renderRightX > 0 ? this.renderRightX : x;
+      const startY = this.renderRightY > 0 ? this.renderRightY : y;
+      this.dragStartX = startX;
+      this.dragStartY = startY;
       this.dragStartTime = performance.now();
+      this.lastDispatchedX = startX;
+      this.lastDispatchedY = startY;
 
-      this.dispatchPointerEvent('pointerdown', this.dragTarget, x, y, 0, 1);
-      this.dispatchMouseEvent('mousedown', this.dragTarget, x, y, 0, 1);
+      this.dispatchPointerEvent('pointerdown', this.dragTarget, startX, startY, 0, 1);
+      this.dispatchMouseEvent('mousedown', this.dragTarget, startX, startY, 0, 1);
 
       if (
         isTextInputElement(this.dragTarget) &&
@@ -668,13 +672,15 @@ export class VisionProCursor {
       }
     }
 
-    // 捏合拖拽移动
+    // 捏合拖拽移动：若 60 FPS 渲染循环正在运行，由 renderTick 派发卡尔曼平滑坐标，消除双通道坐标竞争导致的 3D 旋转抖动
     if (hand.isPinching && !hand.justPinchStarted) {
-      const target = this.dragTarget || currentElement;
-      this.dispatchPointerEvent('pointermove', target, x, y, 0, 1);
-      this.dispatchMouseEvent('mousemove', target, x, y, 0, 1);
-      this.lastDispatchedX = x;
-      this.lastDispatchedY = y;
+      if (this.animFrameId === null) {
+        const target = this.dragTarget || currentElement;
+        this.dispatchPointerEvent('pointermove', target, x, y, 0, 1);
+        this.dispatchMouseEvent('mousemove', target, x, y, 0, 1);
+        this.lastDispatchedX = x;
+        this.lastDispatchedY = y;
+      }
     } else if (!hand.isPinching) {
       // 悬停时过滤低于 0.5px 的微小抖动
       if (Math.hypot(x - this.lastDispatchedX, y - this.lastDispatchedY) >= 0.5) {

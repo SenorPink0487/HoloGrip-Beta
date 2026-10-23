@@ -1,3 +1,4 @@
+import { labPointerNDC } from '../../controls/LabPointerInput.ts';
 import * as THREE from 'three';
 import type { ExperimentContext } from '../../core/types.ts';
 import { localPointOnBenchFace } from './benchDrag.ts';
@@ -28,9 +29,10 @@ export class FieldInteractionManager {
     clientX: number,
     clientY: number,
     camera: THREE.Camera,
+    viewport?: DOMRect,
   ): { id: string; pixelDist: number } | null {
-    const width = typeof window !== 'undefined' ? window.innerWidth : 800;
-    const height = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const width = viewport?.width || (typeof window !== 'undefined' ? window.innerWidth : 800);
+    const height = viewport?.height || (typeof window !== 'undefined' ? window.innerHeight : 800);
 
     let closestId: string | null = null;
     let minPixelDist = Infinity;
@@ -41,8 +43,8 @@ export class FieldInteractionManager {
       // 位于相机后方
       if (this.tempVec.z > 1.0) continue;
 
-      const sx = (this.tempVec.x * 0.5 + 0.5) * width;
-      const sy = (-this.tempVec.y * 0.5 + 0.5) * height;
+      const sx = (viewport?.left ?? 0) + (this.tempVec.x * 0.5 + 0.5) * width;
+      const sy = (viewport?.top ?? 0) + (-this.tempVec.y * 0.5 + 0.5) * height;
       const dist = Math.hypot(clientX - sx, clientY - sy);
 
       if (dist < minPixelDist) {
@@ -110,16 +112,17 @@ export class FieldInteractionManager {
     context: ExperimentContext,
   ): boolean {
     this.hasMoved = false;
+    const viewport = context.renderer?.domElement?.getBoundingClientRect();
 
     // 1. 高容差屏幕空间试探电荷探针拾取（半径 56px）
     if (context.camera && this.callbacks.bench.testChargeGroup.visible) {
       this.callbacks.bench.testChargeGroup.getWorldPosition(this.tempVec);
       this.tempVec.project(context.camera);
       if (this.tempVec.z <= 1.0) {
-        const width = typeof window !== 'undefined' ? window.innerWidth : 800;
-        const height = typeof window !== 'undefined' ? window.innerHeight : 800;
-        const sx = (this.tempVec.x * 0.5 + 0.5) * width;
-        const sy = (-this.tempVec.y * 0.5 + 0.5) * height;
+        const width = viewport?.width || (typeof window !== 'undefined' ? window.innerWidth : 800);
+        const height = viewport?.height || (typeof window !== 'undefined' ? window.innerHeight : 800);
+        const sx = (viewport?.left ?? 0) + (this.tempVec.x * 0.5 + 0.5) * width;
+        const sy = (viewport?.top ?? 0) + (-this.tempVec.y * 0.5 + 0.5) * height;
         const dist = Math.hypot(event.clientX - sx, event.clientY - sy);
         if (dist < 56) {
           this.dragTarget = { type: 'test_charge' };
@@ -130,7 +133,7 @@ export class FieldInteractionManager {
 
     // 2. 高容差屏幕空间源电荷拾取（半径 52px）
     if (context.camera) {
-      const closest = this.findClosestChargeUnderPointer(event.clientX, event.clientY, context.camera);
+      const closest = this.findClosestChargeUnderPointer(event.clientX, event.clientY, context.camera, viewport);
       if (closest && closest.pixelDist < 52) {
         this.dragTarget = { type: 'charge', id: closest.id };
         this.callbacks.onSelectCharge(closest.id);
@@ -140,7 +143,7 @@ export class FieldInteractionManager {
 
     // 3. 兜底方案：试探电荷直接 3D 光线投射拾取
     if (context.camera && this.callbacks.bench.testChargeGroup.visible) {
-      const probeHits = this.intersect(event, context.camera, this.callbacks.bench.testChargeGroup);
+      const probeHits = this.intersect(event, context.camera, this.callbacks.bench.testChargeGroup, context.renderer?.domElement);
       if (probeHits.length > 0) {
         this.dragTarget = { type: 'test_charge' };
         return true;
@@ -149,7 +152,7 @@ export class FieldInteractionManager {
 
     // 4. 兜底方案：源电荷直接 3D 光线投射拾取
     if (context.camera) {
-      const chargeHits = this.intersect(event, context.camera, this.callbacks.bench.chargesGroup);
+      const chargeHits = this.intersect(event, context.camera, this.callbacks.bench.chargesGroup, context.renderer?.domElement);
       if (chargeHits.length > 0) {
         let obj: THREE.Object3D | null = chargeHits[0].object;
         let chargeId: string | null = null;
@@ -172,7 +175,7 @@ export class FieldInteractionManager {
     // 5. 背景单击 / 双击处理
     const now = performance.now();
     if (now - this.lastClickTime < 320 && context.camera && this.callbacks.onAddChargeAt) {
-      const local = localPointOnBenchFace(event, context.camera, this.callbacks.bench.group);
+      const local = localPointOnBenchFace(event, context.camera, this.callbacks.bench.group, viewport);
       if (local) {
         const clampedX = Math.max(-0.80, Math.min(0.80, local.x));
         const clampedY = Math.max(-0.36, Math.min(0.55, local.y));
@@ -198,7 +201,7 @@ export class FieldInteractionManager {
       event,
       context.camera,
       this.callbacks.bench.group,
-      undefined,
+      context.renderer?.domElement?.getBoundingClientRect(),
       DEFAULT_CHARGE_ELEVATION,
     );
     if (!local) return;
@@ -223,13 +226,9 @@ export class FieldInteractionManager {
     event: PointerEvent,
     camera: THREE.Camera,
     target: THREE.Object3D,
+    canvas?: HTMLElement,
   ): THREE.Intersection[] {
-    const width = typeof window !== 'undefined' ? window.innerWidth : 800;
-    const height = typeof window !== 'undefined' ? window.innerHeight : 800;
-    const ndc = new THREE.Vector2(
-      (event.clientX / width) * 2 - 1,
-      -(event.clientY / height) * 2 + 1,
-    );
+    const ndc = labPointerNDC(event, canvas);
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(ndc, camera);
     return raycaster.intersectObject(target, true);

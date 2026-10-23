@@ -6,12 +6,14 @@ import { ThermoStatusCard } from './ThermoStatusCard.ts';
 import { CarnotStatusCard } from './CarnotStatusCard.ts';
 import { ConductionStatusCard } from './ConductionStatusCard.ts';
 import { PhaseStatusCard } from './PhaseStatusCard.ts';
+import { JouleStatusCard } from './JouleStatusCard.ts';
 import { StereometryStatusCard } from './StereometryStatusCard.ts';
 import { HallStatusCard } from './HallStatusCard.ts';
 import { FieldStatusCard, type FieldCommand } from './FieldStatusCard.ts';
 import { CapacitorStatusCard } from './CapacitorStatusCard.ts';
 import { NewtonCannonStatusCard } from './NewtonCannonStatusCard.ts';
 import type { SwitchPosition } from '../../physics/em/capacitorDischarge.ts';
+import type { JouleFluidType, JouleOperationMode } from '../../physics/thermo/jouleDynamics.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
@@ -49,6 +51,15 @@ export interface VisionModalCallbacks {
   onPhaseToggleHeating?: () => void;
   onPhaseReset?: () => void;
   onPhaseAccelChange?: (scale: number) => void;
+  // 焦耳热功当量回调函数
+  onJouleWeightMassChange?: (massKg: number) => void;
+  onJouleCurrentChange?: (amp: number) => void;
+  onJouleModeChange?: (mode: JouleOperationMode) => void;
+  onJouleFluidChange?: (fluid: JouleFluidType) => void;
+  onJouleReleaseDrop?: () => void;
+  onJouleToggleHeater?: () => void;
+  onJouleToggleBaffles?: () => void;
+  onJouleReset?: () => void;
   // 霍尔效应回调函数
   onHallMagFieldChange?: (tesla: number) => void;
   onHallCurrentChange?: (ma: number) => void;
@@ -122,6 +133,7 @@ export class VisionModal {
   private carnotStatusCard: CarnotStatusCard;
   private conductionStatusCard: ConductionStatusCard;
   private phaseStatusCard: PhaseStatusCard;
+  private jouleStatusCard: JouleStatusCard;
   private stereometryStatusCard: StereometryStatusCard;
   private hallStatusCard: HallStatusCard;
   private fieldStatusCard: FieldStatusCard;
@@ -384,13 +396,46 @@ export class VisionModal {
       },
     });
 
+    this.jouleStatusCard = new JouleStatusCard({
+      onWeightMassChange: (massKg: number) => {
+        this.callbacks.onJouleWeightMassChange?.(massKg);
+      },
+      onCurrentChange: (amp: number) => {
+        this.callbacks.onJouleCurrentChange?.(amp);
+      },
+      onModeChange: (mode: JouleOperationMode) => {
+        this.callbacks.onJouleModeChange?.(mode);
+      },
+      onFluidChange: (fluid: JouleFluidType) => {
+        this.callbacks.onJouleFluidChange?.(fluid);
+      },
+      onReleaseDrop: () => {
+        this.callbacks.onJouleReleaseDrop?.();
+      },
+      onToggleHeater: () => {
+        this.callbacks.onJouleToggleHeater?.();
+      },
+      onToggleBaffles: () => {
+        this.callbacks.onJouleToggleBaffles?.();
+      },
+      onReset: () => {
+        this.callbacks.onJouleReset?.();
+      },
+    });
+
     this.physicsModal = new PhysicsDisciplineModal({
       onBackToDisciplines: () => this.switchTab('disciplines'),
       onSelectExperiment: async (id: string) => {
         this.currentExperimentId = id;
         await this.callbacks.onSelectPhysicsExperiment?.(id);
         if (id.startsWith('thermo-')) {
-          this.switchTab('thermo');
+          if (id === 'thermo-compression-ignition') {
+            this.activeTab = 'physics';
+            this.physicsModal.showLevel2('thermo');
+            this.close();
+          } else {
+            this.switchTab('thermo');
+          }
         } else if (id.startsWith('em-')) {
           this.switchTab('em');
         } else if (id.startsWith('mech-')) {
@@ -653,6 +698,10 @@ export class VisionModal {
     return this.phaseStatusCard;
   }
 
+  public get jouleCard(): JouleStatusCard {
+    return this.jouleStatusCard;
+  }
+
   public get stereometryCard(): StereometryStatusCard {
     return this.stereometryStatusCard;
   }
@@ -678,7 +727,12 @@ export class VisionModal {
     if (id === 'math-stereometry') {
       this.activeTab = 'math';
     } else if (id.startsWith('thermo-')) {
-      this.activeTab = 'thermo';
+      if (id === 'thermo-compression-ignition') {
+        this.activeTab = 'physics';
+        this.physicsModal.showLevel2('thermo');
+      } else {
+        this.activeTab = 'thermo';
+      }
     } else if (id.startsWith('em-')) {
       if (id === 'em-capacitor-discharge') {
         // 电容器充放电过程模块不需要悬浮窗口里的功能，就像光学板块那样只观察现象即可
@@ -713,6 +767,7 @@ export class VisionModal {
     const isCarnot = this.currentExperimentId === 'thermo-carnot';
     const isConduction = this.currentExperimentId === 'thermo-conduction';
     const isPhase = this.currentExperimentId === 'thermo-phase';
+    const isJoule = this.currentExperimentId === 'thermo-joule';
     const emId = this.currentExperimentId;
     let emCard: { setVisible: (v: boolean) => void; element: HTMLElement };
     let emTitle = '霍尔效应';
@@ -734,6 +789,8 @@ export class VisionModal {
       thermoTitle = '热传导';
     } else if (isPhase) {
       thermoTitle = '物态相变';
+    } else if (isJoule) {
+      thermoTitle = '焦耳热功当量';
     }
 
     let physicsTitle = '物理学';
@@ -769,7 +826,7 @@ export class VisionModal {
     this.statusCardSlot.style.display = 'none';
 
     if (this.thermoStatusCard) {
-      this.thermoStatusCard.setVisible(tab === 'thermo' && !isCarnot && !isConduction && !isPhase);
+      this.thermoStatusCard.setVisible(tab === 'thermo' && !isCarnot && !isConduction && !isPhase && !isJoule);
     }
     if (this.carnotStatusCard) {
       this.carnotStatusCard.setVisible(tab === 'thermo' && isCarnot);
@@ -779,6 +836,9 @@ export class VisionModal {
     }
     if (this.phaseStatusCard) {
       this.phaseStatusCard.setVisible(tab === 'thermo' && isPhase);
+    }
+    if (this.jouleStatusCard) {
+      this.jouleStatusCard.setVisible(tab === 'thermo' && isJoule);
     }
     if (this.stereometryStatusCard) {
       this.stereometryStatusCard.setVisible(tab === 'math');
@@ -817,6 +877,9 @@ export class VisionModal {
       } else if (isPhase) {
         this.phaseStatusCard.setVisible(true);
         this.bodyContainer.appendChild(this.phaseStatusCard.element);
+      } else if (isJoule) {
+        this.jouleStatusCard.setVisible(true);
+        this.bodyContainer.appendChild(this.jouleStatusCard.element);
       } else {
         this.thermoStatusCard.setVisible(true);
         this.bodyContainer.appendChild(this.thermoStatusCard.element);
@@ -864,6 +927,7 @@ export class VisionModal {
     this.carnotStatusCard?.setVisible(false);
     this.conductionStatusCard?.setVisible(false);
     this.phaseStatusCard?.setVisible(false);
+    this.jouleStatusCard?.setVisible(false);
     this.stereometryStatusCard?.setVisible(false);
     this.hallStatusCard?.setVisible(false);
     this.fieldStatusCard?.setVisible(false);

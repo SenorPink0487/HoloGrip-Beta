@@ -63,8 +63,9 @@ export class ConductionInteractionManager {
         return true;
       }
       if (obj === this.callbacks.bench.rodMesh) {
-        // 直接点击金属棒可使探针快速跳转至 hit.point.x 位置
-        const norm = (hit.point.x - this.callbacks.bench.rodStartX) / this.callbacks.bench.rodLength;
+        // 直接点击金属棒可使探针快速跳转至该位置
+        const localPoint = this.callbacks.bench.group.worldToLocal(hit.point.clone());
+        const norm = (localPoint.x - this.callbacks.bench.rodStartX) / this.callbacks.bench.rodLength;
         this.callbacks.onProbeDrag(THREE.MathUtils.clamp(norm, 0, 1));
         this.isDraggingProbe = true;
         this.startClientX = event.clientX;

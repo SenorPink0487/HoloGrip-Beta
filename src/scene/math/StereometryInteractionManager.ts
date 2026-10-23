@@ -1,3 +1,4 @@
+import { labPointerNDC } from '../../controls/LabPointerInput.ts';
 import * as THREE from 'three';
 import type { StereometryMesh } from './StereometryMesh.ts';
 import { GeometrySolver, type KeyPoint } from './GeometrySolver.ts';
@@ -47,6 +48,8 @@ export class StereometryInteractionManager {
   private lastPointerY = 0;
   private pointerDownTime = 0;
   private rotationVelocity = new THREE.Vector2(0, 0);
+  private targetRotationX = 0;
+  private targetRotationY = 0;
 
   // 拖拽旋转位移阈值（像素）
   // 触屏端 7px，鼠标端 5px：微小的手指微动判定为轻点，滑动判定为旋转
@@ -157,6 +160,8 @@ export class StereometryInteractionManager {
     this.lastPointerY = event.clientY;
     this.pointerDownTime = performance.now();
     this.rotationVelocity.set(0, 0);
+    this.targetRotationX = this.mesh.modelContainer.rotation.x;
+    this.targetRotationY = this.mesh.modelContainer.rotation.y;
 
     return true;
   }
@@ -204,18 +209,34 @@ export class StereometryInteractionManager {
         this.lastPointerX = event.clientX;
         this.lastPointerY = event.clientY;
 
-        const rotSpeed = 0.007;
-        this.mesh.modelContainer.rotation.y += dx * rotSpeed;
-        this.mesh.modelContainer.rotation.x += dy * rotSpeed;
+        const moveDist = Math.hypot(dx, dy);
+        // 抖动死区抑制：过滤低于 0.6px 的手部微小颤动与传感器底噪
+        if (moveDist >= 0.6) {
+          const rotSpeed = 0.0055;
+          this.targetRotationY += dx * rotSpeed;
+          this.targetRotationX += dy * rotSpeed;
 
-        // 限制垂直仰俯角，防止模型翻转颠倒
-        this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
-          this.mesh.modelContainer.rotation.x,
-          -Math.PI * 0.40,
-          Math.PI * 0.40
-        );
+          // 限制垂直仰俯角，防止模型翻转颠倒
+          this.targetRotationX = THREE.MathUtils.clamp(
+            this.targetRotationX,
+            -Math.PI * 0.40,
+            Math.PI * 0.40
+          );
 
-        this.rotationVelocity.set(dx * rotSpeed, dy * rotSpeed);
+          // 响应式即时基础位移（保证单元测试与首触响应），同时保留剩余差量供 update 60 FPS 平滑追赶阻尼
+          const immediateRatio = 0.55;
+          this.mesh.modelContainer.rotation.y += (this.targetRotationY - this.mesh.modelContainer.rotation.y) * immediateRatio;
+          this.mesh.modelContainer.rotation.x += (this.targetRotationX - this.mesh.modelContainer.rotation.x) * immediateRatio;
+          this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
+            this.mesh.modelContainer.rotation.x,
+            -Math.PI * 0.40,
+            Math.PI * 0.40
+          );
+
+          // 滑动旋转滚动惯性速度平滑滤波
+          this.rotationVelocity.x = this.rotationVelocity.x * 0.35 + (dx * rotSpeed) * 0.65;
+          this.rotationVelocity.y = this.rotationVelocity.y * 0.35 + (dy * rotSpeed) * 0.65;
+        }
 
         // 旋转过程中隐藏悬停吸附球，保持视界清晰纯粹
         this.mesh.setHoveredKeyPoint(null);
@@ -231,10 +252,7 @@ export class StereometryInteractionManager {
     // 严格遵循“起点应当只在线上”：onlyOnEdgeOrLine: true
     let hoveredKp: KeyPoint | null = null;
     let hoveredLabel = '';
-    const mouseNDC = new THREE.Vector2(
-      (event.clientX / window.innerWidth) * 2 - 1,
-      -(event.clientY / window.innerHeight) * 2 + 1
-    );
+    const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
 
     if (context?.camera) {
       const raycaster = new THREE.Raycaster();
@@ -337,6 +355,8 @@ export class StereometryInteractionManager {
           this.lastPointerY = remaining.y;
           this.pointerDownX = remaining.x;
           this.pointerDownY = remaining.y;
+          // Lifting the second finger after a pinch is never a point-selection tap.
+          this.hasMovedPastDragThreshold = true;
         } else {
           this.isPointerDown = false;
         }
@@ -364,10 +384,7 @@ export class StereometryInteractionManager {
     this.hasMovedPastDragThreshold = false;
 
     if (context?.camera) {
-      const mouseNDC = new THREE.Vector2(
-        (event.clientX / window.innerWidth) * 2 - 1,
-        -(event.clientY / window.innerHeight) * 2 + 1
-      );
+      const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouseNDC, context.camera);
 
@@ -582,10 +599,32 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * 每帧持续动画更新（惯性阻尼）。
+   * 每帧持续动画更新（手势旋转平滑阻尼与松手惯性阻尼）。
    */
   public update(delta: number): void {
-    if (!this.isOrbitDragging && !this.isPointerDown && (Math.abs(this.rotationVelocity.x) > 1e-4 || Math.abs(this.rotationVelocity.y) > 1e-4)) {
+    const dt = Math.min(delta, 0.1);
+
+    if (this.isOrbitDragging || this.isPointerDown) {
+      // 拖拽过程中以高阶指数阻尼平滑逼近 targetRotation，彻底消除手势追踪 24-30Hz 阶跃与微颤
+      if (
+        Math.abs(this.targetRotationY - this.mesh.modelContainer.rotation.y) > 1e-4 ||
+        Math.abs(this.targetRotationX - this.mesh.modelContainer.rotation.x) > 1e-4
+      ) {
+        const rotFactor = 1 - Math.exp(-26 * dt);
+        this.mesh.modelContainer.rotation.y +=
+          (this.targetRotationY - this.mesh.modelContainer.rotation.y) * rotFactor;
+        this.mesh.modelContainer.rotation.x +=
+          (this.targetRotationX - this.mesh.modelContainer.rotation.x) * rotFactor;
+        this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
+          this.mesh.modelContainer.rotation.x,
+          -Math.PI * 0.40,
+          Math.PI * 0.40
+        );
+      }
+    } else if (
+      Math.abs(this.rotationVelocity.x) > 1e-4 ||
+      Math.abs(this.rotationVelocity.y) > 1e-4
+    ) {
       this.mesh.modelContainer.rotation.y += this.rotationVelocity.x;
       this.mesh.modelContainer.rotation.x += this.rotationVelocity.y;
       this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
@@ -593,9 +632,11 @@ export class StereometryInteractionManager {
         -Math.PI * 0.40,
         Math.PI * 0.40
       );
+      this.targetRotationX = this.mesh.modelContainer.rotation.x;
+      this.targetRotationY = this.mesh.modelContainer.rotation.y;
 
       // 惯性阻尼衰减
-      const damping = Math.max(0, 1 - delta * 4.5);
+      const damping = Math.max(0, 1 - dt * 4.5);
       this.rotationVelocity.multiplyScalar(damping);
     }
   }
@@ -605,21 +646,29 @@ export class StereometryInteractionManager {
    */
   public resetToIsometricView(): void {
     this.mesh.modelContainer.rotation.set(0.12, 0.42, 0);
+    this.targetRotationX = 0.12;
+    this.targetRotationY = 0.42;
     this.rotationVelocity.set(0, 0);
   }
 
   public resetToFrontView(): void {
     this.mesh.modelContainer.rotation.set(0, 0, 0);
+    this.targetRotationX = 0;
+    this.targetRotationY = 0;
     this.rotationVelocity.set(0, 0);
   }
 
   public resetToSideView(): void {
     this.mesh.modelContainer.rotation.set(0, Math.PI / 2, 0);
+    this.targetRotationX = 0;
+    this.targetRotationY = Math.PI / 2;
     this.rotationVelocity.set(0, 0);
   }
 
   public resetToTopView(): void {
     this.mesh.modelContainer.rotation.set(-Math.PI / 2, 0, 0);
+    this.targetRotationX = -Math.PI / 2;
+    this.targetRotationY = 0;
     this.rotationVelocity.set(0, 0);
   }
 

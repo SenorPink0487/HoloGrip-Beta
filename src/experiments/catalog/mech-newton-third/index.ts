@@ -1,3 +1,4 @@
+import { labPointerNDC } from '../../../controls/LabPointerInput.ts';
 /**
  * 牛顿第三定律：认识作用力与反作用力，探究作用力和反作用力的关系
  * 经典力学交互式 3D 实验主控模块
@@ -151,7 +152,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
 
     if (context.camera) {
       this.getBenchWorldPlane(this.dragPlane);
-      const mouse = this.getNormalizedMouse(event);
+      const mouse = this.getNormalizedMouse(event, context);
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouse, context.camera);
 
@@ -176,7 +177,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
 
     if (context.camera) {
       this.getBenchWorldPlane(this.dragPlane);
-      const mouse = this.getNormalizedMouse(event);
+      const mouse = this.getNormalizedMouse(event, context);
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouse, context.camera);
 
@@ -199,7 +200,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     if (!this.isDraggingPair && !this.isDraggingSolo) return;
 
     this.getBenchWorldPlane(this.dragPlane);
-    const mouse = this.getNormalizedMouse(event);
+    const mouse = this.getNormalizedMouse(event, context);
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, context.camera);
 
@@ -365,16 +366,8 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
   /**
    * 归一化鼠标坐标换算 (支持指针未锁定与锁定环境)
    */
-  private getNormalizedMouse(event: PointerEvent): THREE.Vector2 {
-    const isLocked =
-      typeof document !== 'undefined' && document.pointerLockElement !== null;
-    if (isLocked) {
-      return new THREE.Vector2(0, 0);
-    }
-    return new THREE.Vector2(
-      (event.clientX / window.innerWidth) * 2 - 1,
-      -(event.clientY / window.innerHeight) * 2 + 1
-    );
+  private getNormalizedMouse(event: PointerEvent, context?: ExperimentContext): THREE.Vector2 {
+    return labPointerNDC(event, context?.renderer?.domElement);
   }
 
   /**

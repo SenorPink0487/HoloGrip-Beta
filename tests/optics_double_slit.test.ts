@@ -73,6 +73,8 @@ const createMockElement = (tag = 'div'): any => {
 if (typeof globalThis.document === 'undefined') {
   (globalThis as any).document = {
     createElement: (tag: string) => createMockElement(tag),
+    body: createMockElement('body'),
+    pointerLockElement: null,
   };
 }
 if (typeof globalThis.window === 'undefined') {

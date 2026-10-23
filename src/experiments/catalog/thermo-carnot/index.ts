@@ -59,8 +59,8 @@ export default class ThermoCarnotExperiment extends BaseExperiment {
   private currentEntropy = 1.0;
 
   public init(_context: ExperimentContext): void {
-    // 将实验主体直接放置于前方交互区的台面上
-    this.rootGroup.position.set(0, -0.056, 0.92);
+    // 将实验主体直接放置于前方交互区的台面上 (Y=0.082 匹配实验台台面 Y=0.990)
+    this.rootGroup.position.set(0, 0.082, 0.92);
 
     // 1. 高精度 3D 运动学曲柄飞轮卡诺热机
     this.engine = this.track(new CarnotEngineMesh());
@@ -353,5 +353,9 @@ export default class ThermoCarnotExperiment extends BaseExperiment {
 
   public override onPointerUp(event: PointerEvent, context: ExperimentContext): void {
     this.interactionManager?.onPointerUp(event, context);
+  }
+
+  public override onPointerCancel(): void {
+    this.interactionManager?.onPointerCancel();
   }
 }

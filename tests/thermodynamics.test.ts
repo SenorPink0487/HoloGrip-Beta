@@ -220,8 +220,8 @@ console.log('=== Starting Thermodynamics Module Deep Verification ===\n');
 
   exp.init(mockContext);
 
-  // 1. rootGroup must sit directly on the table surface (Y=-0.056 relative to HologramStage Y=0.908 -> World Y=0.852)
-  assert.strictEqual(exp.rootGroup.position.y, -0.056, 'rootGroup.position.y must be -0.056 for tabletop surface flush placement');
+  // 1. rootGroup must sit directly on the table surface (Y=0.082 relative to HologramStage Y=0.908 -> World Y=0.990)
+  assert.strictEqual(exp.rootGroup.position.y, 0.082, 'rootGroup.position.y must be 0.082 for tabletop surface flush placement');
   assert.strictEqual(exp.rootGroup.position.z, 0.92, 'rootGroup.position.z must be 0.92 in front workbench zone');
 
   // 2. ThermoBenchPlate MUST NOT be in rootGroup
@@ -263,7 +263,7 @@ console.log('=== Starting Thermodynamics Module Deep Verification ===\n');
   exp.init(mockContext);
 
   // 1. Root group and tabletop placement
-  assert.strictEqual(exp.rootGroup.position.y, -0.056, 'Carnot machine must be flush on tabletop (y=-0.056)');
+  assert.strictEqual(exp.rootGroup.position.y, 0.082, 'Carnot machine must be flush on tabletop (y=0.082)');
   assert.strictEqual(exp.rootGroup.position.z, 0.92, 'Carnot machine positioned in front workbench zone');
 
   // 2. Optical-grade construction: verify rubber footpads exist on machine base
@@ -316,7 +316,7 @@ console.log('=== Starting Thermodynamics Module Deep Verification ===\n');
   exp.init(mockContext);
 
   // 1. Bench placement & optical rail footpad separation
-  assert.strictEqual(exp.rootGroup.position.y, -0.056, 'Conduction bench must be flush on tabletop');
+  assert.strictEqual(exp.rootGroup.position.y, 0.082, 'Conduction bench must be flush on tabletop');
   const bench = (exp as any).bench;
   assert(bench, 'ConductionBenchMesh must exist');
   const footpads = bench.group.getObjectByName('BenchRubberFootpads');
@@ -382,7 +382,7 @@ console.log('=== Starting Thermodynamics Module Deep Verification ===\n');
   exp.init(mockContext);
 
   // 1. Calorimeter tabletop placement and isolation
-  assert.strictEqual(exp.rootGroup.position.y, -0.056, 'Calorimeter must be flush on tabletop');
+  assert.strictEqual(exp.rootGroup.position.y, 0.082, 'Calorimeter must be flush on tabletop');
   const calorimeter = (exp as any).calorimeter;
   assert(calorimeter, 'PhaseCalorimeterMesh must exist');
   const footpads = calorimeter.group.getObjectByName('CalorimeterRubberFootpads');

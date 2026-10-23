@@ -1,3 +1,4 @@
+import { labPointerNDC } from '../../../controls/LabPointerInput.ts';
 import * as THREE from 'three';
 import { BaseExperiment } from '../../base/BaseExperiment.ts';
 import {
@@ -155,17 +156,8 @@ export default class OpticsDispersionExperiment extends BaseExperiment {
   /**
    * 换算屏幕归一化坐标 (支持指针锁定准星 (0, 0) 与自由鼠标模式)
    */
-  public getNormalizedMouse(event: PointerEvent): THREE.Vector2 {
-    const isLocked = typeof document !== 'undefined' && document.pointerLockElement !== null;
-    if (isLocked) {
-      return new THREE.Vector2(0, 0);
-    }
-    const width = typeof window !== 'undefined' ? window.innerWidth : 1920;
-    const height = typeof window !== 'undefined' ? window.innerHeight : 1080;
-    return new THREE.Vector2(
-      (event.clientX / width) * 2 - 1,
-      -(event.clientY / height) * 2 + 1
-    );
+  public getNormalizedMouse(event: PointerEvent, context?: ExperimentContext): THREE.Vector2 {
+    return labPointerNDC(event, context?.renderer?.domElement);
   }
 
   public override onPointerMove(
@@ -174,7 +166,7 @@ export default class OpticsDispersionExperiment extends BaseExperiment {
     context: ExperimentContext
   ): void {
     if (this.interactionManager?.isDragging) {
-      const mouse = this.getNormalizedMouse(event);
+      const mouse = this.getNormalizedMouse(event, context);
       this.internalRaycaster.setFromCamera(mouse, context.camera);
       this.interactionManager.onPointerMove(event, this.internalRaycaster);
     }
@@ -182,5 +174,9 @@ export default class OpticsDispersionExperiment extends BaseExperiment {
 
   public override onPointerUp(event: PointerEvent, _context: ExperimentContext): void {
     this.interactionManager?.onPointerUp(event);
+  }
+
+  public override onPointerCancel(event: PointerEvent): void {
+    this.interactionManager?.onPointerCancel(event);
   }
 }

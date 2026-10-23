@@ -34,9 +34,9 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
   private pressureKpa = 99.77;   // 压强，单位：kPa
 
   public init(context: ExperimentContext): void {
-    // 将实验仪器直接放置于黑色圆形台面上（Y=0.852，HologramStage 偏移 Y=-0.056）
+    // 将实验仪器直接放置于白色圆形台面上（Y=0.990，HologramStage Y=0.908，偏移 Y=0.082）
     // 位于前方工作台交互区域（Z=0.92）
-    this.rootGroup.position.set(0, -0.056, 0.92);
+    this.rootGroup.position.set(0, 0.082, 0.92);
 
     // 1. 恒温电加热底座（直接置于台面 x = 0.04, z = 0, y = 0）
     this.heater = this.track(new ThermostatHeaterMesh());
@@ -202,6 +202,7 @@ export default class ThermoIdealGasExperiment extends BaseExperiment {
   }
 
   public override onPointerDown(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean | void {
+    this.interactionManager.setStartTemp(this.temperature);
     return this.interactionManager.onPointerDown(event, hit, context);
   }
 

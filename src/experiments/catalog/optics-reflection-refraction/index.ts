@@ -1,3 +1,4 @@
+import { labPointerNDC } from '../../../controls/LabPointerInput.ts';
 import * as THREE from 'three';
 import { BaseExperiment } from '../../base/BaseExperiment.ts';
 import {
@@ -147,31 +148,26 @@ export default class OpticsReflectionRefractionExperiment extends BaseExperiment
    * 3D 指针事件转发
    */
   public override onPointerDown(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): boolean {
-    return this.interactionManager?.onPointerDown(event, hit) ?? false;
+    this.rootGroup.updateWorldMatrix(true, true);
+    this.internalRaycaster.setFromCamera(this.getNormalizedMouse(event, context), context.camera);
+    return this.interactionManager?.onPointerDown(event, hit, this.internalRaycaster) ?? false;
   }
 
   private mouseNDC = new THREE.Vector2();
   private internalRaycaster = new THREE.Raycaster();
 
   /**
-   * 换算屏幕归一化坐标 (支持指针锁定准星 (0, 0) 与自由鼠标模式)
+   * 换算屏幕归一化坐标 (支持指针锁定准星 (0, 0) 与自由鼠标模式，兼顾移动端触控事件)
    */
-  public getNormalizedMouse(event: PointerEvent): THREE.Vector2 {
-    const isLocked = typeof document !== 'undefined' && document.pointerLockElement !== null;
-    if (isLocked) {
-      return new THREE.Vector2(0, 0);
-    }
-    const width = typeof window !== 'undefined' ? window.innerWidth : 1920;
-    const height = typeof window !== 'undefined' ? window.innerHeight : 1080;
-    return new THREE.Vector2(
-      (event.clientX / width) * 2 - 1,
-      -(event.clientY / height) * 2 + 1
-    );
+  public getNormalizedMouse(event: PointerEvent, context?: ExperimentContext): THREE.Vector2 {
+    const clientX = event.clientX ?? (event as any).touches?.[0]?.clientX ?? (event as any).changedTouches?.[0]?.clientX ?? 0;
+    const clientY = event.clientY ?? (event as any).touches?.[0]?.clientY ?? (event as any).changedTouches?.[0]?.clientY ?? 0;
+    return labPointerNDC({ clientX, clientY }, context?.renderer?.domElement);
   }
 
   public override onPointerMove(event: PointerEvent, hit: THREE.Intersection | null, context: ExperimentContext): void {
     if (this.interactionManager?.isDragging) {
-      const mouse = this.getNormalizedMouse(event);
+      const mouse = this.getNormalizedMouse(event, context);
       this.internalRaycaster.setFromCamera(mouse, context.camera);
       this.interactionManager.onPointerMove(event, this.internalRaycaster);
     }
@@ -179,5 +175,9 @@ export default class OpticsReflectionRefractionExperiment extends BaseExperiment
 
   public override onPointerUp(event: PointerEvent, context: ExperimentContext): void {
     this.interactionManager?.onPointerUp(event);
+  }
+
+  public override onPointerCancel(event: PointerEvent, context: ExperimentContext): void {
+    this.interactionManager?.onPointerCancel(event);
   }
 }

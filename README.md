@@ -96,7 +96,7 @@ flowchart LR
 ### 环境要求
 
 - Node.js **≥ 22.6**（推荐 24，测试依赖 `--experimental-strip-types`）
-- 可选：Rust **≥ 1.80**、Docker（运行账户 / 白板 / AI 后端）
+- 可选：Rust **≥ 1.85**、Docker（运行账户 / 白板 / AI 后端）
 - 可选：Tauri 2 工具链（构建桌面端或 iPad 应用）
 
 ### 仅运行前端实验室
@@ -117,6 +117,8 @@ cp server/.env.example server/.env      # 填写 JWT_SECRET，可选 DEEPSEEK_AP
 docker compose -f server/docker-compose.yml up -d   # 启动 MySQL
 npm run server                          # http://127.0.0.1:8080，自动执行数据库迁移
 ```
+
+账户页支持通过绑定邮箱的验证码修改密码。启用发件需在 `server/.env` 填写 `SMTP_HOST`、`SMTP_PORT`、`SMTP_SECURITY`（`tls` 或 `starttls`）、`SMTP_USERNAME`、`SMTP_PASSWORD` 和 `SMTP_FROM`，然后重启后端。腾讯企业邮箱使用 `smtp.exmail.qq.com:465`、`SMTP_SECURITY=tls`，密码填写客户端专用密码。凭据仅保存在服务端；请勿写入前端环境变量或提交到 Git。验证码 10 分钟有效、发送间隔 60 秒，连续输错 5 次后失效；改密成功会撤销所有设备的旧登录。
 
 ### 测试与构建
 

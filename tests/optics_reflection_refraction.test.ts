@@ -312,9 +312,10 @@ console.log('Test 5: Interaction Manager 3D Raycast & Pointer Lifecycle');
   assert.strictEqual(hover, null);
 
   // 5.2 Pointer down on laser hit mesh
+  rootGroup.updateMatrixWorld(true);
   const mockIntersection: any = {
     object: apparatus.laserHitMesh,
-    point: new THREE.Vector3(0, apparatus.diskCenterY + 0.365, 0.02),
+    point: apparatus.laserCarriageGroup.getWorldPosition(new THREE.Vector3()),
   };
   const event = new PointerEvent('pointerdown');
   const handled = interaction.onPointerDown(event, mockIntersection);
@@ -547,8 +548,207 @@ console.log('Test 9: Center Crosshair Activation & Raycast Hover Detection Invar
   console.log('✓ Test 9 passed: Center crosshair activation and hover raycasting verified');
 }
 
+// Test 10: Touchscreen Dragging of Light-Emitting Device (iPad / Touchscreen Invariants)
+console.log('Test 10: Touchscreen Dragging of Light-Emitting Device (iPad / Touchscreen Invariants)');
+{
+  const exp = new OpticsReflectionRefractionExperiment();
+  const canvas = {
+    getBoundingClientRect() { return { left: 0, top: 0, width: 1920, height: 1080 }; },
+    style: {},
+  };
+  const camera = new THREE.PerspectiveCamera(60, 1920 / 1080, 0.1, 100);
+  camera.position.set(0, 1.38, 4.25);
+  camera.lookAt(0, 0.42, 1.35);
+  camera.updateMatrixWorld(true);
+
+  let currentAngle = 45;
+  const mockContext = {
+    camera,
+    renderer: { domElement: canvas },
+    scene: new THREE.Scene(),
+    setParameter: (k: string, v: any) => {
+      if (k === 'incidentAngle') currentAngle = v;
+    },
+    getParameter: (k: string) => currentAngle,
+  } as any;
+
+  exp.init(mockContext);
+  exp.rootGroup.scale.setScalar(2.45);
+  exp.rootGroup.updateMatrixWorld(true);
+
+  const apparatus = exp.getApparatus();
+  const carriage = apparatus.laserCarriageGroup;
+
+  // 10.1 验证光束交互套筒与发光装置命中箱存在
+  assert.ok(apparatus.laserHitMesh, 'Laser hit mesh must exist');
+  assert.ok(apparatus.incidentBeamHitMesh, 'Incident beam hit mesh must exist');
+  assert.strictEqual(apparatus.laserHitMesh.userData?.isLaserHandle, true, 'Laser hit mesh is marked isLaserHandle');
+  assert.strictEqual(apparatus.incidentBeamHitMesh.userData?.isLaserHandle, true, 'Beam hit mesh is marked isLaserHandle');
+
+  // 10.2 触碰发光装置前端出光喷嘴 (Nozzle / Lens tip)
+  const nozzleWorld = new THREE.Vector3(-0.090, 0, 0).applyMatrix4(carriage.matrixWorld);
+  const nozzleProj = nozzleWorld.clone().project(camera);
+  const nozzleClientX = (nozzleProj.x * 0.5 + 0.5) * 1920;
+  const nozzleClientY = (-nozzleProj.y * 0.5 + 0.5) * 1080;
+
+  // iPadOS can omit the Pointer Lock API entirely. Undefined is not a lock:
+  // the move ray must keep following the finger instead of the screen centre.
+  delete (globalThis as any).document.pointerLockElement;
+  const touchNDC = exp.getNormalizedMouse({ clientX: nozzleClientX, clientY: nozzleClientY } as any, mockContext);
+  assert.ok(Math.abs(touchNDC.x - nozzleProj.x) < 1e-8, 'iPad without Pointer Lock keeps the fingertip X coordinate');
+  assert.ok(Math.abs(touchNDC.y - nozzleProj.y) < 1e-8, 'iPad without Pointer Lock keeps the fingertip Y coordinate');
+
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2(nozzleProj.x, nozzleProj.y), camera);
+  const hitsNozzle = raycaster.intersectObjects(exp.rootGroup.children, true);
+  assert.ok(hitsNozzle.length > 0, 'Ray towards nozzle must intersect');
+
+  let handledNozzle = false;
+  for (const h of hitsNozzle) {
+    if (exp.onPointerDown({ clientX: nozzleClientX, clientY: nozzleClientY, pointerType: 'touch', pointerId: 1 } as any, h, mockContext)) {
+      handledNozzle = true;
+      break;
+    }
+  }
+  assert.strictEqual(handledNozzle, true, 'Touch on light-emitting nozzle must start drag');
+  assert.strictEqual(exp.interactionManager.isDragging, true, 'isDragging must be true after touch on nozzle');
+
+  // 10.3 触摸屏滑动拖拽
+  exp.onPointerMove({ clientX: nozzleClientX - 150, clientY: nozzleClientY + 60, pointerType: 'touch', pointerId: 1 } as any, null, mockContext);
+  assert.notStrictEqual(apparatus.incidentAngleDeg, 45, 'Incident angle must rotate upon touch drag move');
+
+  // 10.4 触控松开
+  exp.onPointerUp({ pointerType: 'touch', pointerId: 1 } as any, mockContext);
+  assert.strictEqual(exp.interactionManager.isDragging, false, 'isDragging must be false on pointerup');
+
+  // 10.5 触摸入射光束 (Incident Laser Beam) 启动拖拽
+  const beamHitMesh = apparatus.incidentBeamHitMesh;
+  const beamWorld = new THREE.Vector3();
+  beamHitMesh.getWorldPosition(beamWorld);
+  const beamProj = beamWorld.clone().project(camera);
+  const beamClientX = (beamProj.x * 0.5 + 0.5) * 1920;
+  const beamClientY = (-beamProj.y * 0.5 + 0.5) * 1080;
+
+  raycaster.setFromCamera(new THREE.Vector2(beamProj.x, beamProj.y), camera);
+  const hitsBeam = raycaster.intersectObjects(exp.rootGroup.children, true);
+  let handledBeam = false;
+  for (const h of hitsBeam) {
+    if (exp.onPointerDown({ clientX: beamClientX, clientY: beamClientY, pointerType: 'touch', pointerId: 2 } as any, h, mockContext)) {
+      handledBeam = true;
+      break;
+    }
+  }
+  assert.strictEqual(handledBeam, true, 'Touch on incident beam must start drag');
+  assert.strictEqual(exp.interactionManager.isDragging, true);
+
+  // 10.6 触控中断取消 (Pointer Cancel)
+  exp.onPointerCancel({ pointerType: 'touch', pointerId: 2 } as any, mockContext);
+  assert.strictEqual(exp.interactionManager.isDragging, false, 'Pointer cancel must cleanly reset drag state');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 10 passed: Touchscreen dragging of light-emitting device, nozzle and incident beam verified\n');
+}
+
+// Test 11: Real Engine routing on an iPad with no Pointer Lock API.
+console.log('Test 11: Continuous iPad Emitter Drag & Release Persistence');
+{
+  const { LabPointerSession } = await import('../src/controls/LabPointerInput.ts');
+  const canvasListeners = new Map<string, Function>();
+  const windowListeners = new Map<string, Function>();
+  const captured = new Set<number>();
+  const rect = { left: 120, top: 48, width: 1024, height: 768 };
+  const canvas: any = {
+    style: { setProperty() {} }, getBoundingClientRect: () => rect,
+    addEventListener: (type: string, listener: Function) => canvasListeners.set(type, listener),
+    setPointerCapture: (id: number) => captured.add(id),
+    hasPointerCapture: (id: number) => captured.has(id),
+    releasePointerCapture: (id: number) => captured.delete(id),
+  };
+  (globalThis as any).window = {
+    innerWidth: 1366, innerHeight: 1024, PointerEvent: class {},
+    addEventListener: (type: string, listener: Function) => windowListeners.set(type, listener),
+  };
+  (globalThis as any).document.addEventListener = () => {};
+  delete (globalThis as any).document.pointerLockElement;
+  const { Engine } = await import('../src/core/Engine.ts');
+  const camera = new THREE.PerspectiveCamera(60, rect.width / rect.height, 0.1, 100);
+  camera.position.set(0, 2.1, 4.8);
+  camera.lookAt(0, 1.9, 1.35);
+  camera.updateMatrixWorld(true);
+  const exp = new OpticsReflectionRefractionExperiment();
+  const params = new Map<string, any>();
+  const context: any = { camera, renderer: { domElement: canvas }, scene: new THREE.Scene(),
+    setParameter: (key: string, value: any) => params.set(key, value) };
+  exp.init(context);
+  const stage = new THREE.Group();
+  stage.position.y = 0.908;
+  stage.add(exp.rootGroup);
+  exp.rootGroup.scale.setScalar(2.45);
+  stage.updateMatrixWorld(true);
+  const apparatus = exp.getApparatus();
+  const engine: any = Object.create(Engine.prototype);
+  Object.assign(engine, {
+    camera, renderer: context.renderer, currentContext: context,
+    currentExperimentId: exp.metadata.id, holoStage: { activeExperiment: exp },
+    labPointers: new LabPointerSession(), raycaster: new THREE.Raycaster(),
+    centerScreen: new THREE.Vector2(), lastPointerRaycastTime: -Infinity,
+    inputManager: { player: { enabled: true, isLocked: false } },
+    crosshair: { setVisible() {} }, visionModal: { visible: false },
+    getInteractiveBeakerAt: () => null,
+  });
+  engine.initEvents();
+  const eventAt = (polarDeg: number, pointerId = 1) => {
+    const angle = THREE.MathUtils.degToRad(polarDeg);
+    const worldPoint = exp.rootGroup.localToWorld(new THREE.Vector3(
+      Math.cos(angle) * apparatus.railRadius,
+      apparatus.diskCenterY + Math.sin(angle) * apparatus.railRadius, 0));
+    const ndc = worldPoint.project(camera);
+    return { pointerId, pointerType: 'touch', button: 0, movementX: 0, movementY: 0,
+      clientX: rect.left + (ndc.x + 1) * rect.width / 2,
+      clientY: rect.top + (1 - ndc.y) * rect.height / 2,
+      cancelable: true, preventDefault() {}, stopPropagation() {} };
+  };
+  const emitDown = (polar: number) => canvasListeners.get('pointerdown')!(eventAt(polar));
+  const emitMove = (polar: number) => {
+    engine.lastPointerRaycastTime = -Infinity;
+    windowListeners.get('pointermove')!(eventAt(polar));
+    exp.update(1 / 60, 1, context);
+    stage.updateMatrixWorld(true);
+  };
+
+  // Grab the emitter's edge, twenty angular degrees away from its centre.
+  emitDown(65);
+  assert.strictEqual(exp.interactionManager.isDragging, true);
+  assert.strictEqual(captured.has(1), true);
+  assert.strictEqual(apparatus.incidentAngleDeg, 45, 'Pressing must not teleport the emitter');
+  emitMove(65);
+  assert.strictEqual(apparatus.incidentAngleDeg, 45, 'A stationary finger keeps the initial grab offset');
+  emitMove(75);
+  assert.strictEqual(apparatus.incidentAngleDeg, 35, 'First move continuously follows the fingertip');
+  windowListeners.get('pointerup')!(eventAt(90, 2));
+  assert.strictEqual(exp.interactionManager.isDragging, true, 'Another finger cannot release the emitter');
+  emitMove(90);
+  assert.strictEqual(apparatus.incidentAngleDeg, 20, 'Further moves remain active across rendered frames');
+  windowListeners.get('pointerup')!(eventAt(90));
+  assert.strictEqual(exp.interactionManager.isDragging, false);
+  assert.strictEqual(captured.size, 0);
+  const finalPosition = apparatus.laserCarriageGroup.position.clone();
+  for (let frame = 0; frame < 20; frame++) exp.update(1 / 60, frame, context);
+  assert.strictEqual(apparatus.incidentAngleDeg, 20, 'Released angle remains committed');
+  assert(apparatus.laserCarriageGroup.position.distanceTo(finalPosition) < 1e-8, 'Released emitter never springs back');
+  assert.strictEqual(params.get('incidentAngle'), 20, 'Experiment parameters retain the dragged angle');
+
+  // Tapping a distant part of the rail is not a teleport command.
+  emitDown(145);
+  assert.strictEqual(exp.interactionManager.isDragging, false);
+  assert.strictEqual(apparatus.incidentAngleDeg, 20);
+  assert.strictEqual(captured.size, 0);
+  exp.dispose(context);
+  console.log('✓ Test 11 passed: Real raycasts, capture, multiple moves, grab offset and persistent release\n');
+}
+
 console.log('\n========================================================');
-console.log('All Light Reflection & Refraction Tests Passed Successfully (9/9)!');
+console.log('All Light Reflection & Refraction Tests Passed Successfully (11/11)!');
 console.log('========================================================\n');
 
 

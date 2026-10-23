@@ -843,24 +843,25 @@ body.lab-returning #touch-controls-layer * {
 }
 
 .apple-modal-card {
-  width: 560px;
+  width: 540px;
   max-width: 90vw;
-  max-height: 85vh;
+  max-height: min(88vh, 720px);
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 22px;
+  border-radius: 24px;
   box-shadow: 
     0 24px 60px rgba(0, 0, 0, 0.12),
     0 4px 14px rgba(0, 0, 0, 0.04);
   color: var(--apple-label-primary);
-  padding: 26px 28px;
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  box-sizing: border-box;
   transform: translate3d(0, 12px, 0) scale(0.98);
   -webkit-transform: translate3d(0, 12px, 0) scale(0.98);
   opacity: 0;
@@ -872,6 +873,12 @@ body.lab-returning #touch-controls-layer * {
     opacity 0.2s ease-out,
     width 0.26s ease;
   user-select: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.apple-modal-card::-webkit-scrollbar {
+  display: none;
 }
 
 .apple-modal-backdrop.open .apple-modal-card {
@@ -920,6 +927,7 @@ body.lab-returning #touch-controls-layer * {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .modal-title-group {
@@ -985,12 +993,15 @@ body.lab-returning #touch-controls-layer * {
   height: 52px;
   border-radius: 50%;
   overflow: hidden;
-  background: linear-gradient(135deg, #0071e3 0%, #5e5ce6 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f0f2f5 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 4px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
-  box-shadow: 0 4px 14px rgba(0, 113, 227, 0.28);
+  color: var(--apple-label-primary);
   flex-shrink: 0;
 }
 
@@ -1216,10 +1227,46 @@ body.lab-returning #touch-controls-layer * {
   display: none !important;
 }
 
+.account-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  padding-bottom: 12px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+
+.account-modal-body::-webkit-scrollbar {
+  width: 6px;
+  display: block;
+}
+
+.account-modal-body::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 9999px;
+  margin: 2px 0 6px 0;
+}
+
+.account-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  transition: background 0.18s ease;
+}
+
+.account-modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.42);
+}
+
 .account-modal-body,
 .auth-panel,
 .auth-form,
 .account-whiteboard-block,
+.account-password-section,
+.account-password-form,
 .join-section,
 .invite-section,
 .roster-section {
@@ -1230,6 +1277,54 @@ body.lab-returning #touch-controls-layer * {
 
 .account-modal-body .account-section-title {
   margin-bottom: 0;
+}
+
+.account-password-section {
+  padding-top: 12px;
+  border-top: 1px solid var(--apple-fill-quaternary);
+}
+
+.account-password-section > button {
+  flex: none;
+  width: 100%;
+}
+
+.password-change-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--apple-label-secondary);
+}
+
+.password-code-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.password-code-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.password-code-row button {
+  flex: none;
+  width: auto;
+  white-space: nowrap;
+  padding: 0 14px;
+}
+
+.account-security-status {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: #16804a;
+}
+
+.account-security-status[data-state="error"] {
+  color: #c93434;
 }
 
 /* ==========================================================================
@@ -1877,6 +1972,34 @@ textarea:focus::placeholder {
   word-break: break-all;
 }
 
+.account-name-field {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--apple-label-primary);
+  padding: 7px 2px;
+  margin: 0;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.account-name-field:focus {
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.account-name-field::placeholder {
+  color: var(--apple-label-tertiary);
+  font-weight: 400;
+}
+
 .invite-code-row {
   display: flex;
   align-items: center;
@@ -2204,6 +2327,7 @@ textarea:focus::placeholder {
 }
 
 .whiteboard-sync-status {
+  display: none !important;
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
   right: calc(230px + env(safe-area-inset-right, 0px));

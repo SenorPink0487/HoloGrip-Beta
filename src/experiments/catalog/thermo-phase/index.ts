@@ -49,8 +49,8 @@ export default class ThermoPhaseExperiment extends BaseExperiment {
   private lastSampleTime = 0;
 
   public init(_context: ExperimentContext): void {
-    // 直接置于前方交互区台面上
-    this.rootGroup.position.set(0, -0.056, 0.92);
+    // 直接置于前方交互区台面上 (Y=0.082 匹配实验台台面 Y=0.990)
+    this.rootGroup.position.set(0, 0.082, 0.92);
 
     // 1. 高精度 3D 量热计实验装置
     this.calorimeter = this.track(new PhaseCalorimeterMesh());

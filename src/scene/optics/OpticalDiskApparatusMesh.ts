@@ -123,6 +123,7 @@ export class OpticalDiskApparatusMesh {
   // 旋转激光发射臂与激光头
   public laserCarriageGroup = new THREE.Group();
   public laserHitMesh: THREE.Mesh; // 用于鼠标射线拾取拖拽
+  public incidentBeamHitMesh!: THREE.Mesh; // 用于触控射线拾取光束拖拽
   private laserBarrelMesh: THREE.Mesh;
   private laserLedMesh: THREE.Mesh;
   private laserLedMat: THREE.MeshBasicMaterial;
@@ -632,6 +633,7 @@ export class OpticalDiskApparatusMesh {
    */
   private createLaserCarriage(): void {
     this.laserCarriageGroup.name = 'LaserCarriage';
+    this.laserCarriageGroup.userData = { isLaserHandle: true, interactiveId: 'laser_handle' };
     this.laserCarriageGroup.position.set(0, this.diskCenterY, 0.02);
 
     const titaniumMat = new THREE.MeshStandardMaterial({
@@ -658,6 +660,7 @@ export class OpticalDiskApparatusMesh {
     // 4.1 骑跨式滑轨底座 (抱合外圈圆形导轨)
     const carriageBaseGeo = new THREE.BoxGeometry(0.048, 0.026, 0.034);
     const carriageBase = new THREE.Mesh(carriageBaseGeo, titaniumMat);
+    carriageBase.userData = { isLaserHandle: true };
     this.laserCarriageGroup.add(carriageBase);
 
     // 导轨滑槽侧面镀铬卡爪
@@ -665,6 +668,7 @@ export class OpticalDiskApparatusMesh {
       const clawGeo = new THREE.BoxGeometry(0.042, 0.008, 0.006);
       const claw = new THREE.Mesh(clawGeo, satinSilverMat);
       claw.position.set(0, 0, zSign * 0.016);
+      claw.userData = { isLaserHandle: true };
       this.laserCarriageGroup.add(claw);
     }
 
@@ -674,6 +678,7 @@ export class OpticalDiskApparatusMesh {
     barrelGeo.rotateZ(Math.PI / 2);
     this.laserBarrelMesh = new THREE.Mesh(barrelGeo, satinSilverMat);
     this.laserBarrelMesh.position.set(-0.048, 0, 0);
+    this.laserBarrelMesh.userData = { isLaserHandle: true };
     this.laserCarriageGroup.add(this.laserBarrelMesh);
 
     // 筒身 4 道精密散热环 (Cooling Fin Rings)
@@ -682,6 +687,7 @@ export class OpticalDiskApparatusMesh {
       finGeo.rotateZ(Math.PI / 2);
       const fin = new THREE.Mesh(finGeo, titaniumMat);
       fin.position.set(-0.025 - f * 0.012, 0, 0);
+      fin.userData = { isLaserHandle: true };
       this.laserCarriageGroup.add(fin);
     }
 
@@ -690,6 +696,7 @@ export class OpticalDiskApparatusMesh {
     focusRingGeo.rotateZ(Math.PI / 2);
     const focusRing = new THREE.Mesh(focusRingGeo, knurledRingMat);
     focusRing.position.set(-0.076, 0, 0);
+    focusRing.userData = { isLaserHandle: true };
     this.laserCarriageGroup.add(focusRing);
 
     // 锥形出光喷嘴 (Aperture Hood)
@@ -697,6 +704,7 @@ export class OpticalDiskApparatusMesh {
     nozzleGeo.rotateZ(Math.PI / 2);
     const nozzle = new THREE.Mesh(nozzleGeo, darkNozzleMat);
     nozzle.position.set(-0.090, 0, 0);
+    nozzle.userData = { isLaserHandle: true };
     this.laserCarriageGroup.add(nozzle);
 
     // 出光口内嵌光学镀膜准直透镜
@@ -704,6 +712,7 @@ export class OpticalDiskApparatusMesh {
     this.laserLensMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
     const lens = new THREE.Mesh(lensGeo, this.laserLensMat);
     lens.position.set(-0.097, 0, 0);
+    lens.userData = { isLaserHandle: true };
     this.laserCarriageGroup.add(lens);
 
     // 4.4 状态指示 LED 环 (环绕筒身后部)
@@ -712,14 +721,16 @@ export class OpticalDiskApparatusMesh {
     this.laserLedMat = new THREE.MeshBasicMaterial({ color: 0xff2233 });
     this.laserLedMesh = new THREE.Mesh(ledGeo, this.laserLedMat);
     this.laserLedMesh.position.set(-0.012, 0, 0);
+    this.laserLedMesh.userData = { isLaserHandle: true };
     this.laserCarriageGroup.add(this.laserLedMesh);
 
-    // 4.5 扩大的透明交互射线碰撞球 (用于鼠标与触控拖拽拾取)
-    const hitGeo = new THREE.SphereGeometry(0.048, 16, 16);
+    // 4.5 扩大的透明交互射线碰撞箱 (全面覆盖滑轨底座、镜筒、调焦环、喷嘴与出光透镜，专为触控屏宽容度优化)
+    const hitGeo = new THREE.BoxGeometry(0.165, 0.088, 0.088);
+    hitGeo.translate(-0.042, 0, 0);
     const hitMat = new THREE.MeshBasicMaterial({ visible: false });
     this.laserHitMesh = new THREE.Mesh(hitGeo, hitMat);
     this.laserHitMesh.name = 'LaserHandleHit';
-    this.laserHitMesh.userData = { isLaserHandle: true };
+    this.laserHitMesh.userData = { isLaserHandle: true, interactiveId: 'laser_handle' };
     this.laserCarriageGroup.add(this.laserHitMesh);
 
     this.group.add(this.laserCarriageGroup);
@@ -782,11 +793,22 @@ export class OpticalDiskApparatusMesh {
     unitCylGeo.rotateZ(Math.PI / 2);
 
     this.incidentCoreMesh = new THREE.Mesh(unitCylGeo, this.beamCoreMat);
+    this.incidentCoreMesh.name = 'IncidentLaserBeam';
+    this.incidentCoreMesh.userData = { isLaserHandle: true, isIncidentBeam: true, interactiveId: 'laser_handle' };
     this.incidentGlowMesh = new THREE.Mesh(unitCylGeo, this.beamGlowMat);
+    this.incidentGlowMesh.name = 'IncidentLaserGlow';
+    this.incidentGlowMesh.userData = { isLaserHandle: true, isIncidentBeam: true, interactiveId: 'laser_handle' };
     this.incidentCoreMesh.renderOrder = 10;
     this.incidentGlowMesh.renderOrder = 9;
     beamGroup.add(this.incidentCoreMesh);
     beamGroup.add(this.incidentGlowMesh);
+
+    // 入射光束交互拾取碰撞套筒 (宽容度触控光柱，覆盖整条入射光路)
+    const beamHitMat = new THREE.MeshBasicMaterial({ visible: false });
+    this.incidentBeamHitMesh = new THREE.Mesh(unitCylGeo, beamHitMat);
+    this.incidentBeamHitMesh.name = 'IncidentBeamHit';
+    this.incidentBeamHitMesh.userData = { isLaserHandle: true, isIncidentBeam: true, interactiveId: 'laser_handle' };
+    beamGroup.add(this.incidentBeamHitMesh);
 
     // 反射光束网格
     this.reflectedCoreMesh = new THREE.Mesh(unitCylGeo, this.reflectedCoreMat);
@@ -882,8 +904,12 @@ export class OpticalDiskApparatusMesh {
     const fanMat1 = new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthTest: false });
     const arcMat1 = new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide, depthTest: false });
     this.fanMesh1 = new THREE.Mesh(new THREE.BufferGeometry(), fanMat1);
+    this.fanMesh1.name = 'IncidentAngleFan';
+    this.fanMesh1.userData = { isLaserHandle: true, interactiveId: 'laser_handle' };
     this.fanMesh1.renderOrder = 24;
     this.arcMesh1 = new THREE.Mesh(new THREE.BufferGeometry(), arcMat1);
+    this.arcMesh1.name = 'IncidentAngleArc';
+    this.arcMesh1.userData = { isLaserHandle: true, interactiveId: 'laser_handle' };
     this.arcMesh1.renderOrder = 25;
 
     const fanMatR = new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthTest: false });
@@ -908,6 +934,8 @@ export class OpticalDiskApparatusMesh {
     this.incidentBadgeCanvas = incBadge.canvas;
     this.incidentBadgeTex = incBadge.texture;
     this.incidentBadgeSprite = incBadge.sprite;
+    this.incidentBadgeSprite.name = 'IncidentAngleBadge';
+    this.incidentBadgeSprite.userData = { isLaserHandle: true, interactiveId: 'laser_handle' };
     this.angleLabelsGroup.add(this.incidentBadgeSprite);
 
     const reflBadge = this.createBadgeSprite('reflected');
@@ -1328,6 +1356,9 @@ export class OpticalDiskApparatusMesh {
     // 6. 3D 光束网格定向与伸缩
     this.orientBeam(this.incidentCoreMesh, pLaser, pOrigin, 0.0016);
     this.orientBeam(this.incidentGlowMesh, pLaser, pOrigin, 0.0065);
+    if (this.incidentBeamHitMesh) {
+      this.orientBeam(this.incidentBeamHitMesh, pLaser, pOrigin, 0.024);
+    }
 
     // 反射光束强度随菲涅耳反射率 R 调节
     this.orientBeam(this.reflectedCoreMesh, pOrigin, pRefl, 0.0015 * Math.max(0.2, R));

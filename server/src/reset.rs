@@ -14,6 +14,7 @@ pub async fn reset_data(
     let hash = hash_password(password, false).map_err(|e: AppError| e.message)?;
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     for table in [
+        "password_email_verifications",
         "whiteboard_operations",
         "class_whiteboards",
         "class_members",

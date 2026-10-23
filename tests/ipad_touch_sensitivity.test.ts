@@ -98,7 +98,8 @@ console.log('=== Starting iPad Touchscreen Tap Sensitivity Tests ===\n');
 
   assert(engineCode.includes('raycastWithTouchRadius'), 'Engine must implement raycastWithTouchRadius');
   assert(engineCode.includes('radiusPx = 18'), 'Touch radius must be defined for multi-directional probing');
-  assert(engineCode.includes('Math.PI * 0.25'), 'Must probe in 8 radial angles');
+  const inputCode = fs.readFileSync(path.resolve('src/controls/LabPointerInput.ts'), 'utf8');
+  assert(inputCode.includes('Math.PI * 0.25'), 'Must probe in 8 radial angles');
 
   // Verify functionality: Create a target mesh and camera
   const scene = new THREE.Scene();
