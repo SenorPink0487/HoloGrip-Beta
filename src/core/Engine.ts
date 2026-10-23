@@ -144,6 +144,7 @@ export class Engine {
   private lastMathTelemetrySync = 0;
   private lastEmTelemetrySync = 0;
   private lastMechTelemetrySync = 0;
+  private lastThermoTelemetrySync = 0;
   private lastCss3dCamPos = new THREE.Vector3(Infinity, Infinity, Infinity);
   private lastCss3dCamQuat = new THREE.Quaternion(Infinity, Infinity, Infinity, Infinity);
   private lastCss3dWinPos = new THREE.Vector3(Infinity, Infinity, Infinity);
@@ -1173,6 +1174,27 @@ export class Engine {
           exp?.applyPreset?.(preset);
         }
       },
+      // 卡诺热机控制台回调
+      onCarnotHotTempChange: (tempC: number) => {
+        if (this.currentExperimentId === 'thermo-carnot') {
+          this.currentContext.setParameter('hotTempC', tempC);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setHotTempC?.(tempC);
+        }
+      },
+      onCarnotColdTempChange: (tempC: number) => {
+        if (this.currentExperimentId === 'thermo-carnot') {
+          this.currentContext.setParameter('coldTempC', tempC);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setColdTempC?.(tempC);
+        }
+      },
+      onCarnotReset: () => {
+        if (this.currentExperimentId === 'thermo-carnot') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.resetExperiment?.();
+        }
+      },
     });
 
     this.visionModal.setEngines(this.chemistryEngineLeft, this.chemistryEngineRight, 'left');
@@ -1289,6 +1311,8 @@ export class Engine {
       this.visionModal.setCurrentExperimentId(id);
       if (id === 'mech-newton-cannon') {
         this.visionModal.open('mechanics');
+      } else if (id === 'thermo-carnot') {
+        this.visionModal.open('thermo');
       }
       this.hud.setActiveExperiment(experiment, this.currentContext);
       this.holoStage.setStageVisible(true);
@@ -2395,6 +2419,15 @@ export class Engine {
           const exp = this.holoStage.activeExperiment as any;
           if (this.currentExperimentId === 'mech-newton-cannon' && typeof exp?.getTelemetryData === 'function') {
             this.visionModal.newtonCard.updateTelemetry(exp.getTelemetryData(), exp.getLaunchConfig?.());
+          }
+        }
+      } else if (isModalOpen && this.visionModal.currentTab === 'thermo') {
+        const nowMs = performance.now();
+        if (nowMs - this.lastThermoTelemetrySync >= 40) {
+          this.lastThermoTelemetrySync = nowMs;
+          const exp = this.holoStage.activeExperiment as any;
+          if (this.currentExperimentId === 'thermo-carnot' && typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.carnotCard.updateTelemetry(exp.getTelemetryData(), exp.getPVCurves?.());
           }
         }
       }

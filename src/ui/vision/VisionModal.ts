@@ -7,13 +7,14 @@ import { HallStatusCard } from './HallStatusCard.ts';
 import { FieldStatusCard, type FieldCommand } from './FieldStatusCard.ts';
 import { CapacitorStatusCard } from './CapacitorStatusCard.ts';
 import { NewtonCannonStatusCard } from './NewtonCannonStatusCard.ts';
+import { CarnotStatusCard } from './CarnotStatusCard.ts';
 import type { SwitchPosition } from '../../physics/em/capacitorDischarge.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 import { blurActiveInput, isTextInputActive } from '../../core/focus.ts';
 
-export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'em' | 'mechanics';
+export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'em' | 'mechanics' | 'thermo';
 
 export interface VisionModalCallbacks {
   onClose: () => void;
@@ -75,6 +76,10 @@ export interface VisionModalCallbacks {
   onNewtonMaxVelocityChange?: (v: number) => void;
   onNewtonParticleCountChange?: (count: number) => void;
   onNewtonPreset?: (preset: 'suborbital' | 'orbital' | 'escape' | 'spectrum') => void;
+  // 卡诺热机回调
+  onCarnotHotTempChange?: (tempC: number) => void;
+  onCarnotColdTempChange?: (tempC: number) => void;
+  onCarnotReset?: () => void;
 }
 
 export class VisionModal {
@@ -98,6 +103,7 @@ export class VisionModal {
   private fieldStatusCard: FieldStatusCard;
   private capacitorStatusCard: CapacitorStatusCard;
   private newtonStatusCard: NewtonCannonStatusCard;
+  private carnotStatusCard: CarnotStatusCard;
   private currentExperimentId = '';
 
   private bodyContainer: HTMLElement;
@@ -302,6 +308,8 @@ export class VisionModal {
             this.physicsModal.showLevel2('mechanics');
             this.close();
           }
+        } else if (id.startsWith('thermo-')) {
+          this.switchTab('thermo');
         } else {
           this.close();
         }
@@ -375,6 +383,12 @@ export class VisionModal {
       onPreset: (preset) => this.callbacks.onNewtonPreset?.(preset),
     });
 
+    this.carnotStatusCard = new CarnotStatusCard({
+      onHotTempChange: (tempC) => this.callbacks.onCarnotHotTempChange?.(tempC),
+      onColdTempChange: (tempC) => this.callbacks.onCarnotColdTempChange?.(tempC),
+      onReset: () => this.callbacks.onCarnotReset?.(),
+    });
+
     // 挂载初始视窗视图
     this.switchTab('disciplines');
 
@@ -429,6 +443,9 @@ export class VisionModal {
         this.switchTab('physics');
       } else if (this.activeTab === 'mechanics') {
         this.physicsModal.showLevel2('mechanics');
+        this.switchTab('physics');
+      } else if (this.activeTab === 'thermo') {
+        this.physicsModal.showLevel2('thermo');
         this.switchTab('physics');
       } else if (this.activeTab === 'chemistry' || this.activeTab === 'math') {
         this.switchTab('disciplines');
@@ -554,6 +571,10 @@ export class VisionModal {
     return this.newtonStatusCard;
   }
 
+  public get carnotCard(): CarnotStatusCard {
+    return this.carnotStatusCard;
+  }
+
   public setCurrentExperimentId(id: string): void {
     this.currentExperimentId = id;
     if (id === 'math-stereometry') {
@@ -574,6 +595,8 @@ export class VisionModal {
         this.activeTab = 'physics';
         this.physicsModal.showLevel2('mechanics');
       }
+    } else if (id.startsWith('thermo-')) {
+      this.activeTab = 'thermo';
     } else if (id.startsWith('optics-')) {
       this.activeTab = 'physics';
       this.physicsModal.showLevel2('optics');
@@ -610,6 +633,8 @@ export class VisionModal {
         ? '电磁学实验'
         : disc === 'mechanics'
         ? '力学实验'
+        : disc === 'thermo'
+        ? '热学实验'
         : '光学实验';
     }
 
@@ -622,6 +647,7 @@ export class VisionModal {
       math: '立体几何',
       em: emTitle,
       mechanics: '牛顿大炮',
+      thermo: '卡诺热机',
     };
     if (titleEl) {
       titleEl.textContent = titles[tab] || '实验视窗';
@@ -639,6 +665,7 @@ export class VisionModal {
     if (this.fieldStatusCard) this.fieldStatusCard.setVisible(false);
     if (this.capacitorStatusCard) this.capacitorStatusCard.setVisible(false);
     if (this.newtonStatusCard) this.newtonStatusCard.setVisible(tab === 'mechanics');
+    if (this.carnotStatusCard) this.carnotStatusCard.setVisible(tab === 'thermo');
     if (tab === 'em' && emId !== 'em-capacitor-discharge') emCard.setVisible(true);
 
     if (tab === 'disciplines') {
@@ -665,6 +692,9 @@ export class VisionModal {
     } else if (tab === 'mechanics') {
       this.newtonStatusCard.setVisible(true);
       this.bodyContainer.appendChild(this.newtonStatusCard.element);
+    } else if (tab === 'thermo') {
+      this.carnotStatusCard.setVisible(true);
+      this.bodyContainer.appendChild(this.carnotStatusCard.element);
     }
   }
 

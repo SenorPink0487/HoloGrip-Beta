@@ -43,6 +43,7 @@ export type ExperimentCategory =
   | 'fluids'
   | 'chaos'
   | 'electromagnetism'
+  | 'thermodynamics'
   | 'physics'
   | 'math'
   | 'chemistry'

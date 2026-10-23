@@ -16,9 +16,36 @@ export class PhysicsDisciplineModal {
   public element: HTMLElement;
   private callbacks: PhysicsDisciplineCallbacks;
   private currentLevel: 1 | 2 = 1;
-  private currentDiscipline: 'optics' | 'em' | 'mechanics' = 'optics';
+  private currentDiscipline: 'optics' | 'em' | 'mechanics' | 'thermo' = 'optics';
   private toastTimeout: ReturnType<typeof setTimeout> | null = null;
   private navTransition: 'push' | 'pop' | 'none' = 'none';
+
+  public static readonly THERMO_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
+    {
+      id: 'thermo-carnot',
+      name: '卡诺热机',
+      category: '理想气体卡诺循环与热力学第二定律',
+      formula: '\\eta = 1 - \\frac{T_c}{T_h} = \\frac{W}{Q_h}',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Working Cylinder Barrel -->
+          <rect x="4" y="13" width="16" height="10" rx="2" stroke-width="1.8" fill="currentColor" fill-opacity="0.08"/>
+          <!-- Piston Head & Connecting Rod -->
+          <line x1="13" y1="14" x2="13" y2="22" stroke-width="2.4"/>
+          <line x1="13" y1="18" x2="26" y2="15" stroke-width="1.8"/>
+          <!-- Flywheel & Crank Journal -->
+          <circle cx="27" cy="18" r="6" stroke-width="1.8" fill="currentColor" fill-opacity="0.06"/>
+          <circle cx="27" cy="18" r="1.6" fill="currentColor"/>
+          <!-- Top Pressure Gauge -->
+          <circle cx="12" cy="7" r="3.2" stroke-width="1.5"/>
+          <line x1="12" y1="10.2" x2="12" y2="13" stroke-width="1.5"/>
+          <line x1="12" y1="7" x2="13.5" y2="5.5" stroke-width="1.3"/>
+          <!-- P-V Cycle Indicator Curve Below -->
+          <path d="M7 27 Q 15 28 21 31 Q 13 30 7 27 Z" stroke-width="1.3" stroke-opacity="0.65" fill="currentColor" fill-opacity="0.12"/>
+        </svg>
+      `,
+    },
+  ];
 
   public static readonly MECHANICS_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
     {
@@ -376,7 +403,7 @@ export class PhysicsDisciplineModal {
     return this.currentLevel;
   }
 
-  public getCurrentDiscipline(): 'optics' | 'em' | 'mechanics' {
+  public getCurrentDiscipline(): 'optics' | 'em' | 'mechanics' | 'thermo' {
     return this.currentDiscipline;
   }
 
@@ -425,15 +452,14 @@ export class PhysicsDisciplineModal {
             <h3 class="branch-tile-name">力学实验</h3>
           </div>
 
-          <!-- 3. Thermodynamics (In planning) -->
-          <div class="physics-branch-tile planned" id="branch-tile-thermo" role="button" tabindex="0" title="规划中" style="--tile-index: 2;">
+          <!-- 3. Thermodynamics (Ready -> Click to enter Level 2) -->
+          <div class="physics-branch-tile ready" id="branch-tile-thermo" role="button" tabindex="0" title="进入热学实验" style="--tile-index: 2;">
             <div class="branch-tile-icon-box">
               <svg class="apple-sf-icon branch-tile-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
               </svg>
             </div>
             <h3 class="branch-tile-name">热学实验</h3>
-            <span class="branch-tile-badge planned">规划中</span>
           </div>
 
           <!-- 4. Electromagnetism (Ready -> Click to enter Level 2) -->
@@ -456,9 +482,9 @@ export class PhysicsDisciplineModal {
   }
 
   /**
-   * 渲染二级界面：实验目录列表（光学、力学或电磁学）
+   * 渲染二级界面：实验目录列表（光学、力学、热学或电磁学）
    */
-  public showLevel2(discipline: 'optics' | 'em' | 'mechanics' = 'optics'): void {
+  public showLevel2(discipline: 'optics' | 'em' | 'mechanics' | 'thermo' = 'optics'): void {
     this.currentLevel = 2;
     this.currentDiscipline = discipline;
     this.navTransition = 'push';
@@ -466,6 +492,8 @@ export class PhysicsDisciplineModal {
       ? '电磁学实验'
       : discipline === 'mechanics'
       ? '力学实验'
+      : discipline === 'thermo'
+      ? '热学实验'
       : '光学实验';
     this.callbacks.onLevelChange?.(2, title);
 
@@ -473,6 +501,8 @@ export class PhysicsDisciplineModal {
       ? PhysicsDisciplineModal.EM_EXPERIMENTS
       : discipline === 'mechanics'
       ? PhysicsDisciplineModal.MECHANICS_EXPERIMENTS
+      : discipline === 'thermo'
+      ? PhysicsDisciplineModal.THERMO_EXPERIMENTS
       : PhysicsDisciplineModal.OPTICS_EXPERIMENTS;
 
     this.element.innerHTML = `
@@ -524,15 +554,14 @@ export class PhysicsDisciplineModal {
       }
     });
 
-    // 热学卡片 -> 规划中分支提示
+    // 热学卡片 -> 进入二级界面（热学实验目录）
     const thermoTile = this.element.querySelector('#branch-tile-thermo');
-    const handleThermoPlanned = () => {
-      this.showToast('热学实验正在规划中，即将上线');
-    };
-    thermoTile?.addEventListener('click', handleThermoPlanned);
+    thermoTile?.addEventListener('click', () => {
+      this.showLevel2('thermo');
+    });
     thermoTile?.addEventListener('keydown', (e) => {
       if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-        handleThermoPlanned();
+        this.showLevel2('thermo');
       }
     });
 

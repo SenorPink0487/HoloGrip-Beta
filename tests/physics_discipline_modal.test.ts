@@ -257,26 +257,39 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   console.log('✓ Test 4 passed: Hierarchical navigation and reset flow verified\n');
 }
 
-// Test 5: Thermodynamics branch planning state verification
+// Test 5: Thermodynamics branch activation and Level 2 Carnot Heat Engine display
 {
-  console.log('Test 5: Thermodynamics branch planned badge & toast feedback');
+  console.log('Test 5: Thermodynamics branch activation and Level 2 Carnot Heat Engine display');
+  let levelReported: number = 0;
+  let titleReported: string = '';
+
   const modal = new PhysicsDisciplineModal({
     onBackToDisciplines: () => {},
+    onLevelChange: (lvl, title) => {
+      levelReported = lvl;
+      titleReported = title;
+    },
   });
 
-  // Verify Level 1 thermo tile is planned
+  // Verify Level 1 thermo tile is ready
   const l1Html = modal.element.innerHTML;
   assert(l1Html.includes('id="branch-tile-thermo"'), 'Must have thermo branch tile');
-  assert(l1Html.includes('class="physics-branch-tile planned" id="branch-tile-thermo"'), 'Thermo tile must have planned class');
-  assert(l1Html.includes('规划中'), 'Thermo tile must display 规划中 badge');
+  assert(l1Html.includes('class="physics-branch-tile ready" id="branch-tile-thermo"'), 'Thermo tile must have ready class');
 
-  // Clicking planned thermo tile triggers planned toast
+  // Clicking ready thermo tile enters Level 2 Thermodynamics
   const thermoTile = modal.element.querySelector('#branch-tile-thermo');
   thermoTile?.dispatch('click');
-  const toast = modal.element.querySelector('#physics-floating-toast');
-  assert(toast?.textContent?.includes('规划中'), 'Toast must indicate thermo branch is in planning');
 
-  console.log('✓ Test 5 passed: Thermodynamics branch accurately verified as planned\n');
+  assert.strictEqual(modal.getCurrentLevel(), 2, 'Must be Level 2 after clicking thermo tile');
+  assert.strictEqual(modal.getCurrentDiscipline(), 'thermo', 'Discipline must be thermo');
+  assert.strictEqual(levelReported, 2, 'Should report Level 2 to callback');
+  assert.strictEqual(titleReported, '热学实验', 'Should report 热学实验 title');
+
+  const l2Html = modal.element.innerHTML;
+  assert(l2Html.includes('卡诺热机'), 'Must contain 卡诺热机 experiment card');
+  assert(l2Html.includes('thermo-carnot'), 'Must contain thermo-carnot id');
+
+  console.log('✓ Test 5 passed: Thermodynamics branch accurately presents Carnot Heat Engine\n');
 }
 
 // Test 6: Mechanics branch activation and Level 2 display

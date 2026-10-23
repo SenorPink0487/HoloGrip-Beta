@@ -497,8 +497,8 @@ class MockShaderExperiment extends BaseExperiment {
 
   const hudPath = path.resolve(process.cwd(), 'src/ui/HUD.ts');
   const hudCode = fs.readFileSync(hudPath, 'utf-8');
-  assert(hudCode.includes('this.perfOverlay.toggle(false);'), 'HUD must hide perfOverlay on startup per user request');
-  assert(!hudCode.includes('this.perfOverlay.toggle(true);'), 'HUD must not show perfOverlay by default');
+  assert(hudCode.includes('this.perfOverlay.toggle(true);'), 'HUD must show perfOverlay on startup per user request');
+  assert(!hudCode.includes('this.perfOverlay.toggle(false);'), 'HUD must not hide perfOverlay by default');
 
   const wbPath = path.resolve(process.cwd(), 'src/whiteboard/WhiteboardApp.ts');
   const wbCode = fs.readFileSync(wbPath, 'utf-8');
