@@ -928,7 +928,9 @@ body.lab-returning #touch-controls-layer * {
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
+  min-height: 32px;
 }
+
 
 .modal-title-group {
   display: flex;
@@ -937,10 +939,11 @@ body.lab-returning #touch-controls-layer * {
 }
 
 .modal-title {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.4px;
   color: var(--apple-label-primary);
+  transition: opacity 0.18s ease;
 }
 
 .modal-badge {
@@ -2579,88 +2582,85 @@ textarea:focus::placeholder {
   min-width: 68px;
 }
 
-/* Password Change Panel - Apple Inset Group */
+/* Password Change Panel - Apple Inset Group Action Row */
 .apple-settings-row-btn {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
   min-height: 44px;
-  padding: 10px 16px;
+  padding: 0 14px;
   background: #ffffff;
-  border-radius: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  font-size: 13.5px;
-  font-weight: 500;
+  border: none;
+  font-size: 13px;
+  font-weight: 450;
   color: #1d1d1f;
   cursor: pointer;
-  transition: all 0.16s var(--apple-ease);
+  transition: background 0.12s ease;
   outline: none;
   box-sizing: border-box;
+  user-select: none;
 }
 
 .apple-settings-row-btn:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(0, 0, 0, 0.025);
 }
 
-.apple-settings-row-btn::after {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-top: 1.5px solid #86868b;
-  border-right: 1.5px solid #86868b;
-  transform: rotate(45deg);
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  margin-right: 2px;
-  flex-shrink: 0;
+.apple-settings-row-btn:active {
+  background: rgba(0, 0, 0, 0.05);
 }
 
-.apple-settings-row-btn[aria-expanded="true"]::after {
-  transform: rotate(135deg);
-  border-color: var(--apple-blue);
+.apple-settings-row-btn:hover .macos-chevron-wrap {
+  color: #8e8e93;
+  transform: translateX(1.5px);
 }
 
-.account-password-form {
-  padding: 14px;
-  gap: 12px;
-  margin-top: 4px;
+/* Password Sheet Styling (macOS Sheet Modal - matching Name & Class sheets) */
+.macos-sheet-card.macos-password-sheet-card {
+  width: 380px;
+  max-width: 92%;
 }
 
-.password-hint {
-  font-size: 12px;
-  color: #86868b;
-  line-height: 1.4;
-  margin: 0;
-}
-
-.password-change-field {
+.macos-sheet-field-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 12.5px;
+  gap: 12px;
+  width: 100%;
+}
+
+.macos-sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+}
+
+.macos-sheet-field-label {
+  font-size: 12px;
   font-weight: 500;
-  color: #86868b;
-}
-
-.password-change-field .apple-profile-input {
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  background: #ffffff;
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 13.5px;
   color: #1d1d1f;
+  text-align: left;
+  user-select: none;
 }
 
-.password-change-field .apple-profile-input:focus {
-  border-color: var(--apple-blue);
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+.macos-sheet-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
-.send-code-btn {
-  height: 34px !important;
-  padding: 0 14px !important;
-  white-space: nowrap;
+.macos-sheet-code-row .macos-sheet-input-box {
+  flex: 1;
+}
+
+.macos-sheet-code-row .send-code-btn {
+  height: 32px !important;
+  min-width: 84px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
 }
 
 @media (max-width: 640px) {

@@ -189,15 +189,11 @@ export class AccountModal {
 
     const header = document.createElement('div');
     header.className = 'modal-header-row';
-    const group = document.createElement('div');
-    group.className = 'modal-title-group';
 
     this.titleEl = document.createElement('h2');
     this.titleEl.className = 'modal-title';
     this.titleEl.id = 'account-modal-title';
     this.titleEl.textContent = '登录';
-
-    group.appendChild(this.titleEl);
 
     const close = document.createElement('button');
     close.type = 'button';
@@ -206,7 +202,7 @@ export class AccountModal {
     close.title = '关闭';
     close.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
-    header.appendChild(group);
+    header.appendChild(this.titleEl);
     header.appendChild(close);
 
     this.body = document.createElement('div');
@@ -322,7 +318,6 @@ export class AccountModal {
     meta.appendChild(nameRow);
     meta.appendChild(email);
     profile.appendChild(meta);
-    this.body.appendChild(profile);
 
     const personalSection = document.createElement('div');
     personalSection.className = 'apple-settings-section';
@@ -481,8 +476,9 @@ export class AccountModal {
     emailRowEl.appendChild(emailRight);
 
     personalGroup.appendChild(emailRowEl);
-
     personalSection.appendChild(personalGroup);
+
+    this.body.appendChild(profile);
     this.body.appendChild(personalSection);
 
     if (user.role === 'teacher') {
@@ -507,7 +503,12 @@ export class AccountModal {
         clearSession();
       });
     }
+    this.passwordPanel.onSheetStateChange = (isOpen) => {
+      this.activeSheet = isOpen ? this.passwordPanel : null;
+    };
+
     this.body.appendChild(this.passwordPanel.element);
+    this.sheetContainer.appendChild(this.passwordPanel.sheetElement);
     this.passwordPanel.setActive(this.isOpen);
 
     this.body.appendChild(this.logoutButton());

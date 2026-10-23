@@ -12,8 +12,11 @@ export class PasswordChangePanel {
   private readonly password = input('password-change-new', 'password', '至少 8 位，最多 72 字节', 'new-password');
   private readonly confirm = input('password-change-confirm', 'password', '再次输入新密码', 'new-password');
   private readonly status = document.createElement('p');
+  private readonly sheetBackdrop = document.createElement('div');
   public readonly user: AccountUser;
   private readonly onChanged: () => void;
+  public onSheetStateChange?: (isOpen: boolean) => void;
+  private isSheetOpen = false;
   private active = false;
   private disposed = false;
   private sending = false;
@@ -21,59 +24,166 @@ export class PasswordChangePanel {
   private retryAt = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
+  public get sheetElement(): HTMLElement {
+    return this.sheetBackdrop;
+  }
+
   constructor(user: AccountUser, onChanged: () => void) {
     this.user = user;
     this.onChanged = onChanged;
     this.element.id = 'account-password-section';
     this.element.className = 'account-password-section apple-settings-section';
+
     const title = document.createElement('div');
     title.className = 'apple-section-header';
     title.textContent = '登录与安全';
+
+    const group = document.createElement('div');
+    group.className = 'apple-settings-group';
+
     this.toggle.type = 'button';
     this.toggle.id = 'btn-change-password';
-    this.toggle.className = 'apple-settings-row-btn';
-    this.toggle.textContent = '修改密码';
+    this.toggle.className = 'apple-settings-row-btn macos-action-row';
     this.toggle.setAttribute('aria-expanded', 'false');
     this.toggle.setAttribute('aria-controls', 'password-change-form');
+
+    const toggleLabel = document.createElement('span');
+    toggleLabel.className = 'apple-row-label';
+    toggleLabel.textContent = '修改密码';
+
+    const toggleRight = document.createElement('div');
+    toggleRight.className = 'macos-row-right';
+    toggleRight.innerHTML = `<span class="macos-chevron-wrap"><svg class="macos-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>`;
+
+    this.toggle.appendChild(toggleLabel);
+    this.toggle.appendChild(toggleRight);
+    group.appendChild(this.toggle);
+
+    this.element.appendChild(title);
+    this.element.appendChild(group);
+
+    // macOS Sheet Modal Architecture (identical to createMacosSheet for Name & Class)
+    this.sheetBackdrop.className = 'macos-sheet-backdrop hidden';
+    this.sheetBackdrop.setAttribute('aria-hidden', 'true');
+
+    const sheetCard = document.createElement('div');
+    sheetCard.className = 'macos-sheet-card macos-password-sheet-card';
+
+    const sheetTitle = document.createElement('h3');
+    sheetTitle.className = 'macos-sheet-title';
+    sheetTitle.textContent = '修改密码';
+
+    const sheetDesc = document.createElement('p');
+    sheetDesc.className = 'macos-sheet-desc';
+    sheetDesc.textContent = `验证码将发送至 ${user.email}，10 分钟内有效。修改后所有设备需重新登录。`;
+
     this.form.id = 'password-change-form';
-    this.form.className = 'account-password-form apple-settings-group hidden';
-    const hint = document.createElement('p');
-    hint.className = 'invite-hint password-hint';
-    hint.textContent = `验证码将发送至 ${user.email}，10 分钟内有效。修改后所有设备需重新登录。`;
+    this.form.className = 'account-password-form';
+
+    const fieldsList = document.createElement('div');
+    fieldsList.className = 'macos-sheet-field-list';
+
+    // 1. Code
+    const codeField = document.createElement('div');
+    codeField.className = 'macos-sheet-field';
+    const codeLabel = document.createElement('label');
+    codeLabel.className = 'macos-sheet-field-label';
+    codeLabel.htmlFor = this.code.id;
+    codeLabel.textContent = '邮箱验证码';
+
+    const codeRow = document.createElement('div');
+    codeRow.className = 'macos-sheet-code-row';
+
+    const codeBox = document.createElement('div');
+    codeBox.className = 'macos-sheet-input-box';
     this.code.maxLength = 6;
     this.code.inputMode = 'numeric';
     this.code.pattern = '[0-9]{6}';
+    codeBox.appendChild(this.code);
+
     this.send.type = 'button';
     this.send.id = 'btn-send-password-code';
-    this.send.className = 'apple-cell-action-btn secondary send-code-btn';
+    this.send.className = 'macos-push-btn secondary send-code-btn';
     this.send.textContent = '获取验证码';
-    const codeRow = document.createElement('div');
-    codeRow.className = 'password-code-row';
-    codeRow.appendChild(this.code);
+
+    codeRow.appendChild(codeBox);
     codeRow.appendChild(this.send);
-    this.submit.type = 'submit';
-    this.submit.id = 'btn-save-password';
-    this.submit.className = 'auth-submit';
-    this.submit.textContent = '确认修改密码';
+    codeField.appendChild(codeLabel);
+    codeField.appendChild(codeRow);
+
+    // 2. New Password
+    const pwField = document.createElement('div');
+    pwField.className = 'macos-sheet-field';
+    const pwLabel = document.createElement('label');
+    pwLabel.className = 'macos-sheet-field-label';
+    pwLabel.htmlFor = this.password.id;
+    pwLabel.textContent = '新密码';
+
+    const pwBox = document.createElement('div');
+    pwBox.className = 'macos-sheet-input-box';
+    pwBox.appendChild(this.password);
+    pwField.appendChild(pwLabel);
+    pwField.appendChild(pwBox);
+
+    // 3. Confirm Password
+    const confirmField = document.createElement('div');
+    confirmField.className = 'macos-sheet-field';
+    const confirmLabel = document.createElement('label');
+    confirmLabel.className = 'macos-sheet-field-label';
+    confirmLabel.htmlFor = this.confirm.id;
+    confirmLabel.textContent = '确认新密码';
+
+    const confirmBox = document.createElement('div');
+    confirmBox.className = 'macos-sheet-input-box';
+    confirmBox.appendChild(this.confirm);
+    confirmField.appendChild(confirmLabel);
+    confirmField.appendChild(confirmBox);
+
+    fieldsList.appendChild(codeField);
+    fieldsList.appendChild(pwField);
+    fieldsList.appendChild(confirmField);
+
     this.status.id = 'password-change-status';
     this.status.className = 'account-security-status hidden';
     this.status.setAttribute('role', 'status');
     this.status.setAttribute('aria-live', 'polite');
-    this.form.appendChild(hint);
-    this.form.appendChild(field('邮箱验证码', this.code.id, codeRow));
-    this.form.appendChild(field('新密码', this.password.id, this.password));
-    this.form.appendChild(field('确认新密码', this.confirm.id, this.confirm));
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'macos-sheet-btn-row';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.id = 'btn-cancel-password';
+    cancelBtn.className = 'macos-push-btn';
+    cancelBtn.textContent = '取消';
+
+    this.submit.type = 'submit';
+    this.submit.id = 'btn-save-password';
+    this.submit.className = 'macos-push-btn primary';
+    this.submit.textContent = '修改密码';
+
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(this.submit);
+
+    this.form.appendChild(fieldsList);
     this.form.appendChild(this.status);
-    this.form.appendChild(this.submit);
-    this.element.appendChild(title);
-    this.element.appendChild(this.toggle);
-    this.element.appendChild(this.form);
+    this.form.appendChild(btnRow);
+
+    sheetCard.appendChild(sheetTitle);
+    sheetCard.appendChild(sheetDesc);
+    sheetCard.appendChild(this.form);
+    this.sheetBackdrop.appendChild(sheetCard);
+
+    // Keep sheetBackdrop in element initially so unit tests can query it:
+    this.element.appendChild(this.sheetBackdrop);
+
     this.toggle.addEventListener('click', () => {
-      const expanded = this.toggle.getAttribute('aria-expanded') !== 'true';
-      this.toggle.setAttribute('aria-expanded', String(expanded));
-      this.form.classList.toggle('hidden', !expanded);
-      if (expanded) this.code.focus();
-      else this.clearSecrets();
+      if (this.isSheetOpen) this.close();
+      else this.open();
+    });
+    cancelBtn.addEventListener('click', () => this.close());
+    this.sheetBackdrop.addEventListener('click', (e) => {
+      if (e.target === this.sheetBackdrop) this.close();
     });
     this.send.addEventListener('click', () => { void this.sendCode(); });
     this.form.addEventListener('submit', event => {
@@ -83,9 +193,54 @@ export class PasswordChangePanel {
     this.sync();
   }
 
+  public open(): void {
+    if (this.isSheetOpen) return;
+    this.isSheetOpen = true;
+    this.toggle.setAttribute('aria-expanded', 'true');
+    this.sheetBackdrop.classList.toggle('hidden', false);
+    this.sheetBackdrop.removeAttribute?.('aria-hidden');
+    this.onSheetStateChange?.(true);
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        this.sheetBackdrop.classList.toggle('sheet-visible', true);
+        this.code.focus?.();
+        try { this.code.select?.(); } catch {}
+      });
+    } else {
+      this.sheetBackdrop.classList.toggle('sheet-visible', true);
+      this.code.focus?.();
+    }
+  }
+
+  public close(): void {
+    if (!this.isSheetOpen) return;
+    this.isSheetOpen = false;
+    this.toggle.setAttribute('aria-expanded', 'false');
+    this.sheetBackdrop.classList.toggle('sheet-visible', false);
+    this.sheetBackdrop.setAttribute('aria-hidden', 'true');
+    this.clearSecrets();
+    this.show('');
+    this.onSheetStateChange?.(false);
+
+    setTimeout(() => {
+      if (!this.isSheetOpen) {
+        this.sheetBackdrop.classList.toggle('hidden', true);
+      }
+    }, 200);
+  }
+
+  public setExpanded(expanded: boolean): void {
+    if (expanded) this.open();
+    else this.close();
+  }
+
   setActive(active: boolean): void {
     this.active = active;
-    if (!active) this.clearSecrets();
+    if (!active) {
+      this.clearSecrets();
+      if (this.isSheetOpen) this.close();
+    }
     this.sync();
   }
 
@@ -115,7 +270,7 @@ export class PasswordChangePanel {
     this.submit.disabled = disabled || busy;
     for (const control of [this.code, this.password, this.confirm]) control.disabled = disabled || this.saving;
     this.send.textContent = this.sending ? '发送中…' : seconds > 0 ? `${seconds} 秒后重新获取` : '获取验证码';
-    this.submit.textContent = this.saving ? '修改中…' : '确认修改密码';
+    this.submit.textContent = this.saving ? '修改中…' : '修改密码';
     if (!disabled && seconds > 0) this.timer = setTimeout(() => this.sync(), 1000);
   }
 
@@ -131,11 +286,11 @@ export class PasswordChangePanel {
     this.show('');
     this.sync();
     try {
-      const result = await sendPasswordCode(this.user.id);
-      if (!this.isCurrent()) return;
-      this.retryAt = Date.now() + result.retryAfterSeconds * 1000;
-      this.code.value = '';
-      this.show('验证码已发送，请查收邮箱（也可检查垃圾邮件）。');
+      const response = await sendPasswordCode(this.user.id);
+      if (this.isCurrent()) {
+        this.retryAt = Date.now() + response.retryAfterSeconds * 1000;
+        this.show('验证码已发送，请查收邮件');
+      }
     } catch (error) {
       if (this.isCurrent()) this.show(messageOf(error), true);
     } finally {
@@ -159,6 +314,7 @@ export class PasswordChangePanel {
     try {
       await changePassword(this.user.id, code, password);
       this.clearSecrets();
+      this.close();
       if (this.isCurrent()) this.onChanged();
     } catch (error) {
       if (this.isCurrent()) this.show(messageOf(error), true);
@@ -173,20 +329,9 @@ function input(id: string, type: string, placeholder: string, autocomplete: stri
   const control = document.createElement('input');
   control.id = id;
   control.type = type;
-  control.className = 'apple-profile-input';
+  control.className = 'account-name-field macos-sheet-input';
   control.placeholder = placeholder;
   control.setAttribute('autocomplete', autocomplete);
   control.required = true;
   return control;
-}
-
-function field(label: string, id: string, control: HTMLElement): HTMLElement {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'password-change-field';
-  const caption = document.createElement('label');
-  caption.htmlFor = id;
-  caption.textContent = label;
-  wrapper.appendChild(caption);
-  wrapper.appendChild(control);
-  return wrapper;
 }
