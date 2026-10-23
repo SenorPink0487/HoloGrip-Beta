@@ -21,12 +21,6 @@ export const CATEGORIES: CategoryInfo[] = [
     description: '光的反射与折射、全反射临界角、光的色散、光的偏振、单缝光栅衍射与杨氏双缝干涉高精度3D实验台',
   },
   {
-    id: 'thermodynamics',
-    name: '热学物理',
-    icon: 'thermo',
-    description: '理想气体状态方程、分子动理论、卡诺热机循环、焦耳热功当量测定与热传导精密实验台',
-  },
-  {
     id: 'physics',
     name: '前沿物理',
     icon: 'physics',

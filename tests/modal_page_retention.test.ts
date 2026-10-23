@@ -266,12 +266,12 @@ const visionModal = new VisionModal(engine, {
   console.log('✓ Test 4 passed: Chemistry tab accurately preserved upon reopening\n');
 }
 
-// Test 5: While in a thermo experiment, user navigates to Level 2 mechanics and closes.
-// Reopening MUST NOT hijack back to thermo; it must remain on Level 2 mechanics!
+// Test 5: While in a math experiment, user navigates to Level 2 mechanics and closes.
+// Reopening MUST NOT hijack back to math; it must remain on Level 2 mechanics!
 {
   console.log('Test 5: No hijacking back to active experiment tab if user closed from another page');
-  visionModal.setCurrentExperimentId('thermo-carnot');
-  assert.strictEqual(visionModal.currentTab, 'thermo');
+  visionModal.setCurrentExperimentId('math-stereometry');
+  assert.strictEqual(visionModal.currentTab, 'math');
 
   // User navigates to physics -> mechanics
   const physicsModal = (visionModal as any).physicsModal;
@@ -289,7 +289,7 @@ const visionModal = new VisionModal(engine, {
   // User reopens modal without arguments
   visionModal.open();
   assert.strictEqual(visionModal.visible, true);
-  assert.strictEqual(visionModal.currentTab, 'physics', 'Must not hijack back to thermo; must stay on physics');
+  assert.strictEqual(visionModal.currentTab, 'physics', 'Must not hijack back to math; must stay on physics');
   assert.strictEqual(physicsModal.getCurrentLevel(), 2, 'Must remain on Level 2');
   assert.strictEqual(physicsModal.getCurrentDiscipline(), 'mechanics', 'Must remain on Mechanics');
 

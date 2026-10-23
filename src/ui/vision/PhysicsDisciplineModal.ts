@@ -16,7 +16,7 @@ export class PhysicsDisciplineModal {
   public element: HTMLElement;
   private callbacks: PhysicsDisciplineCallbacks;
   private currentLevel: 1 | 2 = 1;
-  private currentDiscipline: 'optics' | 'thermo' | 'em' | 'mechanics' = 'optics';
+  private currentDiscipline: 'optics' | 'em' | 'mechanics' = 'optics';
   private toastTimeout: ReturnType<typeof setTimeout> | null = null;
   private navTransition: 'push' | 'pop' | 'none' = 'none';
 
@@ -207,147 +207,6 @@ export class PhysicsDisciplineModal {
     },
   ];
 
-  public static readonly THERMO_EXPERIMENTS: OpticsExperimentDef[] = [
-    {
-      id: 'thermo-idealgas',
-      name: '理想气体状态方程实验',
-      category: '统计与动理论',
-      formula: 'PV = nRT · v_rms = √(3RT/M)',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <!-- Chamber Body -->
-          <rect x="7" y="7" width="22" height="23" rx="2" stroke-width="1.8" fill="currentColor" fill-opacity="0.06"/>
-          <!-- Piston Assembly -->
-          <line x1="18" y1="2.5" x2="18" y2="13" stroke-width="2.2"/>
-          <line x1="13" y1="2.5" x2="23" y2="2.5" stroke-width="2.2"/>
-          <rect x="8.5" y="13" width="19" height="3.5" rx="1" fill="currentColor" fill-opacity="0.25" stroke-width="1.4"/>
-          <!-- Kinetic Gas Molecules with Vector Motion Trails -->
-          <circle cx="13" cy="20" r="1.5" fill="currentColor"/>
-          <line x1="13" y1="20" x2="10" y2="18" stroke-width="1.1" stroke-opacity="0.5"/>
-          <circle cx="23" cy="21" r="1.5" fill="currentColor"/>
-          <line x1="23" y1="21" x2="26" y2="23.5" stroke-width="1.1" stroke-opacity="0.5"/>
-          <circle cx="16" cy="26" r="1.5" fill="currentColor"/>
-          <line x1="16" y1="26" x2="19" y2="27" stroke-width="1.1" stroke-opacity="0.5"/>
-          <circle cx="23" cy="27" r="1.3" fill="currentColor"/>
-          <line x1="23" y1="27" x2="21" y2="28" stroke-width="1.1" stroke-opacity="0.5"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'thermo-carnot',
-      name: '卡诺热机与循环效率',
-      category: '工程热力学',
-      formula: 'η = 1 - T_C / T_H',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <!-- P-V Coordinate Frame -->
-          <path d="M7 6 L7 29 L30 29" stroke-width="1.5" stroke-opacity="0.4"/>
-          <!-- 4-Stroke Carnot Cycle Enclosed Curve -->
-          <path d="M11 15 C 15 11 22 13 25 17 C 26 21 23 23 20 24 C 16 24 12 21 11 15 Z" stroke-width="1.8" fill="currentColor" fill-opacity="0.1"/>
-          <!-- Cycle Work Direction Chevrons -->
-          <polyline points="18,11.5 21,12.5 19,14" stroke-width="1.3"/>
-          <polyline points="18,24.5 15,23.5 17,22" stroke-width="1.3"/>
-          <!-- Heat Inflow Qh & Heat Rejection Qc -->
-          <path d="M16 5 L16 8.5" stroke-width="1.4"/>
-          <polyline points="14.5,7 16,8.5 17.5,7" stroke-width="1.3"/>
-          <path d="M23 25 L23 28.5" stroke-width="1.4"/>
-          <polyline points="21.5,27 23,28.5 24.5,27" stroke-width="1.3"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'thermo-conduction',
-      name: '热传导与傅里叶定律',
-      category: '传热物理',
-      formula: 'q = -k ∇T',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <!-- Solid Conductor Bar -->
-          <rect x="6" y="11" width="24" height="14" rx="2.5" stroke-width="1.8" fill="currentColor" fill-opacity="0.06"/>
-          <!-- Undulating Heat Flux Streamlines -->
-          <path d="M9 14.5 Q 13 12.5 17 14.5 T 25 14.5" stroke-width="1.3" stroke-opacity="0.6"/>
-          <path d="M9 18 Q 13 16 17 18 T 25 18" stroke-width="1.5"/>
-          <path d="M9 21.5 Q 13 19.5 17 21.5 T 25 21.5" stroke-width="1.3" stroke-opacity="0.6"/>
-          <!-- Heat Flow Vector Arrow q = -k grad T -->
-          <line x1="25" y1="18" x2="28.5" y2="18" stroke-width="1.6"/>
-          <polyline points="27,16.5 29,18 27,19.5" stroke-width="1.4"/>
-          <!-- Source and Sink Terminals -->
-          <circle cx="3" cy="18" r="1.5" fill="currentColor"/>
-          <circle cx="33" cy="18" r="1.5" fill="currentColor" fill-opacity="0.35"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'thermo-phase',
-      name: '物态相变与潜热曲线',
-      category: '相变物理',
-      formula: 'Q = m · L',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <!-- Temperature-Time Coordinate Axes -->
-          <path d="M6 6 L6 29 L31 29" stroke-width="1.5" stroke-opacity="0.4"/>
-          <!-- 5-Stage Phase Change Curve with Latent Heat Plateaus -->
-          <path d="M6 26 L11 22 L17.5 22 L23 12.5 L29 12.5" stroke-width="2"/>
-          <!-- Latent Heat Plateau Markers -->
-          <circle cx="14.25" cy="22" r="1.6" fill="currentColor"/>
-          <circle cx="26" cy="12.5" r="1.6" fill="currentColor"/>
-          <!-- Projection Lines to Time Axis -->
-          <line x1="11" y1="22" x2="11" y2="29" stroke-width="1" stroke-dasharray="1.5 1.5" stroke-opacity="0.3"/>
-          <line x1="17.5" y1="22" x2="17.5" y2="29" stroke-width="1" stroke-dasharray="1.5 1.5" stroke-opacity="0.3"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'thermo-compression-ignition',
-      name: '气体绝热压缩点火实验',
-      category: '内能与绝热过程',
-      formula: 'ΔU = W + Q · T₂ = T₁ (V₁/V₂)^(γ-1)',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <!-- Fire Piston Thick Cylinder -->
-          <rect x="12" y="8" width="12" height="22" rx="2" stroke-width="1.8" fill="currentColor" fill-opacity="0.06"/>
-          <!-- Piston Rod & T-Handle -->
-          <line x1="18" y1="2.5" x2="18" y2="16" stroke-width="2.2"/>
-          <line x1="13" y1="2.5" x2="23" y2="2.5" stroke-width="2.2"/>
-          <rect x="13" y="16" width="10" height="3" rx="1" fill="currentColor" fill-opacity="0.3" stroke-width="1.4"/>
-          <!-- Downward Stroke Arrow -->
-          <line x1="7" y1="8" x2="7" y2="17" stroke-width="1.6"/>
-          <polyline points="5,15 7,17.5 9,15" stroke-width="1.4"/>
-          <!-- Combustion Flash at Bottom -->
-          <circle cx="18" cy="26" r="2.5" fill="currentColor"/>
-          <path d="M16 25 Q 18 21.5 20 25" stroke-width="1.3"/>
-        </svg>
-      `,
-    },
-    {
-      id: 'thermo-joule',
-      name: '焦耳热功当量与做功等效实验',
-      category: '热力学第一定律与能量守恒',
-      formula: 'ΔU = W_mech + W_elec + Q · J = 4.186 J/cal',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <!-- Central Adiabatic Calorimeter Vessel -->
-          <rect x="12" y="13" width="12" height="17" rx="2" stroke-width="1.8" fill="currentColor" fill-opacity="0.08"/>
-          <!-- Top Winding Drum & Spindle -->
-          <line x1="18" y1="4" x2="18" y2="27" stroke-width="1.8"/>
-          <rect x="15" y="6" width="6" height="4" rx="1" stroke-width="1.5" fill="currentColor" fill-opacity="0.25"/>
-          <!-- Rotating Paddle Blades inside Calorimeter -->
-          <line x1="14" y1="18" x2="22" y2="18" stroke-width="1.6"/>
-          <line x1="14" y1="23" x2="22" y2="23" stroke-width="1.6"/>
-          <!-- Twin Pulleys & Cords -->
-          <line x1="6" y1="8" x2="30" y2="8" stroke-width="1.4"/>
-          <circle cx="6" cy="8" r="2.2" stroke-width="1.5"/>
-          <circle cx="30" cy="8" r="2.2" stroke-width="1.5"/>
-          <line x1="6" y1="10.2" x2="6" y2="20" stroke-width="1.4"/>
-          <line x1="30" y1="10.2" x2="30" y2="20" stroke-width="1.4"/>
-          <!-- Falling Slotted Brass Weights (2m) -->
-          <rect x="3.5" y="20" width="5" height="6" rx="1" fill="currentColor" fill-opacity="0.35" stroke-width="1.4"/>
-          <rect x="27.5" y="20" width="5" height="6" rx="1" fill="currentColor" fill-opacity="0.35" stroke-width="1.4"/>
-        </svg>
-      `,
-    },
-  ];
-
   public static readonly OPTICS_EXPERIMENTS: OpticsExperimentDef[] = [
     {
       id: 'optics-reflection-refraction',
@@ -517,7 +376,7 @@ export class PhysicsDisciplineModal {
     return this.currentLevel;
   }
 
-  public getCurrentDiscipline(): 'optics' | 'thermo' | 'em' | 'mechanics' {
+  public getCurrentDiscipline(): 'optics' | 'em' | 'mechanics' {
     return this.currentDiscipline;
   }
 
@@ -566,14 +425,15 @@ export class PhysicsDisciplineModal {
             <h3 class="branch-tile-name">力学实验</h3>
           </div>
 
-          <!-- 3. Thermodynamics (Ready) -->
-          <div class="physics-branch-tile ready" id="branch-tile-thermo" role="button" tabindex="0" title="进入热学实验" style="--tile-index: 2;">
+          <!-- 3. Thermodynamics (In planning) -->
+          <div class="physics-branch-tile planned" id="branch-tile-thermo" role="button" tabindex="0" title="规划中" style="--tile-index: 2;">
             <div class="branch-tile-icon-box">
               <svg class="apple-sf-icon branch-tile-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
               </svg>
             </div>
             <h3 class="branch-tile-name">热学实验</h3>
+            <span class="branch-tile-badge planned">规划中</span>
           </div>
 
           <!-- 4. Electromagnetism (Ready -> Click to enter Level 2) -->
@@ -596,24 +456,20 @@ export class PhysicsDisciplineModal {
   }
 
   /**
-   * 渲染二级界面：实验目录列表（光学、力学、热学或电磁学）
+   * 渲染二级界面：实验目录列表（光学、力学或电磁学）
    */
-  public showLevel2(discipline: 'optics' | 'thermo' | 'em' | 'mechanics' = 'optics'): void {
+  public showLevel2(discipline: 'optics' | 'em' | 'mechanics' = 'optics'): void {
     this.currentLevel = 2;
     this.currentDiscipline = discipline;
     this.navTransition = 'push';
-    const title = discipline === 'thermo'
-      ? '热学实验'
-      : discipline === 'em'
+    const title = discipline === 'em'
       ? '电磁学实验'
       : discipline === 'mechanics'
       ? '力学实验'
       : '光学实验';
     this.callbacks.onLevelChange?.(2, title);
 
-    const experiments = discipline === 'thermo'
-      ? PhysicsDisciplineModal.THERMO_EXPERIMENTS
-      : discipline === 'em'
+    const experiments = discipline === 'em'
       ? PhysicsDisciplineModal.EM_EXPERIMENTS
       : discipline === 'mechanics'
       ? PhysicsDisciplineModal.MECHANICS_EXPERIMENTS
@@ -668,14 +524,15 @@ export class PhysicsDisciplineModal {
       }
     });
 
-    // 热学卡片 -> 进入二级界面（热学实验目录）
+    // 热学卡片 -> 规划中分支提示
     const thermoTile = this.element.querySelector('#branch-tile-thermo');
-    thermoTile?.addEventListener('click', () => {
-      this.showLevel2('thermo');
-    });
+    const handleThermoPlanned = () => {
+      this.showToast('热学实验正在规划中，即将上线');
+    };
+    thermoTile?.addEventListener('click', handleThermoPlanned);
     thermoTile?.addEventListener('keydown', (e) => {
       if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-        this.showLevel2('thermo');
+        handleThermoPlanned();
       }
     });
 

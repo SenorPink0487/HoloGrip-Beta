@@ -54,7 +54,7 @@ export function bindVisionSlider(
 
   const wrap =
     (typeof slider.closest === 'function'
-      ? slider.closest('.hall-slider-track-wrap, .em-slider-row, .slider-track-wrapper, .thermo-metric-card, .em-controls-stack')
+      ? slider.closest('.hall-slider-track-wrap, .em-slider-row, .slider-track-wrapper, .em-controls-stack')
       : null) || slider.parentElement;
 
   if (slider.style) {

@@ -43,7 +43,7 @@
     button, a, input, textarea, select, [role="button"],
     .discipline-card, .experiment-card, .element-cell, .apple-pill-btn,
     .vision-window-btn, .touch-elevate-btn, #touch-vision-launcher,
-    .category-chip, .pt-category-chip, .hall-seg-btn, .carnot-btn,
+    .category-chip, .pt-category-chip, .hall-seg-btn,
     .apple-hero-btn, .apple-stepper-btn, .apple-circle-btn, .em-apple-btn,
     .periodic-tab-btn, .beaker-tab-btn, .seg-btn, .mini-seg-btn,
     .periodic-analysis-action-btn, .status-action-btn, .drawer-close-btn,
@@ -3108,7 +3108,7 @@
         height: auto;
       }
     }
-    /* 热力学空间状态卡片 */
+    /* 通用 HUD 状态卡片与滑块控件 (兼容复用) */
     .vision-thermo-status-card {
       display: flex;
       flex-direction: column;
@@ -3118,47 +3118,6 @@
       overflow-y: auto;
       box-sizing: border-box;
       padding: 4px 6px;
-    }
-    .thermo-card-container {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .thermo-metrics-deck {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-    }
-    .thermo-metric-card {
-      background: rgba(15, 23, 42, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-top: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 14px;
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .thermo-metric-label {
-      font-size: 11px;
-      color: #94a3b8;
-      font-weight: 500;
-    }
-    .thermo-metric-value {
-      font-size: 20px;
-      font-weight: 700;
-      font-family: -apple-system, sans-serif;
-    }
-    .thermo-metric-sub {
-      font-size: 11px;
-      color: #64748b;
-      font-family: monospace;
-    }
-    .thermo-metric-caption {
-      font-size: 10px;
-      color: #94a3b8;
-      margin-top: 4px;
-      font-family: monospace;
     }
     .thermo-mini-slider {
       -webkit-appearance: none;
@@ -3249,142 +3208,6 @@
     .thermo-mini-slider.is-pinching::-moz-range-track {
       background: rgba(10, 132, 255, 0.45) !important;
     }
-    .thermo-gauge-bar {
-      width: 100%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 2px;
-      margin-top: 6px;
-      overflow: hidden;
-    }
-    .thermo-gauge-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #38bdf8, #f59e0b, #ef4444);
-      border-radius: 2px;
-    }
-    .thermo-charts-deck {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    }
-    .thermo-chart-box {
-      background: rgba(15, 23, 42, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .thermo-chart-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .thermo-chart-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: #e2e8f0;
-    }
-    .thermo-chart-legend {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 10px;
-      color: #94a3b8;
-    }
-    .legend-dot.dot-freq {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 2px;
-      background: #0ea5e9;
-    }
-    .legend-line {
-      display: inline-block;
-      width: 12px;
-      height: 2px;
-    }
-    .legend-line.line-theory { background: #f59e0b; }
-    .legend-line.line-t200 { background: #38bdf8; }
-    .legend-line.line-t400 { background: #22c55e; }
-    .legend-line.line-t600 { background: #ef4444; }
-    .thermo-canvas-wrap {
-      width: 100%;
-      display: flex;
-      justify-content: center;
-    }
-    .thermo-canvas-wrap canvas {
-      width: 100%;
-      height: auto;
-      max-height: 220px;
-      border-radius: 8px;
-    }
-    .carnot-control-deck {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
-      padding: 8px 14px;
-    }
-    .carnot-btn-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .carnot-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 500;
-      color: #f8fafc;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.18s ease;
-    }
-    .carnot-btn:hover {
-      background: rgba(255, 255, 255, 0.15);
-      border-color: rgba(255, 255, 255, 0.25);
-    }
-    .carnot-btn.active {
-      background: rgba(14, 165, 233, 0.28);
-      border-color: #38bdf8;
-      color: #38bdf8;
-    }
-    .carnot-select {
-      background: rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 8px;
-      color: #f1f5f9;
-      font-size: 12px;
-      padding: 5px 8px;
-      outline: none;
-      cursor: pointer;
-    }
-    .carnot-stage-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 4px 10px;
-      border-radius: 20px;
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid rgba(245, 158, 11, 0.35);
-      color: #f59e0b;
-    }
-    .legend-line.line-carnot-iso-h { background: #ef4444; }
-    .legend-line.line-carnot-adi-exp { background: #eab308; }
-    .legend-line.line-carnot-iso-c { background: #38bdf8; }
-    .legend-line.line-carnot-adi-comp { background: #a855f7; }
 
     /* ========================================================== */
     /* 立体几何数学统一界面（现代极简设计） */

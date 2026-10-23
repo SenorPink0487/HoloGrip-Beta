@@ -213,10 +213,6 @@ console.log('Test 5: Audit all status cards for bindVisionSlider and isSliderAct
   const cards = [
     { file: 'src/ui/vision/HallStatusCard.ts', sliders: ['slider-hall-b', 'slider-hall-i', 'slider-hall-d'] },
     { file: 'src/ui/vision/FieldStatusCard.ts', sliders: ['field-charge-slider'] },
-    { file: 'src/ui/vision/ThermoStatusCard.ts', sliders: ['slider-temp', 'slider-vol'] },
-    { file: 'src/ui/vision/CarnotStatusCard.ts', sliders: ['slider-temp-h', 'slider-temp-c'] },
-    { file: 'src/ui/vision/ConductionStatusCard.ts', sliders: ['slider-cond-th', 'slider-cond-tc', 'slider-cond-probe'] },
-    { file: 'src/ui/vision/PhaseStatusCard.ts', sliders: ['slider-phase-power'] },
   ];
 
   for (const card of cards) {

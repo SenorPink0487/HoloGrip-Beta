@@ -257,55 +257,26 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   console.log('✓ Test 4 passed: Hierarchical navigation and reset flow verified\n');
 }
 
-// Test 5: Thermodynamics branch and Level 2 verification
+// Test 5: Thermodynamics branch planning state verification
 {
-  console.log('Test 5: Thermodynamics branch activation and Level 2 display');
-  let levelReported: number = 0;
-  let titleReported: string = '';
-
+  console.log('Test 5: Thermodynamics branch planned badge & toast feedback');
   const modal = new PhysicsDisciplineModal({
     onBackToDisciplines: () => {},
-    onLevelChange: (lvl, title) => {
-      levelReported = lvl;
-      titleReported = title;
-    },
   });
 
-  // Verify Level 1 thermo tile is ready
+  // Verify Level 1 thermo tile is planned
   const l1Html = modal.element.innerHTML;
   assert(l1Html.includes('id="branch-tile-thermo"'), 'Must have thermo branch tile');
-  assert(l1Html.includes('class="physics-branch-tile ready" id="branch-tile-thermo"'), 'Thermo tile must have ready class');
+  assert(l1Html.includes('class="physics-branch-tile planned" id="branch-tile-thermo"'), 'Thermo tile must have planned class');
+  assert(l1Html.includes('规划中'), 'Thermo tile must display 规划中 badge');
 
-  // Enter Level 2 Thermodynamics
-  modal.showLevel2('thermo');
+  // Clicking planned thermo tile triggers planned toast
+  const thermoTile = modal.element.querySelector('#branch-tile-thermo');
+  thermoTile?.dispatch('click');
+  const toast = modal.element.querySelector('#physics-floating-toast');
+  assert(toast?.textContent?.includes('规划中'), 'Toast must indicate thermo branch is in planning');
 
-  assert.strictEqual(modal.getCurrentLevel(), 2, 'Must be Level 2 after entering thermo');
-  assert.strictEqual(levelReported, 2, 'Should report Level 2 to callback');
-  assert.strictEqual(titleReported, '热学实验', 'Should report 热学实验 title');
-
-  const html = modal.element.innerHTML;
-  assert(html.includes('physics-level-2'), 'Must render Level 2 container');
-  assert(!html.includes('physics-level-title'), 'Level 2 thermo must not contain redundant inner title');
-  assert(!html.includes('physics-nav-bar'), 'Level 2 thermo must not contain redundant inner navigation bar');
-
-  // Verify 4 core thermodynamics experiments
-  assert(html.includes('理想气体状态方程实验'), 'Must contain 理想气体状态方程实验');
-  assert(html.includes('卡诺热机与循环效率'), 'Must contain 卡诺热机与循环效率');
-  assert(html.includes('热传导与傅里叶定律'), 'Must contain 热传导与傅里叶定律');
-  assert(html.includes('物态相变与潜热曲线'), 'Must contain 物态相变与潜热曲线');
-
-  // Verify formulas
-  assert(html.includes('PV = nRT'), 'Must contain Ideal gas formula');
-  assert(html.includes('η = 1 - T_C / T_H'), 'Must contain Carnot efficiency formula');
-  assert(html.includes('q = -k ∇T'), 'Must contain Fourier law formula');
-  assert(html.includes('Q = m · L'), 'Must contain Latent heat formula');
-
-  // Go back to Level 1
-  assert.strictEqual(modal.canGoBack(), true);
-  modal.goBack();
-  assert.strictEqual(modal.getCurrentLevel(), 1, 'Should return to Level 1 from thermo Level 2');
-
-  console.log('✓ Test 5 passed: Thermodynamics branch accurately presents 4 classic experiments\n');
+  console.log('✓ Test 5 passed: Thermodynamics branch accurately verified as planned\n');
 }
 
 // Test 6: Mechanics branch activation and Level 2 display
@@ -366,10 +337,6 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   modal.showLevel2('optics');
   assert.strictEqual(modal.getCurrentLevel(), 2);
   assert.strictEqual(modal.getCurrentDiscipline(), 'optics');
-
-  modal.showLevel2('thermo');
-  assert.strictEqual(modal.getCurrentLevel(), 2);
-  assert.strictEqual(modal.getCurrentDiscipline(), 'thermo');
 
   modal.showLevel2('em');
   assert.strictEqual(modal.getCurrentLevel(), 2);

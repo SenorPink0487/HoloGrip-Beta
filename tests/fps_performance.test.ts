@@ -128,57 +128,43 @@ console.log('Test 1: Architectural Frame Budget Invariants');
 }
 
 // --------------------------------------------------------------------------
-// Test 2: Thermodynamics Molecular Gas System FPS & Frame Budget
+// Test 2: Electromagnetism Hall Carrier System FPS & Frame Budget
 // --------------------------------------------------------------------------
-console.log('Test 2: Thermodynamics Molecular Gas Kinetics FPS & Frame Budget');
-let thermoAvgMs = 0;
+console.log('Test 2: Electromagnetism Hall Carrier System FPS & Frame Budget');
+let emAvgMs = 0;
 {
-  const { MolecularGasSystem } = await import('../src/scene/thermo/MolecularGasSystem.ts');
-  const gas = new MolecularGasSystem();
-  gas.updateThermodynamicState(300, 0.028, 0.15);
+  const { HallCarrierParticleSystem } = await import('../src/scene/em/HallCarrierParticleSystem.ts');
+  const hall = new HallCarrierParticleSystem(new THREE.Group());
+  hall.setPhysicsState(20, 1.0, 12.5, 'electron');
 
   // Warmup JIT
   for (let i = 0; i < 30; i++) {
-    gas.update(1 / 60, 0.15);
+    hall.update(1 / 60);
   }
 
   const frameCount = 500;
   const start = performance.now();
   for (let i = 0; i < frameCount; i++) {
-    gas.update(1 / 60, 0.15);
+    hall.update(1 / 60);
   }
   const elapsed = performance.now() - start;
-  thermoAvgMs = elapsed / frameCount;
-  const equivalentFps = 1000 / thermoAvgMs;
+  emAvgMs = elapsed / frameCount;
+  const equivalentFps = 1000 / emAvgMs;
 
-  console.log(`  Measured Average Frame Time: ${thermoAvgMs.toFixed(4)} ms`);
+  console.log(`  Measured Average Frame Time: ${emAvgMs.toFixed(4)} ms`);
   console.log(`  Equivalent Logic Frame Rate:  ${equivalentFps.toFixed(0)} FPS`);
 
-  // Target: Frame budget for 60 FPS is 16.66ms.
-  // Molecular gas physics MUST consume < 1.0ms (< 6% of frame budget).
   assert(
-    thermoAvgMs < 1.0,
-    `MolecularGasSystem update exceeded 1.0ms budget! Got ${thermoAvgMs.toFixed(4)} ms`
+    emAvgMs < 1.0,
+    `HallCarrierParticleSystem update exceeded 1.0ms budget! Got ${emAvgMs.toFixed(4)} ms`
   );
   assert(
     equivalentFps >= 1000,
-    `MolecularGasSystem logic FPS must exceed 1000 FPS! Got ${equivalentFps.toFixed(0)} FPS`
+    `HallCarrierParticleSystem logic FPS must exceed 1000 FPS! Got ${equivalentFps.toFixed(0)} FPS`
   );
 
-  // Warmup JIT
-  for (let i = 0; i < 10; i++) {
-    gas.getHistogramData(20);
-  }
-  const histStart = performance.now();
-  for (let i = 0; i < 50; i++) {
-    gas.getHistogramData(20);
-  }
-  const histAvgMs = (performance.now() - histStart) / 50;
-  console.log(`  Histogram Calculation Time:   ${histAvgMs.toFixed(4)} ms`);
-  assert(histAvgMs < 1.0, `Histogram calculation must be < 1.0ms! Got ${histAvgMs.toFixed(4)} ms`);
-
-  gas.dispose();
-  console.log('✓ Test 2 passed: Molecular Gas kinetics executes at > 1000 FPS (< 1.0ms/frame)\n');
+  hall.dispose();
+  console.log('✓ Test 2 passed: Electromagnetism Hall carrier kinetics executes at > 1000 FPS (< 1.0ms/frame)\n');
 }
 
 // --------------------------------------------------------------------------
@@ -276,17 +262,17 @@ let opticsAvgMs = 0;
 console.log('Test 5: VisionOS UI Telemetry & Chart Synchronization FPS & Frame Budget');
 let uiAvgMs = 0;
 {
-  const { ThermoStatusCard } = await import('../src/ui/vision/ThermoStatusCard.ts');
-  const card = new ThermoStatusCard();
+  const { HallStatusCard } = await import('../src/ui/vision/HallStatusCard.ts');
+  const card = new HallStatusCard();
   card.setVisible(true);
 
   // Warmup JIT
   for (let i = 0; i < 30; i++) {
     card.updateTelemetry({
-      temperature: 300 + Math.sin(i) * 5,
-      volume: 2.5 + Math.cos(i) * 0.1,
-      pressure: 99.8,
-      vRms: 516.9,
+      hallVoltageMv: 12.5 + Math.sin(i) * 2,
+      carrierVelocity: 0.05 + Math.cos(i) * 0.01,
+      lorentzForceFn: 1.6e-19,
+      chargeSign: 'positive',
     });
   }
 
@@ -294,10 +280,10 @@ let uiAvgMs = 0;
   const start = performance.now();
   for (let i = 0; i < frameCount; i++) {
     card.updateTelemetry({
-      temperature: 300 + Math.sin(i * 0.1) * 20,
-      volume: 2.5 + Math.cos(i * 0.1) * 0.5,
-      pressure: 99.8 + Math.sin(i * 0.05) * 10,
-      vRms: 516.9,
+      hallVoltageMv: 12.5 + Math.sin(i * 0.1) * 2,
+      carrierVelocity: 0.05 + Math.cos(i * 0.1) * 0.01,
+      lorentzForceFn: 1.6e-19,
+      chargeSign: 'positive',
     });
   }
   const elapsed = performance.now() - start;
@@ -309,11 +295,11 @@ let uiAvgMs = 0;
 
   assert(
     uiAvgMs < 0.5,
-    `ThermoStatusCard update exceeded 0.5ms budget! Got ${uiAvgMs.toFixed(4)} ms`
+    `HallStatusCard update exceeded 0.5ms budget! Got ${uiAvgMs.toFixed(4)} ms`
   );
   assert(
     equivalentFps >= 2000,
-    `ThermoStatusCard update logic FPS must exceed 2000 FPS! Got ${equivalentFps.toFixed(0)} FPS`
+    `HallStatusCard update logic FPS must exceed 2000 FPS! Got ${equivalentFps.toFixed(0)} FPS`
   );
 
   console.log('✓ Test 5 passed: VisionOS Telemetry Card executes at > 2000 FPS (< 0.5ms/frame)\n');
@@ -324,7 +310,7 @@ let uiAvgMs = 0;
 // --------------------------------------------------------------------------
 console.log('Test 6: Global Combined Frame Budget & 120 FPS / 60 FPS Headroom Guarantee');
 {
-  const totalLogicCostMs = thermoAvgMs + chemAvgMs + opticsAvgMs + uiAvgMs;
+  const totalLogicCostMs = emAvgMs + chemAvgMs + opticsAvgMs + uiAvgMs;
   const targetBudget60Ms = 16.666; // 60 FPS standard
   const targetBudget120Ms = 8.333; // 120 FPS ProMotion standard
   const gpuHeadroom60Ms = targetBudget60Ms - totalLogicCostMs;
@@ -336,7 +322,7 @@ console.log('Test 6: Global Combined Frame Budget & 120 FPS / 60 FPS Headroom Gu
   console.log('  ┌─────────────────────────────────────┬──────────────┬───────────────┐');
   console.log('  │ Subsystem                           │ Frame Time   │ Equivalent FPS│');
   console.log('  ├─────────────────────────────────────┼──────────────┼───────────────┤');
-  console.log(`  │ 1. Thermodynamics Molecular Kinetics│ ${thermoAvgMs.toFixed(4).padStart(8)} ms │ ${(1000 / thermoAvgMs).toFixed(0).padStart(11)} FPS │`);
+  console.log(`  │ 1. Electromagnetism Hall Kinetics   │ ${emAvgMs.toFixed(4).padStart(8)} ms │ ${(1000 / emAvgMs).toFixed(0).padStart(11)} FPS │`);
   console.log(`  │ 2. Chemistry Multi-Ion Kinetics     │ ${chemAvgMs.toFixed(4).padStart(8)} ms │ ${(1000 / chemAvgMs).toFixed(0).padStart(11)} FPS │`);
   console.log(`  │ 3. Optics Multi-Ray Tracing         │ ${opticsAvgMs.toFixed(4).padStart(8)} ms │ ${(1000 / opticsAvgMs).toFixed(0).padStart(11)} FPS │`);
   console.log(`  │ 4. VisionOS Telemetry & Charts      │ ${uiAvgMs.toFixed(4).padStart(8)} ms │ ${(1000 / uiAvgMs).toFixed(0).padStart(11)} FPS │`);
@@ -667,40 +653,14 @@ console.log('Test 11: Optics Optical Disk Apparatus 120 FPS Real-Time Ray Tracin
   assert(!indexHtml.includes('backdrop-filter: blur(12px)'), 'index.html .vision-window-frame must eliminate backdrop-filter to prevent CSS3D compositor readback stalls');
   assert(!indexHtml.includes('.metric-box {\n      background: rgba(255, 255, 255, 0.05);\n      border: 1px solid rgba(255, 255, 255, 0.08);\n      border-top: 1px solid rgba(255, 255, 255, 0.16);\n      border-radius: 14px;\n      padding: 9px 14px;\n      display: flex;\n      flex-direction: column;\n      gap: 4px;\n      backdrop-filter:'), 'Nested metric-box must not contain backdrop-filter');
 
-  // Verify nested status cards inside CSS3D VisionModal eliminate backdrop-filter blur
-  const thermoPath = path.resolve(process.cwd(), 'src/ui/vision/ThermoStatusCard.ts');
-  const thermoCode = fs.readFileSync(thermoPath, 'utf-8');
-  assert(!thermoCode.includes('backdrop-filter: blur'), 'ThermoStatusCard must eliminate backdrop-filter blur to prevent CSS3D compositor stalls');
-
-  // 3. Verify CarnotStatusCard, ConductionStatusCard, PhaseStatusCard chart throttling and dirty checking
-  const carnotPath = path.resolve(process.cwd(), 'src/ui/vision/CarnotStatusCard.ts');
-  const carnotCode = fs.readFileSync(carnotPath, 'utf-8');
-  assert(carnotCode.includes('lastChartRenderTime'), 'CarnotStatusCard must implement lastChartRenderTime throttling');
-  assert(carnotCode.includes('paramsChanged'), 'CarnotStatusCard must implement dirty checking on cycle parameters');
-
-  const condPath = path.resolve(process.cwd(), 'src/ui/vision/ConductionStatusCard.ts');
-  const condCode = fs.readFileSync(condPath, 'utf-8');
-  assert(condCode.includes('lastRenderedTempH'), 'ConductionStatusCard must implement temperature dirty checking');
-  assert(condCode.includes('lastChartRenderTime'), 'ConductionStatusCard must throttle chart rendering');
-
-  const phasePath = path.resolve(process.cwd(), 'src/ui/vision/PhaseStatusCard.ts');
-  const phaseCode = fs.readFileSync(phasePath, 'utf-8');
-  assert(phaseCode.includes('lastRenderedTempC'), 'PhaseStatusCard must implement dirty checking');
-  assert(phaseCode.includes('lastChartRenderTime'), 'PhaseStatusCard must throttle chart rendering');
-
-  // 4. Verify HallCarrierParticleSystem decouples ArrowHelper solving from per-frame particle drift
+  // 3. Verify HallCarrierParticleSystem decouples ArrowHelper solving from per-frame particle drift
   const hallSystemPath = path.resolve(process.cwd(), 'src/scene/em/HallCarrierParticleSystem.ts');
   const hallSystemCode = fs.readFileSync(hallSystemPath, 'utf-8');
   assert(hallSystemCode.includes('_VEC_VEL'), 'HallCarrierParticleSystem must use static scratch vectors');
   const updateMethod = hallSystemCode.slice(hallSystemCode.indexOf('public update('), hallSystemCode.indexOf('private updateVectorHelpers'));
   assert(!updateMethod.includes('updateVectorHelpers'), 'HallCarrierParticleSystem must NOT call updateVectorHelpers in update(delta)');
 
-  // 5. Verify CarnotMolecularSystem instance color throttling
-  const carnotMolPath = path.resolve(process.cwd(), 'src/scene/thermo/CarnotMolecularSystem.ts');
-  const carnotMolCode = fs.readFileSync(carnotMolPath, 'utf-8');
-  assert(carnotMolCode.includes('lastColorTempK'), 'CarnotMolecularSystem must throttle instance color uploads with lastColorTempK');
-
-  // 6. Verify Engine CSS3D transform settling check
+  // 4. Verify Engine CSS3D transform settling check
   const enginePath = path.resolve(process.cwd(), 'src/core/Engine.ts');
   const engineCode = fs.readFileSync(enginePath, 'utf-8');
   assert(engineCode.includes('lastCss3dCamPos'), 'Engine must cache lastCss3dCamPos to avoid redundant CSS matrix updates when stationary');

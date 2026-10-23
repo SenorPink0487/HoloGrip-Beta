@@ -197,12 +197,6 @@ const allPhysicsExperiments = [
   'optics-dispersion',
   'optics-polarization',
   'optics-reflection-refraction',
-  'thermo-carnot',
-  'thermo-conduction',
-  'thermo-idealgas',
-  'thermo-phase',
-  'thermo-compression-ignition',
-  'thermo-joule',
 ];
 
 const { Engine } = await import('../src/core/Engine.ts');
@@ -225,7 +219,7 @@ assert.strictEqual(
   'Math stereometry retains its free cursor mode'
 );
 
-console.log('✓ Test 5 passed: All 18 physics experiments checked against their actual interaction hooks\n');
+console.log('✓ Test 5 passed: All 12 physics experiments checked against their actual interaction hooks\n');
 
 console.log('Test 6: iPad Touch Mode Never Shows a Crosshair');
 const touchCrosshair = new Crosshair(body, true);

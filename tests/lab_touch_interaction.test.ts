@@ -3,10 +3,7 @@ import * as THREE from 'three';
 import { LabPointerSession, labPointerNDC, raycastTouchCandidates } from '../src/controls/LabPointerInput.ts';
 import { Engine } from '../src/core/Engine.ts';
 import { CapacitorInteractionManager } from '../src/scene/em/CapacitorInteractionManager.ts';
-import { CarnotInteractionManager } from '../src/scene/thermo/CarnotInteractionManager.ts';
-import { ThermoInteractionManager } from '../src/scene/thermo/ThermoInteractionManager.ts';
 import { StereometryInteractionManager } from '../src/scene/math/StereometryInteractionManager.ts';
-import CompressionIgnitionExperiment from '../src/experiments/catalog/thermo-compression-ignition/index.ts';
 
 class Surface {
   listeners = new Map<string, Function[]>();
@@ -82,7 +79,7 @@ const engine: any = Object.create(Engine.prototype);
 Object.assign(engine, {
   renderer: { domElement: canvas }, camera, raycaster: new THREE.Raycaster(),
   labPointers: new LabPointerSession(), holoStage: { activeExperiment: experiment },
-  currentExperimentId: 'thermo-idealgas', currentContext: { camera, renderer: { domElement: canvas } },
+  currentExperimentId: 'em-hall', currentContext: { camera, renderer: { domElement: canvas } },
   inputManager: { player: { enabled: true, allowPointerLock: false, isLocked: false } },
   crosshair: { setVisible() {} }, visionModal: { visible: false }, hud: {},
   lastPointerRaycastTime: -Infinity, getInteractiveBeakerAt: () => null,
@@ -212,52 +209,5 @@ capacitor.onPointerUp(pointer(1), context);
 assert.equal(cycled, 0);
 assert.equal(switched, 0);
 assert.equal(bladeReset, 1);
-
-// Heat-engine levers tolerate fingertip jitter; cancelling never starts a run.
-let toggles = 0;
-const lever = new THREE.Object3D();
-const carnot = new CarnotInteractionManager({
-  engine: { leverMesh: lever } as any, onToggleRunning: () => { toggles++; },
-  onToggleDirection: () => { toggles++; }, onRotateFlywheel() {},
-});
-carnot.onPointerDown(pointer(1), { object: lever } as any, context);
-carnot.onPointerMove(pointer(1, 505), null, context);
-carnot.onPointerUp(pointer(1, 505), context);
-assert.equal(toggles, 1, 'Five pixels of finger jitter remains a tap');
-carnot.onPointerDown(pointer(1), { object: lever } as any, context);
-carnot.onPointerCancel();
-carnot.onPointerUp(pointer(1), context);
-assert.equal(toggles, 1, 'System cancellation cannot start or reverse a heat engine');
-
-// Re-grabbing a temperature knob continues from its current setting.
-let temperature = 0;
-const knob = new THREE.Object3D();
-const thermo = new ThermoInteractionManager({
-  piston: { handleMesh: new THREE.Object3D() } as any, heater: { knobMesh: knob } as any,
-  onVolumeChange() {}, onTemperatureChange: value => { temperature = value; },
-});
-thermo.setStartTemp(550);
-thermo.onPointerDown(pointer(1), { object: knob } as any, context);
-thermo.onPointerMove(pointer(1, 520), null, context);
-assert.equal(temperature, 586, 'Touch adjustment does not jump back to 300 K');
-thermo.onPointerUp(pointer(1), context);
-
-// The compression piston must follow absolute touch coordinates even when
-// iPadOS reports movementY = 0 and no global camera is installed.
-const piston: any = new CompressionIgnitionExperiment();
-const pistonHandle = new THREE.Object3D();
-pistonHandle.position.y = 0.5;
-piston.rootGroup.add(pistonHandle);
-piston.rootGroup.updateMatrixWorld(true);
-piston.pistonMesh = { handleHitBox: pistonHandle, pistonMovingGroup: pistonHandle, strokeTravelM: 1 };
-let stroke = 0;
-let ended = false;
-piston.solver = { stroke: 0, isDragging: false,
-  updateManualDrag(value: number) { stroke = value; }, endManualDrag() { ended = true; } };
-assert(piston.onPointerDown(pointer(1), { object: pistonHandle, point: new THREE.Vector3(0, 0.5, 0) }, context));
-piston.onPointerMove(pointer(1, 500, 420), null, context);
-assert(stroke > 0.5, 'Absolute fingertip motion compresses the piston');
-piston.onPointerCancel(pointer(1), context);
-assert(ended, 'Interrupted piston releases manual force');
 
 console.log('✓ Lab touch interactions: picking, ownership, capture, interruptions, pinch and physical controls');

@@ -25,11 +25,11 @@
 
 ## 为什么做 HoloGrip
 
-很多学校缺少昂贵或危险的实验器材（激光光具座、霍尔效应仪、绝热压缩点火器……），而现有的虚拟实验软件往往是 2D 动画、闭源收费，或只能在特定设备上运行。
+很多学校缺少昂贵或危险的实验器材（激光光具座、霍尔效应仪、电容器充放电测试仪……），而现有的虚拟实验软件往往是 2D 动画、闭源收费，或只能在特定设备上运行。
 
 HoloGrip 的目标是：**让任何一块教室大屏、一台电脑或一台 iPad，都能变成一间可以“伸手去做”的高保真物理/化学实验室。**
 
-- **真实物理求解，而非预录动画** —— 每个实验都由可测试的数值模型驱动（光学衍射/干涉强度分布、RC 充放电、轨道力学、绝热压缩、热传导、相变潜热等）。
+- **真实物理求解，而非预录动画** —— 每个实验都由可测试的数值模型驱动（光学衍射/干涉强度分布、RC 充放电、轨道力学、悬挂法重心求解、牛顿第三定律双对拉等）。
 - **裸手直接操控** —— 基于摄像头的手部追踪，用“捏合”手势抓取、拖动、旋转 3D 器材，无需 VR 头显。
 - **为教师演示而设计** —— 纯演示工具定位，无答题打分、无弹窗向导，3D 视窗始终干净；一键复位到教案推荐参数。
 - **跨平台** —— 同一套代码运行在浏览器、桌面端（Tauri 2）与 iPadOS。
@@ -43,7 +43,6 @@ HoloGrip 的目标是：**让任何一块教室大屏、一台电脑或一台 iP
 | **力学** | 伽利略理想斜面 · 自由落体与牛顿管 · 悬挂法测重心 · 牛顿大炮（天体轨道力学）· 牛顿第三定律双测力计对拉 |
 | **光学** | 光的反射与折射 · 光的色散（三棱镜）· 光的衍射（单缝 / 圆孔 / 光栅）· 杨氏双缝干涉 · 光的偏振与双折射 |
 | **电磁学** | 静电场与电场线叠加 · 霍尔效应与载流子动力学 · 电容器充放电与 RC 过程（含实时示波窗口） |
-| **热学** | 理想气体与分子运动论 · 卡诺热机与循环效率 · 热传导与傅里叶定律 · 物态相变与潜热曲线 · 气体绝热压缩点火 |
 | **数学** | 立体几何：拍照识别题目图形 → 自动生成可旋转、可作辅助面的 3D 模型 |
 | **化学** | 双烧杯混合与反应特效 · 交互式元素周期表 · 自然语言描述物质 → 成分分析并倒入烧杯 |
 
@@ -148,7 +147,7 @@ Apple Vision 桥接源码位于 `src-tauri/native_ios/`，由 Cargo 编译为 Sw
 src/
   core/          引擎、渲染舞台、生命周期
   experiments/   实验注册表与 catalog/（每个实验一个目录：meta.ts + index.ts）
-  scene/         各学科 3D 器材网格与交互管理器（mech / optics / em / thermo / math）
+  scene/         各学科 3D 器材网格与交互管理器（mech / optics / em / math）
   physics/       力学、电磁学数值模型
   chemistry/     化学反应引擎与混合物分析
   vision/        手部追踪与手势识别
@@ -187,7 +186,7 @@ HoloGrip 以 [GNU Affero General Public License v3.0](LICENSE) 开源。若你�
 
 **HoloGrip** is an open-source 3D holographic virtual laboratory built for classroom demonstration. Teachers and students manipulate high-fidelity lab apparatus with **bare-hand gestures** captured by an ordinary webcam — no VR headset required.
 
-- **19 interactive experiments** across mechanics, optics, electromagnetism, thermodynamics, solid geometry and chemistry, each driven by a tested numerical model rather than canned animation.
+- **13 interactive experiments** across mechanics, optics, electromagnetism, solid geometry and chemistry, each driven by a tested numerical model rather than canned animation.
 - **Gesture engine**: MediaPipe Hand Landmarker in a Web Worker, One Euro + Kalman filtering and a hysteresis pinch state machine.
 - **Compute/render decoupling**: heavy simulations run in a worker pool with zero-copy transfers and a synchronous fallback for headless testing.
 - **Real-time class whiteboard** over a Rust (Axum) WebSocket server with server-ordered operations, undo/redo, gap replay and MySQL persistence.

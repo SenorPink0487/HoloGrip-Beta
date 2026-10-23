@@ -43,11 +43,14 @@ export class AccountModal {
   private passwordPanel: PasswordChangePanel | null = null;
   private card: HTMLDivElement;
   private body: HTMLDivElement;
+  private sheetContainer: HTMLDivElement;
   private titleEl: HTMLHeadingElement;
+  private activeSheet: { close: () => void } | null = null;
   private needsRender = false;
   private lastRenderedUserId: string | null = null;
   private lastRenderedRole: string | null = null;
   private lastRenderedClassName: string | null = null;
+  private lastRenderedDisplayName: string | null = null;
   private lastRenderedError: string = '';
 
   constructor(canvas: WhiteboardCanvas, parent: HTMLElement = document.body) {
@@ -100,9 +103,11 @@ export class AccountModal {
     const userId = user?.id ?? null;
     const role = user?.role ?? null;
     const className = user?.class?.name ?? null;
+    const displayName = user?.displayName ?? null;
     if (userId !== this.lastRenderedUserId) return true;
     if (role !== this.lastRenderedRole) return true;
     if (className !== this.lastRenderedClassName) return true;
+    if (displayName !== this.lastRenderedDisplayName) return true;
     if (this.authError !== this.lastRenderedError) return true;
     return false;
   }
@@ -124,6 +129,10 @@ export class AccountModal {
   }
 
   public close(): void {
+    if (this.activeSheet) {
+      this.activeSheet.close();
+      this.activeSheet = null;
+    }
     blurActiveInput(true);
     try {
       this.element.querySelectorAll('input, textarea').forEach((el) => (el as HTMLElement).blur?.());
@@ -204,8 +213,12 @@ export class AccountModal {
     this.body.id = 'account-modal-body';
     this.body.className = 'account-modal-body';
 
+    this.sheetContainer = document.createElement('div');
+    this.sheetContainer.className = 'macos-sheets-host';
+
     this.card.appendChild(header);
     this.card.appendChild(this.body);
+    this.card.appendChild(this.sheetContainer);
     this.element.appendChild(this.card);
     parent.appendChild(this.element);
   }
@@ -216,7 +229,14 @@ export class AccountModal {
       if (event && event.target === this.element) this.close();
     });
     window.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && this.isOpen) this.close();
+      if (event.key === 'Escape' && this.isOpen) {
+        if (this.activeSheet) {
+          this.activeSheet.close();
+          this.activeSheet = null;
+        } else {
+          this.close();
+        }
+      }
     });
   }
 
@@ -229,10 +249,14 @@ export class AccountModal {
     this.lastRenderedUserId = user?.id ?? null;
     this.lastRenderedRole = user?.role ?? null;
     this.lastRenderedClassName = user?.class?.name ?? null;
+    this.lastRenderedDisplayName = user?.displayName ?? null;
     this.lastRenderedError = this.authError;
     this.needsRender = false;
 
     clearChildren(this.body);
+    if (this.sheetContainer) {
+      clearChildren(this.sheetContainer);
+    }
     if (!user) {
       this.card.classList.add('auth-card-mode');
       this.titleEl.textContent = '登录';
@@ -265,66 +289,201 @@ export class AccountModal {
 
   private renderAccount(user: AccountUser): void {
     const profile = document.createElement('div');
-    profile.className = 'profile-card';
+    profile.className = 'profile-card apple-id-hero';
     profile.id = 'account-profile';
 
     const avatar = document.createElement('div');
     avatar.className = 'profile-avatar-wrapper';
-    avatar.innerHTML = `<img src="/hologrip-logo.png" alt="User" class="profile-avatar-img" width="52" height="52" decoding="async" />`;
+    avatar.innerHTML = `<img src="/hologrip-logo.png" alt="User" class="profile-avatar-img" width="56" height="56" decoding="async" />`;
     profile.appendChild(avatar);
 
-    const form = document.createElement('div');
-    form.className = 'profile-form';
+    const meta = document.createElement('div');
+    meta.className = 'apple-id-meta';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'apple-id-name-row';
+
+    const displayName = document.createElement('div');
+    displayName.className = 'apple-id-display-name';
+    displayName.textContent = user.displayName?.trim() || '未设置用户名';
+
+    const roleBadge = document.createElement('span');
+    roleBadge.className = `apple-role-pill ${user.role}`;
+    roleBadge.textContent = user.role === 'teacher' ? '教师' : '学生';
+
+    nameRow.appendChild(displayName);
+    nameRow.appendChild(roleBadge);
 
     const email = document.createElement('div');
     email.id = 'account-email';
-    email.className = 'account-email';
+    email.className = 'account-email apple-id-email';
     email.textContent = user.email;
-    form.appendChild(fieldRow('邮箱', email));
 
-    const nameInput = document.createElement('input');
-    nameInput.id = 'profile-input-name';
-    nameInput.className = 'account-name-field';
-    nameInput.type = 'text';
-    nameInput.placeholder = '你的用户名';
-    nameInput.setAttribute('autocomplete', 'nickname');
-    nameInput.value = user.displayName ?? '';
-    nameInput.addEventListener('blur', () => {
-      void this.saveName(user, nameInput.value);
-    });
-    form.appendChild(fieldRow('用户名', nameInput));
+    meta.appendChild(nameRow);
+    meta.appendChild(email);
+    profile.appendChild(meta);
+    this.body.appendChild(profile);
 
-    if (user.role === 'teacher' && user.class) {
-      const classInput = document.createElement('input');
-      classInput.id = 'profile-input-class';
-      classInput.className = 'account-name-field';
-      classInput.type = 'text';
-      classInput.value = user.class.name;
-      classInput.addEventListener('blur', () => {
-        void this.saveClass(user, classInput.value);
-      });
-      form.appendChild(fieldRow('班级', classInput));
-    } else if (user.role === 'teacher') {
-      const classInput = document.createElement('input');
-      classInput.id = 'profile-input-class';
-      classInput.className = 'account-name-field';
-      classInput.type = 'text';
-      classInput.placeholder = '填写班级名称';
-      classInput.value = '示范教学班';
-      classInput.addEventListener('blur', () => {
-        void this.saveClass(user, classInput.value);
-      });
-      form.appendChild(fieldRow('班级', classInput));
-    } else if (user.class) {
-      const className = document.createElement('div');
-      className.id = 'class-name-readonly';
-      className.className = 'account-readonly';
-      className.textContent = user.class.name;
-      form.appendChild(fieldRow('班级', className));
+    const personalSection = document.createElement('div');
+    personalSection.className = 'apple-settings-section';
+
+    const personalTitle = document.createElement('div');
+    personalTitle.className = 'apple-section-header';
+    personalTitle.textContent = '个人信息';
+    personalSection.appendChild(personalTitle);
+
+    const personalGroup = document.createElement('div');
+    personalGroup.className = 'apple-settings-group';
+
+    // 1. 姓名行：左侧「姓名」，右侧「[displayName] >」
+    const nameRowEl = document.createElement('div');
+    nameRowEl.className = 'apple-settings-row macos-action-row';
+    nameRowEl.id = 'row-profile-name';
+    nameRowEl.setAttribute('role', 'button');
+    nameRowEl.setAttribute('tabindex', '0');
+    nameRowEl.title = '点击修改姓名';
+
+    const nameLabel = document.createElement('span');
+    nameLabel.className = 'apple-row-label';
+    nameLabel.textContent = '姓名';
+
+    const nameRight = document.createElement('div');
+    nameRight.className = 'macos-row-right';
+
+    const nameValue = document.createElement('span');
+    nameValue.className = 'macos-row-value';
+    if (!user.displayName?.trim()) {
+      nameValue.classList.add('placeholder');
+      nameValue.textContent = '未设置';
+    } else {
+      nameValue.textContent = user.displayName.trim();
     }
 
-    profile.appendChild(form);
-    this.body.appendChild(profile);
+    const nameChevron = createChevronElement();
+
+    nameRight.appendChild(nameValue);
+    nameRight.appendChild(nameChevron);
+    nameRowEl.appendChild(nameLabel);
+    nameRowEl.appendChild(nameRight);
+
+    personalGroup.appendChild(nameRowEl);
+
+    const nameSheet = this.createMacosSheet({
+      title: '姓名',
+      description: '输入将在白板协作与班级中展示的用户名。',
+      inputId: 'profile-input-name',
+      initialValue: user.displayName ?? '',
+      placeholder: '输入用户名',
+      onSave: (val) => this.saveName(user, val),
+    });
+    this.sheetContainer.appendChild(nameSheet.element);
+
+    nameRowEl.addEventListener('click', () => {
+      nameSheet.open();
+    });
+    nameRowEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        nameSheet.open();
+      }
+    });
+
+    // 2. 班级行
+    if (user.role === 'teacher') {
+      const classRowEl = document.createElement('div');
+      classRowEl.className = 'apple-settings-row macos-action-row';
+      classRowEl.id = 'row-profile-class';
+      classRowEl.setAttribute('role', 'button');
+      classRowEl.setAttribute('tabindex', '0');
+      classRowEl.title = '点击修改班级名称';
+
+      const classLabel = document.createElement('span');
+      classLabel.className = 'apple-row-label';
+      classLabel.textContent = '班级名称';
+
+      const classRight = document.createElement('div');
+      classRight.className = 'macos-row-right';
+
+      const classValue = document.createElement('span');
+      classValue.className = 'macos-row-value';
+      classValue.textContent = user.class?.name || '示范教学班';
+
+      const classChevron = createChevronElement();
+
+      classRight.appendChild(classValue);
+      classRight.appendChild(classChevron);
+      classRowEl.appendChild(classLabel);
+      classRowEl.appendChild(classRight);
+
+      personalGroup.appendChild(classRowEl);
+
+      const classSheet = this.createMacosSheet({
+        title: '班级名称',
+        description: '教师可修改班级全称，方便学生辨认与加入。',
+        inputId: 'profile-input-class',
+        initialValue: user.class?.name || (user.class ? '' : '示范教学班'),
+        placeholder: '填写班级名称',
+        onSave: (val) => this.saveClass(user, val),
+      });
+      this.sheetContainer.appendChild(classSheet.element);
+
+      classRowEl.addEventListener('click', () => {
+        classSheet.open();
+      });
+      classRowEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          classSheet.open();
+        }
+      });
+    } else if (user.class) {
+      const classRowEl = document.createElement('div');
+      classRowEl.className = 'apple-settings-row';
+      classRowEl.id = 'row-student-class';
+
+      const classLabel = document.createElement('span');
+      classLabel.className = 'apple-row-label';
+      classLabel.textContent = '所属班级';
+
+      const classRight = document.createElement('div');
+      classRight.className = 'macos-row-right';
+
+      const classValue = document.createElement('span');
+      classValue.id = 'class-name-readonly';
+      classValue.className = 'account-readonly macos-row-value';
+      classValue.textContent = user.class.name;
+
+      classRight.appendChild(classValue);
+      classRowEl.appendChild(classLabel);
+      classRowEl.appendChild(classRight);
+
+      personalGroup.appendChild(classRowEl);
+    }
+
+    // 3. 绑定邮箱行 (只读，无 >，无锁 emoji)
+    const emailRowEl = document.createElement('div');
+    emailRowEl.className = 'apple-settings-row';
+    emailRowEl.id = 'row-profile-email';
+
+    const emailLabel = document.createElement('span');
+    emailLabel.className = 'apple-row-label';
+    emailLabel.textContent = '绑定邮箱';
+
+    const emailRight = document.createElement('div');
+    emailRight.className = 'macos-row-right';
+
+    const emailValue = document.createElement('span');
+    emailValue.className = 'account-readonly macos-row-value';
+    emailValue.textContent = user.email;
+
+    emailRight.appendChild(emailValue);
+    emailRowEl.appendChild(emailLabel);
+    emailRowEl.appendChild(emailRight);
+
+    personalGroup.appendChild(emailRowEl);
+
+    personalSection.appendChild(personalGroup);
+    this.body.appendChild(personalSection);
 
     if (user.role === 'teacher') {
       const code = user.class?.inviteCode || 'A8K9P';
@@ -335,10 +494,13 @@ export class AccountModal {
       this.body.appendChild(this.joinBlock());
     }
 
+    this.body.appendChild(this.whiteboardBlock());
+
     const error = document.createElement('div');
     error.id = 'account-error';
     error.className = 'form-error hidden';
     this.body.appendChild(error);
+
     if (!this.passwordPanel) {
       this.passwordPanel = new PasswordChangePanel(user, () => {
         this.authNotice = '密码已修改，请使用新密码重新登录。';
@@ -347,24 +509,176 @@ export class AccountModal {
     }
     this.body.appendChild(this.passwordPanel.element);
     this.passwordPanel.setActive(this.isOpen);
-    this.body.appendChild(this.whiteboardBlock());
+
     this.body.appendChild(this.logoutButton());
+  }
+
+  private createMacosSheet(options: {
+    title: string;
+    description: string;
+    inputId: string;
+    initialValue: string;
+    placeholder: string;
+    onSave: (value: string) => Promise<void> | void;
+  }): {
+    element: HTMLElement;
+    input: HTMLInputElement;
+    open: () => void;
+    close: () => void;
+  } {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'macos-sheet-backdrop hidden';
+    backdrop.setAttribute('aria-hidden', 'true');
+
+    const card = document.createElement('div');
+    card.className = 'macos-sheet-card';
+
+    const title = document.createElement('h3');
+    title.className = 'macos-sheet-title';
+    title.textContent = options.title;
+
+    const desc = document.createElement('p');
+    desc.className = 'macos-sheet-desc';
+    desc.textContent = options.description;
+
+    const inputBox = document.createElement('div');
+    inputBox.className = 'macos-sheet-input-box';
+
+    const input = document.createElement('input');
+    input.id = options.inputId;
+    input.className = 'account-name-field macos-sheet-input';
+    input.type = 'text';
+    input.placeholder = options.placeholder;
+    input.value = options.initialValue;
+
+    inputBox.appendChild(input);
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'macos-sheet-btn-row';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'macos-push-btn';
+    cancelBtn.textContent = '取消';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'macos-push-btn primary';
+    saveBtn.textContent = '存储';
+
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(saveBtn);
+
+    card.appendChild(title);
+    card.appendChild(desc);
+    card.appendChild(inputBox);
+    card.appendChild(btnRow);
+    backdrop.appendChild(card);
+
+    let isSheetOpen = false;
+
+    const sheetObj = {
+      element: backdrop,
+      input,
+      open: () => {
+        isSheetOpen = true;
+        this.activeSheet = sheetObj;
+        input.value = options.initialValue;
+        backdrop.classList.remove('hidden');
+        backdrop.removeAttribute('aria-hidden');
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => {
+            backdrop.classList.add('sheet-visible');
+            input.focus?.();
+            try { input.select?.(); } catch {}
+          });
+        } else {
+          backdrop.classList.add('sheet-visible');
+          input.focus?.();
+        }
+      },
+      close: () => {
+        if (!isSheetOpen) return;
+        isSheetOpen = false;
+        if (this.activeSheet === sheetObj) {
+          this.activeSheet = null;
+        }
+        backdrop.classList.remove('sheet-visible');
+        backdrop.setAttribute('aria-hidden', 'true');
+        setTimeout(() => {
+          if (!isSheetOpen) backdrop.classList.add('hidden');
+        }, 200);
+      },
+    };
+
+    const doSave = async () => {
+      const val = input.value.trim();
+      saveBtn.disabled = true;
+      try {
+        await options.onSave(val);
+        sheetObj.close();
+      } finally {
+        saveBtn.disabled = false;
+      }
+    };
+
+    cancelBtn.addEventListener('click', () => sheetObj.close());
+    saveBtn.addEventListener('click', () => { void doSave(); });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void doSave();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        sheetObj.close();
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      void options.onSave(input.value);
+    });
+
+    backdrop.addEventListener('click', (e) => {
+      if (e && e.target === backdrop) sheetObj.close();
+    });
+
+    return sheetObj;
   }
 
   private joinBlock(): HTMLElement {
     const section = document.createElement('div');
     section.id = 'join-section';
-    section.className = 'join-section';
+    section.className = 'join-section apple-settings-section';
 
     const title = document.createElement('div');
-    title.className = 'account-section-title';
+    title.className = 'apple-section-header';
     title.textContent = '加入班级';
-    const hint = document.createElement('p');
+    section.appendChild(title);
+
+    const group = document.createElement('div');
+    group.className = 'apple-settings-group';
+
+    const row = document.createElement('div');
+    row.className = 'apple-settings-row join-row';
+
+    const labelWrap = document.createElement('div');
+    labelWrap.className = 'apple-row-info';
+    const label = document.createElement('span');
+    label.className = 'apple-row-label';
+    label.textContent = '班级邀请码';
+    const hint = document.createElement('span');
     hint.className = 'invite-hint';
-    hint.textContent = '填写老师的邀请码后进入对应班级。';
+    hint.textContent = '填写老师的 5 位邀请码进入班级';
+    labelWrap.appendChild(label);
+    labelWrap.appendChild(hint);
+
+    const inputWrap = document.createElement('div');
+    inputWrap.className = 'join-action-wrap';
+
     const input = document.createElement('input');
     input.id = 'join-invite-code';
-    input.className = 'apple-profile-input';
+    input.className = 'apple-profile-input join-input';
     input.type = 'text';
     input.placeholder = '5 位字母数字';
     input.setAttribute('autocomplete', 'off');
@@ -372,29 +686,38 @@ export class AccountModal {
     input.maxLength = 5;
     input.autocapitalize = 'characters';
     input.value = '';
+
     const button = document.createElement('button');
     button.type = 'button';
     button.id = 'btn-join-class';
-    button.className = 'auth-submit';
+    button.className = 'apple-cell-action-btn primary';
     button.textContent = '加入班级';
     button.addEventListener('click', () => {
       void this.join(input, button);
     });
 
-    section.appendChild(title);
-    section.appendChild(hint);
-    section.appendChild(input);
-    section.appendChild(button);
+    inputWrap.appendChild(input);
+    inputWrap.appendChild(button);
+
+    row.appendChild(labelWrap);
+    row.appendChild(inputWrap);
+    group.appendChild(row);
+    section.appendChild(group);
     return section;
   }
 
   private whiteboardBlock(): HTMLElement {
     const wrap = document.createElement('div');
-    wrap.className = 'account-whiteboard-block';
+    wrap.className = 'account-whiteboard-block apple-settings-section';
 
     const themeTitle = document.createElement('div');
-    themeTitle.className = 'account-section-title';
+    themeTitle.className = 'apple-section-header';
     themeTitle.textContent = '白板背景';
+    wrap.appendChild(themeTitle);
+
+    const group = document.createElement('div');
+    group.className = 'apple-settings-group theme-group-card';
+
     const deck = document.createElement('div');
     deck.className = 'theme-selector-deck';
     deck.id = 'theme-selector-deck';
@@ -422,17 +745,23 @@ export class AccountModal {
       });
       deck.appendChild(button);
     }
-    wrap.appendChild(themeTitle);
-    wrap.appendChild(deck);
+    group.appendChild(deck);
+    wrap.appendChild(group);
 
     return wrap;
   }
 
-  private logoutButton(): HTMLButtonElement {
+  private logoutButton(): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'apple-settings-section logout-section';
+
+    const group = document.createElement('div');
+    group.className = 'apple-settings-group';
+
     const button = document.createElement('button');
     button.type = 'button';
     button.id = 'btn-logout';
-    button.className = 'apple-pill-action-btn secondary account-logout-btn';
+    button.className = 'apple-logout-btn';
     button.textContent = '退出登录';
     button.addEventListener('click', () => {
       const refresh = readRefresh();
@@ -441,7 +770,10 @@ export class AccountModal {
         .then(() => logout(refresh))
         .finally(() => clearSession());
     });
-    return button;
+
+    group.appendChild(button);
+    wrap.appendChild(group);
+    return wrap;
   }
 
   private async saveName(user: AccountUser, raw: string): Promise<void> {
@@ -499,32 +831,58 @@ export class AccountModal {
 function inviteBlock(code: string): HTMLElement {
   const section = document.createElement('div');
   section.id = 'invite-section';
-  section.className = 'invite-section';
+  section.className = 'invite-section apple-settings-section';
+
   const title = document.createElement('div');
-  title.className = 'account-section-title';
+  title.className = 'apple-section-header';
   title.textContent = '班级邀请码';
+  section.appendChild(title);
+
+  const group = document.createElement('div');
+  group.className = 'apple-settings-group';
+
   const row = document.createElement('div');
   row.className = 'invite-code-row';
+
+  const labelWrap = document.createElement('div');
+  labelWrap.className = 'apple-row-info';
+
+  const label = document.createElement('span');
+  label.className = 'apple-row-label';
+  label.textContent = '邀请码';
+
+  const hint = document.createElement('span');
+  hint.className = 'invite-hint';
+  hint.textContent = '学生注册或入班时填写';
+
+  labelWrap.appendChild(label);
+  labelWrap.appendChild(hint);
+
+  const actionWrap = document.createElement('div');
+  actionWrap.className = 'invite-action-wrap';
+
   const value = document.createElement('div');
   value.id = 'invite-code-value';
   value.className = 'invite-code-value';
   value.textContent = formatInviteCode(code);
+
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.id = 'btn-copy-invite';
-  copy.className = 'apple-pill-action-btn secondary invite-copy-btn';
+  copy.className = 'apple-cell-action-btn invite-copy-btn';
   copy.textContent = '复制';
   copy.addEventListener('click', () => {
     void copyInvite(formatInviteCode(code), copy);
   });
-  const hint = document.createElement('p');
-  hint.className = 'invite-hint';
-  hint.textContent = '学生注册时填写这个邀请码，就会进入本班。';
-  row.appendChild(value);
-  row.appendChild(copy);
-  section.appendChild(title);
-  section.appendChild(row);
-  section.appendChild(hint);
+
+  actionWrap.appendChild(value);
+  actionWrap.appendChild(copy);
+
+  row.appendChild(labelWrap);
+  row.appendChild(actionWrap);
+  group.appendChild(row);
+  section.appendChild(group);
+
   return section;
 }
 
@@ -541,49 +899,68 @@ async function copyInvite(text: string, button: HTMLButtonElement): Promise<void
 function rosterBlock(students: ClassStudent[]): HTMLElement {
   const section = document.createElement('div');
   section.id = 'student-roster';
-  section.className = 'roster-section';
+  section.className = 'roster-section apple-settings-section';
+
   const title = document.createElement('div');
-  title.className = 'account-section-title';
-  title.textContent = '班级学生';
+  title.className = 'apple-section-header';
+  title.textContent = `班级学生 (${students.length}人)`;
   section.appendChild(title);
+
+  const group = document.createElement('div');
+  group.className = 'apple-settings-group';
+
   if (students.length === 0) {
     const empty = document.createElement('div');
     empty.id = 'roster-empty';
     empty.className = 'roster-empty';
     empty.textContent = '还没有学生加入';
-    section.appendChild(empty);
+    group.appendChild(empty);
+    section.appendChild(group);
     return section;
   }
+
   const list = document.createElement('div');
   list.className = 'roster-list';
   for (const student of students) {
     const row = document.createElement('div');
     row.className = 'roster-row';
+
+    const left = document.createElement('div');
+    left.className = 'roster-student-left';
+
+    const initial = document.createElement('div');
+    initial.className = 'roster-student-avatar';
+    const displayName = student.displayName?.trim() || student.email;
+    initial.textContent = displayName.charAt(0).toUpperCase();
+
     const name = document.createElement('span');
     name.className = 'roster-name';
-    name.textContent = student.displayName?.trim() || student.email;
-    row.appendChild(name);
+    name.textContent = displayName;
+
+    left.appendChild(initial);
+    left.appendChild(name);
+    row.appendChild(left);
+
     if (student.displayName?.trim()) {
       const email = document.createElement('span');
       email.className = 'roster-email';
       email.textContent = student.email;
       row.appendChild(email);
     }
+
     list.appendChild(row);
   }
-  section.appendChild(list);
+  group.appendChild(list);
+  section.appendChild(group);
   return section;
 }
 
-function fieldRow(label: string, control: HTMLElement): HTMLDivElement {
-  const row = document.createElement('div');
-  row.className = 'profile-field-row';
-  const caption = document.createElement('span');
-  caption.className = 'field-label';
-  caption.textContent = label;
-  row.appendChild(caption);
-  row.appendChild(control);
-  return row;
+function createChevronElement(): HTMLElement {
+  const span = document.createElement('span');
+  span.className = 'macos-chevron-wrap';
+  span.setAttribute('aria-hidden', 'true');
+  span.innerHTML = `<svg class="macos-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+  return span;
 }
 
 function clearChildren(el: HTMLElement): void {
