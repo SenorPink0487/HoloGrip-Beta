@@ -175,14 +175,33 @@ console.log('=== Starting Carnot Heat Engine (卡诺热机) Verification ===\n')
 
   const bench = exp.bench;
   assert(bench instanceof CarnotEngineBenchMesh, 'Bench must be instantiated');
-  assert(bench.group.getObjectByName('CarnotBaseplateAssembly'), 'Must contain heavy baseplate assembly');
+  assert.strictEqual(
+    bench.group.getObjectByName('CarnotBaseplateAssembly'),
+    undefined,
+    'Baseplate must be removed so apparatus sits directly on table'
+  );
   assert.strictEqual(
     bench.group.getObjectByName('FrontConsoleFascia'),
     undefined,
     'FrontConsoleFascia must be removed from 3D desk and placed in floating spatial window instead'
   );
-  assert(bench.group.getObjectByName('HotReservoirAssembly'), 'Must contain left hot reservoir assembly');
-  assert(bench.group.getObjectByName('ColdReservoirAssembly'), 'Must contain right cold reservoir assembly');
+  const hotRes = bench.group.getObjectByName('HotReservoirAssembly');
+  const coldRes = bench.group.getObjectByName('ColdReservoirAssembly');
+  assert(hotRes, 'Must contain left hot reservoir assembly');
+  assert(coldRes, 'Must contain right cold reservoir assembly');
+  assert.strictEqual(hotRes?.position.y, 0, 'Hot reservoir must sit directly on table (Y=0)');
+  assert.strictEqual(coldRes?.position.y, 0, 'Cold reservoir must sit directly on table (Y=0)');
+  assert(
+    hotRes?.getObjectByName('HotMagneticImpeller'),
+    'Hot reservoir must use electric immersion heater + magnetic circulation impeller instead of open flame'
+  );
+  let hasConeFlame = false;
+  hotRes?.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).geometry instanceof THREE.ConeGeometry) {
+      hasConeFlame = true;
+    }
+  });
+  assert.strictEqual(hasConeFlame, false, 'Hot reservoir must NOT contain any open flame ConeGeometry inside the tank');
   assert(bench.group.getObjectByName('WorkingCylinderAssembly'), 'Must contain central working cylinder assembly');
   assert(bench.group.getObjectByName('TopPressureGaugeAssembly'), 'Must contain top analog pressure gauge');
   assert(bench.group.getObjectByName('CrankFlywheelAssembly'), 'Must contain crank-flywheel mechanism');

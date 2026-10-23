@@ -2931,6 +2931,15 @@ export class OpticalDispersionApparatusMesh {
     group.clear();
   }
 
+  public getInteractiveObjects(): THREE.Object3D[] {
+    const list: THREE.Object3D[] = [];
+    if (this.collimatorArmGroup) list.push(this.collimatorArmGroup);
+    if (this.prismStageGroup) list.push(this.prismStageGroup);
+    if (this.screenCarrierGroup) list.push(this.screenCarrierGroup);
+    if (this.recombinationGroup) list.push(this.recombinationGroup);
+    return list;
+  }
+
   public dispose(): void {
     this.group.traverse((obj) => {
       if ((obj as THREE.Mesh).isMesh) {

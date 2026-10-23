@@ -258,7 +258,8 @@ export default class MechNewtonCannonExperiment extends BaseExperiment {
   } | null {
     if (this.isDisposed) return null;
 
-    const hits = raycaster.intersectObjects([this.earth.group], true);
+    const targets = [this.earth.standbyParticleGroup, this.earth.standbyParticleMesh, this.earth.earthSphere].filter(Boolean) as THREE.Object3D[];
+    const hits = raycaster.intersectObjects(targets.length > 0 ? targets : [this.earth.group], true);
 
     if (hits.length === 0) {
       this.lastHoveredTarget = null;

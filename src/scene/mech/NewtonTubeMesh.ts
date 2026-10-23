@@ -769,10 +769,28 @@ export class NewtonTubeMesh {
     ]);
 
     if (this.hoseMesh) {
-      this.hoseMesh.geometry.dispose();
-      this.hoseMesh.geometry = new THREE.TubeGeometry(this.hoseCurve, 48, 0.0075, 16, false);
+      const newGeo = new THREE.TubeGeometry(this.hoseCurve, 48, 0.0075, 16, false);
+      const curGeo = this.hoseMesh.geometry;
+      const curPos = curGeo.getAttribute('position') as THREE.BufferAttribute;
+      const curNorm = curGeo.getAttribute('normal') as THREE.BufferAttribute;
+      const newPos = newGeo.getAttribute('position') as THREE.BufferAttribute;
+      const newNorm = newGeo.getAttribute('normal') as THREE.BufferAttribute;
+      if (curPos && newPos && curPos.count === newPos.count) {
+        (curPos.array as Float32Array).set(newPos.array as Float32Array);
+        curPos.needsUpdate = true;
+        if (curNorm && newNorm && curNorm.count === newNorm.count) {
+          (curNorm.array as Float32Array).set(newNorm.array as Float32Array);
+          curNorm.needsUpdate = true;
+        }
+      } else {
+        curGeo.dispose();
+        this.hoseMesh.geometry = newGeo;
+      }
+      newGeo.dispose();
     } else {
       const hoseGeo = new THREE.TubeGeometry(this.hoseCurve, 48, 0.0075, 16, false);
+      const posAttr = hoseGeo.getAttribute('position') as THREE.BufferAttribute;
+      if (posAttr) posAttr.setUsage(THREE.DynamicDrawUsage);
       this.hoseMesh = new THREE.Mesh(hoseGeo, this.hoseMaterial);
       this.hoseMesh.name = 'freefall-hose';
       this.group.add(this.hoseMesh);
@@ -785,9 +803,9 @@ export class NewtonTubeMesh {
    * 更新牛顿管旋转角度 (Rad)
    */
   public setTubeRotation(angleRad: number): void {
-    if (Math.abs(angleRad - this.lastHoseAngle) < 0.0001) return;
-    this.lastHoseAngle = angleRad;
     this.tubePivot.rotation.z = angleRad;
+    if (Math.abs(angleRad - this.lastHoseAngle) < 0.015) return;
+    this.lastHoseAngle = angleRad;
     this.updateHose();
   }
 
@@ -912,6 +930,19 @@ export class NewtonTubeMesh {
     setTimeout(() => {
       this.rotateButtonPivot.scale.set(1.0, 1.0, 1.0);
     }, 120);
+  }
+
+  public getInteractiveObjects(): THREE.Object3D[] {
+    const list: THREE.Object3D[] = [];
+    if (this.rotateButtonHitBox) list.push(this.rotateButtonHitBox);
+    else if (this.rotateButtonPivot) list.push(this.rotateButtonPivot);
+    if (this.pumpSwitchHitBox) list.push(this.pumpSwitchHitBox);
+    else if (this.pumpPowerSwitchMesh) list.push(this.pumpPowerSwitchMesh);
+    if (this.valveHitBox) list.push(this.valveHitBox);
+    if (this.featherGroup) list.push(this.featherGroup);
+    if (this.coinGroup) list.push(this.coinGroup);
+    if (this.corkGroup) list.push(this.corkGroup);
+    return list;
   }
 
   /**

@@ -121,7 +121,8 @@ export class PlayerController {
     window.addEventListener('mousedown', (e) => {
       if (this.isLocked || !this.enabled) return;
       // 任意位置右键，或在画布上左键
-      if (e.button === 2 || (e.button === 0 && e.target === this.domElement)) {
+      const isTargetCanvas = e.target === this.domElement || (typeof Node !== 'undefined' && e.target instanceof Node && this.domElement.contains(e.target));
+      if (e.button === 2 || (e.button === 0 && isTargetCanvas)) {
         blurActiveInput(true);
         isDragging = true;
         dragButton = e.button;
@@ -137,7 +138,8 @@ export class PlayerController {
         const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
         isDragging = false;
         // 若在画布上是单纯的左键点击（无拖拽）且允许指针锁定，则请求锁定指针
-        if (dragButton === 0 && dist < 6 && e.target === this.domElement) {
+        const isTargetCanvas = e.target === this.domElement || (typeof Node !== 'undefined' && e.target instanceof Node && this.domElement.contains(e.target));
+        if (dragButton === 0 && dist < 6 && isTargetCanvas) {
           if (this.enabled && this.allowPointerLock) {
             this.requestLock();
           }

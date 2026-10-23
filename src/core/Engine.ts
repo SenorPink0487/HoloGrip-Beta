@@ -138,6 +138,7 @@ export class Engine {
   private raycaster = new THREE.Raycaster();
   private centerScreen = new THREE.Vector2(0, 0);
   private lastPointerPos: THREE.Vector2 | null = null;
+  private cachedCanvasRect: { left: number; top: number; width: number; height: number } | null = null;
   private currentHoveredTarget: string | null = null;
   private isExperimentInteracting = false;
   private labPointers = new LabPointerSession();
@@ -213,6 +214,30 @@ export class Engine {
     this.renderer.localClippingEnabled = true;
 
     this.container.appendChild(this.renderer.domElement);
+    this.updateCachedCanvasRect();
+  }
+
+  private updateCachedCanvasRect(): void {
+    if (this.renderer?.domElement && typeof this.renderer.domElement.getBoundingClientRect === 'function') {
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      if (rect && (rect.width > 0 || rect.height > 0)) {
+        this.cachedCanvasRect = {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        };
+        return;
+      }
+    }
+    const w = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1920;
+    const h = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 1080;
+    this.cachedCanvasRect = {
+      left: 0,
+      top: 0,
+      width: w,
+      height: h,
+    };
   }
 
   private initCSS3DRenderer(): void {
@@ -559,7 +584,7 @@ export class Engine {
   }
 
   private hidePourStream(): void {
-    if (this.pourStreamMesh) {
+    if (this.pourStreamMesh && this.pourStreamMesh.visible) {
       this.pourStreamMesh.visible = false;
     }
   }
@@ -601,7 +626,9 @@ export class Engine {
   }
 
   private hidePourVolumeBadge(): void {
-    this.pourVolumeBadgeEl?.classList.remove('visible');
+    if (this.pourVolumeBadgeEl?.classList.contains('visible')) {
+      this.pourVolumeBadgeEl.classList.remove('visible');
+    }
   }
 
   private initControls(): void {
@@ -1309,11 +1336,6 @@ export class Engine {
       }
       this.inputManager?.touch?.setVisionLauncherVisible(true);
       this.visionModal.setCurrentExperimentId(id);
-      if (id === 'mech-newton-cannon') {
-        this.visionModal.open('mechanics');
-      } else if (id === 'thermo-carnot') {
-        this.visionModal.open('thermo');
-      }
       this.hud.setActiveExperiment(experiment, this.currentContext);
       this.holoStage.setStageVisible(true);
       if (this.renderer?.shadowMap?.enabled) {
@@ -1397,22 +1419,27 @@ export class Engine {
     }
   }
 
-  public getScreenNDC(clientX: number, clientY: number): THREE.Vector2 {
+  public getScreenNDC(clientX: number, clientY: number, target?: THREE.Vector2): THREE.Vector2 {
+    const out = target ?? new THREE.Vector2();
     const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
     if (isPointerLocked) {
-      return this.centerScreen;
+      return out.copy(this.centerScreen);
     }
-    const canvas = this.renderer?.domElement;
-    const rect = canvas?.getBoundingClientRect();
+    if (!this.cachedCanvasRect) {
+      this.updateCachedCanvasRect();
+    }
+    const rect = this.cachedCanvasRect;
     if (rect && rect.width > 0 && rect.height > 0) {
-      return new THREE.Vector2(
+      return out.set(
         ((clientX - rect.left) / rect.width) * 2 - 1,
         -((clientY - rect.top) / rect.height) * 2 + 1
       );
     }
-    return new THREE.Vector2(
-      (clientX / window.innerWidth) * 2 - 1,
-      -(clientY / window.innerHeight) * 2 + 1
+    const w = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1;
+    const h = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 1;
+    return out.set(
+      (clientX / w) * 2 - 1,
+      -(clientY / h) * 2 + 1
     );
   }
 
@@ -1670,9 +1697,12 @@ export class Engine {
     this.labPointers.claim(event, this.renderer.domElement);
     this.lastPointerPos = this.getScreenNDC(event.clientX, event.clientY);
     this.isExperimentInteracting = true;
-    this.inputManager.player.enabled = false;
-    this.inputManager.player.allowPointerLock = false;
-    this.crosshair?.setVisible(false);
+    const isLocked = this.inputManager?.player?.isLocked ?? false;
+    if (!isLocked) {
+      this.inputManager.player.enabled = false;
+      this.inputManager.player.allowPointerLock = false;
+      this.crosshair?.setVisible(false);
+    }
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
   }
@@ -1891,24 +1921,19 @@ export class Engine {
       if (!this.lastPointerPos) {
         this.lastPointerPos = new THREE.Vector2();
       }
-      this.lastPointerPos.copy(this.getScreenNDC(e.clientX, e.clientY));
+      this.getScreenNDC(e.clientX, e.clientY, this.lastPointerPos);
 
       const now = performance.now();
-      const shouldThrottleRaycast = (now - this.lastPointerRaycastTime) < 7.5;
+      const shouldThrottleRaycast = (now - this.lastPointerRaycastTime) < 16;
 
       if (
         !this.visionModal?.visible &&
         !shouldThrottleRaycast &&
-        (this.isExperimentInteracting || Boolean(this.holoStage.activeExperiment?.onPointerMove)) &&
+        (this.isExperimentInteracting || this.isFreeCursorExperiment(this.currentExperimentId)) &&
         this.holoStage.activeExperiment?.onPointerMove
       ) {
         this.lastPointerRaycastTime = now;
-        const isLocked = this.inputManager?.player?.isLocked ?? false;
-        const screenPos = isLocked ? this.centerScreen : this.lastPointerPos;
-        this.raycaster.setFromCamera(screenPos, this.camera);
-        const hits = this.raycaster.intersectObjects(this.holoStage.activeExperiment.rootGroup.children, true);
-        const hit = hits.length > 0 ? hits[0] : null;
-        this.holoStage.activeExperiment.onPointerMove(e, hit, this.currentContext);
+        this.holoStage.activeExperiment.onPointerMove(e, null, this.currentContext);
       }
 
       if (!this.beakerDragState) return;
@@ -2113,6 +2138,7 @@ export class Engine {
     if (this.renderer.shadowMap.enabled) {
       this.renderer.shadowMap.needsUpdate = true;
     }
+    this.updateCachedCanvasRect();
   }
 
   private checkCrosshairIntersection(now: number): void {
@@ -2135,11 +2161,14 @@ export class Engine {
     this.lastCrosshairCheck = now;
 
     const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
-    let targetType = this.getInteractiveTargetAt(freeCursor && this.lastPointerPos ? this.lastPointerPos : this.centerScreen);
+    let targetType: 'beaker-left' | 'beaker-right' | 'beaker' | 'holo-table' | null = null;
+    if (!this.currentExperimentId) {
+      targetType = this.getInteractiveTargetAt(freeCursor && this.lastPointerPos ? this.lastPointerPos : this.centerScreen);
 
-    // 若未锁定指针且屏幕中心准星未命中，检查自由鼠标指针位置
-    if (!freeCursor && !targetType && !isPointerLocked && this.lastPointerPos) {
-      targetType = this.getInteractiveTargetAt(this.lastPointerPos);
+      // 若未锁定指针且屏幕中心准星未命中，检查自由鼠标指针位置
+      if (!freeCursor && !targetType && !isPointerLocked && this.lastPointerPos) {
+        targetType = this.getInteractiveTargetAt(this.lastPointerPos);
+      }
     }
 
     const hovered = targetType !== null;
@@ -2157,9 +2186,15 @@ export class Engine {
 
     // 若未悬停于烧杯，查询当前实验中可悬停的器材
     if (!hovered && this.holoStage.activeExperiment?.getHoverTarget) {
-      const screenPos = (!isPointerLocked && this.lastPointerPos) ? this.lastPointerPos : this.centerScreen;
-      this.raycaster.setFromCamera(screenPos, this.camera);
-      const expHover = this.holoStage.activeExperiment.getHoverTarget(this.raycaster);
+      const primaryPos = (freeCursor && this.lastPointerPos) ? this.lastPointerPos : this.centerScreen;
+      this.raycaster.setFromCamera(primaryPos, this.camera);
+      let expHover = this.holoStage.activeExperiment.getHoverTarget(this.raycaster);
+
+      if (!expHover && !freeCursor && !isPointerLocked && this.lastPointerPos) {
+        this.raycaster.setFromCamera(this.lastPointerPos, this.camera);
+        expHover = this.holoStage.activeExperiment.getHoverTarget(this.raycaster);
+      }
+
       if (expHover) {
         this.currentHoveredTarget = expHover.id;
         if (!freeCursor) this.crosshair.setHovered(true, expHover.label);

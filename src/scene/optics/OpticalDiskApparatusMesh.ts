@@ -1544,6 +1544,12 @@ export class OpticalDiskApparatusMesh {
     this.updateOpticalPaths();
   }
 
+  public getInteractiveObjects(): THREE.Object3D[] {
+    const list: THREE.Object3D[] = [];
+    if (this.laserCarriageGroup) list.push(this.laserCarriageGroup);
+    return list;
+  }
+
   /**
    * 深度释放 GPU 资源
    */

@@ -378,6 +378,8 @@ export class CapacitorDischargeBenchMesh {
   private lastRenderedPowerCurrent = -99999;
   private lastRenderedPowerSwitchPos: SwitchPosition = 'neutral';
   private lastSwitchPos: SwitchPosition = 'neutral';
+  private lastSensorRenderTime = 0;
+  private lastRenderedSensorStr = '';
   private pulsePhase = 0;
   private currentVoltageSupply = 3.0;
 
@@ -2193,8 +2195,8 @@ export class CapacitorDischargeBenchMesh {
     const screenW = 0.174;
     const screenH = 0.088;
     this.scopeDisplayCanvas = document.createElement('canvas');
-    this.scopeDisplayCanvas.width = 1280;
-    this.scopeDisplayCanvas.height = 640;
+    this.scopeDisplayCanvas.width = 640;
+    this.scopeDisplayCanvas.height = 320;
     this.scopeDisplayTexture = new THREE.CanvasTexture(this.scopeDisplayCanvas);
     this.scopeDisplayTexture.colorSpace = THREE.SRGBColorSpace;
     this.renderOscilloscopeDisplay(undefined, []);
@@ -2418,10 +2420,6 @@ export class CapacitorDischargeBenchMesh {
 
     // 3.2 绘制高保真真实物理实时波形 (Physical Real-time Waveform)
     ctx.save();
-    ctx.strokeStyle = '#ffe600';
-    ctx.lineWidth = 4.4;
-    ctx.shadowColor = 'rgba(255, 230, 0, 0.70)';
-    ctx.shadowBlur = 10;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
@@ -2470,6 +2468,12 @@ export class CapacitorDischargeBenchMesh {
       liveY = curScreenY;
     }
 
+    // 采用双重描边实现高亮荧光辉光，彻底消除 CPU 软件高斯模糊 shadowBlur
+    ctx.strokeStyle = 'rgba(255, 230, 0, 0.25)';
+    ctx.lineWidth = 5.0;
+    ctx.stroke();
+    ctx.strokeStyle = '#ffe600';
+    ctx.lineWidth = 2.4;
     ctx.stroke();
     ctx.restore();
 
@@ -2661,7 +2665,9 @@ export class CapacitorDischargeBenchMesh {
       chargePos[i * 3 + 2] = pt.z;
     }
     this.chargeParticleGeometry = new THREE.BufferGeometry();
-    this.chargeParticleGeometry.setAttribute('position', new THREE.BufferAttribute(chargePos, 3));
+    const chargeAttr = new THREE.BufferAttribute(chargePos, 3);
+    chargeAttr.setUsage(THREE.DynamicDrawUsage);
+    this.chargeParticleGeometry.setAttribute('position', chargeAttr);
 
     const chargeParticleMat = new THREE.PointsMaterial({
       color: 0x38bdf8,
@@ -2686,7 +2692,9 @@ export class CapacitorDischargeBenchMesh {
       dischargePos[i * 3 + 2] = pt.z;
     }
     this.dischargeParticleGeometry = new THREE.BufferGeometry();
-    this.dischargeParticleGeometry.setAttribute('position', new THREE.BufferAttribute(dischargePos, 3));
+    const dischargeAttr = new THREE.BufferAttribute(dischargePos, 3);
+    dischargeAttr.setUsage(THREE.DynamicDrawUsage);
+    this.dischargeParticleGeometry.setAttribute('position', dischargeAttr);
 
     const dischargeParticleMat = new THREE.PointsMaterial({
       color: 0xf59e0b,
@@ -2825,12 +2833,14 @@ export class CapacitorDischargeBenchMesh {
     this.addOrthogonalWire(pts, color, radius);
   }
 
-  private getSplinesPoint(splines: THREE.Curve<THREE.Vector3>[], globalU: number): THREE.Vector3 {
+  private splinePointScratch = new THREE.Vector3();
+
+  private getSplinesPoint(splines: THREE.Curve<THREE.Vector3>[], globalU: number, target?: THREE.Vector3): THREE.Vector3 {
     const n = splines.length;
     const scaled = ((globalU % 1) + 1) % 1 * n;
     const idx = Math.min(Math.floor(scaled), n - 1);
     const localU = scaled - idx;
-    return splines[idx].getPoint(localU);
+    return splines[idx].getPoint(localU, target ?? this.splinePointScratch);
   }
 
   // ================= 8. 标牌 =================
@@ -2904,15 +2914,24 @@ export class CapacitorDischargeBenchMesh {
       const vol = telemetry.voltageCapacitor;
       const supply = telemetry.voltageSupply;
 
-      if (Math.abs(cur - this.lastRenderedCurrent) > 0.005 || telemetry.switchPosition !== this.lastSwitchPos) {
+      const now = performance.now();
+      const isSwitchChanged = telemetry.switchPosition !== this.lastSwitchPos;
+      const isSensorTime = (now - this.lastSensorRenderTime) >= 33;
+      const curStr = cur.toFixed(2);
+
+      if ((isSensorTime && curStr !== this.lastRenderedSensorStr) || isSwitchChanged) {
+        this.lastSensorRenderTime = now;
+        this.lastRenderedSensorStr = curStr;
         this.lastRenderedCurrent = cur;
+        this.lastSwitchPos = telemetry.switchPosition;
         this.renderCurrentSensorDisplay(cur);
       }
-      const isSwitchChanged = telemetry.switchPosition !== this.lastRenderedPowerSwitchPos;
+
+      const isPowerSwitchChanged = telemetry.switchPosition !== this.lastRenderedPowerSwitchPos;
       if (
         Math.abs(supply - this.lastRenderedSupply) > 0.05 ||
-        Math.abs(cur - this.lastRenderedPowerCurrent) > 0.05 ||
-        isSwitchChanged
+        isPowerSwitchChanged ||
+        (isSensorTime && Math.abs(cur - this.lastRenderedPowerCurrent) > 0.1)
       ) {
         this.lastRenderedSupply = supply;
         this.lastRenderedPowerCurrent = cur;
@@ -2947,7 +2966,7 @@ export class CapacitorDischargeBenchMesh {
 
           for (let i = 0; i < count; i++) {
             this.chargeParticleProgress[i] = (this.chargeParticleProgress[i] + delta * flowSpeed) % 1.0;
-            const pt = this.getSplinesPoint(this.chargeWireSplines, this.chargeParticleProgress[i]);
+            const pt = this.getSplinesPoint(this.chargeWireSplines, this.chargeParticleProgress[i], this.splinePointScratch);
             posAttr.setXYZ(i, pt.x, pt.y, pt.z);
           }
           posAttr.needsUpdate = true;
@@ -2967,7 +2986,7 @@ export class CapacitorDischargeBenchMesh {
 
           for (let i = 0; i < count; i++) {
             this.dischargeParticleProgress[i] = (this.dischargeParticleProgress[i] + delta * flowSpeed) % 1.0;
-            const pt = this.getSplinesPoint(this.dischargeWireSplines, this.dischargeParticleProgress[i]);
+            const pt = this.getSplinesPoint(this.dischargeWireSplines, this.dischargeParticleProgress[i], this.splinePointScratch);
             posAttr.setXYZ(i, pt.x, pt.y, pt.z);
           }
           posAttr.needsUpdate = true;
@@ -2978,13 +2997,12 @@ export class CapacitorDischargeBenchMesh {
 
       // 7. 实时更新桌面示波器小屏幕波形（30 FPS 丝滑物理 Roll 滚动）
       if (samples) {
-        const now = performance.now();
         const timeDiff = now - this.scopeLastRenderTime;
-        const curChanged = Math.abs(cur - this.scopeLastCurrent) > 0.01;
-        const volChanged = Math.abs(vol - this.scopeLastVoltage) > 0.01;
+        const curChanged = Math.abs(cur - this.scopeLastCurrent) > 0.02;
+        const volChanged = Math.abs(vol - this.scopeLastVoltage) > 0.02;
         const posChanged = telemetry.switchPosition !== this.scopeLastPos;
 
-        if (posChanged || curChanged || volChanged || timeDiff >= 33) {
+        if (posChanged || (timeDiff >= 33 && (curChanged || volChanged || timeDiff >= 100))) {
           this.scopeLastSampleCount = samples.length;
           this.scopeLastCurrent = cur;
           this.scopeLastVoltage = vol;
@@ -3092,6 +3110,23 @@ export class CapacitorDischargeBenchMesh {
     if (this.labelsGroup) {
       this.labelsGroup.visible = false;
     }
+  }
+
+  public getInteractiveObjects(): THREE.Object3D[] {
+    const list: THREE.Object3D[] = [];
+    if (this.switchKnifeMesh) list.push(this.switchKnifeMesh);
+    if (this.switchHandleMesh) list.push(this.switchHandleMesh);
+    if (this.switchLeftContactMesh) list.push(this.switchLeftContactMesh);
+    if (this.switchRightContactMesh) list.push(this.switchRightContactMesh);
+    if (this.spdtSwitchGroup) list.push(this.spdtSwitchGroup);
+    if (this.powerKnobMesh) list.push(this.powerKnobMesh);
+    if (this.batteryPackGroup) list.push(this.batteryPackGroup);
+    if (this.rheostatSliderGroup) list.push(this.rheostatSliderGroup);
+    if (this.rheostatGroup) list.push(this.rheostatGroup);
+    if (this.capacitorGroup) list.push(this.capacitorGroup);
+    if (this.currentSensorGroup) list.push(this.currentSensorGroup);
+    if (this.scopeScreenMesh) list.push(this.scopeScreenMesh);
+    return list;
   }
 
   public dispose(): void {

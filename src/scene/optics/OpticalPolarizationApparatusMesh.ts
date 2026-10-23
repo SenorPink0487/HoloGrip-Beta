@@ -3475,6 +3475,17 @@ export class OpticalPolarizationApparatusMesh {
     };
   }
 
+  public getInteractiveObjects(): THREE.Object3D[] {
+    const list: THREE.Object3D[] = [];
+    if (this.emitterGroup) list.push(this.emitterGroup);
+    if (this.brewsterGroup) list.push(this.brewsterGroup);
+    if (this.polarizerStageGroup) list.push(this.polarizerStageGroup);
+    if (this.analyzerStageGroup) list.push(this.analyzerStageGroup);
+    if (this.sampleStageGroup) list.push(this.sampleStageGroup);
+    if (this.screenCarrierGroup) list.push(this.screenCarrierGroup);
+    return list;
+  }
+
   public dispose(): void {
     this.group.traverse((obj) => {
       const mesh = obj as THREE.Mesh;

@@ -27,6 +27,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
   private dragPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private dragPlaneIntersection = new THREE.Vector3();
   private lastHoveredTarget: string | null = null;
+  private internalRaycaster = new THREE.Raycaster();
 
   // 遥测缓存
   private telemetry!: GalileoTelemetry;
@@ -87,7 +88,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
       };
     }
 
-    const hits = raycaster.intersectObjects(this.bench.group.children, true);
+    const hits = raycaster.intersectObjects(this.bench.getInteractiveObjects(), true);
     if (hits.length === 0) {
       if (this.lastHoveredTarget) {
         this.bench.setHandleHovered(null);
@@ -209,7 +210,7 @@ export default class MechGalileoExperiment extends BaseExperiment {
 
     const mouse = labPointerNDC(event, context.renderer?.domElement);
 
-    const raycaster = new THREE.Raycaster();
+    const raycaster = this.internalRaycaster;
     raycaster.setFromCamera(mouse, context.camera);
 
     this.dragPlane.setFromNormalAndCoplanarPoint(

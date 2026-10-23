@@ -596,6 +596,10 @@ export class GalileoBenchMesh {
     return this.leftReleaseGateMesh;
   }
 
+  public getInteractiveObjects(): THREE.Object3D[] {
+    return [this.leftTipHandleGroup, this.rightTipHandleGroup, this.ballMesh];
+  }
+
   public dispose(): void {
     disposeObjectTree(this.group);
   }

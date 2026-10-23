@@ -21,6 +21,11 @@ export class CapacitorInteractionManager {
   private dragStartPointerPos = new THREE.Vector2();
   private hasDragged = false;
   private switchAccumX = 0;
+  private scratchNDC = new THREE.Vector2();
+  private scratchRaycaster = new THREE.Raycaster();
+  private scratchHitPoint = new THREE.Vector3();
+  private scratchRodPos = new THREE.Vector3();
+  private scratchCamDir = new THREE.Vector3();
 
   constructor(callbacks: CapacitorInteractionCallbacks) {
     this.callbacks = callbacks;
@@ -53,7 +58,10 @@ export class CapacitorInteractionManager {
       };
     }
 
-    const hits = raycaster.intersectObject(this.callbacks.bench.group, true);
+    const targets = typeof this.callbacks.bench.getInteractiveObjects === 'function'
+      ? this.callbacks.bench.getInteractiveObjects()
+      : [this.callbacks.bench.group];
+    const hits = raycaster.intersectObjects(targets, true);
 
     if (hits.length > 0) {
       let obj: THREE.Object3D | null = hits[0].object;
@@ -245,16 +253,14 @@ export class CapacitorInteractionManager {
         this.hasDragged = false;
 
         // 构造正对相机朝向、经过滑杆轴线的拖拽平面
-        const rodWorldPos = new THREE.Vector3();
         if (this.callbacks.bench.rheostatSliderGroup) {
-          this.callbacks.bench.rheostatSliderGroup.getWorldPosition(rodWorldPos);
+          this.callbacks.bench.rheostatSliderGroup.getWorldPosition(this.scratchRodPos);
         } else {
-          rodWorldPos.copy(hit.point);
+          this.scratchRodPos.copy(hit.point);
         }
 
-        const camDir = new THREE.Vector3();
-        context.camera.getWorldDirection(camDir);
-        this.dragPlane.setFromNormalAndCoplanarPoint(camDir.clone().negate(), rodWorldPos);
+        context.camera.getWorldDirection(this.scratchCamDir);
+        this.dragPlane.setFromNormalAndCoplanarPoint(this.scratchCamDir.negate(), this.scratchRodPos);
 
         // 若直接点击在瓷管线圈表面，快速定位滑块至点击位置
         const localHit = this.callbacks.bench.rheostatGroup.worldToLocal(hit.point.clone());
@@ -309,23 +315,19 @@ export class CapacitorInteractionManager {
         return;
       }
 
-      // 未锁定模式：使用 3D 射线与投影平面精确求交
-      const rect = context.renderer?.domElement?.getBoundingClientRect();
-      const mouseNDC = new THREE.Vector2();
-      if (rect && rect.width > 0 && rect.height > 0) {
-        mouseNDC.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        mouseNDC.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      } else {
-        mouseNDC.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouseNDC.y = -(event.clientY / window.innerHeight) * 2 + 1;
-      }
+      // 未锁定模式：使用 3D 射线与投影平面精确求交（复用 scratch 变量，消除 DOM 重排与内存垃圾）
+      const canvas = context.renderer?.domElement;
+      const w = canvas?.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 1);
+      const h = canvas?.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 1);
+      this.scratchNDC.set(
+        (event.clientX / w) * 2 - 1,
+        -(event.clientY / h) * 2 + 1
+      );
 
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(mouseNDC, context.camera);
+      this.scratchRaycaster.setFromCamera(this.scratchNDC, context.camera);
 
-      const hitPoint = new THREE.Vector3();
-      if (raycaster.ray.intersectPlane(this.dragPlane, hitPoint)) {
-        const localHit = this.callbacks.bench.rheostatGroup.worldToLocal(hitPoint);
+      if (this.scratchRaycaster.ray.intersectPlane(this.dragPlane, this.scratchHitPoint)) {
+        const localHit = this.callbacks.bench.rheostatGroup.worldToLocal(this.scratchHitPoint);
         const minX = -0.050;
         const maxX = 0.050;
         const clampedX = Math.max(minX, Math.min(maxX, localHit.x));

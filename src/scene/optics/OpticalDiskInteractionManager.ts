@@ -43,7 +43,10 @@ export class OpticalDiskInteractionManager {
       };
     }
 
-    const hits = raycaster.intersectObjects(this.apparatus.group.children, true);
+    const targets = typeof (this.apparatus as any).getInteractiveObjects === 'function'
+      ? (this.apparatus as any).getInteractiveObjects()
+      : this.apparatus.group.children;
+    const hits = raycaster.intersectObjects(targets, true);
     if (hits.length === 0) {
       this.isHovered = false;
       return null;

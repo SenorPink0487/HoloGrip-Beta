@@ -42,6 +42,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
 
   // 当前悬停高亮测力计
   private currentHoveredDynamometer: 'solo' | 'A' | 'B' | null = null;
+  private internalRaycaster = new THREE.Raycaster();
 
   public init(_context: ExperimentContext): void {
     // 根节点定位至台前近景工作台视界 (Y=0.08, Z=1.30)
@@ -153,7 +154,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     if (context.camera) {
       this.getBenchWorldPlane(this.dragPlane);
       const mouse = this.getNormalizedMouse(event, context);
-      const raycaster = new THREE.Raycaster();
+      const raycaster = this.internalRaycaster;
       raycaster.setFromCamera(mouse, context.camera);
 
       if (raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
@@ -178,7 +179,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     if (context.camera) {
       this.getBenchWorldPlane(this.dragPlane);
       const mouse = this.getNormalizedMouse(event, context);
-      const raycaster = new THREE.Raycaster();
+      const raycaster = this.internalRaycaster;
       raycaster.setFromCamera(mouse, context.camera);
 
       if (raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
@@ -201,7 +202,7 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
 
     this.getBenchWorldPlane(this.dragPlane);
     const mouse = this.getNormalizedMouse(event, context);
-    const raycaster = new THREE.Raycaster();
+    const raycaster = this.internalRaycaster;
     raycaster.setFromCamera(mouse, context.camera);
 
     if (!raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
@@ -270,7 +271,8 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
   public override getHoverTarget(
     raycaster: THREE.Raycaster
   ): { id: string; label: string; cursor?: string } | null {
-    const hits = raycaster.intersectObjects(this.rootGroup.children, true);
+    const targets = [this.bench.dynamometerB.group, this.bench.dynamometerA.group, this.bench.soloDynamometer.group];
+    const hits = raycaster.intersectObjects(targets, true);
     if (hits.length === 0) {
       this.clearHoverHighlight();
       return null;

@@ -85,7 +85,10 @@ export default class MechFreeFallExperiment extends BaseExperiment {
   } | null {
     if (this.isDisposed) return null;
 
-    const hits = raycaster.intersectObjects(this.mesh.group.children, true);
+    const targets = typeof this.mesh.getInteractiveObjects === 'function'
+      ? this.mesh.getInteractiveObjects()
+      : this.mesh.group.children;
+    const hits = raycaster.intersectObjects(targets, true);
     if (hits.length === 0) {
       if (this.lastHoveredTarget) {
         this.mesh.setRotateButtonHovered(false);

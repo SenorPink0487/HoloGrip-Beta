@@ -1,17 +1,49 @@
 import * as THREE from 'three';
 
+interface CachedRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  time: number;
+}
+let cachedCanvasRef: any = null;
+let cachedRect: CachedRect | null = null;
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => { cachedRect = null; }, { passive: true });
+}
+
 export function labPointerNDC(
   event: { clientX: number; clientY: number },
-  canvas?: Pick<HTMLElement, 'getBoundingClientRect'>
+  canvas?: Pick<HTMLElement, 'getBoundingClientRect'>,
+  target?: THREE.Vector2
 ): THREE.Vector2 {
+  const out = target ?? new THREE.Vector2();
   // iPadOS may omit Pointer Lock entirely (undefined), which is not a lock.
-  if (typeof document !== 'undefined' && document.pointerLockElement != null) return new THREE.Vector2();
-  const rect = canvas?.getBoundingClientRect();
-  const width = rect?.width || (typeof window !== 'undefined' ? window.innerWidth : 1920);
-  const height = rect?.height || (typeof window !== 'undefined' ? window.innerHeight : 1080);
-  return new THREE.Vector2(
-    ((event.clientX - (rect?.left ?? 0)) / width) * 2 - 1,
-    -((event.clientY - (rect?.top ?? 0)) / height) * 2 + 1
+  if (typeof document !== 'undefined' && document.pointerLockElement != null) return out.set(0, 0);
+
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (canvas !== cachedCanvasRef || !cachedRect || now - cachedRect.time > 500) {
+    cachedCanvasRef = canvas;
+    if (canvas && typeof canvas.getBoundingClientRect === 'function') {
+      const rect = canvas.getBoundingClientRect();
+      if (rect && (rect.width > 0 || rect.height > 0)) {
+        cachedRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height, time: now };
+      }
+    }
+    if (!cachedRect) {
+      const width = typeof window !== 'undefined' && window.innerWidth ? window.innerWidth : 1920;
+      const height = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 1080;
+      cachedRect = { left: 0, top: 0, width, height, time: now };
+    }
+  }
+
+  const width = cachedRect.width || 1;
+  const height = cachedRect.height || 1;
+  return out.set(
+    ((event.clientX - cachedRect.left) / width) * 2 - 1,
+    -((event.clientY - cachedRect.top) / height) * 2 + 1
   );
 }
 

@@ -272,11 +272,20 @@ export class RetortStandMesh {
       this.snapAuraMesh.scale.setScalar(1.35);
 
       if (targetHolePos) {
-        const positions = new Float32Array([
-          this.pinLocalPosition.x, this.pinLocalPosition.y, this.pinLocalPosition.z,
-          targetHolePos.x, targetHolePos.y, targetHolePos.z,
-        ]);
-        this.snapTargetGuide.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        let posAttr = this.snapTargetGuide.geometry.getAttribute('position') as THREE.BufferAttribute;
+        if (!posAttr) {
+          posAttr = new THREE.BufferAttribute(new Float32Array(6), 3);
+          posAttr.setUsage(THREE.DynamicDrawUsage);
+          this.snapTargetGuide.geometry.setAttribute('position', posAttr);
+        }
+        const positions = posAttr.array as Float32Array;
+        positions[0] = this.pinLocalPosition.x;
+        positions[1] = this.pinLocalPosition.y;
+        positions[2] = this.pinLocalPosition.z;
+        positions[3] = targetHolePos.x;
+        positions[4] = targetHolePos.y;
+        positions[5] = targetHolePos.z;
+        posAttr.needsUpdate = true;
         this.snapTargetGuide.computeLineDistances();
         this.snapGuideMaterial.opacity = 0.9;
         this.snapTargetGuide.visible = true;

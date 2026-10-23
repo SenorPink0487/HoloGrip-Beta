@@ -197,6 +197,7 @@ const allPhysicsExperiments = [
   'optics-dispersion',
   'optics-polarization',
   'optics-reflection-refraction',
+  'thermo-carnot',
 ];
 
 const { Engine } = await import('../src/core/Engine.ts');
@@ -213,13 +214,14 @@ for (const expId of allPhysicsExperiments) {
   );
 }
 
+// Math stereometry remains the dedicated free cursor mode
 assert.strictEqual(
   engine.isFreeCursorExperiment('math-stereometry'),
   true,
-  'Math stereometry retains its free cursor mode'
+  'Math stereometry must remain dedicated free cursor mode'
 );
 
-console.log('✓ Test 5 passed: All 12 physics experiments checked against their actual interaction hooks\n');
+console.log('✓ Test 5 passed: All 14 physics experiments checked against their actual interaction hooks\n');
 
 console.log('Test 6: iPad Touch Mode Never Shows a Crosshair');
 const touchCrosshair = new Crosshair(body, true);

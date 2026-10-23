@@ -19,11 +19,8 @@ export class CarnotStatusCard {
   private valHotEl: HTMLElement | null = null;
   private valColdEl: HTMLElement | null = null;
   private valEffEl: HTMLElement | null = null;
-  private valQhEl: HTMLElement | null = null;
-  private valQcEl: HTMLElement | null = null;
+  private valWorkEl: HTMLElement | null = null;
   private valStateEl: HTMLElement | null = null;
-  private valTempNowEl: HTMLElement | null = null;
-  private valStageNowEl: HTMLElement | null = null;
 
   private sliderHot: HTMLInputElement | null = null;
   private sliderCold: HTMLInputElement | null = null;
@@ -71,7 +68,7 @@ export class CarnotStatusCard {
           width: 100%;
           height: 100%;
           min-height: 480px;
-          padding: 24px;
+          padding: 28px;
           box-sizing: border-box;
         }
 
@@ -88,11 +85,11 @@ export class CarnotStatusCard {
 
         .apple-physics-layout {
           width: 100%;
-          max-width: 1040px;
+          max-width: 1020px;
           display: grid;
-          grid-template-columns: 390px 1fr;
-          gap: 20px;
-          align-items: start;
+          grid-template-columns: 380px 1fr;
+          gap: 22px;
+          align-items: stretch;
           font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
           user-select: none;
           -webkit-user-select: none;
@@ -102,6 +99,7 @@ export class CarnotStatusCard {
         .apple-physics-panel {
           display: flex;
           flex-direction: column;
+          justify-content: space-between;
           gap: 14px;
         }
 
@@ -109,16 +107,16 @@ export class CarnotStatusCard {
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-top: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 18px;
+          border-radius: 20px;
           overflow: hidden;
           box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
         }
 
         .apple-physics-row {
-          padding: 13px 18px;
+          padding: 16px 20px;
           display: flex;
           flex-direction: column;
-          gap: 5px;
+          gap: 6px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
@@ -129,18 +127,18 @@ export class CarnotStatusCard {
         .apple-physics-row-header {
           display: flex;
           justify-content: space-between;
-          align-items: baseline;
+          align-items: center;
         }
 
         .apple-physics-label {
-          font-size: 13.5px;
+          font-size: 14px;
           font-weight: 500;
           color: rgba(255, 255, 255, 0.68);
           letter-spacing: -0.15px;
         }
 
         .apple-physics-readout {
-          font-size: 14.5px;
+          font-size: 15px;
           font-weight: 600;
           color: #ffffff;
           font-variant-numeric: tabular-nums;
@@ -155,7 +153,7 @@ export class CarnotStatusCard {
           border-radius: 9999px;
           outline: none;
           cursor: pointer;
-          margin: 6px 0 2px 0;
+          margin: 8px 0 3px 0;
           background: rgba(255, 255, 255, 0.14);
           transition: background 0.08s ease;
         }
@@ -197,144 +195,123 @@ export class CarnotStatusCard {
           display: flex;
           justify-content: space-between;
           font-size: 11px;
-          color: rgba(255, 255, 255, 0.35);
+          color: rgba(255, 255, 255, 0.3);
           font-variant-numeric: tabular-nums;
           font-weight: 400;
         }
 
         .apple-btn-secondary {
           width: 100%;
-          height: 42px;
-          border-radius: 12px;
-          background: rgba(255, 255, 255, 0.06);
-          color: rgba(255, 255, 255, 0.88);
-          font-size: 13px;
-          font-weight: 500;
-          border: 1px solid rgba(255, 255, 255, 0.12);
+          height: 48px;
+          border-radius: 18px;
+          background: rgba(255, 255, 255, 0.05);
+          color: #ffffff;
+          font-size: 15px;
+          font-weight: 600;
+          letter-spacing: 0.3px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
           border-top: 1px solid rgba(255, 255, 255, 0.2);
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 6px;
           transition: transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease;
         }
 
         .apple-btn-secondary:hover {
           background: rgba(255, 255, 255, 0.12);
-          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.18);
+          border-top-color: rgba(255, 255, 255, 0.32);
           transform: translate3d(0, -1px, 0) scale(1.015);
         }
 
         .apple-btn-secondary:active {
-          transform: translate3d(0, 0, 0) scale(0.95);
+          transform: translate3d(0, 0, 0) scale(0.96);
           transition: transform 0.10s cubic-bezier(0.2, 0, 0, 1);
         }
 
         .apple-charts-grid {
           display: flex;
           flex-direction: column;
-          gap: 14px;
+          justify-content: space-between;
+          gap: 16px;
         }
 
         .apple-chart-card {
-          background: rgba(255, 255, 255, 0.045);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-top: 1px solid rgba(255, 255, 255, 0.16);
-          border-radius: 18px;
-          padding: 14px 18px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-top: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 20px;
+          padding: 18px 22px;
           display: flex;
           flex-direction: column;
-          gap: 10px;
-          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
-        }
-
-        .apple-chart-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
+          gap: 14px;
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
         }
 
         .apple-chart-title {
-          font-size: 12.5px;
+          font-size: 14px;
           font-weight: 600;
           color: rgba(255, 255, 255, 0.85);
           letter-spacing: -0.1px;
         }
 
-        .apple-chart-sub {
-          font-size: 11.5px;
-          color: rgba(255, 255, 255, 0.45);
-          font-variant-numeric: tabular-nums;
-        }
-
         .apple-stages-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 8px;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 10px;
         }
 
         .apple-stage-pill {
-          background: rgba(255, 255, 255, 0.035);
-          border: 1px solid rgba(255, 255, 255, 0.07);
-          border-radius: 12px;
-          padding: 10px 12px;
+          height: 48px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 14px;
+          padding: 0 12px;
           display: flex;
-          flex-direction: column;
-          gap: 3px;
-          transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
         }
 
         .apple-stage-pill.active {
-          background: rgba(255, 255, 255, 0.12);
-          border-color: rgba(255, 255, 255, 0.28);
-          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+          background: rgba(255, 255, 255, 0.14);
+          border-color: rgba(255, 255, 255, 0.3);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
 
-        .apple-stage-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 6px;
+        .apple-stage-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.18);
+          flex-shrink: 0;
+          transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .apple-stage-pill.active .apple-stage-dot {
+          background: #0a84ff;
+          box-shadow: 0 0 8px rgba(10, 132, 255, 0.85);
         }
 
         .apple-stage-name {
-          font-size: 12.5px;
+          font-size: 14px;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.78);
+          color: rgba(255, 255, 255, 0.65);
+          white-space: nowrap;
+          letter-spacing: -0.1px;
         }
 
         .apple-stage-pill.active .apple-stage-name {
           color: #ffffff;
         }
 
-        .apple-stage-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.18);
-          transition: background 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .apple-stage-pill.active .apple-stage-dot {
-          background: #0a84ff;
-          box-shadow: 0 0 8px rgba(10, 132, 255, 0.8);
-        }
-
-        .apple-stage-desc {
-          font-size: 11px;
-          color: rgba(255, 255, 255, 0.46);
-          line-height: 1.35;
-        }
-
-        .apple-stage-pill.active .apple-stage-desc {
-          color: rgba(255, 255, 255, 0.72);
-        }
-
         .apple-chart-canvas {
           width: 100%;
           height: auto;
-          max-height: 200px;
+          max-height: 235px;
           border-radius: 8px;
           display: block;
         }
@@ -348,7 +325,7 @@ export class CarnotStatusCard {
             <div class="apple-physics-row">
               <div class="apple-physics-row-header">
                 <span class="apple-physics-label">高温热源 T_h</span>
-                <span id="carnot-val-hot" class="apple-physics-readout">80.0 °C (353.2 K)</span>
+                <span id="carnot-val-hot" class="apple-physics-readout">80.0 °C</span>
               </div>
               <input type="range" class="apple-physics-slider" id="carnot-slider-hot" min="50" max="150" step="1" value="80" />
               <div class="apple-physics-scale">
@@ -361,7 +338,7 @@ export class CarnotStatusCard {
             <div class="apple-physics-row">
               <div class="apple-physics-row-header">
                 <span class="apple-physics-label">低温冷源 T_c</span>
-                <span id="carnot-val-cold" class="apple-physics-readout">20.0 °C (293.2 K)</span>
+                <span id="carnot-val-cold" class="apple-physics-readout">20.0 °C</span>
               </div>
               <input type="range" class="apple-physics-slider" id="carnot-slider-cold" min="0" max="40" step="1" value="20" />
               <div class="apple-physics-scale">
@@ -370,86 +347,68 @@ export class CarnotStatusCard {
               </div>
             </div>
 
-            <!-- 卡诺理论极限效率 η -->
+            <!-- 卡诺效率 η -->
             <div class="apple-physics-row">
               <div class="apple-physics-row-header">
-                <span class="apple-physics-label">卡诺效率 η = 1 - T_c / T_h</span>
-                <span id="carnot-val-eff" class="apple-physics-readout">17.0% · 23.4 J</span>
-              </div>
-              <div class="apple-physics-scale" style="margin-top: 2px;">
-                <span>吸热 Q₁: <b id="carnot-stage-qh" style="color: #ffffff;">138 J</b></span>
-                <span>放热 Q₂: <b id="carnot-stage-qc" style="color: #ffffff;">115 J</b></span>
+                <span class="apple-physics-label">卡诺效率 η</span>
+                <span id="carnot-val-eff" class="apple-physics-readout">17.0%</span>
               </div>
             </div>
 
-            <!-- 气缸工质瞬态状态 -->
+            <!-- 循环净功 W -->
             <div class="apple-physics-row">
               <div class="apple-physics-row-header">
-                <span class="apple-physics-label">气缸工质状态</span>
-                <span id="carnot-pv-readout" class="apple-physics-readout">0.28 MPa · 1.00 L</span>
+                <span class="apple-physics-label">循环净功 W</span>
+                <span id="carnot-val-work" class="apple-physics-readout">23.4 J</span>
               </div>
-              <div class="apple-physics-scale" style="margin-top: 2px;">
-                <span>工质温度: <b id="carnot-val-temp-now" style="color: #ffffff;">80.0 °C</b></span>
-                <span>当前冲程: <b id="carnot-val-stage-now" style="color: #ffffff;">等温膨胀</b></span>
+            </div>
+
+            <!-- 气缸工质状态 -->
+            <div class="apple-physics-row">
+              <div class="apple-physics-row-header">
+                <span class="apple-physics-label">气缸状态</span>
+                <span id="carnot-pv-readout" class="apple-physics-readout">0.28 MPa · 1.00 L</span>
               </div>
             </div>
           </div>
 
           <button class="apple-btn-secondary" id="carnot-btn-reset" type="button">
-            <span>重置基准状态</span>
+            <span>重置</span>
           </button>
         </div>
 
-        <!-- 2. 右侧：卡诺循环的四个过程 + P-V 示功图 -->
+        <!-- 2. 右侧：卡诺循环的四个过程 + 卡诺循环的 P-V 图 -->
         <div class="apple-charts-grid">
           <!-- 卡诺循环的四个过程 -->
           <div class="apple-chart-card">
-            <div class="apple-chart-header">
-              <span class="apple-chart-title">卡诺循环的四个过程</span>
-              <span class="apple-chart-sub">可逆理想热机循环</span>
-            </div>
+            <span class="apple-chart-title">卡诺循环的四个过程</span>
             <div class="apple-stages-grid">
               <div class="apple-stage-pill active" data-stage-card="1">
-                <div class="apple-stage-top">
-                  <span class="apple-stage-name">1. 等温膨胀 (1→2)</span>
-                  <span class="apple-stage-dot"></span>
-                </div>
-                <span class="apple-stage-desc">从高温热源 T_h 吸收热量 Q₁，对外膨胀做功</span>
+                <span class="apple-stage-dot"></span>
+                <span class="apple-stage-name">等温膨胀</span>
               </div>
 
               <div class="apple-stage-pill" data-stage-card="2">
-                <div class="apple-stage-top">
-                  <span class="apple-stage-name">2. 绝热膨胀 (2→3)</span>
-                  <span class="apple-stage-dot"></span>
-                </div>
-                <span class="apple-stage-desc">绝热无热交换 (Q=0)，继续膨胀，温度降至 T_c</span>
+                <span class="apple-stage-dot"></span>
+                <span class="apple-stage-name">绝热膨胀</span>
               </div>
 
               <div class="apple-stage-pill" data-stage-card="3">
-                <div class="apple-stage-top">
-                  <span class="apple-stage-name">3. 等温压缩 (3→4)</span>
-                  <span class="apple-stage-dot"></span>
-                </div>
-                <span class="apple-stage-desc">向低温冷源 T_c 放出热量 Q₂，活塞等温压缩</span>
+                <span class="apple-stage-dot"></span>
+                <span class="apple-stage-name">等温压缩</span>
               </div>
 
               <div class="apple-stage-pill" data-stage-card="4">
-                <div class="apple-stage-top">
-                  <span class="apple-stage-name">4. 绝热压缩 (4→1)</span>
-                  <span class="apple-stage-dot"></span>
-                </div>
-                <span class="apple-stage-desc">绝热无热交换 (Q=0)，继续压缩，温度升回 T_h</span>
+                <span class="apple-stage-dot"></span>
+                <span class="apple-stage-name">绝热压缩</span>
               </div>
             </div>
           </div>
 
           <!-- 卡诺循环的 P-V 图 -->
-          <div class="apple-chart-card">
-            <div class="apple-chart-header">
-              <span class="apple-chart-title">卡诺循环的 P-V 图</span>
-              <span class="apple-chart-sub">W = ∮ P dV = Q₁ - Q₂</span>
-            </div>
-            <canvas id="carnot-pv-canvas" class="apple-chart-canvas" width="520" height="210"></canvas>
+          <div class="apple-chart-card" style="flex: 1; justify-content: space-between;">
+            <span class="apple-chart-title">卡诺循环的 P-V 图</span>
+            <canvas id="carnot-pv-canvas" class="apple-chart-canvas" width="540" height="245"></canvas>
           </div>
         </div>
       </div>
@@ -458,11 +417,8 @@ export class CarnotStatusCard {
     this.valHotEl = this.element.querySelector('#carnot-val-hot');
     this.valColdEl = this.element.querySelector('#carnot-val-cold');
     this.valEffEl = this.element.querySelector('#carnot-val-eff');
-    this.valQhEl = this.element.querySelector('#carnot-stage-qh');
-    this.valQcEl = this.element.querySelector('#carnot-stage-qc');
+    this.valWorkEl = this.element.querySelector('#carnot-val-work');
     this.valStateEl = this.element.querySelector('#carnot-pv-readout');
-    this.valTempNowEl = this.element.querySelector('#carnot-val-temp-now');
-    this.valStageNowEl = this.element.querySelector('#carnot-val-stage-now');
 
     this.sliderHot = this.element.querySelector('#carnot-slider-hot');
     this.sliderCold = this.element.querySelector('#carnot-slider-cold');
@@ -486,14 +442,14 @@ export class CarnotStatusCard {
       onChange: (val: number) => {
         this.updateSliderTrackFill(this.sliderHot, 50, 150, val);
         if (this.valHotEl) {
-          this.valHotEl.textContent = `${val.toFixed(1)} °C (${(val + 273.15).toFixed(1)} K)`;
+          this.valHotEl.textContent = `${val.toFixed(1)} °C`;
         }
         this.callbacks.onHotTempChange?.(val);
       },
       onScrub: (val: number) => {
         this.updateSliderTrackFill(this.sliderHot, 50, 150, val);
         if (this.valHotEl) {
-          this.valHotEl.textContent = `${val.toFixed(1)} °C (${(val + 273.15).toFixed(1)} K)`;
+          this.valHotEl.textContent = `${val.toFixed(1)} °C`;
         }
       },
     });
@@ -503,14 +459,14 @@ export class CarnotStatusCard {
       onChange: (val: number) => {
         this.updateSliderTrackFill(this.sliderCold, 0, 40, val);
         if (this.valColdEl) {
-          this.valColdEl.textContent = `${val.toFixed(1)} °C (${(val + 273.15).toFixed(1)} K)`;
+          this.valColdEl.textContent = `${val.toFixed(1)} °C`;
         }
         this.callbacks.onColdTempChange?.(val);
       },
       onScrub: (val: number) => {
         this.updateSliderTrackFill(this.sliderCold, 0, 40, val);
         if (this.valColdEl) {
-          this.valColdEl.textContent = `${val.toFixed(1)} °C (${(val + 273.15).toFixed(1)} K)`;
+          this.valColdEl.textContent = `${val.toFixed(1)} °C`;
         }
       },
     });
@@ -527,28 +483,13 @@ export class CarnotStatusCard {
     if (!telemetry) return;
 
     if (this.valEffEl) {
-      this.valEffEl.textContent = `${telemetry.efficiencyPercent.toFixed(1)}% · ${telemetry.netWorkJ.toFixed(1)} J`;
+      this.valEffEl.textContent = `${telemetry.efficiencyPercent.toFixed(1)}%`;
     }
-    if (this.valQhEl) {
-      this.valQhEl.textContent = `${telemetry.heatAbsorbedJ.toFixed(0)} J`;
-    }
-    if (this.valQcEl) {
-      this.valQcEl.textContent = `${telemetry.heatRejectedJ.toFixed(0)} J`;
+    if (this.valWorkEl) {
+      this.valWorkEl.textContent = `${telemetry.netWorkJ.toFixed(1)} J`;
     }
     if (this.valStateEl) {
       this.valStateEl.textContent = `${telemetry.pressureMPa.toFixed(2)} MPa · ${telemetry.volumeL.toFixed(2)} L`;
-    }
-    if (this.valTempNowEl) {
-      this.valTempNowEl.textContent = `${telemetry.gasTempC.toFixed(1)} °C`;
-    }
-    if (this.valStageNowEl) {
-      const shortNames: Record<number, string> = {
-        1: '等温膨胀',
-        2: '绝热膨胀',
-        3: '等温压缩',
-        4: '绝热压缩',
-      };
-      this.valStageNowEl.textContent = shortNames[telemetry.stageId] || '等温膨胀';
     }
 
     this.stageItems.forEach((item, idx) => {
@@ -559,7 +500,7 @@ export class CarnotStatusCard {
       this.sliderHot.value = String(telemetry.hotTempC);
       this.updateSliderTrackFill(this.sliderHot, 50, 150, telemetry.hotTempC);
       if (this.valHotEl) {
-        this.valHotEl.textContent = `${telemetry.hotTempC.toFixed(1)} °C (${telemetry.hotTempK.toFixed(1)} K)`;
+        this.valHotEl.textContent = `${telemetry.hotTempC.toFixed(1)} °C`;
       }
     }
 
@@ -567,7 +508,7 @@ export class CarnotStatusCard {
       this.sliderCold.value = String(telemetry.coldTempC);
       this.updateSliderTrackFill(this.sliderCold, 0, 40, telemetry.coldTempC);
       if (this.valColdEl) {
-        this.valColdEl.textContent = `${telemetry.coldTempC.toFixed(1)} °C (${telemetry.coldTempK.toFixed(1)} K)`;
+        this.valColdEl.textContent = `${telemetry.coldTempC.toFixed(1)} °C`;
       }
     }
 
@@ -657,7 +598,7 @@ export class CarnotStatusCard {
       ctx.fillText('P (MPa)', 4, padT + 8);
     }
 
-    // 闭合循环净功阴影面积 (克制微透白)
+    // 闭合循环净功阴影面积
     const allLoopPts = [
       ...pvCurves.curve12,
       ...pvCurves.curve23.slice(1),

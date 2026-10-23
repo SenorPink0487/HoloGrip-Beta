@@ -108,6 +108,14 @@ export class StereometryMesh {
   private snapRipplePhase = 0;
   private selectedBeaconSprites: Map<string, THREE.Sprite> = new Map();
   private lastHoveredMeshId: string | null = null;
+  private lastCamLocal = new THREE.Vector3(Infinity, Infinity, Infinity);
+  private edgeScratchCamLocal = new THREE.Vector3();
+  private edgeScratchUp = new THREE.Vector3(0, 1, 0);
+  private edgeScratchDir = new THREE.Vector3();
+  private edgeScratchMid = new THREE.Vector3();
+  private edgeScratchQuat = new THREE.Quaternion();
+  private edgeScratchScale = new THREE.Vector3();
+  private edgeScratchMat = new THREE.Matrix4();
   private lastSelectedIds: string[] = [];
   private lastCamera: THREE.Camera | null = null;
 
@@ -968,7 +976,7 @@ export class StereometryMesh {
     this.edgesDashedGroup.add(this.dashedEdgesMesh);
 
     // 初始分类判定
-    this.updateEdgeVisibility();
+    this.updateEdgeVisibility(undefined, true);
   }
 
   /**
@@ -976,12 +984,12 @@ export class StereometryMesh {
    * 在任意凸多面体中，当且仅当某条棱至少有一个相邻面朝向摄像机时，该棱可见；
    * 若所有相邻面皆背向摄像机，则该棱必定被遮挡（背面消隐虚线）。
    */
-  public updateEdgeVisibility(camera?: THREE.Camera): void {
+  public updateEdgeVisibility(camera?: THREE.Camera, force = false): void {
     if (!this.currentModelDef || this.edgeAdjacencies.length === 0) return;
     if (!this.solidEdgesMesh || !this.dashedEdgesMesh || !this.solidStrutsMesh) return;
 
     // 1. 确定模型局部空间中的摄像机位置
-    const camLocal = new THREE.Vector3();
+    const camLocal = this.edgeScratchCamLocal;
     if (camera) {
       camera.getWorldPosition(camLocal);
     } else {
@@ -989,6 +997,11 @@ export class StereometryMesh {
       camLocal.set(0.6, 1.35, 1.6);
     }
     this.modelContainer.worldToLocal(camLocal);
+
+    if (!force && camLocal.distanceToSquared(this.lastCamLocal) < 1e-6) {
+      return;
+    }
+    this.lastCamLocal.copy(camLocal);
 
     // 2. 判定各多边形面朝向摄像机的前后背向状态
     const faces = this.currentModelDef.faces;
@@ -1009,12 +1022,12 @@ export class StereometryMesh {
     let solidCount = 0;
     let dashedCount = 0;
 
-    const up = new THREE.Vector3(0, 1, 0);
-    const dir = new THREE.Vector3();
-    const mid = new THREE.Vector3();
-    const quat = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-    const mat = new THREE.Matrix4();
+    const up = this.edgeScratchUp;
+    const dir = this.edgeScratchDir;
+    const mid = this.edgeScratchMid;
+    const quat = this.edgeScratchQuat;
+    const scale = this.edgeScratchScale;
+    const mat = this.edgeScratchMat;
 
     for (const adj of this.edgeAdjacencies) {
       const p1 = this.currentModelDef.vertices[adj.i1];
@@ -1049,7 +1062,7 @@ export class StereometryMesh {
         const len = dir.length();
         mid.addVectors(p1, p2).multiplyScalar(0.5);
         if (len > 1e-4) {
-          quat.setFromUnitVectors(up, dir.clone().normalize());
+          quat.setFromUnitVectors(up, dir.normalize());
         } else {
           quat.identity();
         }

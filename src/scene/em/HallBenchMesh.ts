@@ -20,6 +20,7 @@ export class HallBenchMesh {
 
   // 实心半导体基底（不透明晶体基座）
   public substrateMesh: THREE.Mesh;
+  public electrodeGroup!: THREE.Group;
   private substrateMaterial: THREE.MeshStandardMaterial;
   private substrateTextures: Record<string, THREE.CanvasTexture> = {};
 
@@ -409,6 +410,7 @@ export class HallBenchMesh {
 
     const electrodeGroup = new THREE.Group();
     electrodeGroup.name = 'InstrumentPanel'; // 点击切换电流极性
+    this.electrodeGroup = electrodeGroup;
     this.chamberGroup.add(electrodeGroup);
 
     // --- 左侧电极块（+I 接线端） ---
@@ -677,6 +679,15 @@ export class HallBenchMesh {
       this.fluxPulsePhase += delta * 4.0;
       this.fluxArrowMat.emissiveIntensity = 0.50 + Math.sin(this.fluxPulsePhase) * 0.20;
     }
+  }
+
+  public getInteractiveObjects(): THREE.Object3D[] {
+    const list: THREE.Object3D[] = [];
+    if (this.waferMesh) list.push(this.waferMesh);
+    if (this.substrateMesh) list.push(this.substrateMesh);
+    if (this.fluxArrowsGroup) list.push(this.fluxArrowsGroup);
+    if (this.electrodeGroup) list.push(this.electrodeGroup);
+    return list;
   }
 
   public dispose(): void {

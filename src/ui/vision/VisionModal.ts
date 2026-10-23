@@ -309,7 +309,14 @@ export class VisionModal {
             this.close();
           }
         } else if (id.startsWith('thermo-')) {
-          this.switchTab('thermo');
+          if (id === 'thermo-carnot') {
+            this.switchTab('thermo');
+          } else {
+            // 空气压缩引火仪采用纯 3D 台面直接操控：选择后自动关闭悬浮窗，桌面仅呈现引火仪本体
+            this.activeTab = 'physics';
+            this.physicsModal.showLevel2('thermo');
+            this.close();
+          }
         } else {
           this.close();
         }
@@ -596,7 +603,12 @@ export class VisionModal {
         this.physicsModal.showLevel2('mechanics');
       }
     } else if (id.startsWith('thermo-')) {
-      this.activeTab = 'thermo';
+      if (id === 'thermo-carnot') {
+        this.activeTab = 'thermo';
+      } else {
+        this.activeTab = 'physics';
+        this.physicsModal.showLevel2('thermo');
+      }
     } else if (id.startsWith('optics-')) {
       this.activeTab = 'physics';
       this.physicsModal.showLevel2('optics');

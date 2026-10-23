@@ -43,6 +43,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   private dragStartPointerPosLocal = new THREE.Vector3();
   private candidateHoleToSnap: PlateHoleDef | null = null;
   private lastHoveredTarget: string | null = null;
+  private internalRaycaster = new THREE.Raycaster();
 
   // 待测板未悬挂时的平稳静置参考位置 (位于铁架台右侧的实验台面上)
   private readonly defaultRestPosition = new THREE.Vector3(0.16, 0.08, 0.04);
@@ -126,7 +127,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
       };
     }
 
-    const hits = raycaster.intersectObjects(this.rootGroup.children, true);
+    const hits = raycaster.intersectObjects([this.plate.group], true);
     if (hits.length === 0) {
       if (this.lastHoveredTarget) {
         this.plate.setHoleHovered(null);
@@ -252,7 +253,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
       this.getPlateWorldPlane(this.dragPlane);
 
       const mouse = this.getNormalizedMouse(event, context);
-      const raycaster = new THREE.Raycaster();
+      const raycaster = this.internalRaycaster;
       raycaster.setFromCamera(mouse, context.camera);
 
       if (raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
@@ -293,17 +294,11 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
     _hit: THREE.Intersection | null,
     context: ExperimentContext
   ): void {
-    if (!context.camera) return;
+    if (!this.isDraggingPlate || !context.camera) return;
 
     const mouse = this.getNormalizedMouse(event, context);
-    const raycaster = new THREE.Raycaster();
+    const raycaster = this.internalRaycaster;
     raycaster.setFromCamera(mouse, context.camera);
-
-    // 未拖拽状态下检测悬停目标
-    if (!this.isDraggingPlate) {
-      this.getHoverTarget(raycaster);
-      return;
-    }
 
     this.getPlateWorldPlane(this.dragPlane);
 

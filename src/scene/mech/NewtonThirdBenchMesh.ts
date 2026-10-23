@@ -126,8 +126,8 @@ export class NewtonThirdBenchMesh {
    */
   private createForceReadout(prefix: string, textColor: string): SpatialForceReadout {
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 128;
+    canvas.width = 256;
+    canvas.height = 64;
     const ctx = canvas.getContext('2d')!;
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -168,18 +168,21 @@ export class NewtonThirdBenchMesh {
     ctx.clearRect(0, 0, readout.canvas.width, readout.canvas.height);
 
     if (ctx.save) ctx.save();
-    ctx.font = 'bold 64px "SF Pro Display", "JetBrains Mono", Arial, sans-serif';
+    ctx.font = 'bold 32px "SF Pro Display", "JetBrains Mono", Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // 柔和暗色辉光外晕，确保在纯白台面或深色实验室中均具极佳反差度
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 2;
+    // 采用硬件加速的描边对比轮廓代替 CPU 软件高斯模糊 shadowBlur，消除 120Hz 动态振荡下的主线程卡顿
+    if (typeof ctx.strokeText === 'function') {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.strokeText(text, readout.canvas.width * 0.5, readout.canvas.height * 0.5);
+    }
 
     ctx.fillStyle = readout.textColor;
-    ctx.fillText(text, readout.canvas.width * 0.5, readout.canvas.height * 0.5);
+    if (typeof ctx.fillText === 'function') {
+      ctx.fillText(text, readout.canvas.width * 0.5, readout.canvas.height * 0.5);
+    }
     if (ctx.restore) ctx.restore();
 
     readout.texture.needsUpdate = true;

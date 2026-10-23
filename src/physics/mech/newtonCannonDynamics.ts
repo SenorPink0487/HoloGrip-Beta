@@ -485,7 +485,7 @@ export class NewtonCannonDynamicsSolver {
       // 采样记录轨迹点 (动态定距或定帧记录，限制每条轨迹最多保留 600 点)
       const lastPoint = p.trail[p.trail.length - 1];
       const distFromLast = lastPoint
-        ? p.position.distanceTo(new THREE.Vector3(lastPoint.x, lastPoint.y, lastPoint.z))
+        ? Math.hypot(p.position.x - lastPoint.x, p.position.y - lastPoint.y, p.position.z - lastPoint.z)
         : Infinity;
 
       // 约每隔 80 km 采样一个点，在视觉上形成顺滑无棱角的光滑曲线

@@ -222,7 +222,7 @@ export class CarnotEngineBenchMesh {
   public readonly pressureNeedleGroup = new THREE.Group();
 
   // 曲柄连杆几何常量 (严格对齐 CRANK_ROD_RATIO = r / L = 0.042 / 0.150 = 0.28)
-  private readonly cylinderAxisY = 0.235;
+  private readonly cylinderAxisY = 0.151;
   private readonly cylinderAxisZ = -0.025;
   private readonly flywheelCenterX = 0.205;
   private readonly crankRadius = 0.042;
@@ -235,9 +235,10 @@ export class CarnotEngineBenchMesh {
   // 热源与热流视觉材质
   private hotCoilMat!: THREE.MeshStandardMaterial;
   private coldCoilMat!: THREE.MeshStandardMaterial;
-  private flameOuterMesh!: THREE.Mesh;
-  private flameInnerMesh!: THREE.Mesh;
-  private flameCoreMesh!: THREE.Mesh;
+  private heaterFilamentMat!: THREE.MeshStandardMaterial;
+  private heaterCoreMat!: THREE.MeshStandardMaterial;
+  private heaterStatusRingMat!: THREE.MeshStandardMaterial;
+  private heaterImpellerGroup!: THREE.Group;
   private hotPipeUpperMat!: THREE.MeshStandardMaterial;
   private hotPipeLowerMat!: THREE.MeshStandardMaterial;
   private coldPipeMat!: THREE.MeshStandardMaterial;
@@ -253,6 +254,8 @@ export class CarnotEngineBenchMesh {
   private readonly dummyScale = new THREE.Vector3();
   private readonly dummyQuat = new THREE.Quaternion();
   private readonly tempColor = new THREE.Color();
+  private readonly tempMidColor = new THREE.Color(0xfbbf24);
+  private readonly tempHotColor = new THREE.Color(0xff5a1f);
 
   // 温度表头动态 CanvasTexture
   private hotReadoutCanvas!: HTMLCanvasElement;
@@ -271,7 +274,6 @@ export class CarnotEngineBenchMesh {
   constructor(_options: CarnotEngineBenchOptions = {}) {
     this.group.name = 'CarnotEngineBenchGroup';
 
-    this.buildBaseplate();
     this.buildHotReservoirAssembly();
     this.buildColdReservoirAssembly();
     this.buildWorkingCylinderAndGaugeAssembly();
@@ -281,75 +283,21 @@ export class CarnotEngineBenchMesh {
   }
 
   // ============================================================================
-  // 1. 航天级喷砂银铝重型底座 (纯净紧凑台面，无前方遮挡屏)
-  // ============================================================================
-  private buildBaseplate(): void {
-    const baseGroup = new THREE.Group();
-    baseGroup.name = 'CarnotBaseplateAssembly';
-
-    const satinSilver = anodizedAluminum(0xe2e8f0, 0.24);
-    const brightAluminum = anodizedAluminum(0xf1f5f9, 0.18);
-    const chromeMat = labMetal(0xffffff, 0.96, 0.08);
-    const brassMat = polishedGold(0xf59e0b);
-    const slatePadMat = anodizedAluminum(0x475569, 0.38);
-
-    // 主工作台底座（带精密倒角）
-    const mainBaseGeo = createChamferedBoxGeometry(1.24, 0.056, 0.36, 0.018, 0.003);
-    const mainBaseMesh = new THREE.Mesh(mainBaseGeo, satinSilver);
-    mainBaseMesh.position.set(0, 0.018, -0.02);
-    mainBaseMesh.castShadow = true;
-    mainBaseMesh.receiveShadow = true;
-    baseGroup.add(mainBaseMesh);
-
-    // 台面顶层精密拉丝导轨承重层
-    const topDeckGeo = createChamferedBoxGeometry(1.18, 0.012, 0.30, 0.012, 0.0018);
-    const topDeckMesh = new THREE.Mesh(topDeckGeo, brightAluminum);
-    topDeckMesh.position.set(0, 0.072, -0.025);
-    topDeckMesh.receiveShadow = true;
-    baseGroup.add(topDeckMesh);
-
-    // 台面横向 T 型工艺燕尾凹槽装饰条（增强工业精密感）
-    for (const zOffset of [-0.11, 0.06]) {
-      const railGeo = createChamferedBoxGeometry(1.12, 0.003, 0.008, 0.002, 0.0005);
-      const railMesh = new THREE.Mesh(railGeo, chromeMat);
-      railMesh.position.set(0, 0.083, zOffset);
-      baseGroup.add(railMesh);
-    }
-
-    // 四角水平微调防震支脚（黄铜调节锁环 + 金属减震底座）
-    const footPositions: [number, number][] = [
-      [-0.55, -0.15],
-      [0.55, -0.15],
-      [-0.55, 0.11],
-      [0.55, 0.11],
-    ];
-    for (const [fx, fz] of footPositions) {
-      const padGeo = new THREE.CylinderGeometry(0.028, 0.032, 0.012, 24);
-      const padMesh = new THREE.Mesh(padGeo, slatePadMat);
-      padMesh.position.set(fx, 0.006, fz);
-      baseGroup.add(padMesh);
-
-      const collarGeo = createHexNutGeometry(0.022, 0.009);
-      const collarMesh = new THREE.Mesh(collarGeo, brassMat);
-      collarMesh.rotation.x = Math.PI / 2;
-      collarMesh.position.set(fx, 0.015, fz);
-      baseGroup.add(collarMesh);
-    }
-
-    this.group.add(baseGroup);
-  }
-
-  // ============================================================================
-  // 2. 左侧：高温热源（热水/加热器 + 螺旋电热管 + 火焰 + 红色手轮阀门 + 数显表头）
+  // 1. 左侧：高温热源（精密电热恒温导热槽 + 同轴石英浸入式电热芯 + 磁力均热叶轮 + 换热盘管 + 红色手轮阀门 + 数显表头）
   // ============================================================================
   private buildHotReservoirAssembly(): void {
     const hotGroup = new THREE.Group();
     hotGroup.name = 'HotReservoirAssembly';
-    hotGroup.position.set(-0.455, 0.084, this.cylinderAxisZ);
+    hotGroup.position.set(-0.455, 0, this.cylinderAxisZ);
 
     const satinSilver = anodizedAluminum(0xe2e8f0, 0.22);
     const chromeMat = labMetal(0xffffff, 0.96, 0.07);
     const brassMat = polishedGold(0xf59e0b);
+    const ceramicMat = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc,
+      metalness: 0.08,
+      roughness: 0.18,
+    });
     const crimsonAnodized = new THREE.MeshStandardMaterial({
       color: 0xdc2626,
       metalness: 0.72,
@@ -357,12 +305,48 @@ export class CarnotEngineBenchMesh {
     });
     const glassMat = labGlass(0.22);
 
-    // 底部阶梯式法兰基座
+    // 底部阶梯式 CNC 电热控温法兰基座
     const baseFlangeGeo = new THREE.CylinderGeometry(0.094, 0.102, 0.022, 36);
     const baseFlange = new THREE.Mesh(baseFlangeGeo, satinSilver);
     baseFlange.position.y = 0.011;
     baseFlange.castShadow = true;
     hotGroup.add(baseFlange);
+
+    // 底座四周 4 颗精密调平减振支脚
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2 + Math.PI / 4;
+      const fx = Math.cos(a) * 0.096;
+      const fz = Math.sin(a) * 0.096;
+      const footPad = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.010, 0.006, 16),
+        satinSilver
+      );
+      footPad.position.set(fx, 0.003, fz);
+      hotGroup.add(footPad);
+
+      const footCollar = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.006, 0.006, 0.005, 16),
+        brassMat
+      );
+      footCollar.position.set(fx, 0.008, fz);
+      hotGroup.add(footCollar);
+    }
+
+    // 底部 360° 环形电热功率状态导光圈
+    this.heaterStatusRingMat = new THREE.MeshStandardMaterial({
+      color: 0xff5a1f,
+      emissive: 0xff3b1f,
+      emissiveIntensity: 0.85,
+      roughness: 0.2,
+      metalness: 0.1,
+    });
+    const statusRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.092, 0.0022, 12, 40),
+      this.heaterStatusRingMat
+    );
+    statusRing.rotation.x = Math.PI / 2;
+    statusRing.position.y = 0.022;
+    hotGroup.add(statusRing);
 
     const lowerRingGeo = new THREE.CylinderGeometry(0.088, 0.092, 0.014, 36);
     const lowerRing = new THREE.Mesh(lowerRingGeo, crimsonAnodized);
@@ -377,13 +361,13 @@ export class CarnotEngineBenchMesh {
     glassCyl.position.y = vesselCenterY;
     hotGroup.add(glassCyl);
 
-    // 内部导热介质暖红流体柱（半透明柔和渐变体积感）
+    // 内部导热硅油/介质流体柱（半透明柔和渐变体积感）
     const hotLiquidMat = new THREE.MeshStandardMaterial({
       color: 0xfb7185,
       emissive: 0xe11d48,
-      emissiveIntensity: 0.22,
+      emissiveIntensity: 0.20,
       transparent: true,
-      opacity: 0.26,
+      opacity: 0.24,
       roughness: 0.15,
       depthWrite: false,
     });
@@ -394,7 +378,145 @@ export class CarnotEngineBenchMesh {
     hotLiquidMesh.position.y = vesselCenterY - 0.006;
     hotGroup.add(hotLiquidMesh);
 
-    // 内部 6 匝螺旋加热盘管 (TubeGeometry)
+    // -------------------------------------------------------------------------
+    // 罐内底部：激光冲孔多孔均热导流盘 + 密封电极法兰 + 磁力均热搅拌叶轮
+    // -------------------------------------------------------------------------
+    const diffuserPlate = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.071, 0.071, 0.005, 36),
+      satinSilver
+    );
+    diffuserPlate.position.y = 0.039;
+    hotGroup.add(diffuserPlate);
+
+    const diffuserRim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.070, 0.0024, 12, 36),
+      brassMat
+    );
+    diffuserRim.rotation.x = Math.PI / 2;
+    diffuserRim.position.y = 0.0415;
+    hotGroup.add(diffuserRim);
+
+    // 均热盘周向 8 组导流孔黄铜导流圈
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      const holeRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.0055, 0.0012, 10, 20),
+        brassMat
+      );
+      holeRing.rotation.x = Math.PI / 2;
+      holeRing.position.set(Math.cos(a) * 0.050, 0.042, Math.sin(a) * 0.050);
+      hotGroup.add(holeRing);
+    }
+
+    // 中央法兰式电热密封底座与 6 颗内六角紧固螺栓
+    const heaterFlangeHub = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.028, 0.010, 28),
+      brassMat
+    );
+    heaterFlangeHub.position.y = 0.045;
+    hotGroup.add(heaterFlangeHub);
+
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      const bolt = new THREE.Mesh(createHexNutGeometry(0.0028, 0.003), chromeMat);
+      bolt.rotation.x = Math.PI / 2;
+      bolt.position.set(Math.cos(a) * 0.021, 0.051, Math.sin(a) * 0.021);
+      hotGroup.add(bolt);
+    }
+
+    // 底部四叶斜桨磁力循环均热搅拌叶轮 (随热机运行平稳旋转)
+    this.heaterImpellerGroup = new THREE.Group();
+    this.heaterImpellerGroup.name = 'HotMagneticImpeller';
+    this.heaterImpellerGroup.position.set(0, 0.053, 0);
+
+    const impellerCollar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.019, 0.019, 0.005, 24),
+      chromeMat
+    );
+    this.heaterImpellerGroup.add(impellerCollar);
+
+    for (let i = 0; i < 4; i++) {
+      const bladePivot = new THREE.Group();
+      bladePivot.rotation.y = (i * Math.PI) / 2;
+      const blade = new THREE.Mesh(
+        createChamferedBoxGeometry(0.018, 0.0024, 0.0085, 0.002, 0.0005),
+        chromeMat
+      );
+      blade.position.set(0.027, 0, 0);
+      blade.rotation.x = 0.46;
+      bladePivot.add(blade);
+      this.heaterImpellerGroup.add(bladePivot);
+    }
+    hotGroup.add(this.heaterImpellerGroup);
+
+    // -------------------------------------------------------------------------
+    // 罐内中央：同轴高纯石英玻璃护套浸入式电热管总成 (Coaxial Quartz Immersion Heater)
+    // -------------------------------------------------------------------------
+    const heaterBottomY = 0.062;
+    const heaterTopY = 0.252;
+    const heaterCenterY = (heaterBottomY + heaterTopY) * 0.5; // 0.157
+    const heaterSpan = heaterTopY - heaterBottomY; // 0.190
+
+    // 底部与顶部高纯氧化铝陶瓷绝缘座 + 黄铜密封端帽
+    for (const capY of [heaterBottomY, heaterTopY]) {
+      const brassCap = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0195, 0.0195, 0.008, 28),
+        brassMat
+      );
+      brassCap.position.y = capY;
+      hotGroup.add(brassCap);
+
+      const ceramicInsulator = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0155, 0.0155, 0.007, 24),
+        ceramicMat
+      );
+      ceramicInsulator.position.y = capY === heaterBottomY ? capY + 0.006 : capY - 0.006;
+      hotGroup.add(ceramicInsulator);
+    }
+
+    // 同轴透明石英玻璃耐高温保护套管
+    const quartzSleeve = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0148, 0.0148, heaterSpan - 0.012, 28, 1, true),
+      labGlass(0.28)
+    );
+    quartzSleeve.position.y = heaterCenterY;
+    hotGroup.add(quartzSleeve);
+
+    // 内部中心氧化镁导热陶瓷芯棒 (随温度升起暖红热辐射)
+    this.heaterCoreMat = new THREE.MeshStandardMaterial({
+      color: 0xfef2f2,
+      emissive: 0xff4500,
+      emissiveIntensity: 0.55,
+      roughness: 0.28,
+      metalness: 0.15,
+    });
+    const heaterCoreRod = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0052, 0.0052, heaterSpan - 0.018, 20),
+      this.heaterCoreMat
+    );
+    heaterCoreRod.position.y = heaterCenterY;
+    hotGroup.add(heaterCoreRod);
+
+    // 内部 16 匝高密度螺旋镍铬合金电热丝 (Nichrome Resistance Heating Coil)
+    const filamentPts = createHelixPoints(0.0096, heaterSpan - 0.028, 16, 160);
+    const filamentCurve = new THREE.CatmullRomCurve3(filamentPts);
+    this.heaterFilamentMat = new THREE.MeshStandardMaterial({
+      color: 0xffedd5,
+      emissive: 0xff5a00,
+      emissiveIntensity: 1.35,
+      metalness: 0.45,
+      roughness: 0.18,
+    });
+    const filamentMesh = new THREE.Mesh(
+      new THREE.TubeGeometry(filamentCurve, 150, 0.0019, 10, false),
+      this.heaterFilamentMat
+    );
+    filamentMesh.position.y = heaterCenterY;
+    hotGroup.add(filamentMesh);
+
+    // -------------------------------------------------------------------------
+    // 外层 6 匝螺旋工质换热盘管 (TubeGeometry)
+    // -------------------------------------------------------------------------
     const coilPts = createHelixPoints(0.046, 0.125, 5.5, 140);
     const coilCurve = new THREE.CatmullRomCurve3(coilPts);
     const coilGeo = new THREE.TubeGeometry(coilCurve, 120, 0.0068, 12, false);
@@ -408,55 +530,6 @@ export class CarnotEngineBenchMesh {
     const coilMesh = new THREE.Mesh(coilGeo, this.hotCoilMat);
     coilMesh.position.y = vesselCenterY + 0.008;
     hotGroup.add(coilMesh);
-
-    // 底部精密黄铜燃烧喷嘴与三层动态火焰
-    const burnerNozzle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.014, 0.024, 0.022, 24),
-      brassMat
-    );
-    burnerNozzle.position.y = 0.046;
-    hotGroup.add(burnerNozzle);
-
-    const flameOuterGeo = new THREE.ConeGeometry(0.025, 0.052, 20);
-    flameOuterGeo.translate(0, 0.026, 0);
-    this.flameOuterMesh = new THREE.Mesh(
-      flameOuterGeo,
-      new THREE.MeshBasicMaterial({
-        color: 0xff4500,
-        transparent: true,
-        opacity: 0.72,
-        depthWrite: false,
-      })
-    );
-    this.flameOuterMesh.position.y = 0.054;
-    hotGroup.add(this.flameOuterMesh);
-
-    const flameInnerGeo = new THREE.ConeGeometry(0.016, 0.038, 18);
-    flameInnerGeo.translate(0, 0.019, 0);
-    this.flameInnerMesh = new THREE.Mesh(
-      flameInnerGeo,
-      new THREE.MeshBasicMaterial({
-        color: 0xffb703,
-        transparent: true,
-        opacity: 0.88,
-        depthWrite: false,
-      })
-    );
-    this.flameInnerMesh.position.y = 0.055;
-    hotGroup.add(this.flameInnerMesh);
-
-    const flameCoreGeo = new THREE.ConeGeometry(0.008, 0.022, 16);
-    flameCoreGeo.translate(0, 0.011, 0);
-    this.flameCoreMesh = new THREE.Mesh(
-      flameCoreGeo,
-      new THREE.MeshBasicMaterial({
-        color: 0xfffbeb,
-        transparent: true,
-        opacity: 0.96,
-      })
-    );
-    this.flameCoreMesh.position.y = 0.056;
-    hotGroup.add(this.flameCoreMesh);
 
     // 顶部阳极氧化红法兰封盖与一圈六角紧固螺栓
     const topCapY = 0.036 + vesselHeight + 0.012; // 0.268
@@ -580,12 +653,12 @@ export class CarnotEngineBenchMesh {
   }
 
   // ============================================================================
-  // 3. 右侧：低温冷源（冷却水容器 + 蓝色冷却盘管 + 蓝色手轮阀门 + 数显表头）
+  // 2. 右侧：低温冷源（冷却水容器 + 蓝色冷却盘管 + 蓝色手轮阀门 + 数显表头）
   // ============================================================================
   private buildColdReservoirAssembly(): void {
     const coldGroup = new THREE.Group();
     coldGroup.name = 'ColdReservoirAssembly';
-    coldGroup.position.set(0.465, 0.084, this.cylinderAxisZ);
+    coldGroup.position.set(0.465, 0, this.cylinderAxisZ);
 
     const satinSilver = anodizedAluminum(0xe2e8f0, 0.22);
     const chromeMat = labMetal(0xffffff, 0.96, 0.07);
@@ -597,7 +670,7 @@ export class CarnotEngineBenchMesh {
     });
     const glassMat = labGlass(0.22);
 
-    // 底部阶梯式法兰基座
+    // 底部阶梯式法兰基座与 4 颗减振调平支脚
     const baseFlange = new THREE.Mesh(
       new THREE.CylinderGeometry(0.094, 0.102, 0.022, 36),
       satinSilver
@@ -605,6 +678,25 @@ export class CarnotEngineBenchMesh {
     baseFlange.position.y = 0.011;
     baseFlange.castShadow = true;
     coldGroup.add(baseFlange);
+
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2 + Math.PI / 4;
+      const fx = Math.cos(a) * 0.096;
+      const fz = Math.sin(a) * 0.096;
+      const footPad = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.010, 0.006, 16),
+        satinSilver
+      );
+      footPad.position.set(fx, 0.003, fz);
+      coldGroup.add(footPad);
+
+      const footCollar = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.006, 0.006, 0.005, 16),
+        brassMat
+      );
+      footCollar.position.set(fx, 0.008, fz);
+      coldGroup.add(footCollar);
+    }
 
     const lowerRing = new THREE.Mesh(
       new THREE.CylinderGeometry(0.088, 0.092, 0.014, 36),
@@ -628,7 +720,7 @@ export class CarnotEngineBenchMesh {
       emissive: 0x0284c7,
       emissiveIntensity: 0.20,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.30,
       roughness: 0.12,
       depthWrite: false,
     });
@@ -638,6 +730,30 @@ export class CarnotEngineBenchMesh {
     );
     coldWaterMesh.position.y = vesselCenterY - 0.008;
     coldGroup.add(coldWaterMesh);
+
+    // 罐内底部半导体珀尔帖 (Peltier) 导冷法兰盘与中心叠片式冷端换热柱
+    const coldDiffuser = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.071, 0.071, 0.005, 36),
+      satinSilver
+    );
+    coldDiffuser.position.y = 0.039;
+    coldGroup.add(coldDiffuser);
+
+    const chillerCoreStem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.012, 0.210, 24),
+      chromeMat
+    );
+    chillerCoreStem.position.y = 0.146;
+    coldGroup.add(chillerCoreStem);
+
+    for (let i = 0; i < 8; i++) {
+      const finDisk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.022, 0.022, 0.0032, 28),
+        sapphireAnodized
+      );
+      finDisk.position.y = 0.068 + i * 0.021;
+      coldGroup.add(finDisk);
+    }
 
     // 内部 6 匝螺旋冷却盘管
     const coilPts = createHelixPoints(0.046, 0.135, 6.0, 140);
@@ -826,7 +942,7 @@ export class CarnotEngineBenchMesh {
   }
 
   // ============================================================================
-  // 4. 中央：透明工作气缸、精密双密封环活塞与顶部指针式压力表 (0 ~ 0.4 MPa)
+  // 3. 中央：透明工作气缸、精密双密封环活塞与顶部指针式压力表 (0 ~ 0.4 MPa)
   // ============================================================================
   private buildWorkingCylinderAndGaugeAssembly(): void {
     const cylGroup = new THREE.Group();
@@ -849,21 +965,23 @@ export class CarnotEngineBenchMesh {
       // 底部宽脚座
       const footGeo = createChamferedBoxGeometry(0.044, 0.016, 0.145, 0.006, 0.0015);
       const footMesh = new THREE.Mesh(footGeo, satinSilver);
-      footMesh.position.set(bracketX, 0.084, this.cylinderAxisZ);
+      footMesh.position.set(bracketX, 0, this.cylinderAxisZ);
+      footMesh.castShadow = true;
       cylGroup.add(footMesh);
 
       // 4 颗底座安装螺栓
       for (const bz of [-0.052, 0.052]) {
         const bolt = new THREE.Mesh(createHexNutGeometry(0.0055, 0.005), chromeMat);
         bolt.rotation.x = Math.PI / 2;
-        bolt.position.set(bracketX, 0.102, this.cylinderAxisZ + bz);
+        bolt.position.set(bracketX, 0.018, this.cylinderAxisZ + bz);
         cylGroup.add(bolt);
       }
 
       // 垂直立柱腹板
       const pillarGeo = createChamferedBoxGeometry(0.026, 0.145, 0.096, 0.005, 0.0015);
       const pillarMesh = new THREE.Mesh(pillarGeo, satinSilver);
-      pillarMesh.position.set(bracketX, 0.098, this.cylinderAxisZ);
+      pillarMesh.position.set(bracketX, 0.014, this.cylinderAxisZ);
+      pillarMesh.castShadow = true;
       cylGroup.add(pillarMesh);
 
       // 气缸端盖圆形法兰盘
@@ -1129,7 +1247,7 @@ export class CarnotEngineBenchMesh {
   }
 
   // ============================================================================
-  // 5. 中右：曲柄连杆机构与辐条式飞轮 (Crank-Connecting Rod & Flywheel)
+  // 4. 中右：曲柄连杆机构与辐条式飞轮 (Crank-Connecting Rod & Flywheel)
   // ============================================================================
   private buildCrankFlywheelMechanism(): void {
     const mechGroup = new THREE.Group();
@@ -1142,7 +1260,7 @@ export class CarnotEngineBenchMesh {
     // 飞轮重型轴承座底座 (Bearing Pedestal Block)
     const pedestalBaseGeo = createChamferedBoxGeometry(0.145, 0.022, 0.135, 0.008, 0.002);
     const pedestalBase = new THREE.Mesh(pedestalBaseGeo, satinSilver);
-    pedestalBase.position.set(this.flywheelCenterX, 0.084, this.cylinderAxisZ - 0.015);
+    pedestalBase.position.set(this.flywheelCenterX, 0, this.cylinderAxisZ - 0.015);
     pedestalBase.castShadow = true;
     mechGroup.add(pedestalBase);
 
@@ -1150,7 +1268,7 @@ export class CarnotEngineBenchMesh {
     const pillarZ = this.cylinderAxisZ - 0.036;
     const bearingPillarGeo = createChamferedBoxGeometry(0.072, 0.142, 0.034, 0.008, 0.002);
     const bearingPillar = new THREE.Mesh(bearingPillarGeo, satinSilver);
-    bearingPillar.position.set(this.flywheelCenterX, 0.104, pillarZ);
+    bearingPillar.position.set(this.flywheelCenterX, 0.020, pillarZ);
     bearingPillar.castShadow = true;
     mechGroup.add(bearingPillar);
 
@@ -1272,7 +1390,7 @@ export class CarnotEngineBenchMesh {
   }
 
   // ============================================================================
-  // 6. 冷热源导热循环管道与动态热流脉冲 (Heat-Exchange Piping & Pulses)
+  // 5. 冷热源导热循环管道与动态热流脉冲 (Heat-Exchange Piping & Pulses)
   // ============================================================================
   private buildHeatExchangePiping(): void {
     const pipeGroup = new THREE.Group();
@@ -1281,14 +1399,14 @@ export class CarnotEngineBenchMesh {
     const brassMat = polishedGold(0xf59e0b);
     const zPipe = this.cylinderAxisZ;
 
-    // 1. 高温上管 (连接高温阀门右侧 X = -0.315, Y = 0.350 -> 气缸左端盖上部 X = -0.232, Y = 0.275)
+    // 1. 高温上管 (连接高温阀门右侧 X = -0.315, Y = 0.266 -> 气缸左端盖上部 X = -0.232, Y = 0.191)
     const hotUpperCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.315, 0.350, zPipe),
-      new THREE.Vector3(-0.278, 0.350, zPipe),
-      new THREE.Vector3(-0.268, 0.335, zPipe),
-      new THREE.Vector3(-0.268, 0.290, zPipe),
-      new THREE.Vector3(-0.256, 0.275, zPipe),
-      new THREE.Vector3(-0.230, 0.275, zPipe),
+      new THREE.Vector3(-0.315, 0.266, zPipe),
+      new THREE.Vector3(-0.278, 0.266, zPipe),
+      new THREE.Vector3(-0.268, 0.251, zPipe),
+      new THREE.Vector3(-0.268, 0.206, zPipe),
+      new THREE.Vector3(-0.256, 0.191, zPipe),
+      new THREE.Vector3(-0.230, 0.191, zPipe),
     ]);
     this.hotPipeUpperMat = new THREE.MeshStandardMaterial({
       color: 0xef4444,
@@ -1303,11 +1421,11 @@ export class CarnotEngineBenchMesh {
     );
     pipeGroup.add(hotUpperTube);
 
-    // 2. 高温下回流管 (连接高温热源下部 X = -0.375, Y = 0.205 -> 气缸左端盖下部 X = -0.230, Y = 0.205)
+    // 2. 高温下回流管 (连接高温热源下部 X = -0.375, Y = 0.121 -> 气缸左端盖下部 X = -0.230, Y = 0.121)
     const hotLowerCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.375, 0.205, zPipe),
-      new THREE.Vector3(-0.300, 0.205, zPipe),
-      new THREE.Vector3(-0.230, 0.205, zPipe),
+      new THREE.Vector3(-0.375, 0.121, zPipe),
+      new THREE.Vector3(-0.300, 0.121, zPipe),
+      new THREE.Vector3(-0.230, 0.121, zPipe),
     ]);
     this.hotPipeLowerMat = new THREE.MeshStandardMaterial({
       color: 0xef4444,
@@ -1324,9 +1442,9 @@ export class CarnotEngineBenchMesh {
 
     // 高温管道黄铜六角锁紧接头
     for (const [fx, fy] of [
-      [-0.234, 0.275],
-      [-0.234, 0.205],
-      [-0.372, 0.205],
+      [-0.234, 0.191],
+      [-0.234, 0.121],
+      [-0.372, 0.121],
     ]) {
       const fitting = new THREE.Mesh(createHexNutGeometry(0.013, 0.010), brassMat);
       fitting.rotation.y = Math.PI / 2;
@@ -1334,14 +1452,14 @@ export class CarnotEngineBenchMesh {
       pipeGroup.add(fitting);
     }
 
-    // 3. 低温放热管道 (连接气缸右端盖上部 X = -0.028, Y = 0.275 -> 低温冷源阀门左侧 X = +0.325, Y = 0.350)
+    // 3. 低温放热管道 (连接气缸右端盖上部 X = -0.028, Y = 0.191 -> 低温冷源阀门左侧 X = +0.325, Y = 0.266)
     const coldCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.025, 0.275, zPipe),
-      new THREE.Vector3(0.115, 0.275, zPipe),
-      new THREE.Vector3(0.135, 0.290, zPipe),
-      new THREE.Vector3(0.145, 0.335, zPipe),
-      new THREE.Vector3(0.165, 0.350, zPipe),
-      new THREE.Vector3(0.325, 0.350, zPipe),
+      new THREE.Vector3(-0.025, 0.191, zPipe),
+      new THREE.Vector3(0.115, 0.191, zPipe),
+      new THREE.Vector3(0.135, 0.206, zPipe),
+      new THREE.Vector3(0.145, 0.251, zPipe),
+      new THREE.Vector3(0.165, 0.266, zPipe),
+      new THREE.Vector3(0.325, 0.266, zPipe),
     ]);
     this.coldPipeMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
@@ -1358,7 +1476,7 @@ export class CarnotEngineBenchMesh {
 
     const coldFitting = new THREE.Mesh(createHexNutGeometry(0.013, 0.010), brassMat);
     coldFitting.rotation.y = Math.PI / 2;
-    coldFitting.position.set(-0.020, 0.275, zPipe);
+    coldFitting.position.set(-0.020, 0.191, zPipe);
     pipeGroup.add(coldFitting);
 
     // 4. 管道热流动态光脉冲球（阶段 1 红管吸热流动，阶段 3 蓝管放热流动）
@@ -1496,13 +1614,23 @@ export class CarnotEngineBenchMesh {
     const needleAngleZ = (0.75 - pFrac * 1.5) * Math.PI;
     this.pressureNeedleGroup.rotation.z = needleAngleZ;
 
-    // 3. 更新高温火焰与冷热盘管光效
-    const hotFactor = (telemetry.hotTempC - 50) / 100; // 0 ~ 1
-    const flamePulse = 1 + 0.08 * Math.sin(this.animClock * 18) + 0.05 * Math.cos(this.animClock * 29);
-    const flameHeightScale = (0.78 + 0.45 * hotFactor) * flamePulse;
-    this.flameOuterMesh.scale.set(1 + 0.12 * hotFactor, flameHeightScale, 1 + 0.12 * hotFactor);
-    this.flameInnerMesh.scale.set(1 + 0.08 * hotFactor, flameHeightScale * 0.96, 1 + 0.08 * hotFactor);
-    this.flameCoreMesh.scale.set(1, flameHeightScale * 0.92, 1);
+    // 3. 更新浸入式石英电热丝、磁力均热搅拌叶轮与冷热换热盘管光效
+    const hotFactor = Math.max(0, Math.min(1, (telemetry.hotTempC - 50) / 100)); // 0 ~ 1
+    const heaterRipple = 1 + 0.04 * Math.sin(this.animClock * 9.0);
+    if (this.heaterFilamentMat) {
+      this.heaterFilamentMat.emissiveIntensity =
+        (0.75 + 1.15 * hotFactor + 0.25 * telemetry.hotPipeFlowIntensity) * heaterRipple;
+    }
+    if (this.heaterCoreMat) {
+      this.heaterCoreMat.emissiveIntensity =
+        0.35 + 0.65 * hotFactor + 0.20 * telemetry.hotPipeFlowIntensity;
+    }
+    if (this.heaterStatusRingMat) {
+      this.heaterStatusRingMat.emissiveIntensity = 0.55 + 0.85 * hotFactor;
+    }
+    if (this.heaterImpellerGroup) {
+      this.heaterImpellerGroup.rotation.y = this.animClock * (4.2 + 2.8 * hotFactor);
+    }
 
     this.hotCoilMat.emissiveIntensity = 0.45 + 0.55 * hotFactor + 0.35 * telemetry.hotPipeFlowIntensity;
     const coldFactor = 1 - telemetry.coldTempC / 40; // 温度越低冰蓝感越强
@@ -1571,9 +1699,9 @@ export class CarnotEngineBenchMesh {
 
     // 颜色插值：低温冰晶蓝 (0x38bdf8) -> 中温琥珀金 (0xfbbf24) -> 高温炽热橙红 (0xf97316)
     if (tempNorm < 0.5) {
-      this.tempColor.setHex(0x38bdf8).lerp(new THREE.Color(0xfbbf24), tempNorm * 2);
+      this.tempColor.setHex(0x38bdf8).lerp(this.tempMidColor, tempNorm * 2);
     } else {
-      this.tempColor.setHex(0xfbbf24).lerp(new THREE.Color(0xff5a1f), (tempNorm - 0.5) * 2);
+      this.tempColor.setHex(0xfbbf24).lerp(this.tempHotColor, (tempNorm - 0.5) * 2);
     }
 
     for (let i = 0; i < this.particleCount; i++) {

@@ -61,6 +61,7 @@ export class StereometryInteractionManager {
   private isPinching = false;
   private initialPinchDist = 0;
   private initialPinchScale = 1.0;
+  private internalRaycaster = new THREE.Raycaster();
 
   constructor(mesh: StereometryMesh, callbacks: StereometryInteractionCallbacks = {}) {
     this.mesh = mesh;
@@ -255,7 +256,7 @@ export class StereometryInteractionManager {
     const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
 
     if (context?.camera) {
-      const raycaster = new THREE.Raycaster();
+      const raycaster = this.internalRaycaster;
       raycaster.setFromCamera(mouseNDC, context.camera);
       const snapThreshold = isTouch ? 0.045 : 0.035;
       const snapRes = this.mesh.findClosestSnapPoint(raycaster.ray, snapThreshold, {
@@ -385,7 +386,7 @@ export class StereometryInteractionManager {
 
     if (context?.camera) {
       const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
-      const raycaster = new THREE.Raycaster();
+      const raycaster = this.internalRaycaster;
       raycaster.setFromCamera(mouseNDC, context.camera);
 
       // 起点严格在线上判定：onlyOnEdgeOrLine = true，排除面心与体心

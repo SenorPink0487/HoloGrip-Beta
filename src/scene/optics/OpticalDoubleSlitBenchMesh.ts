@@ -2105,6 +2105,14 @@ export class OpticalDoubleSlitBenchMesh {
     };
   }
 
+  public getInteractiveObjects(): THREE.Object3D[] {
+    const list: THREE.Object3D[] = [];
+    if (this.laserGroup) list.push(this.laserGroup);
+    if (this.slitStageGroup) list.push(this.slitStageGroup);
+    if (this.screenCarrierGroup) list.push(this.screenCarrierGroup);
+    return list;
+  }
+
   // ==================== 显存与纹理安全释放 ====================
   public dispose(): void {
     this.group.traverse((obj) => {

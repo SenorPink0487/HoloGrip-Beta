@@ -4,7 +4,7 @@
  * 【核心铁律遵从】：
  * 1. 严禁任何 DOM 悬浮提示弹窗、顶部步骤向导 Banner 或浮动卡片；
  * 2. 纯三维实体建模与直接操控：飞轮按物理效率自动连续运转，鼠标直接拖拽左右冷热源阀门手轮调节 Th 与 Tc；
- * 3. P-V 动态坐标图与四个热力学过程指示面板直接内嵌于铝合金重型底座正前方 (+Z) 斜切仪表盘，上方视野完全通透；
+ * 3. 实验器材直接置于实验桌台面上，台面纯净开阔，上方视野完全通透；
  * 4. 自由光标模式：无需锁定视角，光标手势（grab/grabbing）与手轮光环自然联动。
  */
 
@@ -22,7 +22,7 @@ import { metadata } from './meta.ts';
 export default class ThermoCarnotExperiment extends BaseExperiment {
   public readonly metadata = metadata;
 
-  // 台面近景全览比例，确保冷热源、气缸活塞、压力表、飞轮与底座前方双联仪表板清晰呈现
+  // 台面近景全览比例，确保冷热源、气缸活塞、压力表、飞轮直接平放于桌面上清晰呈现
   public override targetScale = 2.45;
   public override hideCenterEmitter = true;
 
@@ -39,6 +39,7 @@ export default class ThermoCarnotExperiment extends BaseExperiment {
   private dragStartLocal = new THREE.Vector3();
   private dragStartTempC = 0;
   private lastDragDeltaX = 0;
+  private internalRaycaster = new THREE.Raycaster();
 
   constructor() {
     super();
@@ -106,7 +107,7 @@ export default class ThermoCarnotExperiment extends BaseExperiment {
     if (context.camera) {
       this.getWorkPlane(this.dragPlane);
       const mouse = labPointerNDC(event, context.renderer?.domElement);
-      const raycaster = new THREE.Raycaster();
+      const raycaster = this.internalRaycaster;
       raycaster.setFromCamera(mouse, context.camera);
       if (raycaster.ray.intersectPlane(this.dragPlane, this.dragIntersection)) {
         const localPt = this.rootGroup.worldToLocal(this.dragIntersection.clone());
@@ -129,7 +130,7 @@ export default class ThermoCarnotExperiment extends BaseExperiment {
 
     this.getWorkPlane(this.dragPlane);
     const mouse = labPointerNDC(event, context.renderer?.domElement);
-    const raycaster = new THREE.Raycaster();
+    const raycaster = this.internalRaycaster;
     raycaster.setFromCamera(mouse, context.camera);
 
     if (!raycaster.ray.intersectPlane(this.dragPlane, this.dragIntersection)) {
@@ -176,7 +177,7 @@ export default class ThermoCarnotExperiment extends BaseExperiment {
   ): { id: string; label: string; cursor?: string } | null {
     if (!this.bench || this.isDisposed) return null;
 
-    const hits = raycaster.intersectObjects(this.rootGroup.children, true);
+    const hits = raycaster.intersectObjects([this.bench.hotValveHandleGroup, this.bench.coldValveHandleGroup], true);
     for (const hit of hits) {
       const target = this.resolveValveTarget(hit.object);
       if (target === 'hot') {
@@ -229,7 +230,7 @@ export default class ThermoCarnotExperiment extends BaseExperiment {
     const normal = new THREE.Vector3(0, 0, 1)
       .applyQuaternion(this.rootGroup.quaternion)
       .normalize();
-    const point = this.rootGroup.localToWorld(new THREE.Vector3(0, 0.34, 0));
+    const point = this.rootGroup.localToWorld(new THREE.Vector3(0, 0.26, 0));
     return targetPlane.setFromNormalAndCoplanarPoint(normal, point);
   }
 

@@ -220,6 +220,12 @@ export class NewtonCannonBenchMesh {
       let lineXRay = this.trailLinesXRay.get(p.id);
       if (!lineNormal) {
         const lineGeo = new THREE.BufferGeometry();
+        const initialCapacity = 1200;
+        const initialAttr = new THREE.BufferAttribute(new Float32Array(initialCapacity * 3), 3);
+        initialAttr.setUsage(THREE.DynamicDrawUsage);
+        lineGeo.setAttribute('position', initialAttr);
+        lineGeo.setDrawRange(0, 0);
+        lineGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 10.0);
 
         const lineMatNormal = new THREE.LineBasicMaterial({
           color: p.color,
@@ -249,15 +255,22 @@ export class NewtonCannonBenchMesh {
 
       const trailPoints = p.trail;
       const count = trailPoints.length;
-      const posArray = new Float32Array(count * 3);
+      let posAttr = lineNormal.geometry.getAttribute('position') as THREE.BufferAttribute;
+      if (!posAttr || posAttr.count < count) {
+        const capacity = Math.max(1200, count * 2);
+        posAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+        posAttr.setUsage(THREE.DynamicDrawUsage);
+        lineNormal.geometry.setAttribute('position', posAttr);
+      }
+      const posArray = posAttr.array as Float32Array;
 
       for (let pt = 0; pt < count; pt++) {
         posArray[pt * 3 + 0] = trailPoints[pt].x * scale;
         posArray[pt * 3 + 1] = trailPoints[pt].y * scale;
         posArray[pt * 3 + 2] = trailPoints[pt].z * scale;
       }
-      lineNormal.geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-      lineNormal.geometry.computeBoundingSphere();
+      posAttr.needsUpdate = true;
+      lineNormal.geometry.setDrawRange(0, count);
     }
   }
 

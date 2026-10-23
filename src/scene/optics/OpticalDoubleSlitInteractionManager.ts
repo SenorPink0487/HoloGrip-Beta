@@ -71,7 +71,10 @@ export class OpticalDoubleSlitInteractionManager {
       };
     }
 
-    const hits = raycaster.intersectObjects(this.bench.group.children, true);
+    const targets = typeof (this.bench as any).getInteractiveObjects === 'function'
+      ? (this.bench as any).getInteractiveObjects()
+      : this.bench.group.children;
+    const hits = raycaster.intersectObjects(targets, true);
     if (hits.length === 0) {
       this.bench.setKnobHovered(null, false);
       return null;

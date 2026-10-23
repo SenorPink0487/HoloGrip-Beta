@@ -45,6 +45,31 @@ export class PhysicsDisciplineModal {
         </svg>
       `,
     },
+    {
+      id: 'thermo-fire-syringe',
+      name: '空气压缩引火仪',
+      category: '绝热压缩做功与内能转化',
+      formula: '\\Delta U = W + Q,\\; Q \\approx 0 \\implies T \\uparrow',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Ergonomic T-Handlebar & Grip Spheres -->
+          <line x1="10" y1="5" x2="26" y2="5" stroke-width="2.0"/>
+          <circle cx="9.5" cy="5" r="2.0" fill="currentColor"/>
+          <circle cx="26.5" cy="5" r="2.0" fill="currentColor"/>
+          <!-- Piston Rod & Double-Sealed Piston Head -->
+          <line x1="18" y1="5" x2="18" y2="16" stroke-width="2.0"/>
+          <rect x="13" y="16" width="10" height="3.6" rx="1" stroke-width="1.6" fill="currentColor" fill-opacity="0.22"/>
+          <!-- Transparent Cylinder & Side Tie-Rods -->
+          <rect x="12" y="10" width="12" height="20" rx="1.5" stroke-width="1.7" fill="currentColor" fill-opacity="0.06"/>
+          <line x1="9.5" y1="10" x2="9.5" y2="31" stroke-width="1.2" stroke-opacity="0.55"/>
+          <line x1="26.5" y1="10" x2="26.5" y2="31" stroke-width="1.2" stroke-opacity="0.55"/>
+          <!-- Adiabatic Ignition Flame in Bottom Chamber -->
+          <path d="M18 22.5 C19.8 24.5 20.2 26.8 18 28.5 C15.8 26.8 16.2 24.5 18 22.5 Z" stroke-width="1.4" fill="currentColor" fill-opacity="0.35"/>
+          <!-- Heavy Base Plate -->
+          <line x1="7" y1="31.5" x2="29" y2="31.5" stroke-width="2.4"/>
+        </svg>
+      `,
+    },
   ];
 
   public static readonly MECHANICS_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [

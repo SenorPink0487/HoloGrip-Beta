@@ -17,7 +17,10 @@ export class HallInteractionManager {
   }
 
   public getHoverTarget(raycaster: THREE.Raycaster): { id: string; label: string; cursor?: string } | null {
-    const hits = raycaster.intersectObject(this.callbacks.bench.group, true);
+    const targets = typeof this.callbacks.bench.getInteractiveObjects === 'function'
+      ? this.callbacks.bench.getInteractiveObjects()
+      : [this.callbacks.bench.group];
+    const hits = raycaster.intersectObjects(targets, true);
 
     if (hits.length > 0) {
       let obj: THREE.Object3D | null = hits[0].object;
