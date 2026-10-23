@@ -49,6 +49,12 @@ export class HandTrackingHUD {
   private cachedFps = '';
   private cachedLatency = '';
   private prevHandLandmarks: Map<string, { lms: NormalizedLandmark[]; timestamp: number }> = new Map();
+  private targetHandLandmarks: Map<string, NormalizedLandmark[]> = new Map();
+  private smoothedHandLandmarks: Map<string, NormalizedLandmark[]> = new Map();
+  private smoothedPinchRadius: Map<string, number> = new Map();
+  private previewAnimFrameId: number | null = null;
+  private lastPreviewRenderAt = 0;
+  private isDestroyed = false;
   private bodyObserver: MutationObserver | null = null;
 
   constructor(serviceOrParent?: any, maybeParent?: HTMLElement) {
@@ -1164,6 +1170,9 @@ export class HandTrackingHUD {
       toggleBtn.classList.add('active');
       dot.className = 'vp-pill-status-dot active';
       this.pillEl.classList.add('is-active');
+      if (this.isPreviewOpen) {
+        this.startPreviewRenderLoop();
+      }
     } catch (err) {
       console.error('[HandTrackingHUD] Enable failed:', err);
       dot.className = 'vp-pill-status-dot error';
@@ -1178,6 +1187,7 @@ export class HandTrackingHUD {
     const toggleBtn = this.pillEl.querySelector('.vp-pill-toggle-btn') as HTMLButtonElement;
     const dot = this.pillEl.querySelector('.vp-pill-status-dot') as HTMLElement;
 
+    this.stopPreviewRenderLoop();
     this.service.stop();
     this.isEnabled = false;
     toggleBtn.textContent = '开启';
@@ -1195,13 +1205,41 @@ export class HandTrackingHUD {
       if (this.isFullscreen) {
         this.updateFullscreenCanvasSize();
       }
+      this.startPreviewRenderLoop();
     } else {
       camBtn?.classList.remove('active', 'is-open');
+      this.stopPreviewRenderLoop();
       if (this.isFullscreen) {
         this.toggleFullscreen(false);
       }
       this.previewModalEl.classList.add('hidden');
     }
+  }
+
+  private startPreviewRenderLoop(): void {
+    if (this.previewAnimFrameId !== null || typeof requestAnimationFrame !== 'function') return;
+    this.lastPreviewRenderAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const loop = () => {
+      if (this.isDestroyed || !this.isPreviewOpen) {
+        this.previewAnimFrameId = null;
+        return;
+      }
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const dtSec = Math.max(0.001, Math.min(0.05, (now - this.lastPreviewRenderAt) / 1000));
+      this.lastPreviewRenderAt = now;
+      if (this.lastFrame) {
+        this.renderPreviewCanvas(this.lastFrame, dtSec);
+      }
+      this.previewAnimFrameId = requestAnimationFrame(loop);
+    };
+    this.previewAnimFrameId = requestAnimationFrame(loop);
+  }
+
+  private stopPreviewRenderLoop(): void {
+    if (this.previewAnimFrameId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this.previewAnimFrameId);
+    }
+    this.previewAnimFrameId = null;
   }
 
   public toggleFullscreen(force?: boolean): void {
@@ -1391,17 +1429,20 @@ export class HandTrackingHUD {
       }
 
       if (this.isPreviewOpen) {
-        this.renderPreviewCanvas(frame);
+        this.startPreviewRenderLoop();
+        if (this.previewAnimFrameId === null) {
+          this.renderPreviewCanvas(frame, 0);
+        }
       }
     });
   }
 
   /**
    * 渲染水平镜像的摄像头画面，并叠加绘制双手骨骼拓扑结构与捏合指示器。
-   * 结合前向速度外推算法，使骨骼关键点与实时视频流完美对齐同步，
-   * 并通过批量批处理 Canvas2D 绘制调用以实现极致高帧率。
+   * 结合前向速度外推算法与 60 FPS 指数阻尼平滑插值（Lerp），使 20 FPS 的骨骼关键点
+   * 在 60 FPS 画布上呈现丝滑跟手效果，并通过批量批处理 Canvas2D 绘制调用实现极致高帧率。
    */
-  private renderPreviewCanvas(frame: HandGestureFrame): void {
+  private renderPreviewCanvas(frame: HandGestureFrame, dtSec = 0): void {
     const video = this.service.getVideoElement();
     const ctx = this.previewCtx;
     const w = this.previewCanvas.width;
@@ -1448,6 +1489,11 @@ export class HandTrackingHUD {
         label: '左手',
         handKey: 'left',
       });
+    } else {
+      this.prevHandLandmarks.delete('left');
+      this.targetHandLandmarks.delete('left');
+      this.smoothedHandLandmarks.delete('left');
+      this.smoothedPinchRadius.delete('left');
     }
 
     if (frame.rightHand && frame.rightHand.landmarks) {
@@ -1459,10 +1505,18 @@ export class HandTrackingHUD {
         label: '右手',
         handKey: 'right',
       });
+    } else {
+      this.prevHandLandmarks.delete('right');
+      this.targetHandLandmarks.delete('right');
+      this.smoothedHandLandmarks.delete('right');
+      this.smoothedPinchRadius.delete('right');
     }
 
     if (handsToRender.length === 0) {
       this.prevHandLandmarks.clear();
+      this.targetHandLandmarks.clear();
+      this.smoothedHandLandmarks.clear();
+      this.smoothedPinchRadius.clear();
       return;
     }
 
@@ -1483,24 +1537,47 @@ export class HandTrackingHUD {
     for (const hand of handsToRender) {
       const rawLms = hand.data.landmarks;
       const prev = this.prevHandLandmarks.get(hand.handKey);
-      let lms = rawLms;
+      let targetLms = this.targetHandLandmarks.get(hand.handKey) ?? rawLms;
 
-      // 视觉延迟前向外推补偿：消除关键点相对于实时视频流的管线处理延迟
-      if (prev && frame.timestamp > prev.timestamp) {
-        const dt = Math.max(frame.timestamp - prev.timestamp, 1);
-        const factor = Math.min(latencyCompensationMs / dt, 1.2);
-        lms = rawLms.map((p, idx) => {
-          const prevP = prev.lms[idx] || p;
-          const vx = (p.x - prevP.x) * factor;
-          const vy = (p.y - prevP.y) * factor;
+      // 视觉延迟前向外推补偿：当新推理帧到达时，计算前向预测目标关键点以抵消管线延迟
+      if (!prev || frame.timestamp > prev.timestamp) {
+        if (prev && frame.timestamp > prev.timestamp) {
+          const dt = Math.max(frame.timestamp - prev.timestamp, 1);
+          const factor = Math.min(latencyCompensationMs / dt, 1.2);
+          targetLms = rawLms.map((p, idx) => {
+            const prevP = prev.lms[idx] || p;
+            const vx = (p.x - prevP.x) * factor;
+            const vy = (p.y - prevP.y) * factor;
+            return {
+              x: Math.max(0, Math.min(1, p.x + vx)),
+              y: Math.max(0, Math.min(1, p.y + vy)),
+              z: p.z,
+            };
+          });
+        } else {
+          targetLms = rawLms.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+        }
+        this.prevHandLandmarks.set(hand.handKey, { lms: rawLms, timestamp: frame.timestamp });
+        this.targetHandLandmarks.set(hand.handKey, targetLms);
+      }
+
+      // 60 FPS 恒定时间步长指数阻尼平滑（Lerp）：将 20 FPS 骨骼关键点平滑过渡至 60 FPS
+      const prevSmoothed = this.smoothedHandLandmarks.get(hand.handKey);
+      let lms: NormalizedLandmark[];
+      if (prevSmoothed && prevSmoothed.length === targetLms.length && dtSec > 0) {
+        const lerpAlpha = 1 - Math.exp(-32 * dtSec);
+        lms = prevSmoothed.map((cur, idx) => {
+          const tgt = targetLms[idx];
           return {
-            x: Math.max(0, Math.min(1, p.x + vx)),
-            y: Math.max(0, Math.min(1, p.y + vy)),
-            z: p.z,
+            x: cur.x + (tgt.x - cur.x) * lerpAlpha,
+            y: cur.y + (tgt.y - cur.y) * lerpAlpha,
+            z: cur.z + (tgt.z - cur.z) * lerpAlpha,
           };
         });
+      } else {
+        lms = targetLms.map((p) => ({ x: p.x, y: p.y, z: p.z }));
       }
-      this.prevHandLandmarks.set(hand.handKey, { lms: rawLms, timestamp: frame.timestamp });
+      this.smoothedHandLandmarks.set(hand.handKey, lms);
 
       // 1. 在单一批量路径中绘制手部骨骼连线
       ctx.lineWidth = Math.round(2 * scale);
@@ -1559,12 +1636,17 @@ export class HandTrackingHUD {
       ctx.arc(ipx, ipy, rTip, 0, 2 * Math.PI);
       ctx.fill();
 
-      // 5. 绘制中点标记与状态文本标签
+      // 5. 绘制中点标记与状态文本标签（捏合圆环半径同样以 60 FPS 阻尼插值过渡）
       const mx = (1.0 - (thumb.x + index.x) * 0.5) * w;
       const my = (thumb.y + index.y) * 0.5 * h;
+      const targetRadius = (hand.data.isPinching ? 6 : 9) * scale;
+      const prevRadius = this.smoothedPinchRadius.get(hand.handKey) ?? targetRadius;
+      const radiusLerp = dtSec > 0 ? 1 - Math.exp(-24 * dtSec) : 1.0;
+      const pinchRadius = prevRadius + (targetRadius - prevRadius) * radiusLerp;
+      this.smoothedPinchRadius.set(hand.handKey, pinchRadius);
 
       ctx.beginPath();
-      ctx.arc(mx, my, (hand.data.isPinching ? 6 : 9) * scale, 0, 2 * Math.PI);
+      ctx.arc(mx, my, pinchRadius, 0, 2 * Math.PI);
       ctx.fillStyle = hand.data.isPinching ? hand.pinchLineColor : 'rgba(255, 255, 255, 0.2)';
       ctx.fill();
       ctx.lineWidth = 1.5 * scale;
@@ -1747,6 +1829,8 @@ export class HandTrackingHUD {
   }
 
   public destroy(): void {
+    this.isDestroyed = true;
+    this.stopPreviewRenderLoop();
     if (this.bodyObserver) {
       this.bodyObserver.disconnect();
       this.bodyObserver = null;

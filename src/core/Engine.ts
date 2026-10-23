@@ -717,7 +717,7 @@ export class Engine {
       this.spatialWindowObject.position.set(targetX, targetY, targetZ);
       this.spatialWindowObject.rotation.set(targetRotX, targetRotY, 0);
     } else {
-      const lerpSpeed = Math.min(1.0, delta * 7.0);
+      const lerpSpeed = 1 - Math.exp(-Math.max(0, delta) * 12.0);
       const pos = this.spatialWindowObject.position;
       const rot = this.spatialWindowObject.rotation;
 
@@ -2480,21 +2480,22 @@ export class Engine {
       const { sourceMesh, targetPosition, targetTilt, isPouring } = this.beakerDragState;
       sourceMesh.setTilt(targetTilt);
       if (!isPouring) {
-        const posLerp = Math.min(1.0, delta * 12.0);
+        const posLerp = 1 - Math.exp(-Math.max(0, delta) * 20.0);
         sourceMesh.group.position.lerp(targetPosition, posLerp);
       }
     } else {
+      const restLerp = 1 - Math.exp(-Math.max(0, delta) * 14.0);
       if (this.beakerLeft) {
         const dist = this.beakerLeft.group.position.distanceTo(this.beakerLeft.restingPosition);
         if (dist > 0.0005) {
-          this.beakerLeft.group.position.lerp(this.beakerLeft.restingPosition, Math.min(1.0, delta * 10.0));
+          this.beakerLeft.group.position.lerp(this.beakerLeft.restingPosition, restLerp);
         }
         this.beakerLeft.setTilt(0);
       }
       if (this.beakerRight) {
         const dist = this.beakerRight.group.position.distanceTo(this.beakerRight.restingPosition);
         if (dist > 0.0005) {
-          this.beakerRight.group.position.lerp(this.beakerRight.restingPosition, Math.min(1.0, delta * 10.0));
+          this.beakerRight.group.position.lerp(this.beakerRight.restingPosition, restLerp);
         }
         this.beakerRight.setTilt(0);
       }

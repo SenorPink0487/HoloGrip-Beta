@@ -598,8 +598,8 @@ export class FireSyringeBenchMesh {
 
     const outerGlassMat = labGlass(0.10);
     outerGlassMat.color.setHex(0xffffff);
-    const innerGlassMat = labGlass(0.05);
-    innerGlassMat.color.setHex(0xfff7ed);
+    const innerGlassMat = labGlass(0.06);
+    innerGlassMat.color.setHex(0xdbeafe);
 
     // 外壁与内壁双层玻璃建模，展现真实厚壁有机玻璃/高硼硅玻璃折射质感
     const outerTubeGeo = new THREE.CylinderGeometry(0.0272, 0.0272, glassHeight, 48, 1, true);
@@ -898,11 +898,11 @@ export class FireSyringeBenchMesh {
     const effectsGroup = new THREE.Group();
     effectsGroup.name = 'InternalDynamicEffectsGroup';
 
-    // --- A. 气缸内空气体积染色柱与绝热压缩热浪光柱（采用 NormalBlending 确保在浅灰背景前高对比度显色） ---
+    // --- A. 气缸内空气体积染色柱与绝热压缩热浪光柱（采用 NormalBlending 高饱和宝石蓝，确保在浅灰背景前鲜明突出） ---
     this.thermalColumnMat = new THREE.MeshBasicMaterial({
-      color: 0xf97316,
+      color: 0x0284c7,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.22,
       blending: THREE.NormalBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -911,12 +911,12 @@ export class FireSyringeBenchMesh {
     this.thermalColumnMesh = new THREE.Mesh(colGeo, this.thermalColumnMat);
     effectsGroup.add(this.thermalColumnMesh);
 
-    // --- B. 向下推进的绝热压缩冲击波环 (3 道高对比度赤橙流光环) ---
+    // --- B. 向下推进的绝热压缩冲击波环 (3 道流光环) ---
     const waveRingGeo = new THREE.TorusGeometry(0.0195, 0.0016, 12, 36);
     waveRingGeo.rotateX(Math.PI / 2);
     for (let i = 0; i < 3; i++) {
       const mat = new THREE.MeshBasicMaterial({
-        color: 0xea580c,
+        color: 0x0284c7,
         transparent: true,
         opacity: 0,
         blending: THREE.NormalBlending,
@@ -927,14 +927,14 @@ export class FireSyringeBenchMesh {
       this.shockwaveRings.push({ mesh, mat, offset: i / 3 });
     }
 
-    // --- C. 气缸内微观空气分子群 (高对比度暖橙/赤红实心粒子，与冷灰实验室背景形成强烈互补对比) ---
+    // --- C. 气缸内微观空气分子群 (高饱和深钴蓝/宝石蓝实心粒子，杜绝泛白，与浅灰背景强对比) ---
     const molGeo = new THREE.SphereGeometry(0.00235, 14, 12);
     this.moleculesMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.32,
-      metalness: 0.08,
-      emissive: 0xc2410c,
-      emissiveIntensity: 0.28,
+      roughness: 0.28,
+      metalness: 0.1,
+      emissive: 0x1d4ed8,
+      emissiveIntensity: 0.25,
     });
     this.moleculesInstanced = new THREE.InstancedMesh(
       molGeo,
@@ -959,7 +959,7 @@ export class FireSyringeBenchMesh {
         vz: Math.sin(speedAngle) * (0.65 + (i % 4) * 0.15),
         phase: i * 0.43,
       });
-      this.moleculesInstanced.setColorAt(i, new THREE.Color(0xea580c));
+      this.moleculesInstanced.setColorAt(i, new THREE.Color(0x1d4ed8));
     }
     if (this.moleculesInstanced.instanceColor) {
       this.moleculesInstanced.instanceColor.needsUpdate = true;
@@ -1124,21 +1124,26 @@ export class FireSyringeBenchMesh {
     this.oRingTopMesh.scale.set(sealExpand, 1.0, sealExpand);
     this.pistonBottomGlowMat.opacity = Math.min(0.85, telemetry.thermalGlowIntensity * 0.75);
 
-    // 3. 更新气缸内空气染色柱与绝热压缩热浪光柱（活塞以下气腔呈现醒目的暖琥珀橙 -> 炽热深红渐变，与活塞上方的无气透明区及浅灰背景拉开鲜明对比）
+    // 3. 更新气缸内空气染色柱（常温为高饱和深海宝石蓝，绝热压缩升温时渐变为炽热橙红）
     const gasFloorY = 0.092;
     const gasColumnHeight = Math.max(0.008, pistonBottomY - gasFloorY);
     this.thermalColumnMesh.position.y = gasFloorY + gasColumnHeight * 0.5;
     this.thermalColumnMesh.scale.set(1, gasColumnHeight, 1);
     const densityBoost = Math.min(1.0, telemetry.stroke * 0.65);
     this.thermalColumnMat.opacity =
-      0.16 + densityBoost * 0.14 + telemetry.thermalGlowIntensity * 0.28;
-    // 常温下为醒目的暖橙色 (hue=0.068)，压缩升温后渐变为高饱和赤红 (hue=0.015)
-    const heatHue = THREE.MathUtils.lerp(
-      0.068,
-      0.012,
-      Math.min(1, telemetry.thermalGlowIntensity * 0.85 + densityBoost * 0.25)
-    );
-    this.thermalColumnMat.color.setHSL(heatHue, 0.96, 0.48);
+      0.22 + densityBoost * 0.14 + telemetry.thermalGlowIntensity * 0.26;
+    if (telemetry.thermalGlowIntensity < 0.35) {
+      // 常温至微温：深邃宝石蓝 (#0284c7 / #1d4ed8)，在浅灰背景前显色浓郁清晰
+      this.thermalColumnMat.color
+        .setHex(0x0284c7)
+        .lerp(new THREE.Color(0x2563eb), densityBoost);
+    } else {
+      // 高温压缩引火：由宝石蓝迅速过渡至炽热橙红 (#ff3b00)
+      const heatFactor = (telemetry.thermalGlowIntensity - 0.35) / 0.65;
+      this.thermalColumnMat.color
+        .setHex(0x2563eb)
+        .lerp(new THREE.Color(0xff3b00), Math.min(1, heatFactor));
+    }
 
     // 4. 更新向下推进的绝热压缩冲击波环
     for (const ring of this.shockwaveRings) {
@@ -1160,7 +1165,7 @@ export class FireSyringeBenchMesh {
       }
     }
 
-    // 5. 更新气缸内微观空气分子的压缩加密、加速热运动与高对比度暖橙->赤红渐变
+    // 5. 更新气缸内微观空气分子的压缩加密、加速热运动与高对比度深蓝->炽红渐变
     this.updateAirMolecules(safeDt, pistonBottomY, telemetry);
 
     // 6. 更新引火棉（火绒）碳化变色与暗红余烬呼吸光效
@@ -1180,15 +1185,25 @@ export class FireSyringeBenchMesh {
     const maxR = FireSyringeBenchMesh.GLASS_INNER_RADIUS - 0.0025;
     const speedMult = telemetry.moleculeSpeedMultiplier;
 
-    // 根据气体实时温度计算分子高对比度色彩（严格参照原理图配色，与冷灰背景形成强烈互补）：
-    // 常温 20°C (饱满暖橙/琥珀橙 #ea580c / #f97316) -> 120°C (深烈焰橙红 #dc2626) -> 260°C+ (炽热鲜红/赤金核心 #b91c1c / #ff1e00)
+    // 根据气体实时温度计算分子高对比度色彩：
+    // 常温 20°C (浓郁深钴蓝/宝石蓝 #1d4ed8 / #0284c7，与浅灰背景强对比) -> 120°C (琥珀金) -> 260°C+ (炽热橙红)
     const tNorm = Math.max(0, Math.min(1.0, (telemetry.temperatureC - 20) / 240));
-    this.moleculesMat.emissive.setRGB(
-      THREE.MathUtils.lerp(0.76, 1.0, tNorm),
-      THREE.MathUtils.lerp(0.22, 0.08, tNorm),
-      0.02
-    );
-    this.moleculesMat.emissiveIntensity = 0.28 + tNorm * 0.95 + telemetry.flameIntensity * 0.55;
+    if (tNorm < 0.4) {
+      const k = tNorm / 0.4;
+      this.moleculesMat.emissive.setRGB(
+        THREE.MathUtils.lerp(0.04, 0.85, k),
+        THREE.MathUtils.lerp(0.24, 0.45, k),
+        THREE.MathUtils.lerp(0.78, 0.05, k)
+      );
+    } else {
+      const k = (tNorm - 0.4) / 0.6;
+      this.moleculesMat.emissive.setRGB(
+        THREE.MathUtils.lerp(0.85, 1.0, k),
+        THREE.MathUtils.lerp(0.45, 0.12, k),
+        0.03
+      );
+    }
+    this.moleculesMat.emissiveIntensity = 0.25 + tNorm * 0.95 + telemetry.flameIntensity * 0.55;
 
     const pScale = 0.95 + tNorm * 0.32;
     this.dummyScale.set(pScale, pScale, pScale);
@@ -1222,11 +1237,22 @@ export class FireSyringeBenchMesh {
         }
       }
 
-      // 为每颗分子赋予层次丰富的暖橙-朱红微差色泽，在浅灰背景前颗颗分明
-      const shadeVar = ((i % 5) - 2) * 0.04;
-      const r = THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.95, 1.0, tNorm) + shadeVar, 0.8, 1.0);
-      const g = THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.38, 0.10, tNorm) + shadeVar * 0.7, 0.05, 0.55);
-      const b = THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.04, 0.02, tNorm), 0.01, 0.12);
+      // 为每颗分子赋予高饱和深钴蓝 / 电光蓝 (常温) -> 炽热橙红 (高温) 的鲜明层次
+      const shadeVar = ((i % 5) - 2) * 0.045;
+      let r: number;
+      let g: number;
+      let b: number;
+      if (tNorm < 0.4) {
+        const k = tNorm / 0.4;
+        r = THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.06, 0.96, k) + shadeVar * 0.4, 0.02, 1.0);
+        g = THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.36, 0.58, k) + shadeVar * 0.8, 0.18, 0.75);
+        b = THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.92, 0.12, k) - shadeVar * 0.5, 0.05, 1.0);
+      } else {
+        const k = (tNorm - 0.4) / 0.6;
+        r = THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.96, 1.0, k), 0.85, 1.0);
+        g = THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.58, 0.12, k) + shadeVar * 0.5, 0.05, 0.65);
+        b = THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.12, 0.02, k), 0.01, 0.15);
+      }
       this.dummyColor.setRGB(r, g, b);
       this.moleculesInstanced.setColorAt(i, this.dummyColor);
 

@@ -381,11 +381,18 @@ export class VisionProCursor {
       this.currentRightY = this.renderRightY;
       this.rightContainer.style.transform = `translate3d(${this.renderRightX.toFixed(2)}px, ${this.renderRightY.toFixed(2)}px, 0)`;
 
-      // 在处于长按拖拽（调节滑块、拖拽烧杯）状态时，在 60 FPS 渲染帧中持续派发平滑拖拽事件
+      // 在处于长按拖拽（调节滑块、拖拽烧杯）或悬停瞄准状态时，在 60 FPS 渲染帧中持续派发平滑指针事件
       if (this.isRightPinching && this.dragTarget) {
         if (Math.hypot(this.renderRightX - this.lastDispatchedX, this.renderRightY - this.lastDispatchedY) >= 0.5) {
           this.dispatchPointerEvent('pointermove', this.dragTarget, this.renderRightX, this.renderRightY, 0, 1);
           this.dispatchMouseEvent('mousemove', this.dragTarget, this.renderRightX, this.renderRightY, 0, 1);
+          this.lastDispatchedX = this.renderRightX;
+          this.lastDispatchedY = this.renderRightY;
+        }
+      } else if (!this.isRightPinching && !this.isDualPinching && this.lastHoverTarget) {
+        if (Math.hypot(this.renderRightX - this.lastDispatchedX, this.renderRightY - this.lastDispatchedY) >= 0.5) {
+          this.dispatchPointerEvent('pointermove', this.lastHoverTarget, this.renderRightX, this.renderRightY, 0, 0);
+          this.dispatchMouseEvent('mousemove', this.lastHoverTarget, this.renderRightX, this.renderRightY, 0, 0);
           this.lastDispatchedX = this.renderRightX;
           this.lastDispatchedY = this.renderRightY;
         }
@@ -682,12 +689,14 @@ export class VisionProCursor {
         this.lastDispatchedY = y;
       }
     } else if (!hand.isPinching) {
-      // 悬停时过滤低于 0.5px 的微小抖动
+      // 悬停时过滤低于 0.5px 的微小抖动，并优先使用 60 FPS 卡尔曼平滑坐标消除 20Hz 阶跃
       if (Math.hypot(x - this.lastDispatchedX, y - this.lastDispatchedY) >= 0.5) {
-        this.dispatchPointerEvent('pointermove', currentElement, x, y, 0, 0);
-        this.dispatchMouseEvent('mousemove', currentElement, x, y, 0, 0);
-        this.lastDispatchedX = x;
-        this.lastDispatchedY = y;
+        const hoverX = this.animFrameId !== null && this.renderRightX > 0 ? this.renderRightX : x;
+        const hoverY = this.animFrameId !== null && this.renderRightY > 0 ? this.renderRightY : y;
+        this.dispatchPointerEvent('pointermove', currentElement, hoverX, hoverY, 0, 0);
+        this.dispatchMouseEvent('mousemove', currentElement, hoverX, hoverY, 0, 0);
+        this.lastDispatchedX = hoverX;
+        this.lastDispatchedY = hoverY;
       }
     }
 
