@@ -248,6 +248,11 @@ export class StereometryTouchZoomWidget {
     this.element.setAttribute('role', 'toolbar');
     this.element.setAttribute('aria-label', '立体几何图像缩放控制器');
 
+    // 阻止触控缩放胶囊上的指针事件穿透至画布触发误旋转
+    this.element.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.element.addEventListener('pointermove', (e) => e.stopPropagation());
+    this.element.addEventListener('pointerup', (e) => e.stopPropagation());
+
     this.element.innerHTML = `
       <!-- Zoom Out Button (-) -->
       <button type="button" class="zoom-touch-btn" id="btn-touch-zoom-out" aria-label="缩小立体几何图像" title="缩小 (快捷键 - 或双指捏合)">

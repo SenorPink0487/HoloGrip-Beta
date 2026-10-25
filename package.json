@@ -26,6 +26,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:https": "vite --https",
     "prebuild": "npm run test:perf",
     "build": "npm run test:perf && tsc && vite build",
     "build:app": "tsc && vite build",
@@ -49,6 +50,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
     "@types/three": "^0.186.0",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
   }

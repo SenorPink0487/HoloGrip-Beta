@@ -151,6 +151,8 @@ pub fn default_cors_origins() -> Vec<&'static str> {
     vec![
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:9178",
+        "http://127.0.0.1:9178",
         "http://tauri.localhost",
         "https://tauri.localhost",
         "tauri://localhost",

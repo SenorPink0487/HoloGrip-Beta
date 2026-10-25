@@ -6,9 +6,13 @@ import { StereometryStatusCard } from './StereometryStatusCard.ts';
 import { HallStatusCard } from './HallStatusCard.ts';
 import { FieldStatusCard, type FieldCommand } from './FieldStatusCard.ts';
 import { CapacitorStatusCard } from './CapacitorStatusCard.ts';
+import { HandRulesStatusCard } from './HandRulesStatusCard.ts';
 import { NewtonCannonStatusCard } from './NewtonCannonStatusCard.ts';
 import { CarnotStatusCard } from './CarnotStatusCard.ts';
+import { FourierStatusCard } from './FourierStatusCard.ts';
+import type { FourierRodMaterialId } from '../../physics/thermo/fourierConductionSolver.ts';
 import type { SwitchPosition } from '../../physics/em/capacitorDischarge.ts';
+import type { HandRuleMode } from '../../physics/em/handRulesSolver.ts';
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
@@ -46,6 +50,13 @@ export interface VisionModalCallbacks {
   onCapacitorOpenWaveformWindow?: () => void;
   onCapacitorClearSamples?: () => void;
   onCapacitorReset?: () => void;
+  // 电磁定则与3D手部骨骼回调函数
+  onHandRulesSelectMode?: (mode: HandRuleMode) => void;
+  onHandRulesToggleGesture?: () => void;
+  onHandRulesReverseCurrent?: () => void;
+  onHandRulesReverseField?: () => void;
+  onHandRulesReverseMotion?: () => void;
+  onHandRulesReset?: () => void;
   // 立体几何数学回调函数
   onMathModelChange?: (type: HighSchoolModelType) => void;
   onMathDimensionChange?: (dims: { a?: number; h?: number }) => void;
@@ -80,6 +91,11 @@ export interface VisionModalCallbacks {
   onCarnotHotTempChange?: (tempC: number) => void;
   onCarnotColdTempChange?: (tempC: number) => void;
   onCarnotReset?: () => void;
+  // 固体热传导与傅里叶定律回调
+  onFourierHotTempChange?: (tempC: number) => void;
+  onFourierColdTempChange?: (tempC: number) => void;
+  onFourierMaterialChange?: (materialId: FourierRodMaterialId) => void;
+  onFourierReset?: () => void;
 }
 
 export class VisionModal {
@@ -102,8 +118,10 @@ export class VisionModal {
   private hallStatusCard: HallStatusCard;
   private fieldStatusCard: FieldStatusCard;
   private capacitorStatusCard: CapacitorStatusCard;
+  private handRulesStatusCard: HandRulesStatusCard;
   private newtonStatusCard: NewtonCannonStatusCard;
   private carnotStatusCard: CarnotStatusCard;
+  private fourierStatusCard: FourierStatusCard;
   private currentExperimentId = '';
 
   private bodyContainer: HTMLElement;
@@ -309,7 +327,7 @@ export class VisionModal {
             this.close();
           }
         } else if (id.startsWith('thermo-')) {
-          if (id === 'thermo-carnot') {
+          if (id === 'thermo-carnot' || id === 'thermo-fourier') {
             this.switchTab('thermo');
           } else {
             // 空气压缩引火仪采用纯 3D 台面直接操控：选择后自动关闭悬浮窗，桌面仅呈现引火仪本体
@@ -380,6 +398,15 @@ export class VisionModal {
       onResetExperiment: () => this.callbacks.onCapacitorReset?.(),
     });
 
+    this.handRulesStatusCard = new HandRulesStatusCard({
+      onSelectMode: (mode) => this.callbacks.onHandRulesSelectMode?.(mode),
+      onToggleGesture: () => this.callbacks.onHandRulesToggleGesture?.(),
+      onReverseCurrent: () => this.callbacks.onHandRulesReverseCurrent?.(),
+      onReverseField: () => this.callbacks.onHandRulesReverseField?.(),
+      onReverseMotion: () => this.callbacks.onHandRulesReverseMotion?.(),
+      onReset: () => this.callbacks.onHandRulesReset?.(),
+    });
+
     this.newtonStatusCard = new NewtonCannonStatusCard({
       onLaunch: () => this.callbacks.onNewtonLaunch?.(),
       onClear: () => this.callbacks.onNewtonClear?.(),
@@ -394,6 +421,13 @@ export class VisionModal {
       onHotTempChange: (tempC) => this.callbacks.onCarnotHotTempChange?.(tempC),
       onColdTempChange: (tempC) => this.callbacks.onCarnotColdTempChange?.(tempC),
       onReset: () => this.callbacks.onCarnotReset?.(),
+    });
+
+    this.fourierStatusCard = new FourierStatusCard({
+      onHotTempChange: (tempC) => this.callbacks.onFourierHotTempChange?.(tempC),
+      onColdTempChange: (tempC) => this.callbacks.onFourierColdTempChange?.(tempC),
+      onMaterialChange: (materialId) => this.callbacks.onFourierMaterialChange?.(materialId),
+      onReset: () => this.callbacks.onFourierReset?.(),
     });
 
     // 挂载初始视窗视图
@@ -574,12 +608,20 @@ export class VisionModal {
     return this.capacitorStatusCard;
   }
 
+  public get handRulesCard(): HandRulesStatusCard {
+    return this.handRulesStatusCard;
+  }
+
   public get newtonCard(): NewtonCannonStatusCard {
     return this.newtonStatusCard;
   }
 
   public get carnotCard(): CarnotStatusCard {
     return this.carnotStatusCard;
+  }
+
+  public get fourierCard(): FourierStatusCard {
+    return this.fourierStatusCard;
   }
 
   public setCurrentExperimentId(id: string): void {
@@ -603,7 +645,7 @@ export class VisionModal {
         this.physicsModal.showLevel2('mechanics');
       }
     } else if (id.startsWith('thermo-')) {
-      if (id === 'thermo-carnot') {
+      if (id === 'thermo-carnot' || id === 'thermo-fourier') {
         this.activeTab = 'thermo';
       } else {
         this.activeTab = 'physics';
@@ -633,10 +675,17 @@ export class VisionModal {
     } else if (emId === 'em-capacitor-discharge') {
       emCard = this.capacitorStatusCard;
       emTitle = '电容器充放电';
+    } else if (emId === 'em-hand-rules') {
+      emCard = this.handRulesStatusCard;
+      emTitle = '右手螺旋与左右手定则';
     } else {
       emCard = this.hallStatusCard;
       emTitle = '霍尔效应';
     }
+
+    const isFourierThermo = this.currentExperimentId === 'thermo-fourier';
+    const thermoCard = isFourierThermo ? this.fourierStatusCard : this.carnotStatusCard;
+    const thermoTitle = isFourierThermo ? '固体热传导与傅里叶定律' : '卡诺热机';
 
     let physicsTitle = '物理学';
     if (this.physicsModal && this.physicsModal.getCurrentLevel() === 2) {
@@ -659,7 +708,7 @@ export class VisionModal {
       math: '立体几何',
       em: emTitle,
       mechanics: '牛顿大炮',
-      thermo: '卡诺热机',
+      thermo: thermoTitle,
     };
     if (titleEl) {
       titleEl.textContent = titles[tab] || '实验视窗';
@@ -676,8 +725,10 @@ export class VisionModal {
     if (this.hallStatusCard) this.hallStatusCard.setVisible(false);
     if (this.fieldStatusCard) this.fieldStatusCard.setVisible(false);
     if (this.capacitorStatusCard) this.capacitorStatusCard.setVisible(false);
+    if (this.handRulesStatusCard) this.handRulesStatusCard.setVisible(false);
     if (this.newtonStatusCard) this.newtonStatusCard.setVisible(tab === 'mechanics');
-    if (this.carnotStatusCard) this.carnotStatusCard.setVisible(tab === 'thermo');
+    if (this.carnotStatusCard) this.carnotStatusCard.setVisible(false);
+    if (this.fourierStatusCard) this.fourierStatusCard.setVisible(false);
     if (tab === 'em' && emId !== 'em-capacitor-discharge') emCard.setVisible(true);
 
     if (tab === 'disciplines') {
@@ -705,8 +756,8 @@ export class VisionModal {
       this.newtonStatusCard.setVisible(true);
       this.bodyContainer.appendChild(this.newtonStatusCard.element);
     } else if (tab === 'thermo') {
-      this.carnotStatusCard.setVisible(true);
-      this.bodyContainer.appendChild(this.carnotStatusCard.element);
+      thermoCard.setVisible(true);
+      this.bodyContainer.appendChild(thermoCard.element);
     }
   }
 
@@ -744,6 +795,7 @@ export class VisionModal {
     this.hallStatusCard?.setVisible(false);
     this.fieldStatusCard?.setVisible(false);
     this.capacitorStatusCard?.setVisible(false);
+    this.handRulesStatusCard?.setVisible(false);
     this.newtonStatusCard?.setVisible(false);
     this.callbacks.onClose();
   }

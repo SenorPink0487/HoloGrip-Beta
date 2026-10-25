@@ -140,7 +140,7 @@ export class Engine {
   private lastPointerPos: THREE.Vector2 | null = null;
   private cachedCanvasRect: { left: number; top: number; width: number; height: number } | null = null;
   private currentHoveredTarget: string | null = null;
-  private isExperimentInteracting = false;
+  public isExperimentInteracting = false;
   private labPointers = new LabPointerSession();
   private lastMathTelemetrySync = 0;
   private lastEmTelemetrySync = 0;
@@ -656,7 +656,7 @@ export class Engine {
   }
 
   private isFreeCursorExperiment(id: string | null): boolean {
-    return id === 'math-stereometry' || Boolean(
+    return id === 'math-stereometry' || id === 'em-hand-rules' || Boolean(
       id && this.holoStage?.activeExperiment?.onPointerDown
     ) || Boolean(!id && this.beakerLeft?.isInteractive());
   }
@@ -1030,6 +1030,80 @@ export class Engine {
           exp?.resetExperiment?.();
         }
       },
+      // 电磁定则与 3D 素雅手部骨骼回调
+      onHandRulesSelectMode: (mode) => {
+        if (this.currentExperimentId === 'em-hand-rules') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setRuleMode?.(mode);
+          if (typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.handRulesCard.updateFromTelemetry(exp.getTelemetryData());
+          }
+        }
+      },
+      onHandRulesToggleGesture: async () => {
+        const isRunning = this.handGestureService?.getStatus() === 'running';
+        if (isRunning) {
+          if (this.handTrackingHUD) {
+            this.handTrackingHUD.disable();
+          } else {
+            this.handGestureService?.stop();
+          }
+        } else {
+          try {
+            if (this.handTrackingHUD) {
+              await this.handTrackingHUD.enable();
+            } else {
+              await this.handGestureService?.start();
+            }
+          } catch (err) {
+            console.warn('[Engine] Failed to toggle hand gesture tracking from HandRulesStatusCard:', err);
+          }
+        }
+        if (this.currentExperimentId === 'em-hand-rules') {
+          const exp = this.holoStage?.activeExperiment as any;
+          const nowRunning = this.handGestureService?.getStatus() === 'running';
+          exp?.setGestureEnabled?.(nowRunning);
+          if (typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.handRulesCard.updateFromTelemetry(exp.getTelemetryData());
+          }
+        }
+      },
+      onHandRulesReverseCurrent: () => {
+        if (this.currentExperimentId === 'em-hand-rules') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.reverseCurrent?.();
+          if (typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.handRulesCard.updateFromTelemetry(exp.getTelemetryData());
+          }
+        }
+      },
+      onHandRulesReverseField: () => {
+        if (this.currentExperimentId === 'em-hand-rules') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.reverseField?.();
+          if (typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.handRulesCard.updateFromTelemetry(exp.getTelemetryData());
+          }
+        }
+      },
+      onHandRulesReverseMotion: () => {
+        if (this.currentExperimentId === 'em-hand-rules') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.reverseMotion?.();
+          if (typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.handRulesCard.updateFromTelemetry(exp.getTelemetryData());
+          }
+        }
+      },
+      onHandRulesReset: () => {
+        if (this.currentExperimentId === 'em-hand-rules') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.resetExperiment?.();
+          if (typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.handRulesCard.updateFromTelemetry(exp.getTelemetryData());
+          }
+        }
+      },
       // 立体几何数学回调
       onMathModelChange: (type) => {
         if (this.currentExperimentId === 'math-stereometry') {
@@ -1222,6 +1296,34 @@ export class Engine {
           exp?.resetExperiment?.();
         }
       },
+      // 固体热传导与傅里叶定律控制台回调
+      onFourierHotTempChange: (tempC: number) => {
+        if (this.currentExperimentId === 'thermo-fourier') {
+          this.currentContext.setParameter('hotTempC', tempC);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setHotTempC?.(tempC);
+        }
+      },
+      onFourierColdTempChange: (tempC: number) => {
+        if (this.currentExperimentId === 'thermo-fourier') {
+          this.currentContext.setParameter('coldTempC', tempC);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setColdTempC?.(tempC);
+        }
+      },
+      onFourierMaterialChange: (materialId: string) => {
+        if (this.currentExperimentId === 'thermo-fourier') {
+          this.currentContext.setParameter('materialId', materialId);
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.setMaterial?.(materialId);
+        }
+      },
+      onFourierReset: () => {
+        if (this.currentExperimentId === 'thermo-fourier') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.resetExperiment?.();
+        }
+      },
     });
 
     this.visionModal.setEngines(this.chemistryEngineLeft, this.chemistryEngineRight, 'left');
@@ -1314,6 +1416,15 @@ export class Engine {
       }
 
       this.currentExperimentId = id;
+      if (id === 'em-hand-rules') {
+        const isHandRunning = this.handGestureService?.getStatus() === 'running';
+        (experiment as any)?.setGestureEnabled?.(isHandRunning);
+        this.visionProCursor?.setRightVisible(false);
+        this.visionProCursor?.setLeftVisible(false);
+        if (typeof (experiment as any)?.getTelemetryData === 'function') {
+          this.visionModal.handRulesCard.updateFromTelemetry((experiment as any).getTelemetryData());
+        }
+      }
       if (this.isFreeCursorExperiment(id)) {
         this.crosshair?.setVisible(false);
         if (this.inputManager?.player) {
@@ -1570,7 +1681,15 @@ export class Engine {
 
     // 将手势追踪与 Vision Pro 光标及准星可见性同步
     this.handGestureService.onFrame((frame) => {
-      this.visionProCursor?.update(frame);
+      if (this.currentExperimentId === 'em-hand-rules') {
+        // 电磁定则手势板块：隐藏 2D 白色圆环光标，改由 3D 场景内的 21 节点素雅手部骨骼实时驱动
+        this.visionProCursor?.setRightVisible(false);
+        this.visionProCursor?.setLeftVisible(false);
+        const exp = this.holoStage?.activeExperiment as any;
+        exp?.onHandGestureFrame?.(frame);
+      } else {
+        this.visionProCursor?.update(frame);
+      }
 
       if (frame.hasHand) {
         if (this.inputManager?.player?.isLocked) {
@@ -1585,7 +1704,8 @@ export class Engine {
           (!this.visionModal || !this.visionModal.visible) &&
           !this.isWhiteboardMode &&
           (!this.hud?.drawer || !this.hud.drawer.open) &&
-          this.currentExperimentId !== 'math-stereometry'
+          this.currentExperimentId !== 'math-stereometry' &&
+          this.currentExperimentId !== 'em-hand-rules'
         ) {
           if (!this.crosshair?.getVisible()) {
             this.crosshair?.setVisible(true);
@@ -1609,6 +1729,10 @@ export class Engine {
 
     // 左手长捏合：控制摄像机视角与观察朝向（在 60 FPS 渲染循环中通过阻尼平滑插值舒适追赶，消除 24Hz 阶跃卡顿，平滑舒适且无需前向预测）
     this.handGestureService.onCameraRotate((dx: number, dy: number) => {
+      // 在电磁定则手势板块中，左右手需自由做出螺旋与定则姿势，不触发相机视角旋转
+      if (this.currentExperimentId === 'em-hand-rules') {
+        return;
+      }
       // 触控互斥：当移动设备上的虚拟摇杆正在被按压操作时，抑制手势视角旋转
       if (this.inputManager?.touch?.isJoystickActive()) {
         return;
@@ -1676,6 +1800,18 @@ export class Engine {
       }
       if (this.inputManager?.touch) {
         this.inputManager.touch.setHandTrackingActive(isRunning);
+      }
+
+      if (this.currentExperimentId === 'em-hand-rules') {
+        const exp = this.holoStage?.activeExperiment as any;
+        exp?.setGestureEnabled?.(isRunning);
+        if (isRunning) {
+          this.visionProCursor?.setRightVisible(false);
+          this.visionProCursor?.setLeftVisible(false);
+        }
+        if (typeof exp?.getTelemetryData === 'function') {
+          this.visionModal?.handRulesCard?.updateFromTelemetry(exp.getTelemetryData());
+        }
       }
 
       if (isRunning) {
@@ -2445,6 +2581,8 @@ export class Engine {
             this.visionModal.fieldCard.updateTelemetry(exp.getTelemetry());
           } else if (this.currentExperimentId === 'em-capacitor-discharge' && typeof exp?.getTelemetryData === 'function') {
             this.visionModal.capacitorCard.updateTelemetry(exp.getTelemetryData());
+          } else if (this.currentExperimentId === 'em-hand-rules' && typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.handRulesCard.updateFromTelemetry(exp.getTelemetryData());
           }
         }
       } else if (isModalOpen && this.visionModal.currentTab === 'mechanics') {
@@ -2463,6 +2601,8 @@ export class Engine {
           const exp = this.holoStage.activeExperiment as any;
           if (this.currentExperimentId === 'thermo-carnot' && typeof exp?.getTelemetryData === 'function') {
             this.visionModal.carnotCard.updateTelemetry(exp.getTelemetryData(), exp.getPVCurves?.());
+          } else if (this.currentExperimentId === 'thermo-fourier' && typeof exp?.getTelemetryData === 'function') {
+            this.visionModal.fourierCard.updateTelemetry(exp.getTelemetryData());
           }
         }
       }

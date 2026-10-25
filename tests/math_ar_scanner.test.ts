@@ -56,6 +56,12 @@ class MockElement {
     this.eventListeners[event].push(handler);
   }
 
+  click(): void {
+    if (this.eventListeners['click']) {
+      this.eventListeners['click'].forEach((h) => h({ preventDefault: () => {}, stopPropagation: () => {} }));
+    }
+  }
+
   get classList() {
     return {
       add: (cls: string) => {
@@ -344,6 +350,35 @@ assert.ok(optimized.thumbDataUrl, 'Must generate lightweight thumbDataUrl');
 freshScanner.close();
 console.log('✓ Test 8 passed: Album rapid open and downsampling verified\n');
 
+// -------------------------------------------------------------
+// Test 9: iPad / LAN HTTP Native Camera Activation Fallback
+// -------------------------------------------------------------
+console.log('Test 9: iPad / LAN HTTP Native Camera Activation Fallback');
+
+const lanScanner = new MathARScannerModal();
+const cameraInput = lanScanner.element.querySelector('#math-ar-camera-input') as any;
+assert.ok(cameraInput, 'Direct camera capture input must exist for iPad / LAN fallback');
+
+assert.strictEqual(cameraInput.getAttribute('capture'), 'environment', 'Must specify capture="environment" to activate iPad rear camera');
+const camAccept = cameraInput.getAttribute('accept') || '';
+assert.ok(!camAccept.includes('image/*'), 'Camera input must NOT use wildcard image/*');
+assert.ok(camAccept.includes('image/png') && camAccept.includes('image/jpeg'), 'Camera input must use explicit fast-resolving MIME types');
+
+let nativeCameraTriggered = false;
+cameraInput.click = () => {
+  nativeCameraTriggered = true;
+};
+
+// 模拟实时视频流未开启时，点击快门触发系统原生相机
+const shutterBtn = lanScanner.element.querySelector('#math-ar-shutter') as any;
+assert.ok(shutterBtn, 'Shutter button must exist');
+shutterBtn.click();
+
+assert.ok(nativeCameraTriggered, 'Shutter button MUST trigger native camera input when live stream is inactive');
+
+lanScanner.close();
+console.log('✓ Test 9 passed: iPad / LAN HTTP native camera activation fallback verified\n');
+
 console.log('========================================================');
-console.log('All Math AR Camera Scanner Tests Passed Successfully (8/8)!');
+console.log('All Math AR Camera Scanner Tests Passed Successfully (9/9)!');
 console.log('========================================================');

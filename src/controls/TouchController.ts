@@ -98,7 +98,8 @@ export class TouchController {
   private isSceneLookBlocked(): boolean {
     const engine = typeof window !== 'undefined' ? (window as any).__ENGINE__ : null;
     return Boolean(engine?.isExperimentInteracting || engine?.labEntryActive ||
-      engine?.isWhiteboardMode || engine?.visionModal?.visible || engine?.hud?.drawer?.open);
+      engine?.isWhiteboardMode || engine?.visionModal?.visible || engine?.hud?.drawer?.open ||
+      engine?.currentExperimentId === 'math-stereometry');
   }
 
   public setHandTrackingActive(active: boolean): void {

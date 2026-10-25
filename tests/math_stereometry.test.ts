@@ -1753,8 +1753,222 @@ assert((previewPipe.geometry as THREE.CylinderGeometry).parameters.radiusTop <= 
 lineNormMesh.dispose();
 console.log('✓ Test 31 passed: 空间连线纯净几何线条规范验证通过\n');
 
+// ========================================================
+// Test 32: 触控屏交互优化专项测试 (防误旋转、拖拽直接接线、轻触点击容差、外部触控隔离与双指防抖)
+// ========================================================
+console.log('Test 32: 触控屏交互优化专项测试 (防误旋转、拖拽直接接线、轻触点击容差、外部触控隔离与双指防抖)');
+
+const optMesh = new StereometryMesh();
+optMesh.setOptions({ modelType: 'cube' });
+let optGuidance = '';
+const optManager = new StereometryInteractionManager(optMesh, {
+  onGuidanceChange: (hint) => {
+    optGuidance = hint;
+  },
+});
+
+const optCam = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+optCam.position.set(0, 0, 2);
+optCam.lookAt(0, 0, 0);
+optCam.updateMatrixWorld(true);
+optMesh.modelContainer.updateMatrixWorld(true);
+
+const optCanvas = {
+  getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+};
+const optContext = {
+  ...mockContext,
+  camera: optCam,
+  renderer: {
+    ...mockContext.renderer,
+    domElement: optCanvas,
+  },
+};
+
+// 1. 模拟触摸屏直接拖拽接线：从关键点按下并拖至另一关键点松手，成功连线且模型绝对不旋转
+// 找到顶点 A 和 B 的屏幕投影
+const optKpA = optMesh.getModelDef().keyPoints.find((k) => k.id === 'v_0')!;
+const optKpB = optMesh.getModelDef().keyPoints.find((k) => k.id === 'v_1')!;
+const vAWorld = optKpA.position.clone().applyMatrix4(optMesh.modelContainer.matrixWorld);
+const vBWorld = optKpB.position.clone().applyMatrix4(optMesh.modelContainer.matrixWorld);
+const ndcA = vAWorld.clone().project(optCam);
+const ndcB = vBWorld.clone().project(optCam);
+const screenXA = ((ndcA.x + 1) / 2) * 1920;
+const screenYA = ((-ndcA.y + 1) / 2) * 1080;
+const screenXB = ((ndcB.x + 1) / 2) * 1920;
+const screenYB = ((-ndcB.y + 1) / 2) * 1080;
+
+const initialModelRotY = optMesh.modelContainer.rotation.y;
+
+// 1.1 手指在顶点 A 处按下
+const touchDownA = {
+  button: 0,
+  clientX: screenXA,
+  clientY: screenYA,
+  pointerId: 10,
+  pointerType: 'touch',
+} as PointerEvent;
+const handledA = optManager.onPointerDown(touchDownA, null, optContext);
+assert.strictEqual(handledA, true, 'PointerDown on keypoint must be handled');
+assert.strictEqual((optManager as any).isConnectingDrag, true, 'PointerDown on keypoint must start connecting drag');
+assert.strictEqual((optManager as any).isOrbitDragging, false, 'PointerDown on keypoint must NOT start orbit drag');
+
+// 1.2 手指滑动向顶点 B 拖拽
+const touchMoveAB = {
+  button: 0,
+  clientX: screenXB,
+  clientY: screenYB,
+  pointerId: 10,
+  pointerType: 'touch',
+} as PointerEvent;
+optManager.onPointerMove(touchMoveAB, null, optContext);
+
+// 核心验证：拖拽接线过程中，模型旋转绝对为 0
+assert.strictEqual(optMesh.modelContainer.rotation.y, initialModelRotY, 'Model must NOT rotate while dragging to connect');
+assert.strictEqual((optManager as any).isOrbitDragging, false, 'isOrbitDragging must remain false while connecting drag');
+
+// 1.3 在顶点 B 处抬手松手 -> 成功完成接线！
+const touchUpB = {
+  button: 0,
+  clientX: screenXB,
+  clientY: screenYB,
+  pointerId: 10,
+  pointerType: 'touch',
+} as PointerEvent;
+optManager.onPointerUp(touchUpB, optContext);
+
+assert.strictEqual(optMesh.getSegments().length, 1, 'Drag-to-connect must create auxiliary segment');
+assert.strictEqual(optMesh.modelContainer.rotation.y, initialModelRotY, 'Model must NOT rotate upon drag-to-connect release');
+
+// 2. 模拟触屏手抖轻触 (Tap 伴随 15px 手指抖动位移)
+// 之前 7px 阈值会导致 15px 抖动被判定为旋转并丢弃点击；现在 22px 容差必须正确识别为 Tap
+const optKpC = optMesh.getModelDef().keyPoints.find((k) => k.id === 'v_2')!;
+const vCWorld = optKpC.position.clone().applyMatrix4(optMesh.modelContainer.matrixWorld);
+const ndcC = vCWorld.clone().project(optCam);
+const screenXC = ((ndcC.x + 1) / 2) * 1920;
+const screenYC = ((-ndcC.y + 1) / 2) * 1080;
+
+optManager.onPointerDown({
+  button: 0,
+  clientX: screenXC,
+  clientY: screenYC,
+  pointerId: 11,
+  pointerType: 'touch',
+} as PointerEvent, null, optContext);
+
+// 手指在屏幕上微动 15px
+optManager.onPointerMove({
+  button: 0,
+  clientX: screenXC + 12,
+  clientY: screenYC + 9,
+  pointerId: 11,
+  pointerType: 'touch',
+} as PointerEvent, null, optContext);
+
+// 抬起手指 (总位移 15px，耗时 120ms)
+optManager.onPointerUp({
+  button: 0,
+  clientX: screenXC + 12,
+  clientY: screenYC + 9,
+  pointerId: 11,
+  pointerType: 'touch',
+} as PointerEvent, optContext);
+
+// 验证必须成功选定起点 C，而不是误判为旋转
+assert.strictEqual((optManager as any).pendingStartPoint?.id, 'v_2', 'Fingertip 15px tremor tap must still be recognized as tap selection');
+assert.strictEqual(optMesh.modelContainer.rotation.y, initialModelRotY, 'Fingertip tremor tap must NOT rotate the 3D model');
+
+// 3. 选定起点后，轻触空白区域取消选择
+optManager.onPointerDown({
+  button: 0,
+  clientX: 50,
+  clientY: 50,
+  pointerId: 12,
+  pointerType: 'touch',
+} as PointerEvent, null, optContext);
+optManager.onPointerUp({
+  button: 0,
+  clientX: 50,
+  clientY: 50,
+  pointerId: 12,
+  pointerType: 'touch',
+} as PointerEvent, optContext);
+
+assert.strictEqual((optManager as any).pendingStartPoint, null, 'Tapping blank must cancel pending start point');
+assert.strictEqual(optMesh.modelContainer.rotation.y, initialModelRotY, 'Tapping blank to cancel must NOT rotate model');
+
+// 4. 在模型外部空白区域交互测试：
+// 4.1 在外部空白区域滑动拖拽（移动 70px > 14px）-> 必须顺畅旋转 3D 视角（转动模型视角）
+const rotBeforeOutsideDrag = optMesh.modelContainer.rotation.y;
+const outsideDownHandled = optManager.onPointerDown({
+  button: 0,
+  clientX: 20,
+  clientY: 20,
+  pointerId: 13,
+  pointerType: 'touch',
+} as PointerEvent, null, optContext);
+assert.strictEqual(outsideDownHandled, true, 'PointerDown in outside blank space must claim pointer for orbiting');
+
+optManager.onPointerMove({
+  button: 0,
+  clientX: 90,
+  clientY: 20,
+  pointerId: 13,
+  pointerType: 'touch',
+} as PointerEvent, null, optContext);
+assert.strictEqual((optManager as any).isOrbitDragging, true, 'Swiping in outside blank area must enter orbit dragging');
+assert.notStrictEqual(optMesh.modelContainer.rotation.y, rotBeforeOutsideDrag, 'Swiping in outside blank area must rotate the 3D view');
+
+optManager.onPointerUp({
+  button: 0,
+  clientX: 90,
+  clientY: 20,
+  pointerId: 13,
+  pointerType: 'touch',
+} as PointerEvent, optContext);
+assert.strictEqual((optManager as any).isOrbitDragging, false, 'PointerUp must end orbit dragging');
+
+// 4.2 在外部空白区域短按轻触 (Tap 且位移 <= 22px，无待选起点) -> 绝不发生误旋转
+const rotBeforeOutsideTap = optMesh.modelContainer.rotation.y;
+optManager.onPointerDown({
+  button: 0,
+  clientX: 30,
+  clientY: 30,
+  pointerId: 14,
+  pointerType: 'touch',
+} as PointerEvent, null, optContext);
+optManager.onPointerUp({
+  button: 0,
+  clientX: 34,
+  clientY: 33,
+  pointerId: 14,
+  pointerType: 'touch',
+} as PointerEvent, optContext);
+assert.strictEqual(optMesh.modelContainer.rotation.y, rotBeforeOutsideTap, 'Quick tap in outside area must NOT rotate model');
+
+// 5. 双指缩放释放防抖 (Pinch Cooldown)：一指先抬起时，剩余手指绝不突发旋转模型
+optManager.onPointerDown({ button: 0, clientX: 300, clientY: 300, pointerId: 21, pointerType: 'touch' } as PointerEvent, null, optContext);
+optManager.onPointerDown({ button: 0, clientX: 400, clientY: 300, pointerId: 22, pointerType: 'touch' } as PointerEvent, null, optContext);
+assert.strictEqual((optManager as any).isPinching, true, 'Two pointers must trigger pinching');
+
+// 抬起第一只手指
+optManager.onPointerUp({ button: 0, clientX: 300, clientY: 300, pointerId: 21, pointerType: 'touch' } as PointerEvent, optContext);
+assert.strictEqual((optManager as any).pinchCooldown, true, 'Lifting first finger must engage pinch cooldown');
+
+// 剩余的第二只手指继续滑动 40px
+const rotBeforeCooldownMove = optMesh.modelContainer.rotation.y;
+optManager.onPointerMove({ button: 0, clientX: 440, clientY: 300, pointerId: 22, pointerType: 'touch' } as PointerEvent, null, optContext);
+assert.strictEqual(optMesh.modelContainer.rotation.y, rotBeforeCooldownMove, 'Remaining finger during cooldown must NOT rotate model');
+
+// 第二只手指抬起，完全退出
+optManager.onPointerUp({ button: 0, clientX: 440, clientY: 300, pointerId: 22, pointerType: 'touch' } as PointerEvent, optContext);
+assert.strictEqual((optManager as any).pinchCooldown, false, 'All fingers lifted clears cooldown');
+
+optMesh.dispose();
+console.log('✓ Test 32 passed: 触控屏交互优化专项测试 (防误旋转、拖拽直接接线、轻触点击容差、外部触控隔离与双指防抖) 验证通过\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (31/31)!');
+console.log('All High School Stereometry Tests Passed Successfully (32/32)!');
 console.log('========================================================');
 
 

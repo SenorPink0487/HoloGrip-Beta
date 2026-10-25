@@ -61,7 +61,8 @@ const canvas = new MockElement('canvas');
 const player = new PlayerController(new THREE.PerspectiveCamera(), canvas as any);
 const controller: any = new TouchController(player);
 const engine: any = { currentExperimentId: 'optics-reflection-refraction', isExperimentInteracting: false,
-  visionModal: { visible: false }, hud: { drawer: { open: false } } };
+  visionModal: { visible: false }, hud: { drawer: { open: false } },
+  isFreeCursorExperiment: (id: string | null) => Boolean(id) };
 win.__ENGINE__ = engine;
 const finger = (identifier: number, clientX = 600, clientY = 250) => ({ identifier, clientX, clientY });
 const event = (changed: any[], touches = changed, target = canvas) => ({
@@ -101,19 +102,21 @@ win.emit('touchmove', event([finger(1, 700)]));
 assert.equal(player.yaw, releasedYaw, 'Instrument ownership must not resume a stale camera drag');
 end();
 
-for (const blocked of ['instrument', 'modal', 'drawer', 'entry', 'whiteboard', 'handTracking']) {
+for (const blocked of ['instrument', 'modal', 'drawer', 'entry', 'whiteboard', 'handTracking', 'stereometry']) {
   engine.isExperimentInteracting = blocked === 'instrument';
   engine.visionModal.visible = blocked === 'modal';
   engine.hud.drawer.open = blocked === 'drawer';
   engine.labEntryActive = blocked === 'entry';
   engine.isWhiteboardMode = blocked === 'whiteboard';
   controller.isHandTrackingActive = blocked === 'handTracking';
+  engine.currentExperimentId = blocked === 'stereometry' ? 'math-stereometry' : 'optics-reflection-refraction';
   start();
   win.emit('touchmove', event([finger(1, 650)]));
   assert.equal(player.yaw, releasedYaw, `${blocked} owns input instead of the camera`);
   end();
 }
 controller.isHandTrackingActive = false;
+engine.currentExperimentId = 'optics-reflection-refraction';
 
 // Menus and two-finger model gestures cannot initiate camera rotation.
 const button = new MockElement('button');

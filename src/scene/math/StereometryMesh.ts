@@ -469,8 +469,12 @@ export class StereometryMesh {
     this.modelContainer.add(this.auxFacesGroup);
 
     // 隐形交互碰撞包络体，用于实现轻松自然的直接拖拽旋转
-    const hitGeo = new THREE.SphereGeometry(0.75, 16, 16);
-    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const hitGeo = new THREE.SphereGeometry(1.0, 16, 16);
+    const hitMat = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
     this.hitEnvelopeMesh = new THREE.Mesh(hitGeo, hitMat);
     this.hitEnvelopeMesh.name = 'math_hit_envelope';
     this.modelContainer.add(this.hitEnvelopeMesh);
@@ -868,9 +872,17 @@ export class StereometryMesh {
     this.rebuildCoordinateSystem();
     this.rebuildSpheres();
     this.rebuildThreeViews();
+    this.updateHitEnvelope();
 
     this.updateBaseHoverHeight();
     this.modelContainer.position.y = this.baseHoverY;
+  }
+
+  private updateHitEnvelope(): void {
+    if (this.hitEnvelopeMesh && this.currentModelDef) {
+      const r = Math.max(0.75, (this.currentModelDef.boundingRadius || 0.8) * 1.35);
+      this.hitEnvelopeMesh.scale.set(r, r, r);
+    }
   }
 
   // -------------------------------------------------------------
@@ -1949,6 +1961,15 @@ export class StereometryMesh {
 
     bctx.shadowBlur = 0;
     this.snapBadgeTex.needsUpdate = true;
+  }
+
+  public isRayHittingModel(ray: THREE.Ray): boolean {
+    if (!this.modelContainer) return false;
+    const center = new THREE.Vector3();
+    this.modelContainer.getWorldPosition(center);
+    const r = Math.max(0.75, (this.currentModelDef?.boundingRadius ?? 0.8) * this.modelScale * 1.35);
+    const sphere = new THREE.Sphere(center, r);
+    return ray.intersectsSphere(sphere);
   }
 
   public findClosestSnapPoint(

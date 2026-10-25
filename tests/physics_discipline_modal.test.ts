@@ -397,10 +397,11 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(!html.includes('physics-nav-bar'), 'Level 2 EM must not contain redundant inner navigation bar');
 
   // Verify EM experiments present
-  assert.strictEqual(PhysicsDisciplineModal.EM_EXPERIMENTS.length, 3, 'EM branch must contain 3 experiments');
+  assert.strictEqual(PhysicsDisciplineModal.EM_EXPERIMENTS.length, 4, 'EM branch must contain 4 experiments');
   assert(html.includes('霍尔效应原理'), 'Must contain 霍尔效应原理');
   assert(html.includes('静电场探索与电力线叠加'), 'Must contain 静电场探索与电力线叠加');
   assert(html.includes('电容器充放电过程'), 'Must contain 电容器充放电过程');
+  assert(html.includes('右手螺旋与左右手定则'), 'Must contain 右手螺旋与左右手定则');
 
   // Verify deleted experiments are NOT present
   assert(!html.includes('em-induction'), 'Must NOT contain em-induction');

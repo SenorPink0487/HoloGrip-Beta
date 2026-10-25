@@ -2,10 +2,48 @@ export type CaptureResult =
   | { ok: true; dataUrl: string }
   | { ok: false; reason: 'cancel' | 'unavailable' };
 
-/** 在页面浮层中打开设备摄像头并返回单帧 JPEG 图像。 */
+/** 在页面浮层中打开设备摄像头并返回单帧 JPEG 图像，若环境受限则优雅降级为原生相机拍照。 */
 export function captureProblemPhoto(): Promise<CaptureResult> {
-  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-    return Promise.resolve({ ok: false, reason: 'unavailable' });
+  const hasGetUserMedia = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+
+  if (!hasGetUserMedia) {
+    if (typeof document === 'undefined') {
+      return Promise.resolve({ ok: false, reason: 'unavailable' });
+    }
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp';
+      input.setAttribute('capture', 'environment');
+      input.style.display = 'none';
+      document.body.appendChild(input);
+
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        input.remove();
+        if (!file) {
+          resolve({ ok: false, reason: 'cancel' });
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            resolve({ ok: true, dataUrl: reader.result });
+          } else {
+            resolve({ ok: false, reason: 'unavailable' });
+          }
+        };
+        reader.onerror = () => resolve({ ok: false, reason: 'unavailable' });
+        reader.readAsDataURL(file);
+      });
+
+      input.addEventListener('cancel', () => {
+        input.remove();
+        resolve({ ok: false, reason: 'cancel' });
+      });
+
+      input.click();
+    });
   }
 
   return new Promise((resolve) => {

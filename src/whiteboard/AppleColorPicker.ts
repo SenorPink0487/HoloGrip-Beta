@@ -142,7 +142,7 @@ export class AppleColorPicker {
 
   private updateColorFromHSL(): void {
     const hex = this.hslToHex(this.hue, this.saturation, this.lightness);
-    this.setColor(hex, true);
+    this.setColor(hex, true, true);
   }
 
   private hslToHex(h: number, s: number, l: number): string {
@@ -156,7 +156,40 @@ export class AppleColorPicker {
     return `#${f(0)}${f(8)}${f(4)}`;
   }
 
-  public setColor(hex: string, notify = false): void {
+  private hexToHsl(hex: string): { h: number; s: number; l: number } | null {
+    hex = hex.replace(/^#/, '');
+    if (hex.length === 3) {
+      hex = hex.split('').map((c) => c + c).join('');
+    }
+    if (hex.length !== 6) return null;
+    const r = parseInt(hex.substring(0, 2), 16) / 255;
+    const g = parseInt(hex.substring(2, 4), 16) / 255;
+    const b = parseInt(hex.substring(4, 6), 16) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / d + 2;
+          break;
+        case b:
+          h = (r - g) / d + 4;
+          break;
+      }
+      h = Math.round(h * 60);
+    }
+    return { h, s: Math.round(s * 100), l: Math.round(l * 100) };
+  }
+
+  public setColor(hex: string, notify = false, fromSliders = false): void {
     this.currentColor = hex;
     this.previewDot.style.backgroundColor = hex;
     this.hexLabel.textContent = hex.toUpperCase();
@@ -165,6 +198,19 @@ export class AppleColorPicker {
     this.swatchButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.color?.toLowerCase() === hex.toLowerCase());
     });
+
+    if (!fromSliders) {
+      const hsl = this.hexToHsl(hex);
+      if (hsl) {
+        if (hsl.s > 8) {
+          this.hue = hsl.h;
+          this.hueSlider.value = String(hsl.h);
+        }
+        this.saturation = hsl.s;
+        this.lightness = hsl.l;
+        this.lightSlider.value = String(Math.max(10, Math.min(90, hsl.l)));
+      }
+    }
 
     // 更新亮度滑块背景渐变色
     const pureHueColor = this.hslToHex(this.hue, 100, 50);

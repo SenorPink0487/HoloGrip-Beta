@@ -40,6 +40,9 @@ export class MathARScannerModal {
   private gridToggleBtn: HTMLButtonElement | null = null;
   private torchToggleBtn: HTMLButtonElement | null = null;
   private albumInputEl: HTMLInputElement | null = null;
+  private cameraInputEl: HTMLInputElement | null = null;
+  private finderHintEl: HTMLElement | null = null;
+  private isLiveCameraActive = false;
 
   private spatialScene: MathARSpatialScene | null = null;
   private models: ARModelItem[] = [];
@@ -97,8 +100,8 @@ export class MathARScannerModal {
 
       <!-- 2. 取景视窗与真实 AR 纸面空间 -->
       <main class="math-ar-viewport" id="math-ar-viewport">
-        <!-- 实时相机视频 -->
-        <video class="math-ar-camera-feed" id="math-ar-video" autoplay playsinline muted></video>
+        <!-- 实时相机视频 (支持 iOS/iPadOS Safari 行内视频播放与静音) -->
+        <video class="math-ar-camera-feed" id="math-ar-video" autoplay playsinline webkit-playsinline muted></video>
 
         <!-- 离线/模拟视卷底图画布 (相机受限时的保底呈现) -->
         <canvas class="math-ar-sim-canvas" id="math-ar-sim-canvas" style="display:none;"></canvas>
@@ -145,6 +148,7 @@ export class MathARScannerModal {
             <span class="math-ar-slot-label">相册</span>
           </button>
           <input type="file" id="math-ar-album-input" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" style="display:none;" />
+          <input type="file" id="math-ar-camera-input" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" capture="environment" style="display:none;" />
         </div>
 
         <!-- 中间：Apple 经典同心圆快门按钮 -->
@@ -185,8 +189,14 @@ export class MathARScannerModal {
     this.gridToggleBtn = this.element.querySelector('#math-ar-grid-btn');
     this.torchToggleBtn = this.element.querySelector('#math-ar-torch-btn');
     this.albumInputEl = this.element.querySelector('#math-ar-album-input');
+    this.cameraInputEl = this.element.querySelector('#math-ar-camera-input');
+    this.finderHintEl = this.element.querySelector('.math-ar-finder-hint');
     if (this.albumInputEl) {
       this.albumInputEl.setAttribute('accept', 'image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp');
+    }
+    if (this.cameraInputEl) {
+      this.cameraInputEl.setAttribute('accept', 'image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp');
+      this.cameraInputEl.setAttribute('capture', 'environment');
     }
   }
 
@@ -269,6 +279,37 @@ export class MathARScannerModal {
       }
     });
 
+    // 6. 原生相机拍照直传 (局域网 HTTP 或无 WebRTC 实时流时的极速物理兜底)
+    this.cameraInputEl?.addEventListener('cancel', () => {
+      this.setStatus('已取消相机拍摄');
+    });
+
+    this.cameraInputEl?.addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      this.setStatus('正在处理拍摄照片…');
+      this.shutterBtn?.classList.add('is-busy');
+
+      try {
+        const { displayDataUrl, thumbDataUrl } = await this.optimizeImageFile(file);
+        this.displayPaperBackdrop(displayDataUrl);
+        await this.processImageData(displayDataUrl, `题目 ${this.models.length + 1}`, thumbDataUrl);
+      } catch (err) {
+        this.setStatus(err instanceof Error ? err.message : '拍照处理失败，请重试');
+      } finally {
+        this.shutterBtn?.classList.remove('is-busy');
+        (e.target as HTMLInputElement).value = '';
+      }
+    });
+
+    // 取景框点击交互：若当前未激活实时视频流，轻触取景框亦可直接调起系统相机
+    this.element.querySelector('#math-ar-finder')?.addEventListener('click', () => {
+      if (!this.isLiveCameraActive) {
+        this.cameraInputEl?.click();
+      }
+    });
+
     // 6. 底部托盘展开/收起
     this.element.querySelector('#math-ar-toggle-tray')?.addEventListener('click', () => {
       if (this.models.length === 0) {
@@ -288,38 +329,92 @@ export class MathARScannerModal {
   }
 
   private async startCamera(): Promise<void> {
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      this.startSimulatedExamPaper();
+    const isSecure = typeof window !== 'undefined' ? window.isSecureContext : true;
+    const hasGetUserMedia = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+
+    if (!hasGetUserMedia) {
+      this.isLiveCameraActive = false;
+      const hint = !isSecure
+        ? '局域网 HTTP 限制实时取景 · 点击快门启动 iPad 原生相机拍照'
+        : '未检测到可用摄像头 · 可点击快门或相册选取题目';
+      this.startSimulatedExamPaper(hint);
       return;
     }
 
-    try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
+    if (this.videoEl) {
+      this.videoEl.setAttribute('playsinline', 'true');
+      this.videoEl.setAttribute('webkit-playsinline', 'true');
+      this.videoEl.muted = true;
+      this.videoEl.autoplay = true;
+    }
+
+    // 渐进式多级降级约束尝试（避免 iPad/iPhone 在纵向或特定硬件下因 strict min 抛出 OverconstrainedError）
+    const constraintTiers: MediaStreamConstraints[] = [
+      {
         audio: false,
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
         },
-      });
+      },
+      {
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+        },
+      },
+      {
+        audio: false,
+        video: true,
+      },
+    ];
 
+    let acquiredStream: MediaStream | null = null;
+    let lastError: unknown = null;
+
+    for (const constraints of constraintTiers) {
+      try {
+        acquiredStream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (acquiredStream) break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (acquiredStream) {
+      this.stream = acquiredStream;
+      this.isLiveCameraActive = true;
       if (this.videoEl) {
+        this.videoEl.style.display = 'block';
+        if (this.canvasLayerEl) this.canvasLayerEl.style.display = 'none';
         this.videoEl.srcObject = this.stream;
         await this.videoEl.play().catch(() => {});
       }
+      if (this.finderHintEl) {
+        this.finderHintEl.textContent = '将题目放置于取景框内拍照';
+      }
       this.setStatus('实时相机已就绪，对准题目点击快门');
-    } catch {
-      this.startSimulatedExamPaper();
+    } else {
+      this.isLiveCameraActive = false;
+      const hint = lastError instanceof Error && lastError.name === 'NotAllowedError'
+        ? '摄像头权限未开启 · 点击快门使用系统拍照'
+        : '实时取景受限 · 点击快门直接启动相机拍照';
+      this.startSimulatedExamPaper(hint);
     }
   }
 
   /**
    * 启动高保真仿真试卷取景器 (无摄像头或测试环境下的优雅保底呈现)。
    */
-  private startSimulatedExamPaper(): void {
+  private startSimulatedExamPaper(hintText?: string): void {
     if (!this.canvasLayerEl) return;
     this.canvasLayerEl.style.display = 'block';
     if (this.videoEl) this.videoEl.style.display = 'none';
+
+    if (hintText && this.finderHintEl) {
+      this.finderHintEl.textContent = hintText;
+    }
 
     const canvas = this.canvasLayerEl;
     const ctx = canvas.getContext('2d');
@@ -386,6 +481,7 @@ export class MathARScannerModal {
    * 恢复实时相机视窗（从相册底图切回）。
    */
   private resumeLiveCamera(): void {
+    if (!this.isLiveCameraActive) return;
     if (this.canvasLayerEl) {
       this.canvasLayerEl.style.display = 'none';
     }
@@ -537,6 +633,15 @@ export class MathARScannerModal {
    */
   private async captureAndRecognize(): Promise<void> {
     if (this.isAnalyzing) return;
+
+    // 当实时视频流未开启 (如 iPad 在局域网 HTTP 预览受限、权限被拒或无 WebRTC 硬件流) 时，
+    // 点击快门直接唤起 iPad 原生系统相机直接拍照！
+    if (!this.isLiveCameraActive || !this.videoEl || this.videoEl.videoWidth === 0) {
+      if (this.cameraInputEl) {
+        this.cameraInputEl.click();
+        return;
+      }
+    }
 
     // 若此前显示的是相册底纸，点击快门自动切回实时摄像头
     this.resumeLiveCamera();
@@ -830,6 +935,7 @@ export class MathARScannerModal {
    * 退出并关闭工作台，同步最终模型并安全清理硬件资源。
    */
   public close(): void {
+    this.isLiveCameraActive = false;
     if (this.selectedModelId) {
       const active = this.models.find((m) => m.id === this.selectedModelId);
       if (active) this.options.onSyncModel?.(active.modelDef);

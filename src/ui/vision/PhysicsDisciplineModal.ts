@@ -70,6 +70,84 @@ export class PhysicsDisciplineModal {
         </svg>
       `,
     },
+    {
+      id: 'thermo-fourier',
+      name: '固体热传导与傅里叶定律',
+      category: '一维热传导温度梯度与导热系数测定',
+      formula: 'q = -k \\frac{\\mathrm{d}T}{\\mathrm{d}x}',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Overhead 5-Channel Temperature Monitor -->
+          <rect x="9" y="5" width="18" height="6" rx="1.2" stroke-width="1.6" fill="currentColor" fill-opacity="0.08"/>
+          <!-- 5 Thermocouple Probe Leads -->
+          <line x1="11.5" y1="11" x2="11.5" y2="18" stroke-width="1.3" stroke-opacity="0.75"/>
+          <line x1="14.75" y1="11" x2="14.75" y2="18" stroke-width="1.3" stroke-opacity="0.75"/>
+          <line x1="18" y1="11" x2="18" y2="18" stroke-width="1.3" stroke-opacity="0.75"/>
+          <line x1="21.25" y1="11" x2="21.25" y2="18" stroke-width="1.3" stroke-opacity="0.75"/>
+          <line x1="24.5" y1="11" x2="24.5" y2="18" stroke-width="1.3" stroke-opacity="0.75"/>
+          <!-- Left Heating Furnace & Right Cooling Chamber -->
+          <rect x="3" y="16" width="6.5" height="8" rx="1.2" stroke-width="1.7" fill="currentColor" fill-opacity="0.22"/>
+          <rect x="26.5" y="16" width="6.5" height="8" rx="1.2" stroke-width="1.7" fill="currentColor" fill-opacity="0.06"/>
+          <!-- Central Solid Conduction Rod -->
+          <rect x="9.5" y="18" width="17" height="4" stroke-width="1.7" fill="currentColor" fill-opacity="0.14"/>
+          <!-- Support Pillars & Precision Base Rail -->
+          <line x1="13" y1="22" x2="13" y2="28" stroke-width="1.5"/>
+          <line x1="23" y1="22" x2="23" y2="28" stroke-width="1.5"/>
+          <line x1="3" y1="28.5" x2="33" y2="28.5" stroke-width="2.2"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'thermo-phase-change',
+      name: '晶体与非晶体相变与潜热',
+      category: '水浴加热固液共存熔点平台与非晶体连续软化对比',
+      formula: 'Q_L = m L_f,\\; \\Delta T_{\\text{crystal}} = 0',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Left Water Bath Beaker & Immersed Test Tube -->
+          <rect x="4" y="12" width="11" height="14" rx="1.5" stroke-width="1.6" fill="currentColor" fill-opacity="0.08"/>
+          <rect x="7.8" y="8" width="3.4" height="14.5" rx="1.7" stroke-width="1.4" fill="currentColor" fill-opacity="0.18"/>
+          <line x1="9.5" y1="4.5" x2="9.5" y2="19" stroke-width="1.4"/>
+          <!-- Heating Flame & Base under Beaker -->
+          <path d="M9.5 27.5 C10.8 29 11 30.5 9.5 31.8 C8 30.5 8.2 29 9.5 27.5 Z" stroke-width="1.3" fill="currentColor" fill-opacity="0.32"/>
+          <line x1="3.5" y1="26.2" x2="15.5" y2="26.2" stroke-width="1.8"/>
+          <!-- Right Multi-Channel Temperature Data Logger & T-t Curves -->
+          <rect x="18" y="10" width="15" height="16" rx="2" stroke-width="1.7" fill="currentColor" fill-opacity="0.06"/>
+          <!-- Crystalline 3-Stage Plateau Curve -->
+          <polyline points="20.2,23 23.2,17 28.5,17 30.8,13.2" stroke-width="1.7"/>
+          <!-- Amorphous Smooth Continuous Curve -->
+          <path d="M20.2 23 Q 25 19.2 30.8 17.5" stroke-width="1.3" stroke-dasharray="1.8 1.5" stroke-opacity="0.65"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'thermo-gas-laws',
+      name: '气体实验三定律',
+      category: '玻意耳等温 · 查理等容 · 盖-吕萨克等压过程',
+      formula: 'pV = C_1 \\cdot \\frac{p}{T} = C_2 \\cdot \\frac{V}{T} = C_3',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Piston T-Handle & Rod -->
+          <line x1="6.5" y1="5" x2="15.5" y2="5" stroke-width="2.0"/>
+          <line x1="11" y1="5" x2="11" y2="14" stroke-width="1.8"/>
+          <!-- Graduated Gas Cylinder & Piston Head -->
+          <rect x="6" y="9.5" width="10" height="18.5" rx="1.5" stroke-width="1.7" fill="currentColor" fill-opacity="0.08"/>
+          <rect x="6.8" y="14" width="8.4" height="2.8" rx="0.8" stroke-width="1.5" fill="currentColor" fill-opacity="0.28"/>
+          <!-- Ideal Gas Molecules Inside Cylinder -->
+          <circle cx="9" cy="20" r="1.0" fill="currentColor"/>
+          <circle cx="13" cy="21.5" r="1.0" fill="currentColor"/>
+          <circle cx="10.5" cy="24.5" r="1.0" fill="currentColor"/>
+          <!-- Bourdon Pressure Gauge & Right P-V / P-T Telemetry Screen -->
+          <circle cx="21" cy="10" r="3.2" stroke-width="1.5"/>
+          <line x1="21" y1="10" x2="22.5" y2="8.5" stroke-width="1.3"/>
+          <rect x="19" y="16" width="13.5" height="12" rx="1.6" stroke-width="1.6" fill="currentColor" fill-opacity="0.06"/>
+          <path d="M21.5 18.5 Q 23.2 25 29.8 25.8" stroke-width="1.6"/>
+          <line x1="21.5" y1="25.8" x2="29.8" y2="19.2" stroke-width="1.3" stroke-dasharray="1.6 1.4" stroke-opacity="0.7"/>
+          <!-- Base Plinth -->
+          <line x1="4" y1="30.5" x2="32.5" y2="30.5" stroke-width="2.2"/>
+        </svg>
+      `,
+    },
   ];
 
   public static readonly MECHANICS_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
@@ -254,6 +332,29 @@ export class PhysicsDisciplineModal {
           <!-- Exponential Transient Curve with Arrow -->
           <path d="M8 9 Q 17 21 28 22" stroke-width="1.6" stroke-dasharray="2.5 1.5" stroke-opacity="0.65"/>
           <polyline points="26,20.5 28,22 26,23.5" stroke-width="1.4" stroke-opacity="0.65"/>
+        </svg>
+      `,
+    },
+    {
+      id: 'em-hand-rules',
+      name: '右手螺旋与左右手定则',
+      category: '安培右手螺旋 · 左手定则 · 右手定则 3D手部骨骼',
+      formula: '\\vec{F} = I\\vec{L}\\times\\vec{B} · \\mathcal{E} = BLv',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Orthogonal Physical Vector Axes (I, B, F) & Articulated Hand Skeleton Nodes -->
+          <line x1="12" y1="28" x2="12" y2="6" stroke-width="1.9"/>
+          <polyline points="9.5,9 12,5.5 14.5,9" stroke-width="1.6"/>
+          <line x1="12" y1="24" x2="31" y2="24" stroke-width="1.8"/>
+          <polyline points="28,21.5 31.5,24 28,26.5" stroke-width="1.6"/>
+          <!-- Magnetic Spiral Ring around Conductor Axis -->
+          <path d="M6.5 15 C 6.5 12, 17.5 12, 17.5 15 C 17.5 18, 6.5 18, 6.5 15 Z" stroke-width="1.4" stroke-opacity="0.68"/>
+          <!-- Articulated Phalanges & Porcelain Joint Nodes -->
+          <circle cx="12" cy="24" r="2.1" fill="currentColor"/>
+          <circle cx="19" cy="17" r="1.6" fill="currentColor" fill-opacity="0.85"/>
+          <circle cx="24" cy="12" r="1.5" fill="currentColor" fill-opacity="0.7"/>
+          <line x1="12" y1="24" x2="19" y2="17" stroke-width="1.6" stroke-dasharray="2 1.5"/>
+          <line x1="19" y1="17" x2="24" y2="12" stroke-width="1.6"/>
         </svg>
       `,
     },
