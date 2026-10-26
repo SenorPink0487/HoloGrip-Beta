@@ -35,3 +35,11 @@ Thumbs.db
 
 # Archives & Backups
 *.zip
+
+# AI 助手本地规则（仅本地使用，不入库）
+AGENTS.md
+GEMINI.md
+.agents/
+
+# 嵌入的外部仓库
+antigrative-dashboard/

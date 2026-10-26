@@ -6,7 +6,7 @@
 
 1. 浏览 [Issues](https://github.com/SenorPink0487/HoloGrip-Beta/issues)，确认没有重复的问题或提议。
 2. 较大的改动（新实验、架构调整）请先开 Issue 讨论方案。
-3. 阅读 [docs/ARCHITECTURE_STANDARDS.md](docs/ARCHITECTURE_STANDARDS.md) 与仓库根目录的 [AGENTS.md](AGENTS.md) 设计规范。
+3. 阅读 [docs/ARCHITECTURE_STANDARDS.md](docs/ARCHITECTURE_STANDARDS.md) 中的设计规范。
 
 ## 本地开发
 
