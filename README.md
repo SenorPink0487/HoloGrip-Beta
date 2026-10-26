@@ -17,8 +17,6 @@
 
 [在线体验 hologrip.cn](https://hologrip.cn) · [功能特性](#功能特性) · [快速开始](#快速开始) · [架构](#系统架构) · [参与贡献](CONTRIBUTING.md) · [English](#english)
 
-<img src="public/posters/hologrip-multidisciplinary-5x2.png" alt="HoloGrip — 新一代空间全息虚拟实验室" width="100%" />
-
 </div>
 
 ---
