@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LAB_ENTRY_REST } from './labEntry.ts';
+import { HOLO_TABLE_CLEARANCE } from '../scene/HoloTable.ts';
 import { blurActiveInput, isTextInputActive, isTextInputElement, isElementVisibleAndActive } from '../core/focus.ts';
 
 export class PlayerController {
@@ -35,7 +36,7 @@ export class PlayerController {
   public maxHeight = 3.55;
 
   public roomRadius = 7.6;
-  public tableRadius = 2.48;
+  public tableRadius = HOLO_TABLE_CLEARANCE;
   public tableCenter = new THREE.Vector2(0, 0);
 
   public isLocked = false;

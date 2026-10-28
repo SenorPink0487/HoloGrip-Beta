@@ -55,17 +55,16 @@ export class TextureGenerator {
       const offCtx = off.getContext('2d')!;
       offCtx.putImageData(new ImageData(prebakedFbm as any, 512, 512), 0, 0);
       ctx.drawImage(off, 0, 0, size, size);
-      ctx.fillStyle = 'rgba(232, 238, 244, 0.85)';
+      ctx.fillStyle = 'rgba(236, 230, 218, 0.88)';
       ctx.fillRect(0, 0, size, size);
     } else {
-      ctx.fillStyle = '#cfdbe3';
+      ctx.fillStyle = '#e4ddd1';
       ctx.fillRect(0, 0, size, size);
-      // 匹配天窗光锥的柔和径向漫射光照渐变
-      const glow = ctx.createRadialGradient(size * 0.5, size * 0.5, 30, size * 0.5, size * 0.5, size * 0.60);
-      glow.addColorStop(0, 'rgba(245, 248, 252, 0.75)');
-      glow.addColorStop(0.45, 'rgba(235, 240, 246, 0.45)');
-      glow.addColorStop(0.85, 'rgba(215, 225, 232, 0.15)');
-      glow.addColorStop(1, 'rgba(195, 208, 218, 0.25)');
+      const glow = ctx.createRadialGradient(size * 0.5, size * 0.5, 40, size * 0.5, size * 0.5, size * 0.62);
+      glow.addColorStop(0, 'rgba(250, 246, 238, 0.9)');
+      glow.addColorStop(0.42, 'rgba(236, 230, 220, 0.5)');
+      glow.addColorStop(0.78, 'rgba(214, 206, 192, 0.16)');
+      glow.addColorStop(1, 'rgba(186, 176, 160, 0.22)');
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, size, size);
     }
@@ -82,10 +81,10 @@ export class TextureGenerator {
       const r = rand() * 0.9 + 0.3;
       const shade = rand();
       ctx.fillStyle = shade > 0.6
-        ? 'rgba(255,255,255,0.55)'
+        ? 'rgba(255,252,246,0.5)'
         : shade > 0.25
-          ? 'rgba(155, 170, 180, 0.18)'
-          : 'rgba(120, 135, 145, 0.10)';
+          ? 'rgba(168, 156, 138, 0.16)'
+          : 'rgba(132, 120, 104, 0.1)';
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();

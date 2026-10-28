@@ -6,7 +6,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 
 import { Laboratory } from '../scene/Laboratory.ts';
-import { HoloTable } from '../scene/HoloTable.ts';
+import { HoloTable, HOLO_TABLE_CLEARANCE } from '../scene/HoloTable.ts';
 import { Lighting } from '../scene/Lighting.ts';
 import { TextureGenerator } from '../scene/Textures.ts';
 import { HologramStage } from './HologramStage.ts';
@@ -261,7 +261,7 @@ export class Engine {
 
   private initScene(): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xecf1f5);
+    this.scene.background = new THREE.Color(0xe7e2d8);
   }
 
   private initCamera(): void {
@@ -304,78 +304,51 @@ export class Engine {
   }
 
   /**
-   * 匹配圆形实验室结构的平衡反射贴图环境。
-   * 在环氧树脂地坪上生成天顶天窗、暗槽灯与霓虹线条的真实镜面反射。
+   * 圆形展厅的反射环境：暖灰泥壳、中央圆光、一圈脚灯。
+   * 石材与缎面铝只映这三样，不再映青色灯带。
    */
   private initImageBasedLighting(): void {
     const envScene = new THREE.Scene();
 
-    // 1. 周围圆柱形白色室体外壳
     const shell = new THREE.Mesh(
-      new THREE.CylinderGeometry(8.2, 8.2, 5.0, 32, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xd9e2e8, side: THREE.BackSide }),
+      new THREE.CylinderGeometry(8.2, 8.2, 4.2, 48, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xe6e0d4, side: THREE.BackSide }),
     );
-    shell.position.y = 2.2;
+    shell.position.y = 2.05;
     envScene.add(shell);
 
-    // 2. 天花板圆形发光天窗
     const oculus = new THREE.Mesh(
-      new THREE.CircleGeometry(2.4, 32),
-      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+      new THREE.CircleGeometry(1.28, 48),
+      new THREE.MeshBasicMaterial({ color: 0xfff6ec }),
     );
-    oculus.position.y = 4.4;
+    oculus.position.y = 4.18;
     oculus.rotation.x = Math.PI / 2;
     envScene.add(oculus);
 
-    // 3. 顶部嵌入式环形灯槽
-    const coveRing = new THREE.Mesh(
-      new THREE.RingGeometry(2.8, 3.3, 32),
-      new THREE.MeshBasicMaterial({ color: 0xfff2e0, side: THREE.DoubleSide }),
+    const cove = new THREE.Mesh(
+      new THREE.RingGeometry(7.4, 7.85, 64),
+      new THREE.MeshBasicMaterial({ color: 0xfff3e6, side: THREE.DoubleSide }),
     );
-    coveRing.position.y = 4.3;
-    coveRing.rotation.x = Math.PI / 2;
-    envScene.add(coveRing);
+    cove.position.y = 3.72;
+    cove.rotation.x = Math.PI / 2;
+    envScene.add(cove);
 
-    // 4. 墙面垂直青色灯带
-    for (const phi of [0.66, -0.66, 1.20, -1.22]) {
-      const strip = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.08, 3.2),
-        new THREE.MeshBasicMaterial({ color: 0x64e5ff, side: THREE.DoubleSide }),
-      );
-      strip.position.set(Math.sin(phi) * 8.1, 2.1, -Math.cos(phi) * 8.1);
-      strip.rotation.y = -phi;
-      envScene.add(strip);
-    }
-
-    // 5. 墙壁壁龛暖色发光板
-    for (const phi of [0.92, -0.92]) {
-      const pad = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.0, 1.2),
-        new THREE.MeshBasicMaterial({ color: 0xffeedd, side: THREE.DoubleSide }),
-      );
-      pad.position.set(Math.sin(phi) * 8.0, 2.15, -Math.cos(phi) * 8.0);
-      pad.rotation.y = -phi;
-      envScene.add(pad);
-    }
-
-    // 6. 中央全息台青色发光圆盘
-    const tableDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(1.2, 32),
-      new THREE.MeshBasicMaterial({ color: 0x40d5ff, side: THREE.DoubleSide }),
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(8.0, 48),
+      new THREE.MeshBasicMaterial({ color: 0xd9d2c4 }),
     );
-    tableDisc.position.y = 1.0;
-    tableDisc.rotation.x = -Math.PI / 2;
-    envScene.add(tableDisc);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0.02;
+    envScene.add(floor);
 
-    // 7. 平衡柔和的环境补光
-    envScene.add(new THREE.HemisphereLight(0xffffff, 0xc5d2dc, 0.45));
-    const downKey = new THREE.DirectionalLight(0xffffff, 0.85);
-    downKey.position.set(0, 7.0, 0.2);
+    envScene.add(new THREE.HemisphereLight(0xfff8f1, 0xd5cec2, 0.55));
+    const downKey = new THREE.DirectionalLight(0xfff6ec, 0.7);
+    downKey.position.set(0, 6.5, 0.15);
     envScene.add(downKey);
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(envScene, 0.04).texture;
-    this.scene.environmentIntensity = 0.52;
+    this.scene.environmentIntensity = 0.58;
     pmrem.dispose();
   }
 
@@ -2430,7 +2403,7 @@ export class Engine {
     this.labEntryClock = null;
     this.labReturnClock = createLabReturnClock(from, {
       roomRadius: player?.roomRadius ?? 7.6,
-      tableRadius: player?.tableRadius ?? 2.48,
+      tableRadius: player?.tableRadius ?? HOLO_TABLE_CLEARANCE,
       minHeight: player?.minHeight ?? 0.3,
       maxHeight: player?.maxHeight ?? 3.55,
       minPitch: player?.minPitch ?? -Math.PI / 2,

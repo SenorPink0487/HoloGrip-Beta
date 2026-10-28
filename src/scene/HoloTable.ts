@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { TextureGenerator } from './Textures.ts';
 
+/** 石材圆桌台面半径（米）。 */
+export const HOLO_TABLE_RADIUS = 1.92;
+/** 行走时与桌沿保持的距离，含倒角余量。 */
+export const HOLO_TABLE_CLEARANCE = 2.02;
+/** 台面标高。烧杯与实验台面以此对齐。 */
+export const HOLO_TABLE_TOP_Y = 0.99;
+
 export class HoloTable {
   public readonly group = new THREE.Group();
   private hologramTime = 0;
@@ -31,72 +38,101 @@ export class HoloTable {
   }
 
   private createTableStructure(): void {
-    const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0xdbe3e8, metalness: 0.12, roughness: 0.38, side: THREE.DoubleSide,
-    });
-    const seamMat = new THREE.MeshStandardMaterial({
-      color: 0x90a2ac, metalness: 0.22, roughness: 0.40, side: THREE.DoubleSide,
-    });
-    // 纯白缎面复合材质台面，具备高光反射质感
-    const whiteMat = new THREE.MeshPhysicalMaterial({
-      color: 0xf2f6f9,
+    const stone = new THREE.MeshPhysicalMaterial({
+      color: 0xf3efe6,
       metalness: 0.02,
-      roughness: 0.28,
-      clearcoat: 0.70,
-      clearcoatRoughness: 0.16,
-      reflectivity: 0.82,
+      roughness: 0.46,
+      clearcoat: 0.12,
+      clearcoatRoughness: 0.7,
+      reflectivity: 0.28,
+      envMapIntensity: 0.35,
       side: THREE.DoubleSide,
     });
-    const edgeMat = new THREE.MeshStandardMaterial({
-      color: 0xdde5ec, metalness: 0.25, roughness: 0.28, side: THREE.DoubleSide,
+    const aluminum = new THREE.MeshStandardMaterial({
+      color: 0xe7ebf0,
+      metalness: 0.8,
+      roughness: 0.24,
+      envMapIntensity: 0.9,
+      side: THREE.DoubleSide,
     });
-    const basePlinthMat = new THREE.MeshStandardMaterial({
-      color: 0x1e2428, metalness: 0.65, roughness: 0.35, side: THREE.DoubleSide,
+    const brass = new THREE.MeshStandardMaterial({
+      color: 0xc6a56e,
+      metalness: 0.9,
+      roughness: 0.3,
+      envMapIntensity: 1.05,
+      side: THREE.DoubleSide,
     });
 
-    // 贴地深色内凹阴影基座
-    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(1.26, 1.28, 0.024, 96), basePlinthMat);
-    plinth.position.y = 0.012;
-    plinth.receiveShadow = true;
-    this.group.add(plinth);
-
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.20, 1.26, 0.045, 96), pedestalMat);
-    foot.position.y = 0.042;
-    foot.receiveShadow = true;
-    foot.castShadow = true;
-    this.group.add(foot);
-
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.06, 1.14, 0.58, 96), pedestalMat);
-    pedestal.position.y = 0.355;
-    pedestal.receiveShadow = true;
+    const pedestal = new THREE.Mesh(
+      new THREE.LatheGeometry(this.pedestalProfile(), 128),
+      aluminum,
+    );
     pedestal.castShadow = true;
+    pedestal.receiveShadow = true;
+    pedestal.name = 'table-pedestal';
     this.group.add(pedestal);
 
-    const pedestalSeam = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.56, 0.012), seamMat);
-    pedestalSeam.position.set(0, 0.35, 1.09);
-    this.group.add(pedestalSeam);
-
-    // 流线型圆盘台面，由底向上至台面中心 (确保顶点法线朝外向上，保持表面饱满凸起，严禁背面剔除致使台面下凹)
-    const profile = [
-      new THREE.Vector2(1.16, 0.64),
-      new THREE.Vector2(1.48, 0.67),
-      new THREE.Vector2(2.16, 0.74),
-      new THREE.Vector2(2.40, 0.82),
-      new THREE.Vector2(2.42, 0.90),
-      new THREE.Vector2(2.34, 0.968),
-      new THREE.Vector2(2.18, 0.99),
-      new THREE.Vector2(0.02, 0.99),
-    ];
-    const tabletop = new THREE.Mesh(new THREE.LatheGeometry(profile, 128), whiteMat);
+    const tabletop = new THREE.Mesh(
+      new THREE.LatheGeometry(this.tableTopProfile(), 160),
+      stone,
+    );
     tabletop.castShadow = true;
     tabletop.receiveShadow = true;
     tabletop.name = 'reference-white-tabletop';
     this.group.add(tabletop);
 
-    const topSeam = new THREE.Mesh(new THREE.TorusGeometry(2.20, 0.01, 8, 128), edgeMat);
-    topSeam.rotation.x = Math.PI / 2;
-    topSeam.position.y = 0.992;
-    this.group.add(topSeam);
+    const inlay = new THREE.Mesh(
+      new THREE.RingGeometry(HOLO_TABLE_RADIUS - 0.148, HOLO_TABLE_RADIUS - 0.122, 160),
+      brass,
+    );
+    inlay.rotation.x = -Math.PI / 2;
+    inlay.position.y = HOLO_TABLE_TOP_Y + 0.0016;
+    inlay.name = 'table-brass-inlay';
+    this.group.add(inlay);
+  }
+
+  /** 一支连续收分的铸铝柱，脚部摊开，柱身收腰，在台面板下轻轻展开。 */
+  private pedestalProfile(): THREE.Vector2[] {
+    const capitalY = HOLO_TABLE_TOP_Y - 0.03;
+    const raw: Array<[number, number]> = [
+      [0.03, 0.004],
+      [0.26, 0.006],
+      [0.44, 0.014],
+      [0.52, 0.03],
+      [0.50, 0.046],
+      [0.36, 0.08],
+      [0.22, 0.15],
+      [0.168, 0.3],
+      [0.152, 0.5],
+      [0.156, 0.68],
+      [0.19, 0.8],
+      [0.28, 0.87],
+      [0.42, 0.92],
+      [0.58, capitalY],
+    ];
+    return raw.map(([x, y]) => new THREE.Vector2(x, y));
+  }
+
+  /** 薄石材圆盘，边缘是一整圈圆角，台面保持平整。 */
+  private tableTopProfile(): THREE.Vector2[] {
+    const radius = HOLO_TABLE_RADIUS;
+    const top = HOLO_TABLE_TOP_Y;
+    const thick = 0.044;
+    const nose = 0.022;
+    const under = top - thick;
+    const cx = radius - nose;
+    const cy = under + nose;
+    const pts: THREE.Vector2[] = [
+      new THREE.Vector2(0.004, under),
+      new THREE.Vector2(cx - 0.004, under),
+    ];
+    const steps = 12;
+    for (let i = 0; i <= steps; i++) {
+      const angle = -Math.PI / 2 + Math.PI * (i / steps);
+      pts.push(new THREE.Vector2(cx + Math.cos(angle) * nose, cy + Math.sin(angle) * nose));
+    }
+    pts.push(new THREE.Vector2(0.0008, top));
+    return pts;
   }
 
   private createProjectorEmitter(): void {
