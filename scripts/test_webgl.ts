@@ -1,4 +1,29 @@
-import { spawn } from 'child_process';
+import { spawn } from 'node:child_process';
+
+interface ChromeDebugTarget {
+  id: string;
+  title: string;
+  type: string;
+  url: string;
+  webSocketDebuggerUrl: string;
+}
+
+interface WebGLInfo {
+  hasWGL: boolean;
+  hasWGL2: boolean;
+  renderer: string;
+  vendor: string;
+  glType: string | null;
+}
+
+interface CdpResponse {
+  id?: number;
+  result?: {
+    result?: {
+      value?: WebGLInfo;
+    };
+  };
+}
 
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
   '--headless=new',
@@ -8,21 +33,31 @@ const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chro
   'about:blank'
 ]);
 
-async function run() {
-  let pages = null;
+async function run(): Promise<void> {
+  let pages: ChromeDebugTarget[] = [];
   for (let i = 0; i < 20; i++) {
     try {
       const res = await fetch('http://localhost:9226/json');
-      pages = await res.json();
-      if (pages.length) break;
-    } catch {}
-    await new Promise(r => setTimeout(r, 200));
+      pages = (await res.json()) as ChromeDebugTarget[];
+      if (pages.length > 0 && pages[0]?.webSocketDebuggerUrl) break;
+    } catch {
+      // Chrome might still be booting up
+    }
+    await new Promise((r) => setTimeout(r, 200));
   }
+
+  if (!pages.length || !pages[0]?.webSocketDebuggerUrl) {
+    throw new Error('Failed to connect to headless Chrome remote debugging port.');
+  }
+
   const ws = new WebSocket(pages[0].webSocketDebuggerUrl);
   ws.onopen = () => {
     let id = 1;
-    const send = (method, params = {}) => ws.send(JSON.stringify({ id: id++, method, params }));
+    const send = (method: string, params: Record<string, unknown> = {}) =>
+      ws.send(JSON.stringify({ id: id++, method, params }));
+
     send('Runtime.enable');
+
     const code = `
       (async () => {
         const workerCode = [
@@ -45,9 +80,11 @@ async function run() {
         });
       })()
     `;
+
     send('Runtime.evaluate', { expression: code, awaitPromise: true, returnByValue: true });
-    ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
+
+    ws.onmessage = (e: MessageEvent) => {
+      const msg = JSON.parse(e.data as string) as CdpResponse;
       if (msg.result?.result?.value) {
         console.log('Worker WebGL Info:', JSON.stringify(msg.result.result.value, null, 2));
         ws.close();
@@ -57,4 +94,9 @@ async function run() {
     };
   };
 }
-run().catch(e => { console.error(e); chrome.kill(); process.exit(1); });
+
+run().catch((e: unknown) => {
+  console.error(e);
+  chrome.kill();
+  process.exit(1);
+});

@@ -365,14 +365,15 @@ export class WhiteboardApp {
   private activateLaboratory(): void {
     blurActiveInput(true);
     if (!this.engine) return;
+    const freeCursor = Boolean(this.engine.holoStage?.activeExperiment?.onPointerDown);
     if (this.engine.inputManager?.player) {
       this.engine.inputManager.player.enabled = true;
-      this.engine.inputManager.player.allowPointerLock = true;
+      this.engine.inputManager.player.allowPointerLock = !freeCursor;
     }
     if (this.engine.crosshair) {
       const isModalOpen = this.engine.visionModal?.visible ?? false;
       const isDrawerOpen = this.engine.hud?.drawer?.open ?? false;
-      if (!isModalOpen && !isDrawerOpen) {
+      if (!isModalOpen && !isDrawerOpen && !freeCursor) {
         this.engine.crosshair.setVisible(true);
       }
     }

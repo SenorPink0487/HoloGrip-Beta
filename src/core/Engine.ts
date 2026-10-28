@@ -1416,6 +1416,9 @@ export class Engine {
       }
 
       this.currentExperimentId = id;
+      if (experiment.initialCameraPose && !this.isWhiteboardMode && !this.labEntryActive) {
+        this.applyLabEntryPose({ ...experiment.initialCameraPose, fov: this.camera.fov });
+      }
       if (id === 'em-hand-rules') {
         const isHandRunning = this.handGestureService?.getStatus() === 'running';
         (experiment as any)?.setGestureEnabled?.(isHandRunning);
@@ -2477,6 +2480,14 @@ export class Engine {
     }
     if (!this.labEntryClock) return;
     const frame = advanceLabEntry(this.labEntryClock, delta);
+    const operatorPose = this.holoStage?.activeExperiment?.initialCameraPose;
+    if (operatorPose) {
+      // Blend into the apparatus view during re-entry, so a retained experiment
+      // stays fully framed when returning from the whiteboard.
+      for (const axis of ['x', 'y', 'z', 'yaw', 'pitch'] as const) {
+        frame.pose[axis] = THREE.MathUtils.lerp(frame.pose[axis], operatorPose[axis], frame.u);
+      }
+    }
     this.applyLabEntryPose(frame.pose);
     const listener = this.onLabEntryFrame;
     if (frame.done) {

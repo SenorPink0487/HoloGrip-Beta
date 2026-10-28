@@ -131,6 +131,98 @@ export function extractHandKinematics(landmarks: NormalizedLandmark[]): {
 }
 
 /**
+ * 构造模拟手势关键点（用于桌面无摄像头直接点击操作或自动化测试验证）
+ */
+export function buildSyntheticHandLandmarks(options: {
+  thumbDirWorld: { x: number; y: number; z?: number };
+  fingersDirWorld: { x: number; y: number; z?: number };
+  curled?: boolean;
+}): NormalizedLandmark[] {
+  const lms: NormalizedLandmark[] = [];
+  for (let i = 0; i < 21; i++) {
+    lms.push({ x: 0.5, y: 0.5, z: 0 });
+  }
+
+  lms[0] = { x: 0.5, y: 0.58, z: 0 };
+  lms[5] = { x: 0.46, y: 0.5, z: 0 };
+  lms[9] = { x: 0.5, y: 0.48, z: 0 };
+  lms[13] = { x: 0.54, y: 0.5, z: 0 };
+  lms[17] = { x: 0.58, y: 0.52, z: 0 };
+
+  const tx = options.thumbDirWorld.x;
+  const ty = options.thumbDirWorld.y;
+  const tz = options.thumbDirWorld.z ?? 0;
+  lms[1] = { x: 0.48, y: 0.54, z: 0 };
+  lms[2] = { x: 0.48 - tx * 0.03, y: 0.54 - ty * 0.03, z: -tz * 0.03 };
+  lms[3] = { x: 0.48 - tx * 0.07, y: 0.54 - ty * 0.07, z: -tz * 0.07 };
+  lms[4] = { x: 0.48 - tx * 0.12, y: 0.54 - ty * 0.12, z: -tz * 0.12 };
+
+  const fx = options.fingersDirWorld.x;
+  const fy = options.fingersDirWorld.y;
+  const fz = options.fingersDirWorld.z ?? 0;
+  const reach = options.curled ? 0.035 : 0.11;
+
+  for (const mcp of [5, 9, 13, 17]) {
+    const base = lms[mcp];
+    lms[mcp + 1] = { x: base.x - fx * reach * 0.35, y: base.y - fy * reach * 0.35, z: -fz * reach * 0.35 };
+    lms[mcp + 2] = { x: base.x - fx * reach * 0.7, y: base.y - fy * reach * 0.7, z: -fz * reach * 0.7 };
+    lms[mcp + 3] = { x: base.x - fx * reach, y: base.y - fy * reach, z: -fz * reach };
+  }
+
+  return lms;
+}
+
+/**
+ * 包装为完整的 HandGestureFrame 手势数据载荷
+ */
+export function wrapSyntheticHandFrame(
+  handedness: 'left' | 'right',
+  landmarks: NormalizedLandmark[]
+): HandGestureFrame {
+  const hand: SingleHandData = {
+    handedness,
+    confidence: 0.98,
+    landmarks,
+    thumbTip: landmarks[4],
+    indexTip: landmarks[8],
+    midpointNorm: { x: 0.5, y: 0.5, z: 0 },
+    screenX: 600,
+    screenY: 400,
+    rawDistance: 0.08,
+    handScale: 0.12,
+    pinchRatio: 0.66,
+    pinchStrength: 0,
+    isPinching: false,
+    justPinchStarted: false,
+    justPinchEnded: false,
+    pinchDuration: 0,
+    isLongPinch: false,
+  };
+
+  return {
+    hasHand: true,
+    timestamp: typeof performance !== 'undefined' ? performance.now() : 1000,
+    leftHand: handedness === 'left' ? hand : null,
+    rightHand: handedness === 'right' ? hand : null,
+    leftHandQuickPinch: false,
+    leftHandCameraDelta: null,
+    landmarks,
+    thumbTip: landmarks[4],
+    indexTip: landmarks[8],
+    midpointNorm: { x: 0.5, y: 0.5, z: 0 },
+    screenX: 600,
+    screenY: 400,
+    rawDistance: 0.08,
+    handScale: 0.12,
+    pinchRatio: 0.66,
+    pinchStrength: 0,
+    isPinching: false,
+    justPinchStarted: false,
+    justPinchEnded: false,
+  };
+}
+
+/**
  * 计算三大定则下的已知物理量方向与目标待求方向
  */
 export function computeRuleVectors(config: HandRuleConfig): {

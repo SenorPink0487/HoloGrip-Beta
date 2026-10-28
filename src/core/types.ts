@@ -81,6 +81,8 @@ export interface IExperiment {
   readonly rootGroup: THREE.Group;
   readonly targetScale?: number;
   readonly hideCenterEmitter?: boolean;
+  /** Optional operator view applied when this apparatus is first mounted. */
+  readonly initialCameraPose?: { x: number; y: number; z: number; yaw: number; pitch: number };
   
   /**
    * 异步预加载阶段（加载纹理、GLTF 模型、着色器及 Worker 脚本等）。

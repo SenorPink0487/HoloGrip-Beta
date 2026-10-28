@@ -10,6 +10,7 @@ import {
 } from './labKit.ts';
 import { disposeObjectTree } from './disposeObject.ts';
 import { ArticulatedHandSkeletonMesh } from './ArticulatedHandSkeletonMesh.ts';
+import { FloatingConductorMesh } from './FloatingConductorMesh.ts';
 import type {
   HandRuleConfig,
   HandRuleEvaluation,
@@ -169,7 +170,7 @@ export class HandRulesBenchMesh {
   public readonly handSkeleton: ArticulatedHandSkeletonMesh;
 
   // 三大定则独立 3D 机械总成
-  private readonly screwGroup = new THREE.Group();
+  private get screwGroup(): THREE.Group { return this.floatingConductor.group; }
   private readonly leftRuleGroup = new THREE.Group();
   private readonly rightRuleGroup = new THREE.Group();
 
@@ -178,13 +179,8 @@ export class HandRulesBenchMesh {
   private targetRingMat!: THREE.MeshStandardMaterial;
   private targetInnerDiscMat!: THREE.MeshStandardMaterial;
 
-  // 1. 右手螺旋法则组件
-  private screwCurrentArrow!: THREE.Group;
-  private readonly screwCurrentPulseRings: THREE.Mesh[] = [];
-  private readonly screwMagFieldRingsGroup = new THREE.Group();
-  private readonly screwMagChevrons: Array<{ group: THREE.Group; radius: number; baseAngle: number; y: number }> = [];
-  private screwMagRingMat!: THREE.MeshStandardMaterial;
-  private screwMagArrowMat!: THREE.MeshStandardMaterial;
+  public readonly floatingConductor = new FloatingConductorMesh();
+  private readonly isolationBase = new THREE.Group();
 
   // 2. 左手定则组件
   private leftRodGroup = new THREE.Group();
@@ -250,7 +246,7 @@ export class HandRulesBenchMesh {
    * 1. 构建航天级喷砂银铝减振实验底座与正前方 (+Z) 激光蚀刻标尺
    */
   private buildIsolationBase(): void {
-    const baseGroup = new THREE.Group();
+    const baseGroup = this.isolationBase;
 
     // 主承载台板（倒角铝板）
     const deckGeo = createChamferedBoxGeometry(0.62, 0.028, 0.38, 0.018, 0.003);
@@ -357,122 +353,10 @@ export class HandRulesBenchMesh {
     this.group.add(this.targetZoneGroup);
   }
 
-  /**
-   * 3. 构建「右手螺旋法则（安培定则）」3D 通电直导线与环绕三维磁感线装置
-   */
   private buildRightHandScrewApparatus(): void {
-    this.screwGroup.name = 'RightHandScrewApparatus';
-
-    // 左右双立柱镜面铬合金龙门支撑架
-    const pillarGeo = createTurnedConductorGeometry(0.34, 0.008);
-    const leftPillar = new THREE.Mesh(pillarGeo, this.liquidChromeMat);
-    leftPillar.position.set(-0.18, 0.22, -0.05);
-    const rightPillar = new THREE.Mesh(pillarGeo, this.liquidChromeMat);
-    rightPillar.position.set(0.18, 0.22, -0.05);
-
-    // 上下喷砂银铝横梁桥架
-    const bridgeGeo = createChamferedBoxGeometry(0.42, 0.022, 0.12, 0.01, 0.002);
-    const bottomYoke = new THREE.Mesh(bridgeGeo, this.satinSilverMat);
-    bottomYoke.position.set(0, 0.054, -0.02);
-    const topYoke = new THREE.Mesh(bridgeGeo, this.satinSilverMat);
-    topYoke.position.set(0, 0.39, -0.02);
-
-    // 中央竖直高纯紫铜通电直导线 (x=0, z=0, y 从 0.06 到 0.39)
-    const wireGeo = createTurnedConductorGeometry(0.32, 0.0115);
-    const centralWire = new THREE.Mesh(wireGeo, this.pureCopperMat);
-    centralWire.position.set(0, 0.225, 0);
-
-    // 上下端香槟金黄铜滚花锁紧螺母
-    const nutGeo = new THREE.TorusGeometry(0.016, 0.0045, 14, 28);
-    const bottomNut = new THREE.Mesh(nutGeo, this.champagneBrassMat);
-    bottomNut.rotation.x = Math.PI / 2;
-    bottomNut.position.set(0, 0.072, 0);
-    const topNut = new THREE.Mesh(nutGeo, this.champagneBrassMat);
-    topNut.rotation.x = Math.PI / 2;
-    topNut.position.set(0, 0.378, 0);
-
-    this.screwGroup.add(leftPillar, rightPillar, bottomYoke, topYoke, centralWire, bottomNut, topNut);
-
-    // 沿导线流动的发光电流脉冲环（直观指示已知电流 I 流动方向）
-    const pulseGeo = new THREE.TorusGeometry(0.0145, 0.0024, 12, 28);
-    for (let i = 0; i < 4; i++) {
-      const ring = new THREE.Mesh(pulseGeo, this.knownCurrentMat);
-      ring.rotation.x = Math.PI / 2;
-      this.screwCurrentPulseRings.push(ring);
-      this.screwGroup.add(ring);
-    }
-
-    // 已知电流方向 I 的立体指示大箭头（位于直导线左侧 x = -0.052）
-    this.screwCurrentArrow = new THREE.Group();
-    const iArrowMesh = new THREE.Mesh(
-      createSculptedArrowGeometry(0.16, 0.0045, 0.013, 0.034),
-      this.knownCurrentMat
-    );
-    this.screwCurrentArrow.add(iArrowMesh);
-    this.screwCurrentArrow.position.set(-0.052, 0.225, 0.02);
-    this.screwGroup.add(this.screwCurrentArrow);
-
-    // 所求的环绕同心磁感线 B（右手螺旋对准后点亮并旋转流转）
-    this.screwMagRingMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.75,
-      metalness: 0.2,
-      roughness: 0.15,
-      transparent: true,
-      opacity: 0.15,
-    });
-    this.screwMagArrowMat = new THREE.MeshStandardMaterial({
-      color: 0x34d399,
-      emissive: 0x10b981,
-      emissiveIntensity: 0.85,
-      metalness: 0.3,
-      roughness: 0.15,
-      transparent: true,
-      opacity: 0.18,
-    });
-
-    const chevronGeo = createSculptedArrowGeometry(0.042, 0.0032, 0.0105, 0.024);
-    const radii = [0.068, 0.108, 0.148];
-    const heights = [0.175, 0.225, 0.275];
-
-    for (const yLevel of heights) {
-      for (let rIdx = 0; rIdx < radii.length; rIdx++) {
-        const r = radii[rIdx];
-        if (yLevel === 0.225 || rIdx === 1) {
-          const torus = new THREE.Mesh(
-            new THREE.TorusGeometry(r, 0.0022, 14, 64),
-            this.screwMagRingMat
-          );
-          torus.rotation.x = Math.PI / 2;
-          torus.position.set(0, yLevel, 0);
-          this.screwMagFieldRingsGroup.add(torus);
-
-          const count = rIdx === 0 ? 3 : 4;
-          for (let k = 0; k < count; k++) {
-            const baseAngle = (k * Math.PI * 2) / count + rIdx * 0.4;
-            const chevGroup = new THREE.Group();
-            const chevMesh = new THREE.Mesh(chevronGeo, this.screwMagArrowMat);
-            chevGroup.add(chevMesh);
-            this.screwMagFieldRingsGroup.add(chevGroup);
-            this.screwMagChevrons.push({
-              group: chevGroup,
-              radius: r,
-              baseAngle,
-              y: yLevel,
-            });
-          }
-        }
-      }
-    }
-
-    this.screwGroup.add(this.screwMagFieldRingsGroup);
-    this.group.add(this.screwGroup);
+    this.group.add(this.floatingConductor.group);
   }
 
-  /**
-   * 4. 构建「左手定则（安培力 F = I × B）」3D 匀强磁极 + 平行导轨 + 受力滑行导体棒装置
-   */
   private buildLeftHandRuleApparatus(): void {
     this.leftRuleGroup.name = 'LeftHandRuleApparatus';
 
@@ -772,9 +656,12 @@ export class HandRulesBenchMesh {
     this.leftRuleGroup.visible = mode === 'left-hand-rule';
     this.rightRuleGroup.visible = mode === 'right-hand-rule';
 
+    this.isolationBase.visible = mode !== 'right-hand-screw';
+    this.targetZoneGroup.visible = mode !== 'right-hand-screw';
+    this.floatingConductor.reset();
+
     if (mode === 'right-hand-screw') {
-      this.targetZoneGroup.position.set(0, 0.225, 0.02);
-      this.targetZoneGroup.rotation.set(0, 0, 0);
+      this.targetZoneGroup.position.set(0, 0.30, 0);
     } else if (mode === 'left-hand-rule') {
       this.targetZoneGroup.position.set(0, 0.21, 0.02);
       this.targetZoneGroup.rotation.set(0, 0, 0);
@@ -791,6 +678,7 @@ export class HandRulesBenchMesh {
     this.leftRodDisplacementX = 0;
     this.leftRodVelocityX = 0;
     this.rightCutPhase = 0;
+    this.floatingConductor.reset();
   }
 
   /**
@@ -836,9 +724,13 @@ export class HandRulesBenchMesh {
     // 3. 更新当前激活定则的 3D 物理组件
     if (config.mode === 'right-hand-screw') {
       this.updateRightHandScrew(dt, config.currentPolarity, evaluation);
+      const rod = this.floatingConductor.assembly.position;
+      this.handSkeleton.group.position.set(rod.x, rod.y - 0.25, rod.z);
     } else if (config.mode === 'left-hand-rule') {
+      this.handSkeleton.group.position.set(0, 0, 0);
       this.updateLeftHandRule(dt, config, evaluation);
     } else {
+      this.handSkeleton.group.position.set(0, 0, 0);
       this.updateRightHandRule(dt, config, evaluation);
     }
   }
@@ -848,38 +740,7 @@ export class HandRulesBenchMesh {
     currentPolarity: Polarity,
     evaluation: HandRuleEvaluation
   ): void {
-    // 1) 已知电流方向大箭头 (+Y 向上 / -Y 向下)
-    this.screwCurrentArrow.rotation.z = currentPolarity > 0 ? 0 : Math.PI;
-
-    // 沿导线流动的发光电流脉冲环
-    for (let i = 0; i < this.screwCurrentPulseRings.length; i++) {
-      const phase = ((this.animClock * 0.85 * currentPolarity + i / this.screwCurrentPulseRings.length) % 1 + 1) % 1;
-      const y = 0.085 + phase * 0.28;
-      this.screwCurrentPulseRings[i].position.set(0, y, 0);
-    }
-
-    // 2) 所求的环绕磁场 B：当右手螺旋手势正确时高亮显现并高速环绕流转
-    const targetOpacity = evaluation.isMatched
-      ? 0.92
-      : 0.12 + evaluation.alignmentScore * 0.45;
-    this.screwMagRingMat.opacity += (targetOpacity - this.screwMagRingMat.opacity) * Math.min(1, dt * 8);
-    this.screwMagArrowMat.opacity = this.screwMagRingMat.opacity;
-
-    const angularSpeed = (evaluation.isMatched ? 2.6 : 0.45) * evaluation.screwCirculationSign;
-    for (const item of this.screwMagChevrons) {
-      item.baseAngle += angularSpeed * dt;
-      // 俯视逆时针 (+1): x = r * sin(theta), z = r * cos(theta)
-      const x = Math.sin(item.baseAngle) * item.radius;
-      const z = Math.cos(item.baseAngle) * item.radius;
-      item.group.position.set(x, item.y, z);
-
-      // 切线方向矢量: dx/dtheta = cos(theta), dz/dtheta = -sin(theta)，乘以旋转符号
-      const tx = Math.cos(item.baseAngle) * evaluation.screwCirculationSign;
-      const tz = -Math.sin(item.baseAngle) * evaluation.screwCirculationSign;
-      const tangent = new THREE.Vector3(tx, 0, tz).normalize();
-      _QUAT.setFromUnitVectors(_UP, tangent);
-      item.group.quaternion.copy(_QUAT);
-    }
+    this.floatingConductor.update(dt, currentPolarity, evaluation);
   }
 
   private updateLeftHandRule(

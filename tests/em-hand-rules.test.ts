@@ -348,6 +348,241 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   console.log('✓ Test 5 passed: 3D T-800 ArticulatedHandSkeletonMesh & EmHandRulesExperiment lifecycle verified\n');
 }
 
+// Test 6: Single Conductor Right-Hand Screw Apparatus & Continuous Current Invariant (只要一个导体，始终有电流流过)
+{
+  const exp = new EmHandRulesExperiment();
+  exp.init({} as any);
+  exp.setRuleMode('right-hand-screw');
+
+  // Verify there is only one central conductor and no side gantry pillars
+  const bench = (exp as any).bench;
+  const screwGroup = bench.group.getObjectByName('RightHandScrewApparatus');
+  assert(screwGroup, 'RightHandScrewApparatus must exist in bench');
+
+  const centralConductor = screwGroup.getObjectByName('ScrewCentralConductor');
+  assert(centralConductor, 'Must have ScrewCentralConductor');
+
+  // Ensure old multi-conductor gantry pillars are removed
+  const leftPillar = screwGroup.getObjectByName('LeftPillar');
+  const rightPillar = screwGroup.getObjectByName('RightPillar');
+  const topYoke = screwGroup.getObjectByName('TopYoke');
+  assert.strictEqual(leftPillar, undefined, 'Must not have leftPillar');
+  assert.strictEqual(rightPillar, undefined, 'Must not have rightPillar');
+  assert.strictEqual(topYoke, undefined, 'Must not have topYoke');
+
+  // Verify continuous current flow invariant: even without hand gesture or with idle hand, current flows continuously
+  const currentArrow = bench.floatingConductor.currentArrow;
+  assert(currentArrow, 'Current direction arrow must exist');
+  assert.strictEqual(currentArrow.rotation.z, 0, 'Current arrow points up (+Y) when currentPolarity = 1');
+
+  // No support or control hardware may remain beneath the suspended rod.
+  assert.strictEqual(screwGroup.getObjectByName('ConductorInstrumentPlinth'), undefined);
+  assert.strictEqual(screwGroup.getObjectByName('ContactlessInductionSeat'), undefined);
+  assert.strictEqual(screwGroup.getObjectByName('ScrewPolarityDial'), undefined);
+  assert.deepStrictEqual(screwGroup.children.map((child: THREE.Object3D) => child.name), ['FloatingConductorAssembly']);
+
+  // Current markers stream axially even without a hand or a revealed B field.
+  const current = bench.floatingConductor.currentCarriers as THREE.InstancedMesh;
+  const initial = new THREE.Matrix4();
+  const updated = new THREE.Matrix4();
+  current.getMatrixAt(1, initial);
+  for (let step = 0; step < 10; step++) exp.update(0.016, step * 0.016, {} as any);
+  current.getMatrixAt(1, updated);
+  assert(updated.elements[13] > initial.elements[13], 'Positive current must stream upward continuously');
+  assert(Math.abs(updated.elements[12] - initial.elements[12]) < 1e-7 && Math.abs(updated.elements[14] - initial.elements[14]) < 1e-7,
+    'Current must travel along the rod, rather than orbiting around it');
+
+  // Reverse current polarity
+  exp.reverseCurrent();
+  exp.update(0.016, 0.2, {} as any);
+  assert.strictEqual(currentArrow.rotation.z, Math.PI, 'Current arrow points down (-Y) when currentPolarity = -1');
+  current.getMatrixAt(1, initial);
+  assert(initial.elements[13] < updated.elements[13], 'Reversing I immediately reverses axial flow');
+  assert(Math.abs(initial.elements[13] - updated.elements[13]) < 0.002, 'Reversal must not reset or teleport current packets');
+  assert.strictEqual(bench.floatingConductor.currentFlowMaterial.uniforms.direction.value, -1, 'Surface flow and 3D markers must agree');
+
+  exp.dispose({} as any);
+  console.log('✓ Test 6 passed: Single Conductor Right-Hand Screw Apparatus & Continuous Current verified');
+}
+
+// Test 7: Magnetic Field Appears Strictly When Hand is Correct (手摆放正确时，磁场出现)
+{
+  const exp = new EmHandRulesExperiment();
+  exp.init({} as any);
+  exp.setRuleMode('right-hand-screw');
+  exp.setGestureEnabled(true);
+
+  const bench = (exp as any).bench;
+  const magFieldGroup = bench.floatingConductor.fieldGroup as THREE.Group;
+  const magMat = bench.floatingConductor.fieldMaterial as THREE.MeshStandardMaterial;
+
+  // Step 1: Without hand or with wrong hand, magnetic field is hidden (opacity = 0)
+  exp.update(0.016, 0.1, {} as any);
+  assert.strictEqual(magFieldGroup.visible, false, 'Magnetic field must be invisible when no hand is present');
+  assert(magMat.opacity <= 0.01, `Opacity must be near 0, got ${magMat.opacity}`);
+
+  // Provide wrong hand (left hand)
+  const wrongHandFrame = wrapSingleHandFrame(
+    'left',
+    buildMockLandmarks({
+      thumbDirWorld: { x: 0, y: 1 },
+      fingersDirWorld: { x: 1, y: 0 },
+      curled: true,
+    })
+  );
+  exp.onHandGestureFrame(wrongHandFrame);
+  for (let i = 0; i < 20; i++) {
+    exp.update(0.016, 0.1 + i * 0.016, {} as any);
+  }
+  assert.strictEqual(magFieldGroup.visible, false, 'Magnetic field must remain hidden with wrong hand');
+  assert(magMat.opacity <= 0.01, 'Opacity must remain near 0 with wrong hand');
+
+  // Step 2: Hand placed correctly (Right hand, thumb pointing UP with current, fingers curled)
+  const correctRightHandFrame = wrapSingleHandFrame(
+    'right',
+    buildMockLandmarks({
+      thumbDirWorld: { x: 0, y: 1 },
+      fingersDirWorld: { x: -1, y: 0 },
+      curled: true,
+    })
+  );
+  exp.onHandGestureFrame(correctRightHandFrame);
+
+  // Update frames: magnetic field must appear and expand
+  for (let i = 0; i < 30; i++) {
+    exp.update(0.016, 0.5 + i * 0.016, {} as any);
+  }
+  assert.strictEqual(magFieldGroup.visible, true, 'Magnetic field must appear when hand is placed correctly');
+  assert(magMat.opacity > 0.85, `Magnetic field opacity must be high (>0.85), got ${magMat.opacity}`);
+  assert((bench as any).floatingConductor.fieldRevealProgress > 0.85, 'Magnetic field reveal scale must expand outward');
+
+  // Step 3: When hand is removed, magnetic field disappears
+  exp.onHandGestureFrame(null);
+  for (let i = 0; i < 40; i++) {
+    exp.update(0.016, 1.0 + i * 0.016, {} as any);
+  }
+  assert.strictEqual(magFieldGroup.visible, false, 'Magnetic field must disappear after hand is removed');
+  assert(magMat.opacity <= 0.01, 'Opacity must decay back to near 0');
+
+  exp.dispose({} as any);
+  console.log('✓ Test 7 passed: Magnetic Field Appears Strictly When Hand is Correct verified');
+}
+
+// Test 8: The rod toggles the field; either end ferrule reverses current
+{
+  const exp = new EmHandRulesExperiment();
+  exp.init({} as any);
+  exp.setRuleMode('right-hand-screw');
+
+  const bench = (exp as any).bench;
+  const centralConductor = bench.group.getObjectByName('ScrewCentralConductor');
+  assert(centralConductor, 'Conductor must exist');
+
+  // A completed tap toggles the desktop demonstration; dragging must not.
+  const tap = { pointerId: 1, clientX: 600, clientY: 400, button: 0 } as PointerEvent;
+  const handledConductor = exp.onPointerDown(
+    tap,
+    { object: centralConductor, point: new THREE.Vector3(0, 0.30, 0) } as any,
+    {} as any
+  );
+  assert.strictEqual(handledConductor, true, 'Clicking conductor must handle interaction');
+  exp.onPointerUp(tap, {} as any);
+
+  // Update frames: simulated hand must trigger matched state and reveal magnetic field
+  for (let i = 0; i < 30; i++) {
+    exp.update(0.016, i * 0.016, {} as any);
+  }
+  const telem = exp.getTelemetryData();
+  assert.strictEqual(telem.isMatched, true, 'Simulated hand must match right-hand screw rule');
+  assert.strictEqual((bench.floatingConductor.fieldGroup as THREE.Group).visible, true, 'Field must appear with simulated hand');
+
+  // Both end caps replace the deleted pedestal's polarity selector.
+  for (const [name, expected] of [['ConductorUpperFerrule', -1], ['ConductorLowerFerrule', 1]] as const) {
+    const cap = bench.group.getObjectByName(name);
+    assert(cap, 'Machined end ferrule must exist');
+    const handled = exp.onPointerDown(tap, { object: cap, point: new THREE.Vector3(0, 0.43, 0) } as any, {} as any);
+    assert.strictEqual(handled, true, 'End cap must reverse current without initiating a drag');
+    assert.strictEqual(exp.getTelemetryData().currentPolarity, expected);
+  }
+  const unrelated = new THREE.Mesh(new THREE.SphereGeometry(0.01));
+  assert.strictEqual(exp.onPointerDown(tap, { object: unrelated, point: new THREE.Vector3(0, 0, 0) } as any, {} as any), false,
+    'A low world-space hit outside this apparatus must not change polarity');
+  exp.resetExperiment();
+  assert.strictEqual(exp.getTelemetryData().isMatched, false, 'Reset clears the desktop hand as well as the field');
+  exp.setRuleMode('left-hand-rule');
+  assert.strictEqual(exp.onPointerDown(tap, { object: centralConductor, point: new THREE.Vector3() } as any, {} as any), false,
+    'Hidden apparatus must not intercept another rule');
+  unrelated.geometry.dispose();
+  (unrelated.material as THREE.Material).dispose();
+
+  exp.dispose({} as any);
+  console.log('✓ Test 8 passed: 3D direct manipulation verified\n');
+}
+
+// Test 9: Raycast drag under translated/scaled parents, release and cancellation.
+{
+  const exp = new EmHandRulesExperiment();
+  exp.init({} as any);
+  const bench = (exp as any).bench;
+  const apparatus = bench.floatingConductor;
+  // Match the stage's real non-unit transform and test an offset viewport.
+  const stage = new THREE.Group();
+  stage.position.set(0.2, 0.908, -0.3);
+  stage.rotation.y = 0.12;
+  stage.add(exp.rootGroup);
+  exp.rootGroup.scale.setScalar(3.6);
+  stage.updateMatrixWorld(true);
+  const camera = new THREE.PerspectiveCamera(45, 1.6, 0.01, 100);
+  const center = apparatus.assembly.getWorldPosition(new THREE.Vector3());
+  camera.position.copy(center).add(new THREE.Vector3(0.25, 0.25, 3.2));
+  camera.lookAt(center);
+  camera.updateMatrixWorld(true);
+  const rect = { left: 80, top: 40, width: 1000, height: 625 };
+  const context = { camera, renderer: { domElement: { getBoundingClientRect: () => rect } } } as any;
+  const screen = center.clone().project(camera);
+  const down = {
+    pointerId: 4, button: 0,
+    clientX: rect.left + (screen.x + 1) * rect.width / 2,
+    clientY: rect.top + (1 - screen.y) * rect.height / 2,
+  } as PointerEvent;
+  const hit = { object: bench.group.getObjectByName('ScrewCentralConductor'), point: center } as any;
+  assert.strictEqual(exp.onPointerDown(down, hit, context), true);
+  const move = { ...down, clientX: down.clientX + 70, clientY: down.clientY - 35 } as PointerEvent;
+  exp.onPointerMove(move, null, context);
+  for (let i = 0; i < 45; i++) exp.update(1 / 60, i / 60, context);
+  assert(apparatus.assembly.position.x > 0.05 && apparatus.assembly.position.x <= 0.101, 'Drag follows pointer in local coordinates and stays in its workspace');
+  assert(apparatus.assembly.position.y > 0.32, 'Vertical drag raises the suspended rod');
+  assert.strictEqual(exp.getTelemetryData().isMatched, false, 'Dragging must not silently activate a hand demonstration');
+  exp.onPointerUp(move, context);
+  for (let i = 0; i < 120; i++) exp.update(1 / 60, i / 60, context);
+  assert(Math.abs(apparatus.assembly.position.x) < 0.0001, 'Released rod settles back at its suspension point');
+  assert(Math.abs(apparatus.assembly.position.y - 0.30) < 0.003, 'Released rod keeps a restrained idle float');
+  assert.strictEqual(exp.getTelemetryData().isMatched, false, 'A drag release is not a tap');
+
+  exp.onPointerDown(down, hit, context);
+  exp.onPointerCancel(down, context);
+  exp.onPointerUp(down, context);
+  assert.strictEqual(exp.getTelemetryData().isMatched, false, 'Pointer cancellation must not become a tap');
+  exp.onPointerDown(down, hit, context);
+  exp.onViewModeChange('whiteboard');
+  exp.onPointerUp(down, context);
+  assert.strictEqual(exp.getTelemetryData().isMatched, false, 'Switching view cancels any in-progress grab');
+
+  // Electrical and magnetic flow reverse together without collapsing the field.
+  exp.onPointerDown(down, hit, context);
+  exp.onPointerUp(down, context);
+  for (let i = 0; i < 60; i++) exp.update(1 / 60, i / 60, context);
+  assert.strictEqual(apparatus.fieldGroup.visible, true);
+  exp.reverseCurrent();
+  exp.update(1 / 60, 1, context);
+  assert(apparatus.fieldMaterial.opacity > 0.9, 'Reversal retains an already revealed field');
+  for (let i = 0; i < 90; i++) exp.update(1 / 60, i / 60, context);
+  assert(apparatus.circulationSpeed < -0.85, 'B circulation reverses with I');
+  assert(apparatus.assembly.position.y - 0.155 > 0.08, 'Rod remains freely suspended above the table');
+  exp.dispose(context);
+  console.log('✓ Test 9 passed: transformed drag, damped return, cancellation and continuous reversal verified');
+}
+
 console.log('========================================================');
-console.log('All Electromagnetism Hand Rules Tests Passed (5/5)!');
+console.log('All Electromagnetism Hand Rules Tests Passed (9/9)!');
 console.log('========================================================\n');
