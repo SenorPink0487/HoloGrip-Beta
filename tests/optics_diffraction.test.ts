@@ -709,7 +709,12 @@ console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n
   assert.strictEqual(bench.group.getObjectByName('MicrometerHintLabel'), undefined, 'Micrometer floating hint text must be removed');
   assert.strictEqual(bench.group.getObjectByName('TurretHintLabel'), undefined, 'Turret floating hint text must be removed');
 
-  // 微米鼓轮必须包含倒角游标刻度环、24道滚花棱纹、铬合金倒角环、过渡缩颈、棘轮手柄等丰富装配细节
+  // 旋钮大直径与紧凑平整轴向比例规范：旋钮做大 (直径 >= 30mm，半径 >= 15mm)，不要做的很长 (厚度 <= 12mm，轴向紧凑)
+  const knobGeo = bench.micrometerKnob.geometry as THREE.CylinderGeometry;
+  assert(knobGeo.parameters.radiusTop >= 0.015, `Knob radius must be enlarged for ergonomic laboratory precision (got ${knobGeo.parameters.radiusTop} >= 0.015)`);
+  assert(knobGeo.parameters.height <= 0.012, `Knob must be compact in axial length, not an overly long cylinder (got ${knobGeo.parameters.height} <= 0.012)`);
+
+  // 微米鼓轮必须包含倒角游标刻度环、32道滚花棱纹、铬合金倒角环、精致端面阶梯等丰富装配细节
   assert(bench.micrometerKnob.children.length >= 10, `Micrometer knob must have high mechanical craftsmanship (found ${bench.micrometerKnob.children.length} sub-features)`);
   // 转换轮必须包含防滑凹槽、中心液态铬端盖、激光蚀刻象限分度标记等细节
   assert(bench.turretWheel.children.length >= 10, `Turret wheel must have high mechanical craftsmanship (found ${bench.turretWheel.children.length} sub-features)`);
@@ -724,6 +729,7 @@ console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n
   const rotZMax = bench.micrometerKnob.rotation.z;
 
   assert(posZMax > posZMin, `Micrometer knob must advance axially with slit width: posZMax=${posZMax} > posZMin=${posZMin}`);
+  assert(posZMax <= 0.015, `Micrometer knob position must remain compact without long projecting barrel (posZMax=${posZMax} <= 0.015)`);
   assert(Math.abs(rotZMax - rotZMin) >= Math.PI * 6, 'Micrometer knob must execute multiple rotations across tuning range');
 
   // 15.3 转换轮机械弹簧阻尼卡珠平滑旋转动效校验

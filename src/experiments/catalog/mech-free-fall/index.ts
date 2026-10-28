@@ -151,8 +151,8 @@ export default class MechFreeFallExperiment extends BaseExperiment {
           return {
             id: 'freefall-feather',
             label: isVacuum
-              ? '纯白轻羽 [真空状态] · 完全摆脱空气阻力，与硬币、软木塞同步自由落体！'
-              : '纯白轻羽 [常压空气状态] · 质量极轻(0.15g)、受显著空气阻力，轻盈飘浮迟缓下落',
+              ? '轻盈羽毛 [真空状态] · 完全摆脱空气阻力，与硬币、软木塞同步自由落体！'
+              : '轻盈羽毛 [常压空气状态] · 质量极轻(0.15g)、受显著空气阻力，轻盈飘浮迟缓下落',
             cursor: 'default',
           };
         }

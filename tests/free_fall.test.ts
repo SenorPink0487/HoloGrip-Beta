@@ -481,6 +481,36 @@ console.log('=== Starting Free Fall & Newton Tube Experiment Analytical & Integr
   console.log('✓ Test 10 passed: Newton tube uses crystal-clear optical glass material with sharp interior resolution\n');
 }
 
+// Test 11: Experimental Apparatus Material & Anti-White Invariant (实验器材严禁使用白色)
+{
+  console.log('Test 11: Experimental Apparatus Material & Anti-White Invariant');
+  const mesh = new NewtonTubeMesh();
+  const precisionSlate = mesh['precisionSlateMaterial'];
+  const pumpMotor = mesh['pumpMotorMaterial'];
+  const sapphireDisplay = mesh['sapphireDisplayMaterial'];
+  const switchBox = mesh['switchBoxMaterial'];
+
+  // 1. Verify no white materials are used for equipment housings & structural bases
+  assert.notStrictEqual(precisionSlate.color.getHex(), 0xffffff, 'Chassis slate must not be white');
+  assert.notStrictEqual(precisionSlate.color.getHex(), 0xf8fafc, 'Chassis slate must not be white');
+  assert.strictEqual(precisionSlate.color.getHex(), 0x1e293b, 'Chassis slate should be precision deep space titanium (0x1e293b)');
+
+  // 2. Verify vacuum pump motor uses precision industrial laboratory blue
+  assert.notStrictEqual(pumpMotor.color.getHex(), 0xffffff, 'Pump motor must not be white');
+  assert.strictEqual(pumpMotor.color.getHex(), 0x1e40af, 'Pump motor should be precision industrial lab blue (0x1e40af)');
+
+  // 3. Verify vacuum gauge dial face uses deep oceanic sapphire rather than plain white
+  assert.notStrictEqual(sapphireDisplay.color.getHex(), 0xffffff, 'Gauge display must not be white');
+  assert.strictEqual(sapphireDisplay.color.getHex(), 0x0a192f, 'Gauge display should be deep oceanic sapphire (0x0a192f)');
+
+  // 4. Verify switch box enclosure is dark instrument polymer
+  assert.notStrictEqual(switchBox.color.getHex(), 0xffffff, 'Switch box must not be white');
+  assert.strictEqual(switchBox.color.getHex(), 0x0f172a, 'Switch box should be dark instrument polymer (0x0f172a)');
+
+  mesh.dispose();
+  console.log('✓ Test 11 passed: Experimental apparatus uses precision titanium slate, industrial blue, and sapphire display with zero white equipment parts\n');
+}
+
 console.log('========================================================');
-console.log('All Free Fall & Newton Tube Experiment Tests Passed (10/10)!');
+console.log('All Free Fall & Newton Tube Experiment Tests Passed (11/11)!');
 console.log('========================================================\n');

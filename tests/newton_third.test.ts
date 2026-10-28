@@ -22,6 +22,8 @@ class MockCanvasContext {
   arc() {}
   roundRect() {}
   fillText() {}
+  translate() {}
+  rotate() {}
   save() {}
   restore() {}
   setLineDash(d: number[]) { this.dash = d; }

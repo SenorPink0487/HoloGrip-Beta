@@ -87,12 +87,15 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     let obj: THREE.Object3D | null = hit.object;
 
     while (obj && obj !== this.rootGroup) {
-      // 1. 检测是否点击在互拉测力计 B 或其挂钩/手柄上
+      // 1. 检测是否点击在互拉测力计 B 或其挂钩/滑块手柄上
       if (
         obj.name === 'DynamometerB' ||
         obj.name.startsWith('DynamometerB') ||
         obj === this.bench.dynamometerB.group ||
-        this.isDescendantOf(obj, this.bench.dynamometerB.group)
+        obj === this.bench.sliderBGroup ||
+        obj === this.bench.pullHandleMesh ||
+        this.isDescendantOf(obj, this.bench.dynamometerB.group) ||
+        this.isDescendantOf(obj, this.bench.sliderBGroup)
       ) {
         this.startDraggingPair(event, hit, context);
         return true;
@@ -109,12 +112,14 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
         return true;
       }
 
-      // 3. 检测是否点击在左侧独立测力计上
+      // 3. 检测是否点击在左侧独立测力计或钩码上
       if (
         obj.name === 'SoloDynamometer' ||
         obj.name.startsWith('SoloDynamometer') ||
         obj === this.bench.soloDynamometer.group ||
-        this.isDescendantOf(obj, this.bench.soloDynamometer.group)
+        obj === this.bench.weightGroup ||
+        this.isDescendantOf(obj, this.bench.soloDynamometer.group) ||
+        this.isDescendantOf(obj, this.bench.weightGroup)
       ) {
         this.startDraggingSolo(event, hit, context);
         return true;
@@ -216,8 +221,8 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     // 1. 双测力计水平互拉拖拽
     if (this.isDraggingPair) {
       const deltaX = currentDragLocal.x - this.dragStartPointerPosLocal.x;
-      // 水平位移每移动 0.035m 增加 1.0 N 拉力
-      const forceDelta = deltaX / 0.035;
+      // 水平位移每移动 0.032m 增加 1.0 N 拉力 (双弹簧串联 0.16m 满量程)
+      const forceDelta = deltaX / 0.032;
       const targetForce = Math.max(0, Math.min(5.0, this.dragStartForce + forceDelta));
       this.solver.setPairTargetForce(targetForce, true);
       return;
@@ -226,8 +231,8 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     // 2. 独立测力计向下垂直拖拽
     if (this.isDraggingSolo) {
       const deltaY = currentDragLocal.y - this.dragStartPointerPosLocal.y;
-      // 向下位移 (deltaY < 0) 增加拉力
-      const forceDelta = -deltaY / 0.032;
+      // 向下位移每移动 0.016m 增加 1.0 N 拉力 (单弹簧 0.08m 满量程)
+      const forceDelta = -deltaY / 0.016;
       const targetForce = Math.max(0, Math.min(5.0, this.dragStartForce + forceDelta));
       this.solver.setSoloTargetForce(targetForce, true);
     }
@@ -271,7 +276,13 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
   public override getHoverTarget(
     raycaster: THREE.Raycaster
   ): { id: string; label: string; cursor?: string } | null {
-    const targets = [this.bench.dynamometerB.group, this.bench.dynamometerA.group, this.bench.soloDynamometer.group];
+    const targets = [
+      this.bench.dynamometerB.group,
+      this.bench.sliderBGroup,
+      this.bench.dynamometerA.group,
+      this.bench.soloDynamometer.group,
+      this.bench.weightGroup,
+    ];
     const hits = raycaster.intersectObjects(targets, true);
     if (hits.length === 0) {
       this.clearHoverHighlight();
@@ -280,12 +291,15 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
 
     const hitObj = hits[0].object;
 
-    // 检测是否悬停在互拉测力计 B 上
-    if (this.isDescendantOf(hitObj, this.bench.dynamometerB.group)) {
+    // 检测是否悬停在互拉测力计 B 或拉手滑块上
+    if (
+      this.isDescendantOf(hitObj, this.bench.dynamometerB.group) ||
+      this.isDescendantOf(hitObj, this.bench.sliderBGroup)
+    ) {
       this.setHoverHighlight('B');
       return {
         id: 'dynamometer-b',
-        label: '互拉测力计 B · 按住向右拖拽',
+        label: '互拉测力计 B · 按住精密拉手向右对拉',
         cursor: 'grab',
       };
     }
@@ -295,17 +309,20 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
       this.setHoverHighlight('A');
       return {
         id: 'dynamometer-a',
-        label: '互拉测力计 A · 与测力计 B 挂钩互扣',
+        label: '互拉测力计 A · 左端固定，挂钩与 B 表互扣',
         cursor: 'grab',
       };
     }
 
-    // 检测是否悬停在独立测力计上
-    if (this.isDescendantOf(hitObj, this.bench.soloDynamometer.group)) {
+    // 检测是否悬停在独立测力计或钩码上
+    if (
+      this.isDescendantOf(hitObj, this.bench.soloDynamometer.group) ||
+      this.isDescendantOf(hitObj, this.bench.weightGroup)
+    ) {
       this.setHoverHighlight('solo');
       return {
         id: 'dynamometer-solo',
-        label: '独立测力计 · 按住向下拖拽体验拉力',
+        label: '独立垂直测力计 · 按住秤钩/砝码向下拖拽',
         cursor: 'grab',
       };
     }
@@ -355,13 +372,17 @@ export default class MechNewtonThirdExperiment extends BaseExperiment {
     } else if (id === 'hangWeight') {
       if (value === '1n') {
         this.solver.hangWeightOnSolo(0.102);
+        this.bench.setWeightDisplay(0.102);
       } else if (value === '2n') {
         this.solver.hangWeightOnSolo(0.204);
+        this.bench.setWeightDisplay(0.204);
       } else {
         this.solver.hangWeightOnSolo(0);
+        this.bench.setWeightDisplay(0);
       }
     } else if (id === 'resetExperiment') {
       this.solver.reset();
+      this.bench.setWeightDisplay(0);
     }
   }
 

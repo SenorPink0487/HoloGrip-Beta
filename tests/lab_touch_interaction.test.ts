@@ -103,22 +103,24 @@ win.emit('pointerup', pointer(1, 1450));
 assert.equal(calls.move, 2, 'Release position is applied even after a throttled final move');
 assert.equal(calls.up, 1);
 assert.equal(engine.inputManager.player.enabled, true);
-assert.equal(engine.inputManager.player.allowPointerLock, false, 'Desk experiments keep a free cursor');
+assert.equal(engine.inputManager.player.allowPointerLock, true, 'Pointer lock allowed so crosshair can activate');
 assert.equal(canvas.captured.size, 0);
 
-// Hiding the crosshair must not disable physical hover feedback on instruments.
+// Hover feedback on instruments.
 let crosshairVisible = true;
 let physicalHover = 0;
+let crosshairLabel = '';
 engine.crosshair = { getVisible: () => crosshairVisible,
   setVisible: (v: boolean) => { crosshairVisible = v; },
-  setHovered: () => { assert.fail('Desk feedback must not create crosshair labels'); } };
+  setHovered: (_h: boolean, label: string) => { crosshairLabel = label; } };
 engine.getInteractiveTargetAt = () => null;
 engine.lastCrosshairCheck = -Infinity;
-experiment.getHoverTarget = () => { physicalHover++; return { id: 'knob', cursor: 'ew-resize' }; };
+experiment.getHoverTarget = () => { physicalHover++; return { id: 'knob', label: '调节旋钮', cursor: 'ew-resize' }; };
 engine.checkCrosshairIntersection(performance.now());
-assert.equal(crosshairVisible, false);
+assert.equal(crosshairVisible, true);
 assert.equal(physicalHover, 1);
 assert.equal(canvas.style.cursor, 'ew-resize');
+assert.equal(crosshairLabel, '调节旋钮');
 
 // All interruption paths release capture and call cancellation, never a click.
 for (const interruption of ['pointercancel', 'lostpointercapture', 'blur', 'visibilitychange']) {

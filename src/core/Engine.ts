@@ -655,10 +655,8 @@ export class Engine {
     };
   }
 
-  private isFreeCursorExperiment(id: string | null): boolean {
-    return id === 'math-stereometry' || id === 'em-hand-rules' || Boolean(
-      id && this.holoStage?.activeExperiment?.onPointerDown
-    ) || Boolean(!id && this.beakerLeft?.isInteractive());
+  public isFreeCursorExperiment(id: string | null): boolean {
+    return id === 'math-stereometry';
   }
 
   private initHUD(): void {
@@ -2299,10 +2297,11 @@ export class Engine {
     }
     this.lastCrosshairCheck = now;
 
+    const center = this.centerScreen ?? new THREE.Vector2(0, 0);
     const isPointerLocked = this.inputManager?.player?.isLocked ?? false;
     let targetType: 'beaker-left' | 'beaker-right' | 'beaker' | 'holo-table' | null = null;
     if (!this.currentExperimentId) {
-      targetType = this.getInteractiveTargetAt(freeCursor && this.lastPointerPos ? this.lastPointerPos : this.centerScreen);
+      targetType = this.getInteractiveTargetAt(freeCursor && this.lastPointerPos ? this.lastPointerPos : center);
 
       // 若未锁定指针且屏幕中心准星未命中，检查自由鼠标指针位置
       if (!freeCursor && !targetType && !isPointerLocked && this.lastPointerPos) {
@@ -2325,7 +2324,7 @@ export class Engine {
 
     // 若未悬停于烧杯，查询当前实验中可悬停的器材
     if (!hovered && this.holoStage.activeExperiment?.getHoverTarget) {
-      const primaryPos = (freeCursor && this.lastPointerPos) ? this.lastPointerPos : this.centerScreen;
+      const primaryPos = (freeCursor && this.lastPointerPos) ? this.lastPointerPos : center;
       this.raycaster.setFromCamera(primaryPos, this.camera);
       let expHover = this.holoStage.activeExperiment.getHoverTarget(this.raycaster);
 

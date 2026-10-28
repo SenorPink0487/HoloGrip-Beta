@@ -181,8 +181,8 @@ isWhiteboardMode = true;
 assert.strictEqual(computeExpectedCrosshairVisibility(), false, 'Hidden when returning to whiteboard');
 console.log('✓ Test 4 passed: All state matrix conditions verified\n');
 
-// Test 5: Every directly manipulated desk experiment uses a free cursor.
-console.log('Test 5: Desk Experiment Free Cursor Invariants');
+// Test 5: All Physics Experiments Center Crosshair & Pointer Lock Invariants
+console.log('Test 5: All Physics Experiments Center Crosshair & Pointer Lock Invariants');
 const allPhysicsExperiments = [
   'mech-galileo',
   'mech-free-fall',
@@ -209,8 +209,8 @@ for (const expId of allPhysicsExperiments) {
   engine.holoStage = { activeExperiment: experiment };
   assert.strictEqual(
     engine.isFreeCursorExperiment(expId),
-    Boolean(experiment.onPointerDown),
-    `Direct manipulation in [${expId}] must use a free cursor`
+    false,
+    `Physics experiment [${expId}] must NOT be classified as free cursor; center crosshair must activate`
   );
 }
 
@@ -221,7 +221,7 @@ assert.strictEqual(
   'Math stereometry must remain dedicated free cursor mode'
 );
 
-console.log('✓ Test 5 passed: All 14 physics experiments checked against their actual interaction hooks\n');
+console.log('✓ Test 5 passed: Center crosshair activation guaranteed across all physics experiments\n');
 
 console.log('Test 6: iPad Touch Mode Never Shows a Crosshair');
 const touchCrosshair = new Crosshair(body, true);

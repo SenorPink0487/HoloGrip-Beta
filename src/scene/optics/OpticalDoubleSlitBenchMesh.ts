@@ -946,126 +946,128 @@ export class OpticalDoubleSlitBenchMesh {
     this.rightSlitLightMesh.position.set(0, this.beamHeightY, 0.0022);
     this.slitStageGroup.add(this.rightSlitLightMesh);
 
-    // 5. 右侧：Mitutoyo/Thorlabs 精密差动测微螺杆鼓轮总成 (调节双缝间距 d)
+    // 5. 右侧：Mitutoyo/Thorlabs 精密差动测微螺杆鼓轮总成 (调节双缝间距 d，大直径平整紧凑造型)
     this.micrometerThimbleGroup = new THREE.Group();
     this.micrometerThimbleGroup.name = 'MicrometerThimbleGroup';
     this.micrometerThimbleGroup.position.set(0, this.beamHeightY - 0.026, outerRingRadius + 0.002);
 
-    // a. 固定套筒 (Fixed Vernier Barrel Sleeve)
-    const sleeveGeo = new THREE.CylinderGeometry(0.0076, 0.0076, 0.015, 32);
-    sleeveGeo.rotateX(Math.PI / 2);
-    const sleeveMesh = new THREE.Mesh(sleeveGeo, chromeRodMat);
-    sleeveMesh.position.set(0, 0, 0.0075);
-    sleeveMesh.userData = { interactiveId: 'slit_micrometer' };
-    this.micrometerThimbleGroup.add(sleeveMesh);
-
-    // 套筒根部香槟金六角锁紧螺母
-    const locknutGeo = new THREE.CylinderGeometry(0.0092, 0.0092, 0.0035, 6);
+    // a. 基座精密刻度固定套筒与锁母 (Fixed Vernier Barrel Sleeve & Hex Locknut)
+    const locknutGeo = new THREE.CylinderGeometry(0.0145, 0.0145, 0.0022, 32);
     locknutGeo.rotateX(Math.PI / 2);
     const locknut = new THREE.Mesh(locknutGeo, brassMat);
-    locknut.position.set(0, 0, 0.0018);
+    locknut.position.set(0, 0, 0.0011);
     locknut.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerThimbleGroup.add(locknut);
 
-    // 套筒基准读数水平基线与毫米分度刻线
-    const datumGeo = new THREE.BoxGeometry(0.0006, 0.0004, 0.012);
+    const sleeveGeo = new THREE.CylinderGeometry(0.0135, 0.0135, 0.0042, 32);
+    sleeveGeo.rotateX(Math.PI / 2);
+    const sleeveMesh = new THREE.Mesh(sleeveGeo, chromeRodMat);
+    sleeveMesh.position.set(0, 0, 0.0028);
+    sleeveMesh.userData = { interactiveId: 'slit_micrometer' };
+    this.micrometerThimbleGroup.add(sleeveMesh);
+
+    // 套筒基准读数水平基线与微米分度刻线
+    const datumGeo = new THREE.BoxGeometry(0.0006, 0.0004, 0.0036);
     const datumMesh = new THREE.Mesh(datumGeo, titaniumSlateMat);
-    datumMesh.position.set(0, 0.0077, 0.008);
+    datumMesh.position.set(0, 0.0136, 0.0028);
     datumMesh.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerThimbleGroup.add(datumMesh);
 
-    for (let i = 0; i <= 5; i++) {
-      const tickGeo = new THREE.BoxGeometry(0.0028, 0.0004, 0.0005);
+    for (let i = 0; i <= 3; i++) {
+      const tickGeo = new THREE.BoxGeometry(0.0024, 0.0004, 0.0004);
       const tick = new THREE.Mesh(tickGeo, titaniumSlateMat);
-      tick.position.set(0, 0.0077, 0.003 + i * 0.002);
+      tick.position.set(0, 0.0136, 0.0014 + i * 0.0009);
       tick.userData = { interactiveId: 'slit_micrometer' };
       this.micrometerThimbleGroup.add(tick);
     }
 
-    // b. 可旋转精密测微微分筒 (Rotating Thimble Knob Assembly)
-    const knobGeo = new THREE.CylinderGeometry(0.0092, 0.0092, 0.016, 32);
+    // b. 可旋转大直径紧凑精密测微手轮/微分筒 (Rotating Thimble Handwheel Assembly)
+    // 旋钮做大 (直径 35mm)，轴向厚度紧凑平整 (约 14mm)，杜绝多余长杆
+    const knobRadius = 0.0175;
+    const knobLength = 0.0080;
+    const knobGeo = new THREE.CylinderGeometry(knobRadius, knobRadius, knobLength, 36);
     knobGeo.rotateX(Math.PI / 2);
     this.micrometerKnob = new THREE.Mesh(knobGeo, brassMat);
     this.micrometerKnob.name = 'SlitMicrometerKnob';
-    this.micrometerKnob.position.set(0, 0, 0.018);
+    this.micrometerKnob.position.set(0, 0, 0.0068);
     this.micrometerKnob.userData = { interactiveId: 'slit_micrometer' };
 
-    // 读数端 45° 精密倒角游标环
-    const bevelGeo = new THREE.CylinderGeometry(0.0078, 0.0092, 0.004, 32);
+    // 读数端精密 45° 倒角游标环
+    const bevelGeo = new THREE.CylinderGeometry(0.0138, knobRadius, 0.0024, 36);
     bevelGeo.rotateX(Math.PI / 2);
     const bevelCollar = new THREE.Mesh(bevelGeo, chromeRodMat);
-    bevelCollar.position.set(0, 0, -0.010);
+    bevelCollar.position.set(0, 0, -knobLength * 0.5 - 0.0010);
     bevelCollar.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(bevelCollar);
 
-    for (let i = 0; i < 8; i++) {
-      const vAngle = (i / 8) * Math.PI * 2;
-      const vTickGeo = new THREE.BoxGeometry(0.0005, 0.0018, 0.0035);
+    for (let i = 0; i < 12; i++) {
+      const vAngle = (i / 12) * Math.PI * 2;
+      const vTickGeo = new THREE.BoxGeometry(0.0005, 0.0018, 0.0022);
       const vTick = new THREE.Mesh(vTickGeo, titaniumSlateMat);
-      vTick.position.set(Math.cos(vAngle) * 0.0084, Math.sin(vAngle) * 0.0084, -0.010);
+      vTick.position.set(Math.cos(vAngle) * 0.0152, Math.sin(vAngle) * 0.0152, -knobLength * 0.5 - 0.0010);
       vTick.rotation.z = vAngle;
       vTick.userData = { interactiveId: 'slit_micrometer' };
       bevelCollar.add(vTick);
     }
 
-    for (let i = 0; i < 24; i++) {
-      const kAngle = (i / 24) * Math.PI * 2;
-      const ribGeo = new THREE.BoxGeometry(0.0006, 0.0006, 0.015);
+    // 32 道精密机械防滑滚花棱纹
+    for (let i = 0; i < 32; i++) {
+      const kAngle = (i / 32) * Math.PI * 2;
+      const ribGeo = new THREE.BoxGeometry(0.0007, 0.0007, knobLength - 0.0006);
       const rib = new THREE.Mesh(ribGeo, brassMat);
-      rib.position.set(Math.cos(kAngle) * 0.0093, Math.sin(kAngle) * 0.0093, 0);
+      rib.position.set(Math.cos(kAngle) * (knobRadius + 0.0001), Math.sin(kAngle) * (knobRadius + 0.0001), 0);
       rib.rotation.z = kAngle;
       rib.userData = { interactiveId: 'slit_micrometer' };
       this.micrometerKnob.add(rib);
     }
 
-    const rimFrontGeo = new THREE.CylinderGeometry(0.0093, 0.0093, 0.001, 32);
+    // 滚花鼓轮两端高光镜面滚边倒角
+    const rimFrontGeo = new THREE.CylinderGeometry(knobRadius + 0.0001, knobRadius + 0.0001, 0.0006, 36);
     rimFrontGeo.rotateX(Math.PI / 2);
     const rimFront = new THREE.Mesh(rimFrontGeo, chromeRodMat);
-    rimFront.position.set(0, 0, -0.0076);
+    rimFront.position.set(0, 0, knobLength * 0.5 - 0.0003);
     rimFront.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(rimFront);
 
-    const rimBackGeo = new THREE.CylinderGeometry(0.0093, 0.0093, 0.001, 32);
+    const rimBackGeo = new THREE.CylinderGeometry(knobRadius + 0.0001, knobRadius + 0.0001, 0.0006, 36);
     rimBackGeo.rotateX(Math.PI / 2);
     const rimBack = new THREE.Mesh(rimBackGeo, chromeRodMat);
-    rimBack.position.set(0, 0, 0.0076);
+    rimBack.position.set(0, 0, -knobLength * 0.5 + 0.0003);
     rimBack.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(rimBack);
 
-    const neckGeo = new THREE.CylinderGeometry(0.0055, 0.0055, 0.004, 24);
-    neckGeo.rotateX(Math.PI / 2);
-    const neckMesh = new THREE.Mesh(neckGeo, chromeRodMat);
-    neckMesh.position.set(0, 0, 0.010);
-    neckMesh.userData = { interactiveId: 'slit_micrometer' };
-    this.micrometerKnob.add(neckMesh);
+    // 正面精致同心倒角阶梯端面
+    const frontBevelGeo = new THREE.CylinderGeometry(0.0150, knobRadius, 0.0014, 36);
+    frontBevelGeo.rotateX(Math.PI / 2);
+    const frontBevel = new THREE.Mesh(frontBevelGeo, brassMat);
+    frontBevel.position.set(0, 0, knobLength * 0.5 + 0.0007);
+    frontBevel.userData = { interactiveId: 'slit_micrometer' };
+    this.micrometerKnob.add(frontBevel);
 
-    const ratchetGeo = new THREE.CylinderGeometry(0.0062, 0.0062, 0.008, 24);
-    ratchetGeo.rotateX(Math.PI / 2);
-    const ratchetKnob = new THREE.Mesh(ratchetGeo, brassMat);
-    ratchetKnob.position.set(0, 0, 0.015);
-    ratchetKnob.userData = { interactiveId: 'slit_micrometer' };
-    this.micrometerKnob.add(ratchetKnob);
+    const stepRingGeo = new THREE.CylinderGeometry(0.0110, 0.0110, 0.0010, 32);
+    stepRingGeo.rotateX(Math.PI / 2);
+    const stepRing = new THREE.Mesh(stepRingGeo, chromeRodMat);
+    stepRing.position.set(0, 0, knobLength * 0.5 + 0.0012);
+    stepRing.userData = { interactiveId: 'slit_micrometer' };
+    this.micrometerKnob.add(stepRing);
 
-    for (let i = 0; i < 12; i++) {
-      const rAngle = (i / 12) * Math.PI * 2;
-      const rToothGeo = new THREE.BoxGeometry(0.0005, 0.0005, 0.0078);
-      const rTooth = new THREE.Mesh(rToothGeo, brassMat);
-      rTooth.position.set(Math.cos(rAngle) * 0.0063, Math.sin(rAngle) * 0.0063, 0.015);
-      rTooth.rotation.z = rAngle;
-      rTooth.userData = { interactiveId: 'slit_micrometer' };
-      this.micrometerKnob.add(rTooth);
-    }
+    const centerHubGeo = new THREE.CylinderGeometry(0.0070, 0.0070, 0.0014, 24);
+    centerHubGeo.rotateX(Math.PI / 2);
+    const centerHub = new THREE.Mesh(centerHubGeo, brassMat);
+    centerHub.position.set(0, 0, knobLength * 0.5 + 0.0018);
+    centerHub.userData = { interactiveId: 'slit_micrometer' };
+    this.micrometerKnob.add(centerHub);
 
-    const dimpleGeo = new THREE.SphereGeometry(0.0020, 16, 16);
+    const dimpleGeo = new THREE.SphereGeometry(0.0022, 16, 16);
     const dimple = new THREE.Mesh(dimpleGeo, titaniumSlateMat);
-    dimple.position.set(0, 0, 0.019);
+    dimple.position.set(0, 0, knobLength * 0.5 + 0.0022);
     dimple.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(dimple);
 
     this.micrometerThimbleGroup.add(this.micrometerKnob);
 
     // c. 测微鼓轮 3D 原生悬浮提示引导光晕环
-    const micrometerCueGeo = new THREE.TorusGeometry(0.0122, 0.0006, 16, 48, Math.PI * 1.6);
+    const micrometerCueGeo = new THREE.TorusGeometry(0.0210, 0.0008, 16, 48, Math.PI * 1.6);
     micrometerCueGeo.rotateX(Math.PI / 2);
     const micrometerCueMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
@@ -1075,7 +1077,7 @@ export class OpticalDoubleSlitBenchMesh {
     });
     this.micrometerHoverCue = new THREE.Mesh(micrometerCueGeo, micrometerCueMat);
     this.micrometerHoverCue.name = 'MicrometerHoverCue';
-    this.micrometerHoverCue.position.set(0, 0, 0.018);
+    this.micrometerHoverCue.position.set(0, 0, 0.0068);
     this.micrometerHoverCue.visible = false;
     this.micrometerThimbleGroup.add(this.micrometerHoverCue);
 
@@ -1564,11 +1566,11 @@ export class OpticalDoubleSlitBenchMesh {
       this.rightJawMesh.position.z = visualHalfD + visualSlitW * 0.5 + halfJawDepth;
     }
 
-    // 测微鼓轮多圈旋转与差动轴向微米进给
+    // 测微手轮多圈旋转与差动轴向微米进给
     if (this.micrometerKnob) {
       this.micrometerKnob.rotation.z = normD * Math.PI * 8.0;
-      const axialTravel = normD * 0.0042;
-      this.micrometerKnob.position.z = 0.018 + axialTravel;
+      const axialTravel = normD * 0.0018;
+      this.micrometerKnob.position.z = 0.0068 + axialTravel;
     }
 
     // 同步观测屏下沿一阶条纹游标卡尺指针位置 (±Δy) 与手轮旋转

@@ -365,7 +365,7 @@ export class WhiteboardApp {
   private activateLaboratory(): void {
     blurActiveInput(true);
     if (!this.engine) return;
-    const freeCursor = Boolean(this.engine.holoStage?.activeExperiment?.onPointerDown);
+    const freeCursor = this.engine.isFreeCursorExperiment(this.engine.currentExperimentId);
     if (this.engine.inputManager?.player) {
       this.engine.inputManager.player.enabled = true;
       this.engine.inputManager.player.allowPointerLock = !freeCursor;

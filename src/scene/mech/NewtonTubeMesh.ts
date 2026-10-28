@@ -1,13 +1,15 @@
 /**
  * 3D 实验器材模型：牛顿管与旋片式真空抽气机 (Newton's Tube & Laboratory Vacuum Pump)
  *
- * 视觉美学规范 (VisionOS / 航天轻量化实验室风格)：
- * - 彻底告别沉重压抑的黑铁与黑橡胶！
- * - 纯净太空银白纳米陶瓷晶体底座 (Ceramic White / Silver)。
- * - 抛光镜面液态铬双立柱与轴承抱箍 (Polished Liquid Chrome)。
- * - 晶莹微透高韧性医用级硅胶透明导管 (Translucent Crystal Silicone Hose)，自带清澈微折射。
- * - 晶体硅胶缓冲底垫与防震脚垫 (Clear Ice-Blue Silicone)。
- * - 高纯度 24K 镀金硬币、纯白轻羽与温暖天然蜜色软木塞。
+ * 视觉美学与材质工业规范：
+ * - 严禁粗糙脏黑与单调死白，器材必须正对操作者视线。
+ * - 航天级深空钛/微曜石阳极氧化合金机身构件 (Precision Slate Titanium / Obsidian Anodized Alloy: 0x1e293b)。
+ * - 经典精密科研真空泵工业湛蓝电机机壳 (Precision Industrial Lab Blue: 0x1e40af)。
+ * - 深邃海洋蓝黑高精度真空压力表与按键核心 (Deep Oceanic Sapphire: 0x0a192f)。
+ * - 镜面抛光 316L 不锈钢 / 液态铬支撑总成与散热鳍片 (Polished Liquid Chrome / 316L Stainless Steel: 0xe2e8f0)。
+ * - 精密切削香槟金黄铜阀门、进气嘴、锁紧套筒与紧固螺母 (Champagne Brass: 0xf59e0b)。
+ * - 晶莹微透高韧性天蓝医用硅胶透明导管与缓冲垫 (Translucent Crystal Silicone)。
+ * - 闪耀 24K 纯金硬币、天然温暖软木塞与高拟真自然轻羽。
  */
 
 import * as THREE from 'three';
@@ -59,11 +61,15 @@ export class NewtonTubeMesh {
   private hoseCurve: THREE.CatmullRomCurve3 | null = null;
   private hoseMaterial: THREE.MeshStandardMaterial;
 
-  // 材质引用 (纯净航天白、抛光铬与晶透硅胶)
+  // 材质引用 (高级科研仪器材质体系：深空钛、精工蓝、海洋蓝黑、液态铬与香槟金)
   private glassMaterial: THREE.MeshPhysicalMaterial;
   private innerGlassMaterial: THREE.MeshStandardMaterial;
   private chromeMaterial: THREE.MeshStandardMaterial;
-  private ceramicWhiteMaterial: THREE.MeshStandardMaterial;
+  private precisionSlateMaterial: THREE.MeshStandardMaterial;
+  private sapphireDisplayMaterial: THREE.MeshStandardMaterial;
+  private pumpMotorMaterial: THREE.MeshStandardMaterial;
+  private switchBoxMaterial: THREE.MeshStandardMaterial;
+  private darkSiliconeMaterial: THREE.MeshStandardMaterial;
   private brassMaterial: THREE.MeshStandardMaterial;
   private siliconeMaterial: THREE.MeshStandardMaterial;
   private featherMaterial: THREE.MeshStandardMaterial;
@@ -124,41 +130,69 @@ export class NewtonTubeMesh {
       visible: false,
     });
 
-    // 镜面液态铬金属
-    this.chromeMaterial = mechMetal(0xffffff, 0.96, 0.08);
+    // 镜面液态铬金属 (316L 不锈钢镜面抛光，细腻高光反射)
+    this.chromeMaterial = mechMetal(0xe2e8f0, 0.96, 0.10);
 
-    // 纯白陶瓷/航天极轻铝合金 (彻底替代粗笨黑色)
-    this.ceramicWhiteMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc,
-      roughness: 0.18,
-      metalness: 0.15,
+    // 航天级深空钛阳极氧化精密合金构件 (彻底告别单调死白与廉价黑塑料)
+    this.precisionSlateMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.28,
+      metalness: 0.82,
     });
 
-    // 精密亮黄铜气嘴
-    this.brassMaterial = mechMetal(0xfbbf24, 0.90, 0.18);
+    // 深邃海洋蓝黑高对比度视窗与按键核心材质 (Deep Oceanic Sapphire)
+    this.sapphireDisplayMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0a192f,
+      roughness: 0.22,
+      metalness: 0.70,
+    });
 
-    // 晶莹微透高分子硅胶减震垫 (清澈冰蓝微透，彻底替代黑橡胶)
+    // 经典科研仪器工业湛蓝电机机壳材质 (Classic Precision Industrial Lab Blue)
+    this.pumpMotorMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1e40af,
+      roughness: 0.26,
+      metalness: 0.76,
+    });
+
+    // 深色精密仪器工程外壳
+    this.switchBoxMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.32,
+      metalness: 0.65,
+    });
+
+    // 高阻尼防震暗色硅胶垫 (Dark Silicone Footpads)
+    this.darkSiliconeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.80,
+      metalness: 0.05,
+    });
+
+    // 精密切削香槟金黄铜气嘴与调节旋钮
+    this.brassMaterial = mechMetal(0xf59e0b, 0.92, 0.18);
+
+    // 晶莹微透高分子硅胶减震垫 (清澈冰蓝微透)
     this.siliconeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe0f2fe,
+      color: 0x38bdf8,
       roughness: 0.25,
       metalness: 0.05,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.75,
     });
 
-    // 羽毛羽片材质 (经典教科书纯白轻羽，自然轻盈漫射，边缘锐利清晰，杜绝过曝自发光与糊片)
+    // 羽毛羽片材质 (天然轻羽象牙暖白/柔和羽丝质感，杜绝刺眼过曝死白)
     this.featherMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.45,
+      color: 0xfef3c7,
+      roughness: 0.42,
       metalness: 0.02,
       side: THREE.DoubleSide,
     });
 
     // 羽毛羽轴材质 (温润细金羽茎)
     this.featherQuillMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfef08a,
-      metalness: 0.8,
-      roughness: 0.2,
+      color: 0xf59e0b,
+      metalness: 0.85,
+      roughness: 0.20,
     });
 
     // 硬币材质 (真实纯金质感，高金属度与真实镜面高光，杜绝自发光糊成一团)
@@ -207,33 +241,58 @@ export class NewtonTubeMesh {
 
     // 晶透微光天蓝高分子硅胶导管 (具有柔和微透光泽，清晰分明)
     this.hoseMaterial = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      roughness: 0.25,
-      metalness: 0.1,
+      color: 0x0284c7,
+      roughness: 0.22,
+      metalness: 0.08,
       transparent: true,
       opacity: 0.88,
     });
   }
 
   /**
-   * 创建实验台支架系统与旋转按钮 (纯净太空白晶体与液态铬风格)
+   * 创建实验台支架系统与旋转按钮 (航天深空钛与液态铬高精科技风格)
    * 正前方零遮挡设计：支撑立柱位于左后方 (-X, -Z)，正面对准用户，视线 100% 全通透
    */
   private createStand(): void {
-    // 1. 加重稳固底座 (纯净太空银白纳米陶瓷晶体底盘)
+    // 1. 加重稳固底座 (航天级深空钛阳极氧化精密底盘，搭配沉金倒角与防滑减震脚垫)
     const baseGeo = new THREE.CylinderGeometry(0.20, 0.22, 0.026, 48);
-    const baseMesh = new THREE.Mesh(baseGeo, this.ceramicWhiteMaterial);
+    const baseMesh = new THREE.Mesh(baseGeo, this.precisionSlateMaterial);
     baseMesh.position.set(0, 0.013, 0);
     baseMesh.castShadow = true;
     baseMesh.receiveShadow = true;
     this.standGroup.add(baseMesh);
 
-    // 亮铬光圈装饰
+    // 防滑减震脚垫 (8 个暗色硅胶脚垫分布在底座下部，避免底座悬浮或单薄)
+    const footGeo = new THREE.CylinderGeometry(0.014, 0.016, 0.005, 24);
+    const footPositions = [
+      [0.17, 0.0025, 0],
+      [-0.17, 0.0025, 0],
+      [0, 0.0025, 0.17],
+      [0, 0.0025, -0.17],
+      [0.12, 0.0025, 0.12],
+      [-0.12, 0.0025, 0.12],
+      [0.12, 0.0025, -0.12],
+      [-0.12, 0.0025, -0.12],
+    ];
+    for (const [fx, fy, fz] of footPositions) {
+      const foot = new THREE.Mesh(footGeo, this.darkSiliconeMaterial);
+      foot.position.set(fx, fy, fz);
+      this.standGroup.add(foot);
+    }
+
+    // 亮铬光圈装饰环
     const ringGeo = new THREE.TorusGeometry(0.185, 0.0035, 16, 48);
     const ringMesh = new THREE.Mesh(ringGeo, this.chromeMaterial);
     ringMesh.rotation.x = Math.PI / 2;
     ringMesh.position.y = 0.027;
     this.standGroup.add(ringMesh);
+
+    // 香槟金激光精雕同心环
+    const innerRingGeo = new THREE.TorusGeometry(0.12, 0.002, 16, 48);
+    const innerRingMesh = new THREE.Mesh(innerRingGeo, this.brassMaterial);
+    innerRingMesh.rotation.x = Math.PI / 2;
+    innerRingMesh.position.y = 0.027;
+    this.standGroup.add(innerRingMesh);
 
     // 2. 左后侧主承重立柱 (位于 X = -0.16, Z = -0.08，彻底移出牛顿管正后方视野，直视管身 100% 纯净通透)
     const columnHeight = this.PIVOT_HEIGHT_Y;
@@ -248,11 +307,22 @@ export class NewtonTubeMesh {
     colBack.castShadow = true;
     this.standGroup.add(colBack);
 
-    // 柱底固定法兰 (液态铬)
+    // 柱底固定法兰 (深空钛合金法兰底座)
     const flangeGeo = new THREE.CylinderGeometry(0.032, 0.038, 0.018, 24);
-    const flangeB = new THREE.Mesh(flangeGeo, this.chromeMaterial);
+    const flangeB = new THREE.Mesh(flangeGeo, this.precisionSlateMaterial);
     flangeB.position.set(xStandOffset, 0.03, zStandOffset);
     this.standGroup.add(flangeB);
+
+    // 4 颗香槟金六角紧固螺栓 (精密机械装配细节)
+    const boltGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.006, 6);
+    for (let i = 0; i < 4; i++) {
+      const angle = (i * Math.PI) / 2;
+      const bx = xStandOffset + Math.cos(angle) * 0.025;
+      const bz = zStandOffset + Math.sin(angle) * 0.025;
+      const bolt = new THREE.Mesh(boltGeo, this.brassMaterial);
+      bolt.position.set(bx, 0.040, bz);
+      this.standGroup.add(bolt);
+    }
 
     // 水平悬臂托架 (从左后方立柱优雅延伸至中央转轴，后面完全不遮挡管内物体)
     const bracketCurve = new THREE.CatmullRomCurve3([
@@ -271,13 +341,20 @@ export class NewtonTubeMesh {
     bearingHousing.position.set(0, this.PIVOT_HEIGHT_Y, -0.015);
     this.standGroup.add(bearingHousing);
 
+    // 轴承侧边香槟金锁紧手轮 (真实机械调节旋钮)
+    const lockKnobGeo = new THREE.CylinderGeometry(0.018, 0.020, 0.016, 24);
+    const lockKnob = new THREE.Mesh(lockKnobGeo, this.brassMaterial);
+    lockKnob.rotation.x = Math.PI / 2;
+    lockKnob.position.set(0, this.PIVOT_HEIGHT_Y, -0.052);
+    this.standGroup.add(lockKnob);
+
     // 4. 正前方 3D 旋转操作控制台按钮 (在底座前部斜向上 45° 完美迎向用户视线，绝不遮挡管内物体)
     const consoleZ = 0.165;
     const consoleY = 0.055;
 
-    // 倾斜控制台基座
+    // 倾斜控制台基座 (深空钛阳极氧化)
     const pedestalGeo = new THREE.CylinderGeometry(0.052, 0.058, 0.032, 32);
-    const pedestal = new THREE.Mesh(pedestalGeo, this.ceramicWhiteMaterial);
+    const pedestal = new THREE.Mesh(pedestalGeo, this.precisionSlateMaterial);
     pedestal.position.set(0, 0.026, consoleZ);
     pedestal.castShadow = true;
     this.standGroup.add(pedestal);
@@ -297,9 +374,9 @@ export class NewtonTubeMesh {
     this.rotateButtonRing = new THREE.Mesh(btnRingGeo, this.buttonGlowMaterial);
     this.rotateButtonPivot.add(this.rotateButtonRing);
 
-    // 圆盘中央底垫 (纯净白陶瓷)
+    // 圆盘中央底垫 (深邃海洋蓝黑高对比度视窗面板)
     const btnCenterGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.008, 32);
-    const btnCenter = new THREE.Mesh(btnCenterGeo, this.ceramicWhiteMaterial);
+    const btnCenter = new THREE.Mesh(btnCenterGeo, this.sapphireDisplayMaterial);
     btnCenter.rotation.x = Math.PI / 2;
     this.rotateButtonPivot.add(btnCenter);
 
@@ -329,15 +406,39 @@ export class NewtonTubeMesh {
   }
 
   /**
-   * 创建牛顿管主体及密封端盖、激光刻度线
+   * 创建牛顿管主体及密封端盖、激光刻度线 (深空钛合金阳极氧化端盖与亮铬装配)
    */
   private createNewtonTube(): void {
     const halfL = this.TUBE_LENGTH_M / 2;
 
-    // 1. 中部抱箍 (亮铬液态金属，夹持在玻璃管中心)
+    // 1. 中部抱箍 (深空钛阳极氧化双对半抱箍，带亮铬倒角与香槟金紧固螺栓)
     const collarGeo = new THREE.CylinderGeometry(this.TUBE_RADIUS_M + 0.008, this.TUBE_RADIUS_M + 0.008, 0.05, 32);
-    const collarMesh = new THREE.Mesh(collarGeo, this.chromeMaterial);
+    const collarMesh = new THREE.Mesh(collarGeo, this.precisionSlateMaterial);
     this.tubePivot.add(collarMesh);
+
+    // 抱箍上下亮铬精磨边缘环
+    const collarTrimGeo = new THREE.TorusGeometry(this.TUBE_RADIUS_M + 0.008, 0.002, 16, 48);
+    const collarTrimTop = new THREE.Mesh(collarTrimGeo, this.chromeMaterial);
+    collarTrimTop.rotation.x = Math.PI / 2;
+    collarTrimTop.position.y = 0.025;
+    this.tubePivot.add(collarTrimTop);
+
+    const collarTrimBot = new THREE.Mesh(collarTrimGeo, this.chromeMaterial);
+    collarTrimBot.rotation.x = Math.PI / 2;
+    collarTrimBot.position.y = -0.025;
+    this.tubePivot.add(collarTrimBot);
+
+    // 抱箍侧面香槟金六角紧固螺母 (左后与左前)
+    const collarBoltGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.012, 6);
+    const collarBolt1 = new THREE.Mesh(collarBoltGeo, this.brassMaterial);
+    collarBolt1.rotation.z = Math.PI / 2;
+    collarBolt1.position.set(-this.TUBE_RADIUS_M - 0.009, 0.012, 0.035);
+    this.tubePivot.add(collarBolt1);
+
+    const collarBolt2 = new THREE.Mesh(collarBoltGeo, this.brassMaterial);
+    collarBolt2.rotation.z = Math.PI / 2;
+    collarBolt2.position.set(-this.TUBE_RADIUS_M - 0.009, -0.012, 0.035);
+    this.tubePivot.add(collarBolt2);
 
     // 2. 玻璃外管 (大直径光学高透玻璃，不阻挡阴影，通透明净)
     const outerGeo = new THREE.CylinderGeometry(
@@ -378,11 +479,18 @@ export class NewtonTubeMesh {
     backFillLight.position.set(0, 0, -0.26);
     this.tubePivot.add(backFillLight);
 
-    // 4. 上密封盖 (Top End Cap - 液态亮铬)
+    // 4. 上密封盖 (Top End Cap - 深空钛合金基体 + 香槟金密封压圈 + 液态铬顶盖)
     this.topCapGroup.position.set(0, halfL, 0);
     const capGeo = new THREE.CylinderGeometry(this.TUBE_RADIUS_M + 0.005, this.TUBE_RADIUS_M + 0.005, 0.038, 32);
-    const topCapMesh = new THREE.Mesh(capGeo, this.chromeMaterial);
+    const topCapMesh = new THREE.Mesh(capGeo, this.precisionSlateMaterial);
     this.topCapGroup.add(topCapMesh);
+
+    // 顶端香槟金精密滚花密封锁紧环
+    const sealRingGeo = new THREE.TorusGeometry(this.TUBE_RADIUS_M + 0.005, 0.0025, 16, 48);
+    const sealRingTop = new THREE.Mesh(sealRingGeo, this.brassMaterial);
+    sealRingTop.rotation.x = Math.PI / 2;
+    sealRingTop.position.y = -0.012;
+    this.topCapGroup.add(sealRingTop);
 
     // 上端晶透硅胶缓冲垫 (厚度加实，与下落起点无缝衔接)
     const padGeo = new THREE.CylinderGeometry(this.TUBE_RADIUS_M - 0.006, this.TUBE_RADIUS_M - 0.006, 0.05, 32);
@@ -390,17 +498,23 @@ export class NewtonTubeMesh {
     topPad.position.y = -0.045;
     this.topCapGroup.add(topPad);
 
-    // 顶部金属圆顶螺帽 (液态铬)
+    // 顶部金属圆顶螺帽 (液态铬 / 316L 不锈钢)
     const domeGeo = new THREE.SphereGeometry(this.TUBE_RADIUS_M - 0.008, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
     const topDome = new THREE.Mesh(domeGeo, this.chromeMaterial);
     topDome.position.y = 0.019;
     this.topCapGroup.add(topDome);
     this.tubePivot.add(this.topCapGroup);
 
-    // 5. 下密封盖 (Bottom End Cap，带有抽气阀门接口)
+    // 5. 下密封盖 (Bottom End Cap，深空钛合金基体 + 带有抽气阀门接口)
     this.bottomCapGroup.position.set(0, -halfL, 0);
-    const botCapMesh = new THREE.Mesh(capGeo, this.chromeMaterial);
+    const botCapMesh = new THREE.Mesh(capGeo, this.precisionSlateMaterial);
     this.bottomCapGroup.add(botCapMesh);
+
+    // 底端香槟金精密滚花密封锁紧环
+    const sealRingBot = new THREE.Mesh(sealRingGeo, this.brassMaterial);
+    sealRingBot.rotation.x = Math.PI / 2;
+    sealRingBot.position.y = 0.012;
+    this.bottomCapGroup.add(sealRingBot);
 
     // 下端晶透硅胶缓冲垫 (坚实承托着陆物体，杜绝虚空悬浮)
     const botPad = new THREE.Mesh(padGeo, this.siliconeMaterial);
@@ -420,7 +534,7 @@ export class NewtonTubeMesh {
     nozzleMesh.position.set(this.TUBE_RADIUS_M + 0.015, -0.038, 0.018);
     this.bottomCapGroup.add(nozzleMesh);
 
-    // 旋转旋塞手柄 (亮铬)
+    // 旋转旋塞手柄 (亮铬液态金属)
     const knobGeo = new THREE.BoxGeometry(0.012, 0.016, 0.045);
     this.valveKnobMesh = new THREE.Mesh(knobGeo, this.chromeMaterial);
     this.valveKnobMesh.position.set(0, -0.062, 0);
@@ -470,10 +584,10 @@ export class NewtonTubeMesh {
 
   /**
    * 创建管内的三件对比自由落体对象 (羽毛、硬币、软木塞)
-   * 采用高拟真科研实验室级 3D 几何建模，纯白轻羽、抛光 24K 金币与天然暖木塞
+   * 采用高拟真科研实验室级 3D 几何建模，天然轻羽、抛光 24K 金币与天然暖木塞
    */
   private createObjects(): void {
-    // 1. 羽毛 (Feather) - 位于右侧，纯白轻羽 + 细金羽茎
+    // 1. 羽毛 (Feather) - 位于右侧，天然温润轻羽 + 细金羽茎
     this.createFeatherMesh();
     this.featherGroup.name = 'freefall-feather';
     this.featherGroup.renderOrder = 2;
@@ -531,7 +645,7 @@ export class NewtonTubeMesh {
   }
 
   /**
-   * 构造逼真的纯白轻羽网格 (温润细金羽茎 + 柔美微弧羽片 + 细致微羽支肌理)
+   * 构造逼真的天然羽毛网格 (温润细金羽茎 + 柔美自然象牙微弧羽片 + 琥珀金微羽支肌理)
    */
   private createFeatherMesh(): void {
     // 羽轴 (Quill) - 金色/暖象牙羽茎，优美微弯
@@ -545,7 +659,7 @@ export class NewtonTubeMesh {
     this.featherQuillMesh = new THREE.Mesh(quillGeo, this.featherQuillMaterial);
     this.featherGroup.add(this.featherQuillMesh);
 
-    // 羽片 (Vane) - 经典纯白轻羽，优雅的羽毛外轮廓
+    // 羽片 (Vane) - 天然象牙暖色轻羽，优雅的羽毛外轮廓
     const shape = new THREE.Shape();
     shape.moveTo(0, -0.055);
     shape.bezierCurveTo(0.020, -0.035, 0.026, 0.030, 0.002, 0.065);
@@ -556,17 +670,17 @@ export class NewtonTubeMesh {
     this.featherVaneMesh.castShadow = false;
     this.featherGroup.add(this.featherVaneMesh);
 
-    // 添加羽片微羽支肌理线，增强自然立体质感
+    // 添加羽片琥珀暖金微羽支斑纹线，增强自然立体质感
     const barbMat = new THREE.MeshBasicMaterial({
-      color: 0xe2e8f0,
+      color: 0xb45309,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.70,
       depthWrite: false,
     });
     for (let i = -4; i <= 4; i++) {
       const y = i * 0.011;
       const w = 0.032 * (1 - Math.abs(i) / 6);
-      const barbGeo = new THREE.PlaneGeometry(w, 0.001);
+      const barbGeo = new THREE.PlaneGeometry(w, 0.0012);
       const barb = new THREE.Mesh(barbGeo, barbMat);
       barb.position.set(0, y, 0.0008);
       barb.rotation.z = i > 0 ? 0.25 : -0.25;
@@ -575,21 +689,29 @@ export class NewtonTubeMesh {
   }
 
   /**
-   * 创建旋片式真空抽气机 (真空泵 - 陶瓷白与亮铬现代实验室风格)
-   * 布局重构：泵腔与进气嘴位于左侧 (面向牛顿管)，电机与散热片位于右侧，中间空域开阔杜绝穿模
+   * 创建旋片式真空抽气机 (真空泵 - 经典精密实验室蓝与深空钛阳极氧化机体)
+   * 布局：泵腔与进气嘴位于左侧 (面向牛顿管)，电机与散热片位于右侧，中间空域开阔杜绝穿模
    */
   private createVacuumPump(): void {
     this.pumpGroup.position.set(0.48, 0, 0.02);
     this.pumpGroup.name = 'freefall-pump';
 
-    // 1. 抽气机底座与四角晶透防震脚 (纯白基座 + 晶透硅胶脚垫)
+    // 1. 抽气机底座与四角防震脚 (深空钛阳极氧化重型铸造底座 + 暗色高阻尼硅胶脚垫)
     const basePlateGeo = new THREE.BoxGeometry(0.26, 0.022, 0.16);
-    const basePlate = new THREE.Mesh(basePlateGeo, this.ceramicWhiteMaterial);
+    const basePlate = new THREE.Mesh(basePlateGeo, this.precisionSlateMaterial);
     basePlate.position.y = 0.021;
     basePlate.castShadow = true;
     basePlate.receiveShadow = true;
     this.pumpGroup.add(basePlate);
 
+    // 底座前面板沉金激光铭牌
+    const badgeGeo = new THREE.PlaneGeometry(0.12, 0.012);
+    const badgeMat = mechMetal(0xf59e0b, 0.90, 0.20);
+    const badgeMesh = new THREE.Mesh(badgeGeo, badgeMat);
+    badgeMesh.position.set(0, 0.021, 0.081);
+    this.pumpGroup.add(badgeMesh);
+
+    // 4 角暗色高阻尼硅胶防震脚垫
     const footGeo = new THREE.CylinderGeometry(0.012, 0.014, 0.01, 16);
     const footPositions = [
       [-0.11, 0.005, -0.06],
@@ -598,17 +720,23 @@ export class NewtonTubeMesh {
       [0.11, 0.005, 0.06],
     ];
     for (const [fx, fy, fz] of footPositions) {
-      const foot = new THREE.Mesh(footGeo, this.siliconeMaterial);
+      const foot = new THREE.Mesh(footGeo, this.darkSiliconeMaterial);
       foot.position.set(fx, fy, fz);
       this.pumpGroup.add(foot);
     }
 
-    // 2. 旋片式泵腔室 (位于左侧 X = -0.065，正对牛顿管方向)
+    // 2. 旋片式泵腔室 (位于左侧 X = -0.065，正对牛顿管方向，亮铬/316L 不锈钢)
     const chamberGeo = new THREE.BoxGeometry(0.10, 0.105, 0.12);
     const chamberMesh = new THREE.Mesh(chamberGeo, this.chromeMaterial);
     chamberMesh.position.set(-0.065, 0.08, 0);
     chamberMesh.castShadow = true;
     this.pumpGroup.add(chamberMesh);
+
+    // 泵腔黄铜机油观察窗外框
+    const sightGlassRingGeo = new THREE.TorusGeometry(0.018, 0.003, 16, 24);
+    const sightGlassRing = new THREE.Mesh(sightGlassRingGeo, this.brassMaterial);
+    sightGlassRing.position.set(-0.065, 0.05, -0.061);
+    this.pumpGroup.add(sightGlassRing);
 
     // 3. 抽气进气嘴 (金黄铜，位于腔室左前上方，畅通无阻迎接导管)
     const pumpNozzleGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.035, 16);
@@ -623,15 +751,22 @@ export class NewtonTubeMesh {
     exhaust.position.set(-0.075, 0.150, -0.032);
     this.pumpGroup.add(exhaust);
 
-    // 5. 电机机壳 (纯净白陶瓷电机，位于右侧 X = +0.055，背离牛顿管方向)
+    // 5. 电机机壳 (经典实验室工业湛蓝机壳，位于右侧 X = +0.055，背离牛顿管方向)
     const motorRadius = 0.052;
     const motorLength = 0.12;
     const motorGeo = new THREE.CylinderGeometry(motorRadius, motorRadius, motorLength, 32);
-    const motorMesh = new THREE.Mesh(motorGeo, this.ceramicWhiteMaterial);
+    const motorMesh = new THREE.Mesh(motorGeo, this.pumpMotorMaterial);
     motorMesh.rotation.z = Math.PI / 2;
     motorMesh.position.set(0.055, 0.08, 0);
     motorMesh.castShadow = true;
     this.pumpGroup.add(motorMesh);
+
+    // 电机后轴承端盖与风罩 (深空钛合金)
+    const motorCapGeo = new THREE.CylinderGeometry(motorRadius - 0.002, motorRadius, 0.016, 32);
+    const motorCap = new THREE.Mesh(motorCapGeo, this.precisionSlateMaterial);
+    motorCap.rotation.z = Math.PI / 2;
+    motorCap.position.set(0.118, 0.08, 0);
+    this.pumpGroup.add(motorCap);
 
     // 散热鳍片 (4 环亮铬金属片，分布在右侧电机上)
     const finGeo = new THREE.CylinderGeometry(motorRadius + 0.006, motorRadius + 0.006, 0.004, 32);
@@ -663,16 +798,15 @@ export class NewtonTubeMesh {
     bezel.rotation.x = Math.PI / 2;
     gaugeDialGroup.add(bezel);
 
-    // 白色表盘底盘
+    // 表盘底盘 (深邃海洋蓝黑显示面板，高对比度专业科研面板，彻底告别白色)
     const dialFaceGeo = new THREE.CircleGeometry(0.032, 32);
-    const dialFaceMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const dialFace = new THREE.Mesh(dialFaceGeo, dialFaceMat);
+    const dialFace = new THREE.Mesh(dialFaceGeo, this.sapphireDisplayMaterial);
     dialFace.position.z = 0.007;
     gaugeDialGroup.add(dialFace);
 
-    // 表盘刻度环与标记
-    const dialMarkGeo = new THREE.RingGeometry(0.026, 0.030, 32, 1, 0, Math.PI * 1.5);
-    const dialMarkMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
+    // 表盘刻度环与标记 (荧光青/蓝全息刻度)
+    const dialMarkGeo = new THREE.RingGeometry(0.024, 0.029, 32, 1, 0, Math.PI * 1.5);
+    const dialMarkMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
     const dialMark = new THREE.Mesh(dialMarkGeo, dialMarkMat);
     dialMark.position.z = 0.008;
     dialMark.rotation.z = Math.PI * 0.75;
@@ -686,11 +820,18 @@ export class NewtonTubeMesh {
     this.pumpGaugeNeedlePivot.add(needle);
     gaugeDialGroup.add(this.pumpGaugeNeedlePivot);
 
+    // 指针中央香槟金固定帽
+    const needleCapGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.003, 16);
+    const needleCap = new THREE.Mesh(needleCapGeo, this.brassMaterial);
+    needleCap.rotation.x = Math.PI / 2;
+    needleCap.position.z = 0.010;
+    gaugeDialGroup.add(needleCap);
+
     this.pumpGroup.add(gaugeDialGroup);
 
     // 8. 电源开关按钮与指示灯 (安装在右侧电机底座前部)
     const switchBoxGeo = new THREE.BoxGeometry(0.038, 0.024, 0.018);
-    const switchBox = new THREE.Mesh(switchBoxGeo, this.ceramicWhiteMaterial);
+    const switchBox = new THREE.Mesh(switchBoxGeo, this.switchBoxMaterial);
     switchBox.position.set(0.055, 0.035, 0.085);
     this.pumpGroup.add(switchBox);
 
