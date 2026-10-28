@@ -87,6 +87,10 @@ for (const invalid of [NaN, Infinity, -1, 0.49, 2.01, '1.5', null]) {
 }
 assert.deepEqual(normalizePreferences({ spatialWindowScale: 1.234 }), { spatialWindowScale: 1.23 });
 assert.deepEqual(normalizePreferences({ whiteboardTheme: 'unknown' }), {});
+assert.deepEqual(normalizePreferences({ galleryPalette: 'neon' }), {});
+assert.deepEqual(normalizePreferences({ galleryPortraits: false }), { galleryPortraits: false });
+assert.deepEqual(normalizePreferences({ galleryPortraits: 'yes' }), {});
+assert.deepEqual(normalizePreferences({ galleryPalette: 'glacier' }), { galleryPalette: 'glacier' });
 const themeSaves: unknown[] = [];
 const themed = new AccountPreferenceStore(async (_id, patch) => { themeSaves.push(patch); });
 themed.activate({ ...user('alice', 1.4), preferences: { spatialWindowScale: 1.4, whiteboardTheme: 'grid' } });
@@ -97,6 +101,15 @@ await themed.flush();
 assert.deepEqual(themeSaves, [{ whiteboardTheme: 'dark', spatialWindowScale: 1.6 }]);
 themed.activate(user('bob'));
 assert.equal(themed.whiteboardTheme, 'plain');
+assert.equal(themed.galleryPortraits, true, 'portraits default to visible');
+assert.equal(themed.galleryPalette, 'warm', 'gallery palette defaults to the current warm scheme');
+themed.activate({ ...user('alice', 1), preferences: { galleryPortraits: false, galleryPalette: 'glacier' } });
+assert.equal(themed.galleryPortraits, false);
+assert.equal(themed.galleryPalette, 'glacier');
+themed.setGalleryPortraits(true);
+themed.setGalleryPalette('warm');
+await themed.flush();
+assert.deepEqual(themeSaves.at(-1), { galleryPortraits: true, galleryPalette: 'warm' });
 
 let indicatorCount = 0;
 let appliedScale = 0;

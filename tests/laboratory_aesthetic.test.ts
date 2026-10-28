@@ -2,6 +2,8 @@ import assert from 'node:assert';
 import * as THREE from 'three';
 import { Laboratory } from '../src/scene/Laboratory.ts';
 import { HoloTable, HOLO_TABLE_RADIUS, HOLO_TABLE_TOP_Y } from '../src/scene/HoloTable.ts';
+import { SCIENTIST_PORTRAITS } from '../src/scene/gallery/portraits.ts';
+import { PORTRAIT_BAY_STRIDE, WALL_BAY_COUNT } from '../src/scene/gallery/PortraitGallery.ts';
 
 const createMockElement = (tag = 'div'): any => ({
   tagName: tag.toUpperCase(),
@@ -49,11 +51,14 @@ assert.ok(shell.geometry instanceof THREE.LatheGeometry, 'Shell must be one revo
 const floor = lab.group.getObjectByName('reference-floor');
 assert.ok(floor instanceof THREE.Mesh && floor.geometry instanceof THREE.CircleGeometry, 'Floor must be circular');
 assert.ok(lab.group.getObjectByName('reference-floor-border'), 'Stone floor border must exist');
+assert.ok(lab.group.getObjectByName('floor-brass-echo'), 'Floor ring echoing the table must exist');
+assert.ok(lab.group.getObjectByName('wall-joints') instanceof THREE.InstancedMesh, 'Vertical wall joints must exist');
 
 const ceiling = lab.group.getObjectByName('reference-ceiling');
 assert.ok(ceiling instanceof THREE.Group, 'Ceiling fittings must exist');
 assert.ok(ceiling.getObjectByName('central-skylight'), 'Central oculus must exist');
 assert.ok(ceiling.getObjectByName('oculus-bezel'), 'Brass oculus bezel must exist');
+assert.ok(ceiling.getObjectByName('oculus-well') instanceof THREE.Mesh, 'Recessed oculus well must exist');
 assert.ok(ceiling.getObjectByName('perimeter-cove'), 'Perimeter cove light must exist');
 assert.ok(lab.group.getObjectByName('plaster-skirting'), 'Plaster skirting must exist');
 
@@ -103,5 +108,83 @@ assert.doesNotThrow(() => {
   lab.update(0.016, 1);
   table.update(0.016);
 });
+
+const gallery = lab.group.getObjectByName('portrait-gallery');
+assert.ok(gallery instanceof THREE.Group, 'Portrait gallery must exist');
+assert.strictEqual(gallery.children.length, SCIENTIST_PORTRAITS.length);
+assert.strictEqual(SCIENTIST_PORTRAITS.length, WALL_BAY_COUNT / PORTRAIT_BAY_STRIDE);
+assert.ok(SCIENTIST_PORTRAITS.some(portrait => portrait.name === '钱学森'), '钱学森 must be among the portraits');
+
+const frames = SCIENTIST_PORTRAITS.map(portrait => gallery.getObjectByName(`portrait-${portrait.id}`));
+assert.ok(frames.every(frame => frame instanceof THREE.Object3D));
+const qian = gallery.getObjectByName('portrait-qian-xuesen');
+assert.ok(qian instanceof THREE.Object3D);
+assert.strictEqual(qian.userData.scientist, '钱学森');
+const qianRail = qian.getObjectByName('frame-rail');
+assert.ok(qianRail instanceof THREE.Mesh && qianRail.geometry instanceof THREE.ExtrudeGeometry, 'Frame must be a beveled extrusion');
+assert.strictEqual(qianRail.geometry.parameters.options.bevelEnabled, true);
+assert.strictEqual(qianRail.geometry.parameters.shapes.holes.length, 1, 'Frame rail must be a hollow profile');
+assert.ok(qian.getObjectByName('portrait-plate'));
+assert.ok(qian.getObjectByName('frame-nameplate'));
+
+const phis = frames.map(frame => Math.atan2(frame!.position.x, -frame!.position.z));
+const ordered = [...phis].sort((a, b) => a - b);
+for (let i = 0; i < ordered.length; i++) {
+  const next = ordered[(i + 1) % ordered.length];
+  const delta = (next - ordered[i] + Math.PI * 2) % (Math.PI * 2);
+  assert.ok(Math.abs(delta - (Math.PI * 2) / (WALL_BAY_COUNT / PORTRAIT_BAY_STRIDE)) < 0.02, 'Portraits must occupy every other bay');
+}
+const qianPhi = Math.atan2(qian.position.x, -qian.position.z);
+assert.ok(Math.abs(qianPhi - Math.PI / WALL_BAY_COUNT) < 0.02, '钱学森 hangs in the bay beside the far-wall center');
+const step = (Math.PI * 2) / WALL_BAY_COUNT;
+for (const phi of phis) {
+  let nearest = Infinity;
+  for (let joint = 0; joint < WALL_BAY_COUNT; joint++) {
+    const jointPhi = joint * step;
+    const gap = Math.abs(Math.atan2(Math.sin(phi - jointPhi), Math.cos(phi - jointPhi)));
+    nearest = Math.min(nearest, gap);
+  }
+  assert.ok(nearest > step * 0.35, 'A portrait must sit in the bay, not on a joint');
+}
+
+lab.group.updateMatrixWorld(true);
+const facing = new THREE.Vector3(0, 0, 1).applyQuaternion(qian.getWorldQuaternion(new THREE.Quaternion()));
+const inward = qian.position.clone().setY(0).negate().normalize();
+assert.ok(facing.dot(inward) > 0.98, 'Portrait faces into the room');
+
+const raycaster = new THREE.Raycaster();
+const origin = qian.position.clone().addScaledVector(facing, 0.25);
+raycaster.set(origin, facing.clone().negate());
+const hits = raycaster.intersectObject(qian, true);
+assert.ok(hits.length > 0, 'The portrait opening must be reachable');
+assert.notStrictEqual(hits[0].object.name, 'frame-rail', 'The frame opening must stay hollow');
+assert.ok(hits.some(hit => hit.object.name === 'portrait-plate'), 'The portrait plate sits inside the frame');
+
+assert.strictEqual(gallery.visible, true);
+lab.setPortraitsVisible(false);
+assert.strictEqual(gallery.visible, false);
+lab.setPortraitsVisible(true);
+assert.strictEqual(gallery.visible, true);
+
+const plaster = lab.materials.plaster as THREE.MeshStandardMaterial;
+assert.strictEqual(plaster.color.getHex(), 0xf4f1ea);
+lab.applyPalette('glacier');
+assert.notStrictEqual(plaster.color.getHex(), 0xf4f1ea);
+const frameMat = (qianRail.material as THREE.MeshStandardMaterial);
+assert.ok(frameMat.color.getHex() !== 0xb08958, 'Glacier frames leave the warm brass molding');
+lab.applyPalette('warm');
+assert.strictEqual(plaster.color.getHex(), 0xf4f1ea);
+assert.strictEqual(frameMat.color.getHex(), 0xb08958);
+
+wallTransmission = false;
+lab.group.traverse(child => {
+  if (child instanceof THREE.Mesh) {
+    const mats = Array.isArray(child.material) ? child.material : [child.material];
+    for (const mat of mats) {
+      if (mat instanceof THREE.MeshPhysicalMaterial && mat.transmission > 0) wallTransmission = true;
+    }
+  }
+});
+assert.strictEqual(wallTransmission, false, 'Portraits must not add a transmission pass');
 
 console.log('✓ Circular shell, oculus, and center table verified');

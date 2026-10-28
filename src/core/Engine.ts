@@ -36,6 +36,7 @@ import {
 } from '../chemistry/pourKinematics.ts';
 import { VisionModal } from '../ui/vision/VisionModal.ts';
 import { accountPreferences } from '../account/preferences.ts';
+import { galleryPalette, type GalleryPaletteId } from '../scene/gallery/palette.ts';
 import type { ExperimentContext, IExperiment } from './types.ts';
 import {
   advanceLabEntry,
@@ -69,6 +70,14 @@ export class Engine {
   public bloomPass: UnrealBloomPass;
 
   public lighting: Lighting;
+  private envScene: THREE.Scene | null = null;
+  private envShellMat: THREE.MeshBasicMaterial | null = null;
+  private envOculusMat: THREE.MeshBasicMaterial | null = null;
+  private envCoveMat: THREE.MeshBasicMaterial | null = null;
+  private envFloorMat: THREE.MeshBasicMaterial | null = null;
+  private envHemi: THREE.HemisphereLight | null = null;
+  private envKey: THREE.DirectionalLight | null = null;
+  private appliedGalleryPalette: GalleryPaletteId = 'warm';
   public lab: Laboratory;
   public holoTable: HoloTable;
   public holoStage: HologramStage;
@@ -304,51 +313,97 @@ export class Engine {
   }
 
   /**
-   * 圆形展厅的反射环境：暖灰泥壳、中央圆光、一圈脚灯。
+   * 圆形实验室的反射环境：暖灰泥壳、中央圆光、一圈脚灯。
    * 石材与缎面铝只映这三样，不再映青色灯带。
    */
   private initImageBasedLighting(): void {
     const envScene = new THREE.Scene();
 
+    const shellMat = new THREE.MeshBasicMaterial({ color: 0xe6e0d4, side: THREE.BackSide });
     const shell = new THREE.Mesh(
       new THREE.CylinderGeometry(8.2, 8.2, 4.2, 48, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xe6e0d4, side: THREE.BackSide }),
+      shellMat,
     );
     shell.position.y = 2.05;
     envScene.add(shell);
 
+    const oculusMat = new THREE.MeshBasicMaterial({ color: 0xfff6ec });
     const oculus = new THREE.Mesh(
       new THREE.CircleGeometry(1.28, 48),
-      new THREE.MeshBasicMaterial({ color: 0xfff6ec }),
+      oculusMat,
     );
     oculus.position.y = 4.18;
     oculus.rotation.x = Math.PI / 2;
     envScene.add(oculus);
 
+    const coveMat = new THREE.MeshBasicMaterial({ color: 0xfff3e6, side: THREE.DoubleSide });
     const cove = new THREE.Mesh(
       new THREE.RingGeometry(7.4, 7.85, 64),
-      new THREE.MeshBasicMaterial({ color: 0xfff3e6, side: THREE.DoubleSide }),
+      coveMat,
     );
     cove.position.y = 3.72;
     cove.rotation.x = Math.PI / 2;
     envScene.add(cove);
 
+    const floorMat = new THREE.MeshBasicMaterial({ color: 0xd9d2c4 });
     const floor = new THREE.Mesh(
       new THREE.CircleGeometry(8.0, 48),
-      new THREE.MeshBasicMaterial({ color: 0xd9d2c4 }),
+      floorMat,
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0.02;
     envScene.add(floor);
 
-    envScene.add(new THREE.HemisphereLight(0xfff8f1, 0xd5cec2, 0.55));
+    const envHemi = new THREE.HemisphereLight(0xfff8f1, 0xd5cec2, 0.55);
+    envScene.add(envHemi);
     const downKey = new THREE.DirectionalLight(0xfff6ec, 0.7);
     downKey.position.set(0, 6.5, 0.15);
     envScene.add(downKey);
 
+    this.envScene = envScene;
+    this.envShellMat = shellMat;
+    this.envOculusMat = oculusMat;
+    this.envCoveMat = coveMat;
+    this.envFloorMat = floorMat;
+    this.envHemi = envHemi;
+    this.envKey = downKey;
+
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(envScene, 0.04).texture;
     this.scene.environmentIntensity = 0.58;
+    pmrem.dispose();
+  }
+
+  private syncGalleryPreferences(): void {
+    const preferences = accountPreferences();
+    this.lab.setPortraitsVisible(preferences.galleryPortraits);
+    const palette = preferences.galleryPalette;
+    if (palette === this.appliedGalleryPalette) return;
+    this.appliedGalleryPalette = palette;
+    this.lab.applyPalette(palette);
+    this.lighting.applyPalette(palette);
+    this.holoTable.applyPalette(palette);
+    this.applyEnvironmentPalette(palette);
+  }
+
+  private applyEnvironmentPalette(id: GalleryPaletteId): void {
+    const palette = galleryPalette(id);
+    this.envShellMat?.color.set(palette.envShell);
+    this.envOculusMat?.color.set(palette.envOculus);
+    this.envCoveMat?.color.set(palette.envCove);
+    this.envFloorMat?.color.set(palette.envFloor);
+    if (this.envHemi) {
+      this.envHemi.color.set(palette.envHemiSky);
+      this.envHemi.groundColor.set(palette.envHemiGround);
+    }
+    this.envKey?.color.set(palette.envKey);
+    this.scene.environmentIntensity = palette.envIntensity;
+    if (!this.envScene) return;
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const next = pmrem.fromScene(this.envScene, 0.04).texture;
+    const previous = this.scene.environment;
+    this.scene.environment = next;
+    if (previous && previous !== next) previous.dispose();
     pmrem.dispose();
   }
 
@@ -1309,8 +1364,11 @@ export class Engine {
 
     const preferences = accountPreferences();
     const restoreWindowScale = () => this.visionModal.setScale(preferences.spatialWindowScale, false);
+    const syncGallery = () => this.syncGalleryPreferences();
     preferences.subscribe(restoreWindowScale);
+    preferences.subscribe(syncGallery);
     restoreWindowScale();
+    syncGallery();
 
     if (this.inputManager?.touch) {
       this.inputManager.touch.onToggleVisionModal = () => {

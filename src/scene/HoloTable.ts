@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TextureGenerator } from './Textures.ts';
+import { galleryPalette, type GalleryPaletteId } from './gallery/palette.ts';
 
 /** 石材圆桌台面半径（米）。 */
 export const HOLO_TABLE_RADIUS = 1.92;
@@ -28,6 +29,17 @@ export class HoloTable {
   private targetHoloAlpha = 0;
   private currentHoloAlpha = 0;
   private isHovered = false;
+  private stoneMat!: THREE.MeshPhysicalMaterial;
+  private inlayMat!: THREE.MeshStandardMaterial;
+
+  public applyPalette(id: GalleryPaletteId): void {
+    const palette = galleryPalette(id);
+    this.stoneMat.color.set(palette.tableStone);
+    this.inlayMat.color.set(palette.metal);
+    this.inlayMat.roughness = palette.metalRoughness;
+    this.inlayMat.metalness = palette.metalness;
+    this.inlayMat.envMapIntensity = palette.metalEnv;
+  }
 
   constructor() {
     this.createTableStructure();
@@ -48,6 +60,7 @@ export class HoloTable {
       envMapIntensity: 0.35,
       side: THREE.DoubleSide,
     });
+    this.stoneMat = stone;
     const aluminum = new THREE.MeshStandardMaterial({
       color: 0xe7ebf0,
       metalness: 0.8,
@@ -62,6 +75,7 @@ export class HoloTable {
       envMapIntensity: 1.05,
       side: THREE.DoubleSide,
     });
+    this.inlayMat = brass;
 
     const pedestal = new THREE.Mesh(
       new THREE.LatheGeometry(this.pedestalProfile(), 128),

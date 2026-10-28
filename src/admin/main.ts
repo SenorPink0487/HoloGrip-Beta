@@ -156,7 +156,9 @@ function userEditor(): string {
     <div id="student-class">${field('所在班级', `<select name="classId"><option value="none">暂不分配</option>${state.classes.map(c => `<option value="${esc(c.id)}" ${c.id === user?.classId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`)}</div>
     <div id="teacher-class">${field('负责班级名称', `<input name="className" maxlength="64" value="${esc(user?.role === 'teacher' ? user.className || '' : '')}" placeholder="可稍后创建">`)}</div>
     <details class="preferences"><summary>用户偏好</summary>${field('白板背景', `<select name="theme">${[['', '使用默认设置'], ['plain', '纯色'], ['grid', '网格'], ['chalkboard', '黑板'], ['dark', '深色']].map(([v, l]) => `<option value="${v}" ${user?.preferences.whiteboardTheme === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
-    ${field('空间视窗缩放（%）', `<input name="scale" type="number" min="50" max="200" step="1" value="${Math.round((user?.preferences.spatialWindowScale || 1) * 100)}">`)}</details>
+    ${field('空间视窗缩放（%）', `<input name="scale" type="number" min="50" max="200" step="1" value="${Math.round((user?.preferences.spatialWindowScale || 1) * 100)}">`)}
+    ${field('墙上肖像', `<select name="portraits"><option value="shown" ${user?.preferences.galleryPortraits === false ? '' : 'selected'}>显示</option><option value="hidden" ${user?.preferences.galleryPortraits === false ? 'selected' : ''}>隐藏</option></select>`)}
+    ${field('实验室配色', `<select name="palette"><option value="warm" ${user?.preferences.galleryPalette === 'glacier' ? '' : 'selected'}>暖石灰</option><option value="glacier" ${user?.preferences.galleryPalette === 'glacier' ? 'selected' : ''}>霜青</option></select>`)}</details>
     <p class="form-help">修改邮箱、密码、身份或权限后，该用户需要重新登录。</p>${actions()}</form>
     ${user ? `<div class="account-actions"><button data-revoke-user="${esc(user.id)}">退出该用户所有设备</button>${user.isLocked ? `<button data-unlock="${esc(user.email)}">解除登录锁定</button>` : ''}<details><summary>删除账号</summary><p>账号及其负责的班级与白板将被永久删除。</p><button class="danger" data-delete-user="${esc(user.id)}">确认删除账号</button></details></div>` : ''}</aside>`;
 }
@@ -205,7 +207,12 @@ function bindEditor(): void {
       const data = new FormData(userForm); const id = userForm.dataset.id;
       const existing = state.users.find(u => u.id === id);
       const role = data.get('role') as 'teacher' | 'student';
-      const preferences = { whiteboardTheme: (data.get('theme') || undefined) as AdminUser['preferences']['whiteboardTheme'], spatialWindowScale: Number(data.get('scale')) / 100 };
+      const preferences = {
+        whiteboardTheme: (data.get('theme') || undefined) as AdminUser['preferences']['whiteboardTheme'],
+        spatialWindowScale: Number(data.get('scale')) / 100,
+        galleryPortraits: data.get('portraits') !== 'hidden',
+        galleryPalette: (data.get('palette') === 'glacier' ? 'glacier' : 'warm') as AdminUser['preferences']['galleryPalette'],
+      };
       const values = { email: String(data.get('email')).trim(), displayName: String(data.get('displayName')).trim(), role, isAdmin: data.has('isAdmin'), preferences };
       const password = String(data.get('password'));
       await runAction(userForm.querySelector('button[type="submit"]'), async () => {

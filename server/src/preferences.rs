@@ -9,6 +9,10 @@ pub struct AccountPreferences {
     pub spatial_window_scale: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub whiteboard_theme: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gallery_portraits: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gallery_palette: Option<String>,
 }
 
 impl AccountPreferences {
@@ -21,6 +25,11 @@ impl AccountPreferences {
         if let Some(scale) = self.spatial_window_scale {
             if !scale.is_finite() || !(0.5..=2.0).contains(&scale) {
                 return Err(AppError::validation("视窗缩放需要在 50% 到 200% 之间"));
+            }
+        }
+        if let Some(palette) = self.gallery_palette.as_deref() {
+            if !["warm", "glacier"].contains(&palette) {
+                return Err(AppError::validation("实验室配色无效"));
             }
         }
         Ok(())
@@ -50,5 +59,18 @@ mod tests {
             .is_err());
         }
         assert!(AccountPreferences::default().validate().is_ok());
+        assert!(AccountPreferences {
+            gallery_palette: Some("glacier".into()),
+            gallery_portraits: Some(false),
+            ..Default::default()
+        }
+        .validate()
+        .is_ok());
+        assert!(AccountPreferences {
+            gallery_palette: Some("neon".into()),
+            ..Default::default()
+        }
+        .validate()
+        .is_err());
     }
 }

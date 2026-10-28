@@ -58,16 +58,24 @@ export class AccountModal {
     this.buildShell(parent);
     this.bindShell();
     const preferences = accountPreferences();
-    const restoreTheme = () => {
+    const syncPreferences = () => {
       if (this.canvas.getTheme() !== preferences.whiteboardTheme) {
         this.canvas.setTheme(preferences.whiteboardTheme);
       }
       this.element.querySelectorAll<HTMLElement>('.theme-card-btn').forEach(button => {
         button.classList.toggle('active', button.dataset.theme === preferences.whiteboardTheme);
       });
+      this.element.querySelectorAll<HTMLButtonElement>('.gallery-portrait-switch').forEach(button => {
+        const shown = preferences.galleryPortraits;
+        button.classList.toggle('on', shown);
+        button.setAttribute('aria-checked', shown ? 'true' : 'false');
+      });
+      this.element.querySelectorAll<HTMLElement>('.gallery-palette-btn').forEach(button => {
+        button.classList.toggle('active', button.dataset.palette === preferences.galleryPalette);
+      });
     };
-    preferences.subscribe(restoreTheme);
-    restoreTheme();
+    preferences.subscribe(syncPreferences);
+    syncPreferences();
     subscribe(() => {
       if (getUser()) { this.authError = ''; this.authNotice = ''; }
       if (this.isOpen) {
@@ -490,6 +498,7 @@ export class AccountModal {
       this.body.appendChild(this.joinBlock());
     }
 
+    this.body.appendChild(this.galleryBlock());
     this.body.appendChild(this.whiteboardBlock());
 
     const error = document.createElement('div');
@@ -705,6 +714,90 @@ export class AccountModal {
     group.appendChild(row);
     section.appendChild(group);
     return section;
+  }
+
+  private galleryBlock(): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'account-gallery-block apple-settings-section';
+
+    const title = document.createElement('div');
+    title.className = 'apple-section-header';
+    title.textContent = '实验室';
+    wrap.appendChild(title);
+
+    const group = document.createElement('div');
+    group.className = 'apple-settings-group';
+
+    const row = document.createElement('div');
+    row.className = 'apple-settings-row';
+
+    const info = document.createElement('div');
+    info.className = 'apple-row-info';
+    const label = document.createElement('span');
+    label.className = 'apple-row-label';
+    label.textContent = '墙上肖像';
+    const hint = document.createElement('span');
+    hint.className = 'macos-row-subhint';
+    hint.textContent = '隔一格悬挂物理学家与化学家';
+    info.appendChild(label);
+    info.appendChild(hint);
+
+    const preferences = accountPreferences();
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'gallery-portrait-switch';
+    toggle.setAttribute('role', 'switch');
+    toggle.setAttribute('aria-label', '显示墙上肖像');
+    const shown = preferences.galleryPortraits;
+    toggle.classList.toggle('on', shown);
+    toggle.setAttribute('aria-checked', shown ? 'true' : 'false');
+    const knob = document.createElement('span');
+    knob.className = 'gallery-switch-knob';
+    toggle.appendChild(knob);
+    toggle.addEventListener('click', () => {
+      accountPreferences().setGalleryPortraits(!accountPreferences().galleryPortraits);
+    });
+
+    row.appendChild(info);
+    row.appendChild(toggle);
+    group.appendChild(row);
+    wrap.appendChild(group);
+
+    const paletteTitle = document.createElement('div');
+    paletteTitle.className = 'apple-section-header';
+    paletteTitle.textContent = '实验室配色';
+    wrap.appendChild(paletteTitle);
+
+    const paletteGroup = document.createElement('div');
+    paletteGroup.className = 'apple-settings-group theme-group-card';
+    const deck = document.createElement('div');
+    deck.className = 'theme-selector-deck gallery-palette-deck';
+    const palettes: { id: 'warm' | 'glacier'; label: string; preview: string }[] = [
+      { id: 'warm', label: '暖石灰', preview: 'preview-warm' },
+      { id: 'glacier', label: '霜青', preview: 'preview-glacier' },
+    ];
+    const current = preferences.galleryPalette;
+    for (const palette of palettes) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'theme-card-btn gallery-palette-btn';
+      button.dataset.palette = palette.id;
+      if (palette.id === current) button.classList.add('active');
+      const preview = document.createElement('div');
+      preview.className = `theme-preview-box ${palette.preview}`;
+      const name = document.createElement('span');
+      name.className = 'theme-label';
+      name.textContent = palette.label;
+      button.appendChild(preview);
+      button.appendChild(name);
+      button.addEventListener('click', () => {
+        accountPreferences().setGalleryPalette(palette.id);
+      });
+      deck.appendChild(button);
+    }
+    paletteGroup.appendChild(deck);
+    wrap.appendChild(paletteGroup);
+    return wrap;
   }
 
   private whiteboardBlock(): HTMLElement {

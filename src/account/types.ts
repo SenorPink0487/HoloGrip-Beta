@@ -3,6 +3,8 @@ export type AccountRole = 'teacher' | 'student';
 export interface AccountPreferences {
   spatialWindowScale?: number;
   whiteboardTheme?: 'plain' | 'grid' | 'chalkboard' | 'dark';
+  galleryPortraits?: boolean;
+  galleryPalette?: 'warm' | 'glacier';
 }
 
 export interface ClassStudent {

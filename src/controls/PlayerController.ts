@@ -61,7 +61,7 @@ export class PlayerController {
     this.camera = camera;
     this.domElement = domElement;
 
-    // 展厅视角（位于实验台前）：上方为天球顶，圆盘居中，地面在前景。
+    // 实验室视角（位于实验台前）：上方为天球顶，圆盘居中，地面在前景。
     this.yaw = LAB_ENTRY_REST.yaw;
     this.pitch = LAB_ENTRY_REST.pitch;
     this.targetYaw = LAB_ENTRY_REST.yaw;

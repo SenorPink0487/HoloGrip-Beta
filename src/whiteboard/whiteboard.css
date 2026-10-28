@@ -1262,6 +1262,48 @@ body.lab-returning #touch-controls-layer * {
   gap: 10px;
 }
 
+.gallery-palette-deck {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.gallery-portrait-switch {
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  border: none;
+  background: #e5e5ea;
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.18s ease;
+}
+
+.gallery-portrait-switch.on {
+  background: #34c759;
+}
+
+.gallery-portrait-switch:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.gallery-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition: transform 0.18s ease;
+}
+
+.gallery-portrait-switch.on .gallery-switch-knob {
+  transform: translateX(18px);
+}
+
 .theme-card-btn {
   display: flex;
   flex-direction: column;
@@ -1329,6 +1371,14 @@ body.lab-returning #touch-controls-layer * {
   background: #121316;
   background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 0);
   background-size: 20px 20px;
+}
+
+.theme-preview-box.preview-warm {
+  background: linear-gradient(155deg, #f7f4ee 0%, #f4f1ea 58%, #c6a56e 100%);
+}
+
+.theme-preview-box.preview-glacier {
+  background: linear-gradient(155deg, #f4f8f9 0%, #d5e0e4 52%, #eef3f6 100%);
 }
 
 .theme-label {

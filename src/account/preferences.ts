@@ -13,6 +13,10 @@ export function normalizePreferences(value: unknown): AccountPreferences {
   }
   const theme = (value as AccountPreferences).whiteboardTheme;
   if (theme && ['plain', 'grid', 'chalkboard', 'dark'].includes(theme)) result.whiteboardTheme = theme;
+  const portraits = (value as AccountPreferences).galleryPortraits;
+  if (typeof portraits === 'boolean') result.galleryPortraits = portraits;
+  const palette = (value as AccountPreferences).galleryPalette;
+  if (palette === 'warm' || palette === 'glacier') result.galleryPalette = palette;
   return result;
 }
 
@@ -41,6 +45,14 @@ export class AccountPreferenceStore {
 
   get whiteboardTheme(): NonNullable<AccountPreferences['whiteboardTheme']> {
     return this.value.whiteboardTheme ?? 'plain';
+  }
+
+  get galleryPortraits(): boolean {
+    return this.value.galleryPortraits ?? true;
+  }
+
+  get galleryPalette(): NonNullable<AccountPreferences['galleryPalette']> {
+    return this.value.galleryPalette ?? 'warm';
   }
 
   subscribe(listener: () => void): () => void {
@@ -74,6 +86,18 @@ export class AccountPreferenceStore {
   setWhiteboardTheme(theme: NonNullable<AccountPreferences['whiteboardTheme']>): void {
     const next = normalizePreferences({ whiteboardTheme: theme });
     if (!next.whiteboardTheme || next.whiteboardTheme === this.whiteboardTheme) return;
+    this.update(next);
+  }
+
+  setGalleryPortraits(visible: boolean): void {
+    const next = normalizePreferences({ galleryPortraits: visible });
+    if (next.galleryPortraits === undefined || next.galleryPortraits === this.galleryPortraits) return;
+    this.update(next);
+  }
+
+  setGalleryPalette(palette: NonNullable<AccountPreferences['galleryPalette']>): void {
+    const next = normalizePreferences({ galleryPalette: palette });
+    if (!next.galleryPalette || next.galleryPalette === this.galleryPalette) return;
     this.update(next);
   }
 
