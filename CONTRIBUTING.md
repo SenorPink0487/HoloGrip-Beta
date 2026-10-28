@@ -2,6 +2,8 @@
 
 感谢你愿意为 HoloGrip 做贡献！无论是新增实验、修正物理模型、改进 3D 建模，还是完善文档与翻译，都非常欢迎。
 
+> **老师？** 如果你想为自己的课堂做一个新实验，可以直接看 **[用 AI 创建你的第一个实验](docs/create-experiment.md)**，里面有完整的步骤和示例代码，不需要专业编程经验。
+
 ## 开始之前
 
 1. 浏览 [Issues](https://github.com/SenorPink0487/HoloGrip-Beta/issues)，确认没有重复的问题或提议。
@@ -38,9 +40,11 @@ cargo test --manifest-path server/Cargo.toml
 
 ## 新增一个实验
 
-1. 在 `src/experiments/catalog/<学科>-<名称>/` 下创建 `meta.ts`（名称、分类、参数定义）与 `index.ts`（实验生命周期）。
-2. 在 `src/scene/<学科>/` 下实现器材网格（`*Mesh.ts`）与交互管理器（`*InteractionManager.ts`）。
-3. 数值模型放在纯 TypeScript 模块中，并在 `tests/` 下添加对应测试，加入 `package.json` 的 `test` 脚本。
+完整的带示例代码的教程见 [docs/create-experiment.md](docs/create-experiment.md)。概要步骤：
+
+1. 在 `src/experiments/catalog/<学科>-<名称>/` 下创建 `meta.ts`（名称、分类、参数定义）与 `index.ts`（实验生命周期）。系统会自动扫描注册，不需要修改其他文件。
+2. 物理公式放在 `src/physics/` 下的纯函数中，并在 `tests/` 下添加对应测试。
+3. 较复杂的器材网格放在 `src/scene/<学科>/`（`*Mesh.ts` 与 `*InteractionManager.ts`）。
 4. 确保 `npm run type-check` 与 `npm test` 全部通过。
 
 ## 提交规范

@@ -4,18 +4,21 @@
 
 # HoloGrip
 
-**面向课堂的开源 3D 全息虚拟实验室 —— 不碰键鼠、隔空动手的数学、物理、化学交互实验平台**
+**具身 3D 实验室，让抽象概念触手可及**
 
-*An open-source, touch-free 3D holographic virtual laboratory for STEM classrooms — operate real-physics experiments with bare-hand gestures, no shared keyboards or mice.*
+面向课堂的开源虚拟实验平台：隔空手势操控 3D 器材，不碰任何共用键鼠与屏幕
 
+*An open-source, touch-free 3D virtual laboratory for STEM classrooms.*
+
+[![CI](https://github.com/SenorPink0487/HoloGrip-Beta/actions/workflows/ci.yml/badge.svg)](https://github.com/SenorPink0487/HoloGrip-Beta/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
 ![Three.js](https://img.shields.io/badge/Three.js-r185-000000?logo=threedotjs&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-Axum_0.8-dea584?logo=rust&logoColor=white)
 ![Tauri](https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white)
-![Status](https://img.shields.io/badge/status-beta-orange)
+![Platform](https://img.shields.io/badge/platform-iPadOS%20%7C%20Web%20%7C%20Desktop-lightgrey)
 
-[在线体验 hologrip.cn](https://hologrip.cn) · [功能特性](#功能特性) · [快速开始](#快速开始) · [架构](#系统架构) · [参与贡献](CONTRIBUTING.md) · [English](#english)
+[在线体验](https://hologrip.cn) · [功能](#功能) · [快速开始](#快速开始) · [架构](#系统架构) · [创建你的实验](docs/create-experiment.md) · [参与贡献](CONTRIBUTING.md) · [English](#english)
 
 </div>
 
@@ -23,62 +26,75 @@
 
 ## 为什么做 HoloGrip
 
-### 三个现实问题
+| 课堂里的问题 | HoloGrip 的做法 |
+| --- | --- |
+| **器材贵、有风险**：光具座、霍尔效应仪很多学校买不起；高压电路、化学反应不敢让学生上手 | 虚拟器材，零采购成本、零安全风险 |
+| **只能看、不能做**：现有虚拟实验多为 2D 动画或鼠标拖拽，与真实实验动作无关 | 隔空抓取、倾倒、旋转 3D 器材，动作与真实实验一致 |
+| **共用外设不卫生**：机房和多媒体教室的键盘、鼠标、触屏由几百名学生轮流使用，常年难以彻底清洁 | 面向摄像头隔空操作，学生和教师都不接触共用设备 |
+| **内容由厂商决定**：闭源产品里，老师想要的实验只能等排期 | 开源、模块化，老师可借助 AI 自行开发实验 |
 
-1. **器材贵、有风险。** 激光光具座、霍尔效应仪、电容器充放电测试仪价格不菲，高压电路、化学反应又不适合让学生随意动手，很多学校根本开不出这些实验。
-2. **现有虚拟实验体验差。** 多数是 2D 动画或预录视频，学生只能“看”不能“做”；不少还闭源收费，或只能在特定设备上运行。
-3. **共用外设不卫生。** 学校机房和多媒体教室里的键盘、鼠标、触控屏，往往由几百名学生轮流使用，一用就是十几年，很难彻底清洁，是接触传播和交叉污染的重灾区。一节要“轮流上手”的实验课，等于让全班把手伸向同一套脏外设；老师在讲台上反复触碰共用的大屏和鼠标，同样如此。
+**为什么是手势识别？** 主要是为了卫生。一节需要轮流上手的实验课，等于让全班把手伸向同一套外设。手势识别只需要设备自带的摄像头，不需要 VR 头显或额外传感器。鼠标与触屏操作同样完整可用，没有摄像头的环境也能正常使用。
 
-### 为什么选择手势识别
+## 功能
 
-手势识别在 HoloGrip 里不是噱头，而是针对上面第 3 个问题的直接答案：
+### 实验目录
 
-- **非接触操作，不碰任何共用外设。** 学生与教师面向普通摄像头，用“捏合”手势隔空抓取、拖动、旋转 3D 器材。手不接触键盘、鼠标和屏幕，从源头避开共用外设的卫生问题，也省去课间反复消毒的麻烦。
-- **零额外硬件。** 只需要设备自带或普通 USB 摄像头，不需要 VR 头显、手柄或专用传感器，学校不用额外采购。
-- **更贴近“做实验”的直觉。** 键鼠是二维输入，操控三维器材要靠“拖拽 + 视角切换”来回折算；隔空抓取则与真实实验“伸手拿起器材”的动作一致。
-- **不强制。** 手势只是首选交互方式，鼠标与触屏（含 iPad）操作同样完整可用，不具备摄像头的环境也能正常使用。
-
-### HoloGrip 的目标
-
-**让任何一块教室大屏、一台电脑或一台 iPad，都能变成一间可以“伸手去做”、而且不碰共用外设的高保真物理/化学实验室。**
-
-- **非接触手势操控** —— 基于摄像头的手部追踪，用“捏合”手势抓取、拖动、旋转 3D 器材，无需触碰键鼠与屏幕，也无需 VR 头显。
-- **真实物理求解，而非预录动画** —— 每个实验都由可测试的数值模型驱动（光学衍射/干涉强度分布、RC 充放电、轨道力学、悬挂法重心求解、牛顿第三定律双对拉等）。
-- **为教师演示而设计** —— 纯演示工具定位，无答题打分、无弹窗向导，3D 视窗始终干净；一键复位到教案推荐参数。
-- **跨平台** —— 同一套代码运行在浏览器、桌面端（Tauri 2）与 iPadOS。
-
-## 功能特性
-
-### 实验目录（20+ 个实验，持续增加）
+**20 个 3D 实验 + 化学实验台**，均由可测试的数值模型实时计算，而非预录动画。
 
 | 学科 | 实验 |
 | --- | --- |
-| **力学** | 伽利略理想斜面 · 自由落体与牛顿管 · 悬挂法测重心 · 牛顿大炮（天体轨道力学）· 牛顿第三定律双测力计对拉 |
-| **光学** | 光的反射与折射 · 光的色散（三棱镜）· 光的衍射（单缝 / 圆孔 / 光栅）· 杨氏双缝干涉 · 光的偏振与双折射 |
-| **电磁学** | 静电场与电场线叠加 · 霍尔效应与载流子动力学 · 电容器充放电与 RC 过程（含实时示波窗口）· 电磁手定则 |
-| **热学** | 卡诺热机 · 空气压缩引火仪 · 傅里叶导热 · 气体实验定律 · 相变 |
-| **数学** | 立体几何：拍照识别题目图形 → 自动生成可旋转、可作辅助面的 3D 模型 |
-| **化学** | 双烧杯混合与反应特效 · 交互式元素周期表 · 自然语言描述物质 → 成分分析并倒入烧杯 |
+| **力学** | 伽利略理想斜面 · 自由落体与牛顿管 · 悬挂法测重心 · 牛顿大炮（轨道力学） · 牛顿第三定律 |
+| **光学** | 光的反射与折射 · 光的色散 · 光的衍射（单缝 / 圆孔 / 光栅） · 杨氏双缝干涉 · 光的偏振 |
+| **电磁学** | 静电场与电场线叠加 · 霍尔效应与载流子动力学 · 电容器充放电与 RC 过程 · 左右手定则 |
+| **热学** | 卡诺热机 · 空气压缩引火仪 · 固体热传导与傅里叶定律 · 气体实验三定律 · 晶体与非晶体相变 |
+| **数学** | 立体几何：6 种几何体 · 三点定面截面 · 二面角 · 外接球与内切球 · 表面展开图 · 三视图 · **拍照识题生成 3D 模型** |
+| **化学** | 双烧杯混合：沉淀、产气、变色、放热与 pH 实时变化 · 元素周期表 · **自然语言描述物质，AI 分析成分后倒入烧杯** |
 
 ### 核心能力
 
-- **非接触手势交互引擎**（隔空操作，避免多人共用键鼠/触屏的卫生问题）：MediaPipe Hand Landmarker 在 Web Worker 中运行，配合 One Euro 滤波、二维卡尔曼瞄准滤波与双阈值迟滞捏合状态机，实现稳定、低抖动的空间光标与抓取。
-- **算渲分离的物理计算**：大规模粒子（分子运动、N 体轨道）与光学条纹解算在 Worker 池中执行，通过 Transferable 零拷贝回传；无 Worker 环境下自动回退为同步计算，保证 Node 中可测。
-- **高保真 3D 器材**：基于 Three.js 程序化建模的光具座、测力计、示波屏、活塞缸等，带倒角、滚花旋钮、刻度与游标读数。
-- **班级实时协作白板**：Rust WebSocket 服务，增量笔迹同步（约 16ms 一批）、服务端定序、撤销/重做、断线重放与 MySQL 原子持久化。详见 [docs/whiteboard/realtime.md](docs/whiteboard/realtime.md)。
-- **账户、班级与后台管理**：JWT + Argon2id，教师创建班级、学生邀请码加入，管理员控制台管理用户/会话/权限。详见 [docs/admin.md](docs/admin.md)。
+- **双通道手势追踪**：iPadOS 原生端调用 Apple Vision 框架（`VNDetectHumanHandPoseRequest`），由 Neural Engine 硬件加速；浏览器与桌面端使用 MediaPipe Hand Landmarker（主线程 GPU 直连，Web Worker 兜底）。两条通道输出统一的 21 点手部关键点，再经 One Euro 滤波、二维卡尔曼瞄准滤波和双阈值迟滞捏合状态机，得到稳定的空间光标与抓取。
+- **算渲分离**：粒子、轨道与光学条纹等重计算在 Worker 池中执行，通过 Transferable 零拷贝回传。核心算法不依赖 DOM，可在 Node 中直接测试。
+- **高保真 3D 器材**：基于 Three.js 程序化建模，器材带倒角、滚花旋钮、刻度与游标读数。
+- **为课堂演示设计**：3D 视窗内没有弹窗和向导，可一键复位到教案推荐参数。
+- **班级实时协作白板**：Rust WebSocket 服务，增量笔迹同步（约 16 ms 一批）、服务端定序、撤销/重做、断线重放与 MySQL 持久化。详见 [docs/whiteboard/realtime.md](docs/whiteboard/realtime.md)。
+- **账户与班级**：JWT + Argon2id，教师建班、学生凭邀请码加入，配有管理员控制台。详见 [docs/admin.md](docs/admin.md)。
 - **AI 辅助**：服务端代理调用大模型完成题目图形识别与物质成分分析，API 密钥只保存在后端。
+
+## 使用场景
+
+| 课堂中 | 课后 |
+| --- | --- |
+| 教师用 iPad 或电脑投屏，隔空操作器材，全班观看 | 学生在家用 iPad 或电脑，重做课上演示过的实验 |
+| 边调参数边讲规律，抽象概念直接可见 | 自己改参数验证猜想，自主探究 |
+| 替代危险或昂贵的实验 | 做立体几何作业时拍题，生成模型辅助理解 |
+| 实验与白板推导来回切换，教师建班统一管理 | 化学混合随意试错，没有安全风险 |
+
+**为什么优先适配 iPad**：屏幕足够大，可以多人围观或投屏；前置摄像头配合 Apple Vision 原生手势追踪，延迟低、功耗低；在学校里普及度高。头戴设备价格高、一次只能一人使用且需贴脸佩戴，手机屏幕又太小，难以用于课堂。
+
+## 为什么开源
+
+教育不是一个团队能做完的事。每位老师都最清楚自己的学生卡在哪里，而 AI 编程工具已经大幅降低了写代码的门槛。HoloGrip 的架构就是为此设计的：
+
+- **一个实验就是一个文件夹。** 在 `src/experiments/catalog/` 下新建目录，放入 `meta.ts`（名称与参数）和 `index.ts`（3D 场景与逻辑），系统会自动扫描注册，不需要改动任何其他代码。
+- **参数界面自动生成。** 在 `meta.ts` 里声明的参数（滑块、开关、下拉框）会自动出现在控制面板中。
+- **可以交给 AI 来写。** 复制一个相近的实验，用自然语言描述想要的教学模型，让 AI 生成和修改代码。完整步骤见 **[用 AI 创建你的第一个实验](docs/create-experiment.md)**。
+- **改进会回到社区。** 采用 AGPL-3.0 协议：任何人修改后以网络服务形式提供，都必须公开源代码。一位老师做出的实验，所有老师都能使用。
+- **可审计、可自部署。** 物理模型公开可校对；学校可以在自己的服务器上部署，账户、班级与白板数据保存在本校。
 
 ## 系统架构
 
 ```mermaid
 flowchart LR
-  subgraph Client["客户端 (Browser / Tauri 2 Desktop / iPadOS)"]
-    UI["UI 与学科导航"] --> Engine["Engine + HologramStage<br/>(Three.js 渲染)"]
-    Engine --> Registry["ExperimentRegistry<br/>20+ 个实验模块"]
-    Registry --> Physics["物理/化学求解器<br/>(同构纯 TS)"]
-    Physics <--> Pool["WorkerPool<br/>physics.worker"]
-    Cam["摄像头"] --> HT["handTracking.worker<br/>MediaPipe"] --> Gesture["手势服务<br/>OneEuro / Kalman / 捏合状态机"] --> Engine
+  subgraph Client["客户端 (iPadOS / Browser / Tauri 2 Desktop)"]
+    Cam["摄像头"] --> AV["Apple Vision<br/>(iPadOS 原生, Swift)"]
+    Cam --> MP["MediaPipe<br/>(Web / Desktop)"]
+    AV --> Gesture["手势服务<br/>OneEuro / Kalman / 捏合状态机"]
+    MP --> Gesture
+    Gesture --> Engine["Engine + HologramStage<br/>(Three.js 渲染)"]
+    UI["UI 与学科导航"] --> Engine
+    Engine --> Registry["ExperimentRegistry<br/>自动扫描 catalog/"]
+    Registry --> Solver["物理 / 化学求解器<br/>(纯 TS, 可在 Node 测试)"]
+    Solver <--> Pool["WorkerPool"]
     WB["协作白板"]
   end
   subgraph Server["Rust 后端 (Axum 0.8)"]
@@ -86,7 +102,7 @@ flowchart LR
     WS["WebSocket<br/>白板房间"]
     AI["AI 代理<br/>图形识别 / 成分分析"]
   end
-  DB[("MySQL 8<br/>sqlx migrations")]
+  DB[("MySQL 8")]
   UI --> API
   WB <--> WS
   Registry --> AI
@@ -96,11 +112,12 @@ flowchart LR
 
 | 层 | 技术 |
 | --- | --- |
-| 前端 | TypeScript（strict）、Three.js、Vite、Web Workers、MediaPipe Tasks Vision |
-| 桌面 / 移动端 | Tauri 2（macOS / Windows / Linux / iPadOS） |
-| 后端 | Rust、Axum 0.8（含 WebSocket）、sqlx + MySQL、JWT、Argon2id、tracing |
+| 手势追踪 | Apple Vision（Swift 原生桥接，Neural Engine）、MediaPipe Tasks Vision（GPU / Web Worker） |
+| 前端 | TypeScript（strict）、Three.js r185、Vite、Web Workers |
+| 客户端 | Tauri 2（iPadOS / macOS / Windows / Linux）、浏览器 |
+| 后端 | Rust、Axum 0.8（REST + WebSocket）、sqlx + MySQL 8、JWT、Argon2id、lettre（SMTP）、tracing |
 | 部署 | Docker Compose、Nginx 反向代理 |
-| 测试 | 40+ 个 Node 原生 TypeScript 测试套件（`node --experimental-strip-types`）、Rust 集成测试、FPS 性能门禁 |
+| 质量 | GitHub Actions CI、40+ 个 TypeScript 测试套件、Rust 集成测试、帧率性能门禁 |
 
 工程规范见 [docs/ARCHITECTURE_STANDARDS.md](docs/ARCHITECTURE_STANDARDS.md)。
 
@@ -110,9 +127,9 @@ flowchart LR
 
 - Node.js **≥ 22.6**（推荐 24，测试依赖 `--experimental-strip-types`）
 - 可选：Rust **≥ 1.85**、Docker（运行账户 / 白板 / AI 后端）
-- 可选：Tauri 2 工具链（构建桌面端或 iPad 应用）
+- 可选：Xcode 与 Tauri 2 工具链（构建 iPad 或桌面应用）
 
-### 仅运行前端实验室
+### 运行前端实验室
 
 ```sh
 git clone https://github.com/SenorPink0487/HoloGrip-Beta.git
@@ -121,7 +138,7 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
-所有物理/化学实验均可离线运行；手势控制需要浏览器授予摄像头权限。
+所有实验均可离线运行；手势控制需要授予摄像头权限。
 
 ### 运行后端（账户、班级白板、AI 功能）
 
@@ -159,34 +176,35 @@ Apple Vision 桥接源码位于 `src-tauri/native_ios/`，由 Cargo 编译为 Sw
 
 ```text
 src/
-  core/          引擎、渲染舞台、生命周期
+  core/          引擎、渲染舞台、生命周期、平台桥接
   experiments/   实验注册表与 catalog/（每个实验一个目录：meta.ts + index.ts）
-  scene/         各学科 3D 器材网格与交互管理器（mech / optics / em / math）
-  physics/       力学、电磁学数值模型
+  scene/         各学科 3D 器材网格与交互管理器（mech / optics / em / thermo / math）
+  physics/       力学、电磁学、热学数值模型
   chemistry/     化学反应引擎与混合物分析
-  vision/        手部追踪与手势识别
+  vision/        手部追踪（Apple Vision / MediaPipe）与手势识别
   workers/       Worker 池、物理与手势 Worker
   whiteboard/    协作白板客户端
   account/ admin/ ui/ controls/
 server/          Rust 后端（routes / auth / migrations / tests）
-src-tauri/       Tauri 2 桌面与 iOS 外壳
+src-tauri/       Tauri 2 外壳与 Apple Vision 原生桥接（native_ios/）
 tests/           前端测试套件
-docs/            架构规范、管理后台、白板协议文档
+docs/            实验开发指南、架构规范、管理后台、白板协议
 ```
 
 ## 路线图
 
 - [ ] 更多实验：单摆与受迫振动、电磁感应、质谱仪、透镜成像
-- [ ] 实验模块插件化 SDK 与贡献者文档
+- [ ] 生物学科
+- [ ] 对接课程标准与教材章节
+- [ ] 实验模板与面向教师的开发工具
 - [ ] 多语言界面（English）
 - [ ] 白板多实例水平扩展
-- [ ] WebXR / 头显支持
 
 欢迎在 [Issues](https://github.com/SenorPink0487/HoloGrip-Beta/issues) 中提出想要的实验。
 
 ## 参与贡献
 
-欢迎任何形式的贡献 —— 新实验、物理模型校正、3D 建模、文档与翻译。请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
+欢迎任何形式的贡献：新实验、物理模型校正、3D 建模、文档与翻译。如果你是老师，想做一个自己课堂用的实验，可以从 [用 AI 创建你的第一个实验](docs/create-experiment.md) 开始；代码规范与提交流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
 
 ## 许可证
 
@@ -198,19 +216,20 @@ HoloGrip 以 [GNU Affero General Public License v3.0](LICENSE) 开源。若你�
 
 ## English
 
-**HoloGrip** is an open-source 3D holographic virtual laboratory built for classroom demonstration. Teachers and students manipulate high-fidelity lab apparatus with **bare-hand gestures** captured by an ordinary webcam — no VR headset required.
+**HoloGrip** is an open-source, touch-free 3D virtual laboratory for STEM classrooms. Teachers and students manipulate high-fidelity lab apparatus with **bare-hand gestures** captured by the device camera. No VR headset is required, and nobody touches a shared keyboard, mouse or screen.
 
-**Why gestures? Hygiene.** School computer labs and multimedia classrooms share keyboards, mice and touchscreens among hundreds of students, often for over a decade, and they are rarely cleaned thoroughly. A hands-on lab session that makes everyone take turns on the same devices is a cross-contamination hazard. HoloGrip is touch-free: you grab, drag and rotate apparatus in mid-air, so nobody touches a shared peripheral. It needs no hardware beyond a webcam, and mouse/touch input (including iPad) remains fully supported as a fallback.
+**Why gestures? Hygiene.** In school computer labs and multimedia classrooms, keyboards, mice and touchscreens are shared by hundreds of students for years and are rarely cleaned thoroughly. HoloGrip lets everyone grab, pour and rotate apparatus in mid-air. Mouse and touch input remain fully supported.
 
-- **20+ interactive experiments** across mechanics, optics, electromagnetism, thermodynamics, solid geometry and chemistry, each driven by a tested numerical model rather than canned animation.
-- **Gesture engine**: MediaPipe Hand Landmarker in a Web Worker, One Euro + Kalman filtering and a hysteresis pinch state machine.
-- **Compute/render decoupling**: heavy simulations run in a worker pool with zero-copy transfers and a synchronous fallback for headless testing.
+- **20 3D experiments plus a chemistry bench** across mechanics, optics, electromagnetism, thermodynamics, solid geometry and chemistry. Each experiment is computed in real time from a tested numerical model, not played back as an animation.
+- **Dual-path hand tracking**: Apple Vision (Neural Engine) on iPadOS via a native Swift bridge, MediaPipe on web and desktop. Both paths feed One Euro and Kalman filtering and a hysteresis pinch state machine.
+- **AI-assisted content**: photograph a solid-geometry problem to get an interactive 3D model; describe a substance in plain language and pour it into a beaker.
+- **Built to be extended by teachers**: each experiment is a self-contained folder (`meta.ts` + `index.ts`) that is discovered automatically. See [docs/create-experiment.md](docs/create-experiment.md) for building one with an AI coding assistant.
 - **Real-time class whiteboard** over a Rust (Axum) WebSocket server with server-ordered operations, undo/redo, gap replay and MySQL persistence.
-- **Cross-platform**: browser, desktop and iPadOS via Tauri 2.
+- **Cross-platform**: iPadOS, browser and desktop via Tauri 2.
 
 ```sh
 npm install && npm run dev   # frontend lab at http://localhost:5173
 npm test                     # run the test suites
 ```
 
-Licensed under **AGPL-3.0**. Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Licensed under **AGPL-3.0**. Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
