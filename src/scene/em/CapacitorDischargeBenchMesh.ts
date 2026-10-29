@@ -1876,7 +1876,7 @@ export class CapacitorDischargeBenchMesh {
     sensGroup.position.set(0.040, 0, 0.115);
     sensGroup.rotation.y = 0;
 
-    const bodyW = 0.110;
+    const bodyW = 0.134;
     const bodyH = 0.028;
     const bodyD = 0.082;
 
@@ -1956,11 +1956,12 @@ export class CapacitorDischargeBenchMesh {
     }
 
     // 5. 沉入式深色防眩框与深邃海洋蓝黑液晶数显视窗 (Sunken Bezel & Reticle)
-    const bezelW = 0.088;
-    const bezelD = 0.046;
+    // 居中布局，两翼预留充足空间放置左右接线柱
+    const bezelW = 0.076;
+    const bezelD = 0.042;
     const bezelH = 0.0016;
-    const dispW = 0.082;
-    const dispD = 0.040;
+    const dispW = 0.070;
+    const dispD = 0.036;
 
     // 精密中空防眩边框（中空视窗结构，杜绝实体遮挡内部液晶屏）
     const outerRadius = 0.003;
@@ -2030,51 +2031,63 @@ export class CapacitorDischargeBenchMesh {
     dispMesh.rotation.x = -Math.PI / 2;
     tiltGroup.add(dispMesh);
 
-    // 6. 物理控制按键 (ZERO 归零校准键、RANGE 量程切换键与电源键)
+    // 6. 物理控制按键 (ZERO 归零校准键、RANGE 量程切换键与状态指示灯，整齐排布于上方条带)
     const btnMat = labMetal(0xd1d5db, 0.9, 0.25);
     const btnGeo = new THREE.CylinderGeometry(0.0028, 0.0032, 0.0024, 16);
 
     // ZERO 校准键
     const zeroBtn = new THREE.Mesh(btnGeo, btnMat);
-    zeroBtn.position.set(-0.032, bodyH * 0.5 + plateH + 0.0012, -0.026);
+    zeroBtn.position.set(-0.024, bodyH * 0.5 + plateH + 0.0012, -0.026);
     tiltGroup.add(zeroBtn);
 
     // RANGE 量程键
     const rangeBtn = new THREE.Mesh(btnGeo, btnMat);
-    rangeBtn.position.set(-0.016, bodyH * 0.5 + plateH + 0.0012, -0.026);
+    rangeBtn.position.set(-0.006, bodyH * 0.5 + plateH + 0.0012, -0.026);
     tiltGroup.add(rangeBtn);
 
     // 7. 采样状态微型指示灯与金属定位外圈
     const ledBezelGeo = new THREE.CylinderGeometry(0.0034, 0.0034, 0.0014, 16);
     const ledBezel = new THREE.Mesh(ledBezelGeo, labMetal(0x94a3b8, 0.95, 0.15));
-    ledBezel.position.set(0.038, bodyH * 0.5 + plateH + 0.0007, 0.024);
+    ledBezel.position.set(0.024, bodyH * 0.5 + plateH + 0.0007, -0.026);
     tiltGroup.add(ledBezel);
 
     const ledGeo = new THREE.SphereGeometry(0.0024, 16, 16);
     this.sensorLedMaterial = labGlow(0x38bdf8, 0.95);
     const ledMesh = new THREE.Mesh(ledGeo, this.sensorLedMaterial);
-    ledMesh.position.set(0.038, bodyH * 0.5 + plateH + 0.0020, 0.024);
+    ledMesh.position.set(0.024, bodyH * 0.5 + plateH + 0.0020, -0.026);
     tiltGroup.add(ledMesh);
 
-    // 8. 标准实验室 4mm 安全香蕉插座（红+正极输入、黑-负极输出）
-    // 红（+正极）：世界坐标 (0.014, 0.014, 0.139)
-    // 黑（-负极）：世界坐标 (0.058, 0.014, 0.139)
-    this.createBindingPost(tiltGroup, new THREE.Vector3(-0.026, bodyH * 0.5 + plateH, 0.024), 0xef4444);
-    this.createBindingPost(tiltGroup, new THREE.Vector3(0.018, bodyH * 0.5 + plateH, 0.024), 0x1e293b);
+    // 8. 标准实验室 4mm 安全香蕉插座（两翼对称分布，从两边接线，正面纯净无遮挡）
+    // 红（+正极）：位于左翼，世界坐标中心 (-0.010, 0.0297, 0.1158)
+    // 黑（-负极）：位于右翼，世界坐标中心 (0.090, 0.0297, 0.1158)
+    const postX = 0.050;
+    this.createBindingPost(tiltGroup, new THREE.Vector3(-postX, bodyH * 0.5 + plateH, 0.004), 0xef4444);
+    this.createBindingPost(tiltGroup, new THREE.Vector3(postX, bodyH * 0.5 + plateH, 0.004), 0x1e293b);
 
-    // 接线端子底座黄铜锁紧螺母与极性丝印识别环
+    // 接线端子底座黄铜锁紧螺母与高绝缘极性识别环
     const hexNutGeo = new THREE.CylinderGeometry(0.0068, 0.0068, 0.0018, 6);
     const hexNutMat = polishedGold(0xd4af37);
+    const idRingGeo = new THREE.CylinderGeometry(0.0076, 0.0076, 0.0006, 20);
+
+    const lRing = new THREE.Mesh(idRingGeo, new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.35 }));
+    lRing.position.set(-postX, bodyH * 0.5 + plateH + 0.0003, 0.004);
+    tiltGroup.add(lRing);
+
     const lHex = new THREE.Mesh(hexNutGeo, hexNutMat);
-    lHex.position.set(-0.026, bodyH * 0.5 + plateH + 0.0009, 0.024);
+    lHex.position.set(-postX, bodyH * 0.5 + plateH + 0.0009, 0.004);
     tiltGroup.add(lHex);
+
+    const rRing = new THREE.Mesh(idRingGeo, new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35 }));
+    rRing.position.set(postX, bodyH * 0.5 + plateH + 0.0003, 0.004);
+    tiltGroup.add(rRing);
+
     const rHex = new THREE.Mesh(hexNutGeo, hexNutMat);
-    rHex.position.set(0.018, bodyH * 0.5 + plateH + 0.0009, 0.024);
+    rHex.position.set(postX, bodyH * 0.5 + plateH + 0.0009, 0.004);
     tiltGroup.add(rHex);
 
     // 9. 右侧示波器模拟信号 BNC 工业级镀铬卡口端口 (带外壳锁紧六角螺母)
     const bncGroup = new THREE.Group();
-    bncGroup.position.set(bodyW * 0.5 + 0.004, 0, -0.010);
+    bncGroup.position.set(bodyW * 0.5 + 0.004, 0, 0.000);
     bncGroup.rotation.z = -Math.PI * 0.5;
 
     // BNC 主体圆筒
@@ -2513,28 +2526,28 @@ export class CapacitorDischargeBenchMesh {
       new THREE.Vector3(-0.225, 0.040, 0.139),  // 直角垂直插入开关左触点插头
     ];
 
-    // 导线2 (青): 开关公共极 (中极) -> 电流传感器正输入极 (红极)
+    // 导线2 (青): 开关公共极 (中极) -> 电流传感器正输入极 (红极，从左侧优雅接入)
     const wire2Pts = [
       new THREE.Vector3(-0.180, 0.040, 0.139), // 开关公共极插头顶部
-      new THREE.Vector3(-0.180, 0.048, 0.139), // 垂直上升
-      new THREE.Vector3(-0.180, 0.048, 0.156), // 直角折向前至前排主通道
-      new THREE.Vector3(-0.180, 0.006, 0.156), // 直角折向下贴近台面
-      new THREE.Vector3(0.014, 0.006, 0.156),  // 沿前排通道横向直行至传感器正极端
-      new THREE.Vector3(0.014, 0.048, 0.156),  // 直角折向上垂直升起
-      new THREE.Vector3(0.014, 0.048, 0.139),  // 直角折向后平移至插座正上方
-      new THREE.Vector3(0.014, 0.040, 0.139),  // 直角垂直插入电流传感器正极
+      new THREE.Vector3(-0.180, 0.048, 0.139), // 垂直上升脱离插头
+      new THREE.Vector3(-0.180, 0.048, 0.1215),// 直角折向后平移至传感器端子轴线 Z=0.1215
+      new THREE.Vector3(-0.180, 0.006, 0.1215),// 直角折向下贴近台面
+      new THREE.Vector3(-0.045, 0.006, 0.1215),// 沿开关与传感器之间的通道横向直行至传感器左侧机壳外
+      new THREE.Vector3(-0.045, 0.068, 0.1215),// 直角折向上垂直升起至传感器机身上方
+      new THREE.Vector3(-0.010, 0.068, 0.1215),// 直角折向右横向平移至红接线柱正上方
+      new THREE.Vector3(-0.010, 0.057, 0.1215),// 直角垂直插入电流传感器红极正极输入插头
     ];
 
-    // 导线3 (蓝): 电流传感器负输出极 (黑极) -> 电容器正极 (红极)
+    // 导线3 (蓝): 电流传感器负输出极 (黑极，从右侧优雅接出) -> 电容器正极 (红极)
     const wire3Pts = [
-      new THREE.Vector3(0.058, 0.040, 0.139),  // 传感器负极插头顶部
-      new THREE.Vector3(0.058, 0.048, 0.139),  // 垂直上升
-      new THREE.Vector3(0.058, 0.048, 0.156),  // 直角折向前至前排主通道
-      new THREE.Vector3(0.058, 0.006, 0.156),  // 直角折向下贴近台面
-      new THREE.Vector3(0.168, 0.006, 0.156),  // 横向直行至电容器正极轴线
-      new THREE.Vector3(0.168, 0.006, -0.015), // 直角折向后纵向直行至电容器基座前
+      new THREE.Vector3(0.090, 0.057, 0.1215), // 传感器负极黑插头顶部
+      new THREE.Vector3(0.090, 0.068, 0.1215), // 垂直上升脱离插头
+      new THREE.Vector3(0.125, 0.068, 0.1215), // 直角折向右横向平移移出传感器右机壳 (X=0.125)
+      new THREE.Vector3(0.125, 0.006, 0.1215), // 直角折向下贴近台面
+      new THREE.Vector3(0.125, 0.006, -0.015), // 直角折向后纵向直行至电容器正极基座前
+      new THREE.Vector3(0.168, 0.006, -0.015), // 直角折向右横向直行至电容器正极轴线
       new THREE.Vector3(0.168, 0.048, -0.015), // 直角折向上垂直升起
-      new THREE.Vector3(0.168, 0.048, -0.046), // 直角折向后平移至插头正上方
+      new THREE.Vector3(0.168, 0.048, -0.046), // 直角折向后平移至电容正极插头正上方
       new THREE.Vector3(0.168, 0.038, -0.046), // 直角垂直接入电容器正极插头
     ];
 
@@ -2583,11 +2596,11 @@ export class CapacitorDischargeBenchMesh {
 
     // 示波器专用高频探头屏蔽线（自电流传感器 BNC 端口横平竖直敷设至示波器 CH1）
     const bncCablePts = [
-      new THREE.Vector3(0.099, 0.014, 0.105),   // 传感器 BNC 输出端口
-      new THREE.Vector3(0.125, 0.014, 0.105),   // 直角水平横向引出
-      new THREE.Vector3(0.125, 0.006, 0.105),   // 直角折向下贴近台面
-      new THREE.Vector3(0.125, 0.006, 0.168),   // 直角折向前进入前外侧电缆通道
-      new THREE.Vector3(0.408, 0.006, 0.168),   // 横向直行至示波器 CH1 输入端口正前方
+      new THREE.Vector3(0.111, 0.014, 0.115),   // 传感器 BNC 输出端口
+      new THREE.Vector3(0.142, 0.014, 0.115),   // 直角水平横向引出
+      new THREE.Vector3(0.142, 0.006, 0.115),   // 直角折向下贴近台面
+      new THREE.Vector3(0.142, 0.006, 0.148),   // 直角折向前进入外侧线槽
+      new THREE.Vector3(0.408, 0.006, 0.148),   // 横向直行至示波器 CH1 输入端口正前方
       new THREE.Vector3(0.408, 0.006, 0.010),   // 直角折向后纵向直行至示波器面板前
       new THREE.Vector3(0.408, 0.0252, 0.010),  // 直角垂直上升至 CH1 端口高度
       new THREE.Vector3(0.408, 0.0252, -0.0238),// 直角水平插入示波器 CH1 BNC 端口
@@ -2603,15 +2616,16 @@ export class CapacitorDischargeBenchMesh {
     this.addOrthogonalWire(bncCablePts, 0x1e293b, 0.0022);        // 示波器探头同轴线
 
     const upDir = new THREE.Vector3(0, 1, 0);
+    const tiltNormal = new THREE.Vector3(0, Math.cos(-Math.PI * 0.065), -Math.sin(-Math.PI * 0.065)).normalize();
 
     // 为每根导线两端安装真实的 4mm 实验室叠插香蕉插头
     this.addBananaPlug(new THREE.Vector3(-0.328, 0.024, -0.034), upDir, 0xef4444);
     this.addBananaPlug(new THREE.Vector3(-0.225, 0.014, 0.139), upDir, 0xef4444);
 
     this.addBananaPlug(new THREE.Vector3(-0.180, 0.014, 0.139), upDir, 0x38bdf8);
-    this.addBananaPlug(new THREE.Vector3(0.014, 0.014, 0.139), upDir, 0x38bdf8);
+    this.addBananaPlug(new THREE.Vector3(-0.010, 0.0297, 0.1158), tiltNormal, 0x38bdf8);
 
-    this.addBananaPlug(new THREE.Vector3(0.058, 0.014, 0.139), upDir, 0x0284c7);
+    this.addBananaPlug(new THREE.Vector3(0.090, 0.0297, 0.1158), tiltNormal, 0x0284c7);
     this.addBananaPlug(new THREE.Vector3(0.168, 0.012, -0.046), upDir, 0x0284c7);
 
     // 电容器负极端：Wire 4 主插头插在接线柱上 (Y=0.012)，Wire 6 叠插头插在 Wire 4 尾部 (Y=0.038)
@@ -2630,7 +2644,7 @@ export class CapacitorDischargeBenchMesh {
 
     const sBncPlug = new THREE.Mesh(bncPlugGeo, bncPlugMat);
     sBncPlug.rotateZ(Math.PI / 2);
-    sBncPlug.position.set(0.112, 0.014, 0.105);
+    sBncPlug.position.set(0.122, 0.014, 0.115);
     this.group.add(sBncPlug);
 
     const oBncPlug = new THREE.Mesh(bncPlugGeo, bncPlugMat);

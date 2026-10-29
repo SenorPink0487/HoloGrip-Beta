@@ -736,11 +736,7 @@ export class AccountModal {
     const label = document.createElement('span');
     label.className = 'apple-row-label';
     label.textContent = '墙上肖像';
-    const hint = document.createElement('span');
-    hint.className = 'macos-row-subhint';
-    hint.textContent = '隔一格悬挂物理学家与化学家';
     info.appendChild(label);
-    info.appendChild(hint);
 
     const preferences = accountPreferences();
     const toggle = document.createElement('button');

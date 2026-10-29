@@ -869,6 +869,7 @@ export class HandRulesBenchMesh {
 
   public dispose(): void {
     this.handSkeleton.dispose();
+    this.floatingConductor.dispose();
     this.texN.dispose();
     this.texS.dispose();
     disposeObjectTree(this.group);

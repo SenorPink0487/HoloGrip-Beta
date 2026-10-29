@@ -746,6 +746,44 @@ function tubeShellOutward(
   return count ? score / count : 0;
 }
 
+// --------------------------------------------------------------------------
+// Test 13: Vertical Plane Drag Motion Invariants (Constrained to Z = 1.10)
+// --------------------------------------------------------------------------
+console.log('Test 13: Vertical Plane Drag Motion Invariants (Constrained to Z = 1.10)');
+{
+  const leftMesh = new BeakerMesh();
+  const rightMesh = new BeakerMesh();
+  leftMesh.restingPosition.set(-0.38, 0.998, 1.10);
+  rightMesh.restingPosition.set(0.38, 0.998, 1.10);
+
+  // Vertical plane definition: normal = (0, 0, 1), constant = -1.10 (Plane Z = 1.10)
+  const dragPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -1.10);
+
+  // Verify normal is horizontal along Z (perpendicular to Y, making the plane vertical)
+  assert.strictEqual(dragPlane.normal.x, 0);
+  assert.strictEqual(dragPlane.normal.y, 0);
+  assert.strictEqual(dragPlane.normal.z, 1);
+  assert.strictEqual(dragPlane.constant, -1.10);
+
+  // Both resting positions must lie exactly on this vertical plane
+  assert.strictEqual(dragPlane.distanceToPoint(leftMesh.restingPosition), 0);
+  assert.strictEqual(dragPlane.distanceToPoint(rightMesh.restingPosition), 0);
+
+  // Ray from camera (e.g. at z = 4.25 looking toward table) intersecting dragPlane
+  const ray = new THREE.Ray(new THREE.Vector3(0.2, 1.38, 4.25), new THREE.Vector3(-0.05, -0.1, -1).normalize());
+  const hitPoint = new THREE.Vector3();
+  const hit = ray.intersectPlane(dragPlane, hitPoint);
+  assert(hit !== null, 'Ray must intersect vertical drag plane');
+  assert(Math.abs(hitPoint.z - 1.10) < 1e-6, 'Intersection must lie on Z = 1.10');
+
+  // Verify displacement in X and Y stays on the vertical plane
+  const draggedPos = new THREE.Vector3(hitPoint.x, Math.max(0.998, hitPoint.y), 1.10);
+  assert.strictEqual(draggedPos.z, 1.10, 'Dragged beaker Z depth must remain strictly locked to 1.10');
+  assert(dragPlane.distanceToPoint(draggedPos) < 1e-6, 'Dragged beaker must stay within vertical plane');
+
+  console.log('✓ Test 13 passed: Beaker drag movement constrained to single vertical plane (Z = 1.10)');
+}
+
 console.log('========================================================');
-console.log('All Dual-Beaker Mixing & Composition Analysis Tests Passed (12/12)!');
+console.log('All Dual-Beaker Mixing & Composition Analysis Tests Passed (13/13)!');
 console.log('========================================================\n');

@@ -326,6 +326,44 @@ await (async () => {
   console.log('✓ Test 7 passed: Permission error propagation & anti-duplicate-singleton guard verified\n');
 })();
 
+// Test 8: iPad System Status Bar Suppression Invariants
+{
+  console.log('Test 8: iPad System Status Bar Suppression Invariants');
+  const infoIosPlistPath = path.join(rootDir, 'src-tauri/Info.ios.plist');
+  const genInfoPlistPath = path.join(rootDir, 'src-tauri/gen/apple/virtuallab_iOS/Info.plist');
+  const projectYmlPath = path.join(rootDir, 'src-tauri/gen/apple/project.yml');
+  const swiftPluginPath = path.join(rootDir, 'src-tauri/native_ios/AppleVisionPlugin.swift');
+
+  assert(fs.existsSync(infoIosPlistPath), 'Info.ios.plist must exist');
+  assert(fs.existsSync(genInfoPlistPath), 'virtuallab_iOS/Info.plist must exist');
+  assert(fs.existsSync(projectYmlPath), 'project.yml must exist');
+  assert(fs.existsSync(swiftPluginPath), 'AppleVisionPlugin.swift must exist');
+
+  const infoIosContent = fs.readFileSync(infoIosPlistPath, 'utf-8');
+  assert(infoIosContent.includes('<key>UIStatusBarHidden</key>'), 'Info.ios.plist must declare UIStatusBarHidden');
+  assert(infoIosContent.includes('<key>UIStatusBarHidden~ipad</key>'), 'Info.ios.plist must declare UIStatusBarHidden~ipad');
+  assert(infoIosContent.includes('<key>UIViewControllerBasedStatusBarAppearance</key>'), 'Info.ios.plist must declare UIViewControllerBasedStatusBarAppearance');
+
+  const genInfoContent = fs.readFileSync(genInfoPlistPath, 'utf-8');
+  assert(genInfoContent.includes('<key>UIStatusBarHidden</key>'), 'gen/apple/virtuallab_iOS/Info.plist must declare UIStatusBarHidden');
+  assert(genInfoContent.includes('<key>UIStatusBarHidden~ipad</key>'), 'gen/apple/virtuallab_iOS/Info.plist must declare UIStatusBarHidden~ipad');
+  assert(genInfoContent.includes('<key>UIViewControllerBasedStatusBarAppearance</key>'), 'gen/apple/virtuallab_iOS/Info.plist must declare UIViewControllerBasedStatusBarAppearance');
+
+  const projectYmlContent = fs.readFileSync(projectYmlPath, 'utf-8');
+  assert(projectYmlContent.includes('UIStatusBarHidden: true'), 'project.yml must configure UIStatusBarHidden: true');
+  assert(projectYmlContent.includes('UIStatusBarHidden~ipad: true'), 'project.yml must configure UIStatusBarHidden~ipad: true');
+  assert(projectYmlContent.includes('UIViewControllerBasedStatusBarAppearance: false'), 'project.yml must configure UIViewControllerBasedStatusBarAppearance: false');
+
+  const swiftPluginContent = fs.readFileSync(swiftPluginPath, 'utf-8');
+  assert(swiftPluginContent.includes('enforceStatusBarHidden'), 'AppleVisionPlugin must provide enforceStatusBarHidden');
+  assert(swiftPluginContent.includes('prefersStatusBarHidden'), 'AppleVisionPlugin must swizzle prefersStatusBarHidden');
+  assert(swiftPluginContent.includes('setPrefersStatusBarHidden'), 'AppleVisionPlugin must configure Tao setPrefersStatusBarHidden');
+  assert(swiftPluginContent.includes('hologrip_viewWillAppear'), 'AppleVisionPlugin must swizzle viewWillAppear for dynamic view controllers');
+  assert(swiftPluginContent.includes('applyStatusBarAppearanceUpdate'), 'AppleVisionPlugin must trigger applyStatusBarAppearanceUpdate on load');
+
+  console.log('✓ Test 8 passed: iPad system status bar suppression invariants verified\n');
+}
+
 console.log('========================================================');
-console.log('All Apple Vision Hybrid Architecture Tests Passed Successfully (7/7)!');
+console.log('All Apple Vision Hybrid Architecture Tests Passed Successfully (8/8)!');
 console.log('========================================================\n');

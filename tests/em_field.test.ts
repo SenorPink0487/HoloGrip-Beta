@@ -78,7 +78,13 @@ class MockElement {
     return true;
   }
 
-  querySelector(selector: string): MockElement {
+  querySelector(selector: string): MockElement | null {
+    if (selector.startsWith('#')) {
+      const id = selector.slice(1);
+      if (this.innerHTML && !this.innerHTML.includes(`id="${id}"`)) {
+        return null;
+      }
+    }
     const cached = this.elementCache.get(selector);
     if (cached) return cached;
     const el = new MockElement(selector.startsWith('#canvas') ? 'canvas' : 'div');
@@ -481,9 +487,10 @@ console.log('Test 8: VisionOS FieldStatusCard UI & Event Binding');
     selectedChargeValue: 1.5,
   });
 
-  assert.strictEqual(card.element.querySelector('#field-qnet').textContent, '1.50 µC');
-  assert.strictEqual(card.element.querySelector('#field-u').textContent, '-20.00 mJ');
-  assert.strictEqual(card.element.querySelector('#field-count').textContent, '电荷总数 N = 2');
+  assert.strictEqual(card.element.querySelector('#field-qnet'), null, 'System net charge row removed');
+  assert.strictEqual(card.element.querySelector('#field-u'), null, 'Potential energy readout removed');
+  assert.strictEqual(card.element.querySelector('#field-count'), null, 'Charge count readout removed');
+  assert.strictEqual(card.element.querySelector('#field-selected-q')?.textContent, '+1.5 µC');
 
   console.log('✓ Test 8 passed: FieldStatusCard UI and event binding verified');
 }
@@ -752,10 +759,10 @@ console.log('Test 12: Test Charge (Probe q₀) Mechanics, Vector Arrow, Drag Int
   const probeV = card.element.querySelector('#field-probe-v');
   const probeF = card.element.querySelector('#field-probe-f');
 
-  assert.ok(probeQ.textContent.includes('+1.00 nC'), 'Probe charge displayed on HUD');
-  assert.ok(probeE.textContent.includes('kV/m') || probeE.textContent.includes('V/m'), 'Probe E field displayed');
-  assert.ok(probeV.textContent.includes('V'), 'Probe potential V displayed');
-  assert.ok(probeF.textContent.includes('N'), 'Probe force F displayed');
+  assert.strictEqual(probeQ, null, 'Probe charge removed from floating HUD card');
+  assert.strictEqual(probeE, null, 'Probe E field removed from floating HUD card');
+  assert.strictEqual(probeV, null, 'Probe potential V removed from floating HUD card');
+  assert.strictEqual(probeF, null, 'Probe force F removed from floating HUD card');
 
   // 5. Expanded Bounds & Preset Separation Invariants
   assert.ok(

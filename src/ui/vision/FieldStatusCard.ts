@@ -257,44 +257,7 @@ export class FieldStatusCard {
       </style>
 
       <div class="apple-field-panel">
-        <!-- 空间场强与电势 -->
         <div class="apple-physics-group">
-          <!-- 局部电场 E -->
-          <div class="apple-physics-row">
-            <div class="apple-physics-row-header">
-              <span class="apple-physics-label">探针电场强度 E</span>
-              <span id="field-probe-e" class="apple-physics-readout">0.0 V/m</span>
-            </div>
-            <div class="apple-physics-scale" style="margin-top: 2px;">
-              <span id="field-probe-pos">位置: (0.00, 0.16) m</span>
-              <span id="field-probe-q">+1.00 nC</span>
-            </div>
-          </div>
-
-          <!-- 局部电势 V 与库仑力 F -->
-          <div class="apple-physics-row">
-            <div class="apple-physics-row-header">
-              <span class="apple-physics-label">局部空间电势 V</span>
-              <span id="field-probe-v" class="apple-physics-readout">0.0 V</span>
-            </div>
-            <div class="apple-physics-scale" style="margin-top: 2px;">
-              <span id="field-probe-f">受库仑力 F: 0.00 µN</span>
-              <span id="field-u">相互作用能: 0.00 mJ</span>
-            </div>
-          </div>
-
-          <!-- 系统净电量 -->
-          <div class="apple-physics-row">
-            <div class="apple-physics-row-header">
-              <span class="apple-physics-label">系统净电量 Q_net</span>
-              <span id="field-qnet" class="apple-physics-readout">0.00 µC</span>
-            </div>
-            <div class="apple-physics-scale" style="margin-top: 2px;">
-              <span id="field-count">电荷总数 N = 0</span>
-              <span id="field-dipole">偶极矩: 0.000 µC·m</span>
-            </div>
-          </div>
-
           <div class="apple-physics-row" id="field-surface-row" style="display:none">
             <div class="apple-physics-row-header">
               <span class="apple-physics-label" id="field-surface-label">高斯通量 Φ</span>
@@ -362,18 +325,9 @@ export class FieldStatusCard {
   public updateTelemetry(data: ElectrostaticTelemetry): void {
     this.data = data;
 
-    const qNetEl = this.element.querySelector('#field-qnet');
-    const countEl = this.element.querySelector('#field-count');
-    const uEl = this.element.querySelector('#field-u');
-    const dipoleEl = this.element.querySelector('#field-dipole');
     const selectedQEl = this.element.querySelector('#field-selected-q') as HTMLElement | null;
     const selectedLabel = this.element.querySelector('#field-selected-label');
     const slider = this.element.querySelector('#field-charge-slider') as HTMLInputElement | null;
-
-    if (qNetEl) qNetEl.textContent = `${data.totalChargeMicroC.toFixed(2)} µC`;
-    if (countEl) countEl.textContent = `电荷总数 N = ${data.chargeCount}`;
-    if (uEl) uEl.textContent = `${(data.potentialEnergyJoules * 1000).toFixed(2)} mJ`;
-    if (dipoleEl) dipoleEl.textContent = `偶极矩: ${data.dipoleMomentMagnitude.toFixed(3)} µC·m`;
 
     if (data.selectedChargeId) {
       const qVal = data.selectedChargeValue;
@@ -392,38 +346,6 @@ export class FieldStatusCard {
       if (selectedLabel) selectedLabel.textContent = '选中电荷量 Q';
       if (slider) {
         slider.disabled = true;
-      }
-    }
-
-    const probeQEl = this.element.querySelector('#field-probe-q');
-    const probePosEl = this.element.querySelector('#field-probe-pos');
-    const probeEEl = this.element.querySelector('#field-probe-e');
-    const probeVEl = this.element.querySelector('#field-probe-v');
-    const probeFEl = this.element.querySelector('#field-probe-f');
-
-    if (data.testCharge) {
-      const tc = data.testCharge;
-      if (probeQEl) probeQEl.textContent = `+${(tc.q0 * 1000).toFixed(2)} nC`;
-      if (probePosEl) probePosEl.textContent = `探针: (${tc.x.toFixed(2)}, ${tc.y.toFixed(2)}) m`;
-
-      if (probeEEl) {
-        probeEEl.textContent =
-          tc.fieldMagnitude >= 1000
-            ? `${(tc.fieldMagnitude / 1000).toFixed(2)} kV/m`
-            : `${tc.fieldMagnitude.toFixed(1)} V/m`;
-      }
-
-      if (probeVEl) {
-        const sign = tc.potential >= 0 ? '+' : '';
-        probeVEl.textContent = `${sign}${tc.potential.toFixed(1)} V`;
-      }
-
-      if (probeFEl) {
-        const fMicroN = tc.forceMagnitude * 1e6;
-        probeFEl.textContent =
-          fMicroN >= 1.0
-            ? `受库仑力 F: ${fMicroN.toFixed(2)} µN`
-            : `受库仑力 F: ${(tc.forceMagnitude * 1e9).toFixed(1)} nN`;
       }
     }
 

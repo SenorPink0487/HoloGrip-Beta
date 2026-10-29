@@ -53,7 +53,7 @@ import {
 import { blurActiveInput, isTextInputActive, isTextInputElement, isElementVisibleAndActive } from './focus.ts';
 import { HandGestureService, VisionProCursor, HandTrackingHUD } from '../vision/index.ts';
 
-const _BEAKER_DRAG_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.10);
+const _BEAKER_DRAG_PLANE = new THREE.Plane(new THREE.Vector3(0, 0, 1), -1.10);
 const _BEAKER_HIT_POINT = new THREE.Vector3();
 const _BEAKER_CENTER = new THREE.Vector3();
 const _BEAKER_SPHERE = new THREE.Sphere(_BEAKER_CENTER, 0.25);
@@ -142,6 +142,8 @@ export class Engine {
     targetPosition: THREE.Vector3;
     lastPouredVolume: number;
     lipAim: THREE.Vector3 | null;
+    dragOffsetX: number;
+    dragOffsetY: number;
   } | null = null;
 
   private raycaster = new THREE.Raycaster();
@@ -2008,6 +2010,17 @@ export class Engine {
         const sourceEngine = sourceId === 'left' ? this.chemistryEngineLeft : this.chemistryEngineRight;
         const targetEngine = sourceId === 'left' ? this.chemistryEngineRight : this.chemistryEngineLeft;
 
+        const sourcePos = sourceMesh.group?.position ?? sourceMesh.restingPosition;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        if (this.camera) {
+          this.raycaster.setFromCamera(mouseNDC, this.camera);
+          if (this.raycaster.ray.intersectPlane(_BEAKER_DRAG_PLANE, _BEAKER_HIT_POINT)) {
+            dragOffsetX = sourcePos.x - _BEAKER_HIT_POINT.x;
+            dragOffsetY = sourcePos.y - _BEAKER_HIT_POINT.y;
+          }
+        }
+
         this.beakerDragState = {
           isDragging: false,
           isPouring: false,
@@ -2021,9 +2034,11 @@ export class Engine {
           downClientY: e.clientY,
           downTime: performance.now(),
           targetTilt: 0,
-          targetPosition: sourceMesh.restingPosition.clone(),
+          targetPosition: sourcePos.clone(),
           lastPouredVolume: 0,
           lipAim: null,
+          dragOffsetX,
+          dragOffsetY,
         };
         return;
       }
@@ -2137,22 +2152,33 @@ export class Engine {
 
         const intersected = this.raycaster.ray.intersectPlane(_BEAKER_DRAG_PLANE, _BEAKER_HIT_POINT);
         if (intersected) {
-          const hitX = Math.max(-0.85, Math.min(0.85, _BEAKER_HIT_POINT.x));
-          const hitZ = Math.max(-0.55, Math.min(1.55, _BEAKER_HIT_POINT.z));
+          const rawX = _BEAKER_HIT_POINT.x + (this.beakerDragState.dragOffsetX ?? 0);
+          const rawY = _BEAKER_HIT_POINT.y + (this.beakerDragState.dragOffsetY ?? 0);
+          const restY = this.beakerDragState.sourceMesh.restingPosition.y;
+          const restZ = this.beakerDragState.sourceMesh.restingPosition.z;
+
+          // 保持在同一垂直平面 (Z = restZ = 1.10) 移动：
+          // X 轴约束在实验台正面交互区，Y 轴在实验台上空平移且不穿透桌面
+          const hitX = Math.max(-0.85, Math.min(0.85, rawX));
+          const hitY = Math.max(restY, Math.min(1.65, rawY));
+          const hitZ = restZ;
 
           const targetBase = this.beakerDragState.targetMesh.restingPosition;
-          const distToTarget = Math.hypot(hitX - targetBase.x, hitZ - targetBase.z);
+          const targetHeight = this.beakerDragState.targetMesh.beakerHeight ?? 0.36;
+          const targetCenterY = targetBase.y + targetHeight * 0.5;
+          const distToTarget = Math.hypot(hitX - targetBase.x, (hitY - targetCenterY) * 0.8);
 
-          if (distToTarget < 0.38) {
+          const pourThreshold = this.beakerDragState.isPouring ? 0.44 : 0.36;
+          if (distToTarget < pourThreshold) {
             // 倾角围绕杯嘴旋转；动画循环将杯嘴对准接收烧杯口
             this.beakerDragState.isPouring = true;
             const isLeftToRight = this.beakerDragState.sourceId === 'left';
             this.beakerDragState.targetTilt = isLeftToRight ? -POUR_TILT : POUR_TILT;
           } else {
-            // 在空中平移
+            // 在同一垂直平面内平移
             this.beakerDragState.isPouring = false;
             this.beakerDragState.lipAim = null;
-            this.beakerDragState.targetPosition.set(hitX, 1.08, hitZ);
+            this.beakerDragState.targetPosition.set(hitX, hitY, hitZ);
             this.beakerDragState.targetTilt = 0;
           }
         }

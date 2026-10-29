@@ -49,7 +49,7 @@ export class HandRulesStatusCard {
   // 3 个核心板块切换卡片引用
   private modeCards: NodeListOf<HTMLElement> | null = null;
 
-  // 隐藏兼容性 DOM 引用（维持单元测试与引擎接口契约）
+  // 隐藏兼容性 DOM 引用（维持既有测试与接口契约）
   private gestureBtnEl: HTMLButtonElement | null = null;
   private gestureDotEl: HTMLElement | null = null;
   private gestureBtnLabelEl: HTMLElement | null = null;
@@ -100,121 +100,112 @@ export class HandRulesStatusCard {
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
       }
 
-      /* 3 个板块的独立切换卡片网格 - 严禁冗余文字，严格契合整体原生风格 */
-      .hr-branches-deck {
+      .math-deck-container.hr-deck-container {
+        width: 100%;
+        max-width: 960px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .math-branches-deck.hr-branches-deck {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 24px;
-        max-width: 880px;
         width: 100%;
         margin: 0 auto;
       }
 
-      .hr-branch-tile {
+      /* 3 个板块的独立切换卡片 - 严格继承与复用数学板块设计与高亮效果 */
+      .math-branch-tile {
+        height: 270px;
         position: relative;
-        border-radius: 26px;
+        border-radius: 28px;
         background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.10);
         border-top: 1px solid rgba(255, 255, 255, 0.22);
-        padding: 48px 24px 44px;
+        padding: 0 20px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         text-align: center;
-        gap: 20px;
+        gap: 24px;
         cursor: pointer;
-        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
-        outline: none;
-        box-sizing: border-box;
-        will-change: transform, box-shadow, filter;
-        animation: iosTileCascadeEnter 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-        animation-delay: calc(var(--tile-index, 0) * 45ms);
-        transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
                     background 0.25s ease,
                     border-color 0.25s ease,
-                    box-shadow 0.45s cubic-bezier(0.25, 1, 0.5, 1),
-                    filter 0.15s ease;
+                    box-shadow 0.25s ease;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
+        outline: none;
+        user-select: none;
+        box-sizing: border-box;
       }
 
-      .hr-branch-tile:hover,
-      .hr-branch-tile:focus-visible {
-        transform: translate3d(0, -6px, 0) scale(1.02);
-        background: rgba(255, 255, 255, 0.09);
-        border-color: rgba(255, 255, 255, 0.25);
-        border-top-color: rgba(255, 255, 255, 0.45);
-        box-shadow: 0 24px 50px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(255, 255, 255, 0.15), 0 0 24px rgba(10, 132, 255, 0.12);
+      .math-branch-tile:hover,
+      .math-branch-tile:focus-visible {
+        transform: translateY(-6px) scale(1.02);
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.20);
+        border-top-color: rgba(255, 255, 255, 0.40);
+        box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
       }
 
-      .hr-branch-tile:active {
-        transform: translate3d(0, 0, 0) scale(0.95);
-        transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), filter 0.12s ease, box-shadow 0.12s ease;
-        filter: brightness(0.93);
-        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+      .math-branch-tile:active {
+        transform: scale(0.98);
+        transition-duration: 0.1s;
       }
 
-      /* 激活选中态 (Active Highlight) - 整体统一的蓝色光晕 */
-      .hr-branch-tile.active {
-        background: linear-gradient(155deg, rgba(10, 132, 255, 0.18) 0%, rgba(10, 132, 255, 0.04) 100%);
-        border-color: rgba(10, 132, 255, 0.55);
-        border-top-color: rgba(100, 210, 255, 0.85);
-        box-shadow: 0 24px 56px rgba(0, 0, 0, 0.40),
-                    0 0 30px rgba(10, 132, 255, 0.28),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+      /* 与数学板块完全一致的高亮显示效果 (Sky-blue 10% wash + 1.5px rim + soft glow) */
+      .math-branch-tile.active {
+        background: rgba(56, 189, 248, 0.10);
+        border: 1.5px solid rgba(56, 189, 248, 0.55);
+        border-top: 1.5px solid rgba(56, 189, 248, 0.85);
+        box-shadow: 0 0 24px rgba(56, 189, 248, 0.20), 0 22px 50px rgba(0, 0, 0, 0.40);
       }
 
-      /* 图标容器 (与 physics-branch-tile / math-branch-tile 严格对齐) */
-      .hr-tile-icon-box {
-        width: 68px;
-        height: 68px;
-        border-radius: 22px;
+      .math-tile-icon-box {
+        width: 88px;
+        height: 88px;
+        border-radius: 26px;
         background: rgba(255, 255, 255, 0.07);
         border: 1px solid rgba(255, 255, 255, 0.12);
-        border-top: 1px solid rgba(255, 255, 255, 0.2);
         display: flex;
         align-items: center;
         justify-content: center;
         color: rgba(255, 255, 255, 0.9);
-        transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
                     background 0.25s ease,
-                    border-color 0.25s ease,
-                    color 0.25s ease,
-                    box-shadow 0.35s ease;
+                    border-color 0.25s ease;
       }
 
-      .hr-branch-tile:hover .hr-tile-icon-box {
+      .math-branch-tile:hover .math-tile-icon-box {
+        transform: scale(1.08);
         background: rgba(255, 255, 255, 0.14);
-        border-color: rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.26);
         color: #ffffff;
-        transform: scale(1.10);
       }
 
-      .hr-branch-tile.active .hr-tile-icon-box {
-        background: rgba(10, 132, 255, 0.22);
-        border-color: rgba(10, 132, 255, 0.55);
-        color: #64d2ff;
-        box-shadow: 0 0 20px rgba(10, 132, 255, 0.4);
+      /* 数学板块激活状态下图标容器的样式：与数学模型卡片一致的纯粹自然提亮 */
+      .math-branch-tile.active .math-tile-icon-box {
+        background: rgba(255, 255, 255, 0.14);
+        border-color: rgba(255, 255, 255, 0.28);
+        color: #ffffff;
       }
 
-      .hr-tile-svg {
-        width: 32px;
-        height: 32px;
+      .math-tile-svg {
+        width: 50px;
+        height: 50px;
         display: block;
       }
 
-      /* 标题 - 纯粹无冗余文字 */
-      .hr-tile-name {
-        font-size: 19px;
-        font-weight: 600;
+      .math-tile-name {
+        font-size: 21px;
+        font-weight: 500;
+        letter-spacing: 0.3px;
         color: #ffffff;
-        letter-spacing: -0.2px;
         margin: 0;
-        transition: color 0.2s ease, text-shadow 0.2s ease;
-      }
-
-      .hr-branch-tile.active .hr-tile-name {
-        color: #ffffff;
-        text-shadow: 0 0 12px rgba(100, 210, 255, 0.4);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
       }
     `;
     document.head?.appendChild?.(style);
@@ -222,47 +213,63 @@ export class HandRulesStatusCard {
 
   private render(): void {
     this.element.innerHTML = `
-      <div class="hr-branches-deck">
-        <!-- 1. 右手螺旋法则 -->
-        <div class="hr-branch-tile hr-mode-tab active" data-mode="right-hand-screw" role="button" tabindex="0" aria-label="右手螺旋法则" style="--tile-index: 0;">
-          <div class="hr-tile-icon-box">
-            <svg class="apple-sf-icon hr-tile-svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="16" y1="3" x2="16" y2="29"/>
-              <polyline points="12 7 16 3 20 7"/>
-              <ellipse cx="16" cy="16" rx="10" ry="5" stroke-dasharray="3.5 2.5" stroke-opacity="0.55"/>
-              <path d="M6 16c0 2.8 4.5 5 10 5s10-2.2 10-5"/>
-              <polyline points="24 13 26 16 24 19"/>
-            </svg>
+      <div class="math-deck-container hr-deck-container">
+        <div class="math-branches-deck hr-branches-deck">
+          <!-- 1. 右手螺旋法则 -->
+          <div class="math-branch-tile hr-branch-tile hr-mode-tab active" data-mode="right-hand-screw" role="button" tabindex="0" aria-label="右手螺旋法则">
+            <div class="math-tile-icon-box hr-tile-icon-box">
+              <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <!-- Central vertical straight conductor wire -->
+                <line x1="22" y1="5" x2="22" y2="39" stroke-width="2.2"/>
+                <!-- Current arrow direction -->
+                <polyline points="17 11 22 5 27 11" stroke-width="2.2"/>
+                <!-- Upper dashed magnetic curl -->
+                <ellipse cx="22" cy="22" rx="14" ry="7" stroke-width="1.8" stroke-dasharray="4 3" stroke-opacity="0.45"/>
+                <!-- Front solid magnetic curl with arrow -->
+                <path d="M8 22c0 3.9 6.3 7 14 7s14-3.1 14-7" stroke-width="2.0"/>
+                <polyline points="33 18 36 22 33 26" stroke-width="2.0"/>
+              </svg>
+            </div>
+            <h3 class="math-tile-name">右手螺旋法则</h3>
           </div>
-          <h3 class="hr-tile-name">右手螺旋法则</h3>
-        </div>
 
-        <!-- 2. 左手定则 -->
-        <div class="hr-branch-tile hr-mode-tab" data-mode="left-hand-rule" role="button" tabindex="0" aria-label="左手定则" style="--tile-index: 1;">
-          <div class="hr-tile-icon-box">
-            <svg class="apple-sf-icon hr-tile-svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="16" y1="28" x2="16" y2="5"/>
-              <polyline points="12 9 16 5 20 9"/>
-              <line x1="5" y1="18" x2="27" y2="18"/>
-              <polyline points="23 14 27 18 23 22"/>
-              <circle cx="16" cy="18" r="3.2" fill="currentColor"/>
-            </svg>
+          <!-- 2. 左手定则 -->
+          <div class="math-branch-tile hr-branch-tile hr-mode-tab" data-mode="left-hand-rule" role="button" tabindex="0" aria-label="左手定则">
+            <div class="math-tile-icon-box hr-tile-icon-box">
+              <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <!-- Vertical Magnetic Field B -->
+                <line x1="22" y1="38" x2="22" y2="8" stroke-width="2.2"/>
+                <polyline points="17 13 22 8 27 13" stroke-width="2.2"/>
+                <!-- Horizontal Ampere Force F -->
+                <line x1="7" y1="24" x2="37" y2="24" stroke-width="2.2"/>
+                <polyline points="32 19 37 24 32 29" stroke-width="2.2"/>
+                <!-- Current I entering into screen (orthogonal conductor cross-section) -->
+                <circle cx="22" cy="24" r="4.5" fill="currentColor" fill-opacity="0.18" stroke-width="2.0"/>
+                <circle cx="22" cy="24" r="1.5" fill="currentColor"/>
+              </svg>
+            </div>
+            <h3 class="math-tile-name">左手定则</h3>
           </div>
-          <h3 class="hr-tile-name">左手定则</h3>
-        </div>
 
-        <!-- 3. 右手定则 -->
-        <div class="hr-branch-tile hr-mode-tab" data-mode="right-hand-rule" role="button" tabindex="0" aria-label="右手定则" style="--tile-index: 2;">
-          <div class="hr-tile-icon-box">
-            <svg class="apple-sf-icon hr-tile-svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="4" y1="16" x2="28" y2="16"/>
-              <polyline points="23 11 28 16 23 21"/>
-              <line x1="16" y1="4" x2="16" y2="28"/>
-              <polyline points="11 9 16 4 21 9"/>
-              <path d="M8 24l8-8 8 8" stroke-dasharray="2.5 2.5" stroke-opacity="0.6"/>
-            </svg>
+          <!-- 3. 右手定则 -->
+          <div class="math-branch-tile hr-branch-tile hr-mode-tab" data-mode="right-hand-rule" role="button" tabindex="0" aria-label="右手定则">
+            <div class="math-tile-icon-box hr-tile-icon-box">
+              <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <!-- Horizontal Cutting Velocity v -->
+                <line x1="6" y1="22" x2="38" y2="22" stroke-width="2.2"/>
+                <polyline points="32 16 38 22 32 28" stroke-width="2.2"/>
+                <!-- Vertical Induced Current I -->
+                <line x1="22" y1="6" x2="22" y2="38" stroke-width="2.2"/>
+                <polyline points="16 12 22 6 28 12" stroke-width="2.2"/>
+                <!-- Magnetic flux entering crosses -->
+                <line x1="14" y1="14" x2="18" y2="18" stroke-width="1.8" stroke-opacity="0.5"/>
+                <line x1="18" y1="14" x2="14" y2="18" stroke-width="1.8" stroke-opacity="0.5"/>
+                <line x1="26" y1="26" x2="30" y2="30" stroke-width="1.8" stroke-opacity="0.5"/>
+                <line x1="30" y1="26" x2="26" y2="30" stroke-width="1.8" stroke-opacity="0.5"/>
+              </svg>
+            </div>
+            <h3 class="math-tile-name">右手定则</h3>
           </div>
-          <h3 class="hr-tile-name">右手定则</h3>
         </div>
       </div>
 
@@ -372,7 +379,7 @@ export class HandRulesStatusCard {
   private syncUI(): void {
     const d = this.currentData;
 
-    // 1. 同步 3 个核心板块卡片激活态
+    // 1. 同步 3 个核心板块卡片激活态 (与数学板块一致的 .active 机制)
     this.modeCards?.forEach((card) => {
       const mode = card.getAttribute('data-mode');
       const isActive = mode === d.mode;
