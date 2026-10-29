@@ -247,18 +247,16 @@ export function computeRuleVectors(config: HandRuleConfig): {
   }
 
   if (config.mode === 'left-hand-rule') {
-    // 左手定则：已知磁场 B 沿竖直方向 (0, fieldPolarity, 0)，电流 I 沿导体棒 (0, 0, -currentPolarity)
-    // 安培力 F = I × B = ((-currentPolarity) * fieldPolarity, 0, 0) -> 当 currentPolarity=+1, fieldPolarity=+1 时，I=(0,0,-1)向里, B=(0,1,0)向上, F = (+1, 0, 0) 水平向右
+    // 导体棒横在画面左右（电流沿 X）。B 竖直向上时，F = I × B 指向操作者（+Z）或远离操作者（-Z）。
     const by = config.fieldPolarity;
-    const iz = -config.currentPolarity;
-    // F = I x B: (0, 0, iz) x (0, by, 0) = (-iz * by, 0, 0) = (currentPolarity * fieldPolarity, 0, 0)
-    const fx = (config.currentPolarity * config.fieldPolarity) as Polarity;
+    const ix = config.currentPolarity;
+    const fz = (ix * by) as Polarity;
     return {
       requiredHand: 'left',
-      knownCurrentDir: { x: 0, y: 0, z: iz },
+      knownCurrentDir: { x: ix, y: 0, z: 0 },
       knownFieldDir: { x: 0, y: by, z: 0 },
       knownMotionDir: null,
-      targetVectorDir: { x: fx, y: 0, z: 0 }, // 左手大拇指指向安培力 F (水平向右 +X 或水平向左 -X)
+      targetVectorDir: { x: 0, y: 0, z: fz },
       screwCirculationSign: 1,
     };
   }
@@ -411,7 +409,7 @@ export function evaluateHandRuleFrame(
       fourFingersDir,
       fingerCurlRatio,
       statusLabel: isMatched
-        ? `左手定则判定正确：安培力 F 驱动导体向${targetVectorDir.x > 0 ? '右' : '左'}运动`
+        ? `左手定则判定正确：安培力 F 驱动导体向${targetVectorDir.z > 0 ? '前' : '后'}运动`
         : `已知 B 与 I，请伸左手使大拇指指向正确的安培力 F 方向`,
     };
   }

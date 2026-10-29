@@ -14,6 +14,13 @@ import {
   type PointCharge,
   type TestChargeState,
 } from '../../../physics/em/electrostatic.ts';
+import {
+  buildGaussianSurfaces,
+  gaussianFlux,
+  traceEquipotentialSurfaces,
+  type EquipotentialSurface,
+  type GaussianSurface,
+} from '../../../physics/em/fieldSurfaces.ts';
 import { metadata } from './meta.ts';
 import type { ExperimentContext } from '../../../core/types.ts';
 
@@ -35,9 +42,14 @@ export default class EmFieldExperiment extends BaseExperiment {
 
   private showLines = true;
   private showFlow = false;
+  private showGaussian = false;
+  private showEquipotential = false;
   private lineDensity = 16;
 
   private fieldLines: FieldLine[] = [];
+  private gaussianSurfaces: GaussianSurface[] = [];
+  private equipotentials: EquipotentialSurface[] = [];
+  private equipotentialDirty = true;
   private cachedTelemetry!: ElectrostaticTelemetry;
   private needsSync = true;
   private chargeCounter = 1;
@@ -178,6 +190,31 @@ export default class EmFieldExperiment extends BaseExperiment {
     this.syncVisualsOnly();
   }
 
+  public setShowGaussian(show: boolean): void {
+    this.showGaussian = show;
+    if (this.needsSync || !this.cachedTelemetry) {
+      this.recompute();
+      this.needsSync = false;
+      return;
+    }
+    this.syncVisualsOnly();
+  }
+
+  public setShowEquipotential(show: boolean): void {
+    this.showEquipotential = show;
+    if (show && (this.needsSync || !this.cachedTelemetry)) {
+      this.recompute();
+      this.needsSync = false;
+      return;
+    }
+    if (show && this.equipotentialDirty) {
+      this.equipotentials = traceEquipotentialSurfaces(this.charges);
+      this.equipotentialDirty = false;
+      this.updateTelemetryMetrics();
+    }
+    this.syncVisualsOnly();
+  }
+
   public setDensity(density: number): void {
     this.lineDensity = Math.max(8, Math.min(32, density));
     this.needsSync = true;
@@ -213,6 +250,13 @@ export default class EmFieldExperiment extends BaseExperiment {
       maxSteps: 400,
     });
 
+    this.gaussianSurfaces = buildGaussianSurfaces(this.charges);
+    this.equipotentialDirty = true;
+    if (this.showEquipotential) {
+      this.equipotentials = traceEquipotentialSurfaces(this.charges);
+      this.equipotentialDirty = false;
+    }
+
     // 2. 计算检验电荷探针物理量
     this.testChargeState = evaluateTestCharge(this.testChargePos, this.charges);
 
@@ -230,6 +274,7 @@ export default class EmFieldExperiment extends BaseExperiment {
     const dipole = electricDipoleMoment(this.charges);
     const u = totalPotentialEnergy(this.charges);
     const selectedCharge = this.charges.find((c) => c.id === this.selectedChargeId);
+    const selectedSurface = this.gaussianSurfaces.find((surface) => surface.chargeId === this.selectedChargeId);
 
     this.cachedTelemetry = {
       chargeCount: this.charges.length,
@@ -241,6 +286,10 @@ export default class EmFieldExperiment extends BaseExperiment {
       selectedChargeId: this.selectedChargeId,
       selectedChargeValue: selectedCharge ? selectedCharge.q : 0,
       testCharge: this.testChargeState,
+      gaussianFlux: selectedSurface ? selectedSurface.flux : gaussianFlux(totalQ),
+      gaussianRadius: selectedSurface ? selectedSurface.radius : 0,
+      equipotentialCount: this.equipotentials.length,
+      equipotentialHasZero: this.equipotentials.some((surface) => Math.abs(surface.potential) < 1),
     };
   }
 
@@ -255,6 +304,10 @@ export default class EmFieldExperiment extends BaseExperiment {
       showLines: this.showLines,
       showFlow: this.showFlow,
       testCharge: this.testChargeState,
+      showGaussian: this.showGaussian,
+      showEquipotential: this.showEquipotential,
+      gaussianSurfaces: this.gaussianSurfaces,
+      equipotentials: this.equipotentials,
     });
   }
 }

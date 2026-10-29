@@ -2,13 +2,20 @@ import * as THREE from 'three';
 import {
   anodizedAluminum,
   dialTexture,
-  enameledCopper,
   labGlow,
   letterTexture,
   polishedGold,
   paintTexture,
 } from './labKit.ts';
 import { disposeObjectTree } from './disposeObject.ts';
+import {
+  AxialChargeFlow,
+  brushedCopper,
+  createContactCollar,
+  createConductorRodGeometry,
+  createGuideShaftGeometry,
+  terminalBrass,
+} from './conductorRod.ts';
 import { ArticulatedHandSkeletonMesh } from './ArticulatedHandSkeletonMesh.ts';
 import { FloatingConductorMesh } from './FloatingConductorMesh.ts';
 import type {
@@ -185,7 +192,7 @@ export class HandRulesBenchMesh {
   // 2. 左手定则组件
   private leftRodGroup = new THREE.Group();
   private leftCurrentArrow!: THREE.Group;
-  private readonly leftCurrentPulses: THREE.Mesh[] = [];
+  private leftCurrent!: AxialChargeFlow;
   private readonly leftFieldArrows: THREE.Group[] = [];
   private leftForceArrow!: THREE.Group;
   private leftForceMat!: THREE.MeshStandardMaterial;
@@ -202,7 +209,7 @@ export class HandRulesBenchMesh {
   private readonly rightFieldArrows: THREE.Group[] = [];
   private rightInducedArrow!: THREE.Group;
   private rightInducedMat!: THREE.MeshStandardMaterial;
-  private readonly rightInducedPulses: THREE.Mesh[] = [];
+  private rightCurrent!: AxialChargeFlow;
   private rightPoleFrontMat!: THREE.MeshStandardMaterial;
   private rightPoleBackMat!: THREE.MeshStandardMaterial;
   private rightGalvoNeedlePivot = new THREE.Group();
@@ -218,7 +225,8 @@ export class HandRulesBenchMesh {
     roughness: 0.08,
   });
   private readonly champagneBrassMat = polishedGold(0xf59e0b);
-  private readonly pureCopperMat = enameledCopper(0xd97706);
+  private readonly rodCopper = brushedCopper();
+  private readonly contactBrass = terminalBrass();
   private readonly knownCurrentMat = labGlow(0xf59e0b, 0.68); // 琥珀金：已知电流 I
   private readonly knownFieldMat = labGlow(0x38bdf8, 0.62);   // 冰海青：已知磁场 B
   private readonly knownMotionMat = labGlow(0xa855f7, 0.65);  // 紫晶光：已知切割运动 v
@@ -417,7 +425,7 @@ export class HandRulesBenchMesh {
     }
 
     // 3) 沿 X 轴水平左右舒展的双精密镜面铬合金平行导轨
-    const railGeo = createTurnedConductorGeometry(0.46, 0.0055);
+    const railGeo = createGuideShaftGeometry(0.46, 0.0055);
     railGeo.rotateZ(Math.PI / 2);
     const frontRail = new THREE.Mesh(railGeo, this.liquidChromeMat);
     frontRail.position.set(0, 0.195, 0.068);
@@ -441,28 +449,35 @@ export class HandRulesBenchMesh {
       }
     }
 
-    // 4) 架设在平行导轨上的可滑动通电导体棒 (沿 Z 轴横跨前后导轨)
-    const rodGeo = createTurnedConductorGeometry(0.185, 0.0095);
+    // 4) 架在前后导轨上的铜质导体棒。棒身沿 Z，黄铜触环压在导轨上，电流沿棒轴向流动。
+    const rodGeo = createConductorRodGeometry(0.24, 0.012);
     rodGeo.rotateX(Math.PI / 2);
-    const rodMesh = new THREE.Mesh(rodGeo, this.pureCopperMat);
+    const rodMesh = new THREE.Mesh(rodGeo, this.rodCopper);
+    rodMesh.castShadow = true;
+    rodMesh.name = 'LeftConductorRod';
     this.leftRodGroup.add(rodMesh);
 
-    // 导体棒上的已知电流方向 I 发光箭头与脉冲环
+    const leftCollar = createContactCollar(0.012, 0.018);
+    leftCollar.rotateX(Math.PI / 2);
+    for (const z of [-0.078, 0.078]) {
+      const shoe = new THREE.Mesh(leftCollar, this.contactBrass);
+      shoe.position.z = z;
+      shoe.castShadow = true;
+      this.leftRodGroup.add(shoe);
+    }
+
+    this.leftCurrent = new AxialChargeFlow({ travel: 0.14, axis: 'z', radial: 0.0136 });
+    this.leftRodGroup.add(this.leftCurrent.group);
+
+    // 导体棒上方的已知电流方向 I
     this.leftCurrentArrow = new THREE.Group();
     const leftIMesh = new THREE.Mesh(
       createSculptedArrowGeometry(0.13, 0.004, 0.012, 0.03),
       this.knownCurrentMat
     );
     this.leftCurrentArrow.add(leftIMesh);
-    this.leftCurrentArrow.position.set(0, 0.026, 0);
+    this.leftCurrentArrow.position.set(0, 0.028, 0);
     this.leftRodGroup.add(this.leftCurrentArrow);
-
-    const rodPulseGeo = new THREE.TorusGeometry(0.0125, 0.0022, 12, 24);
-    for (let i = 0; i < 3; i++) {
-      const pRing = new THREE.Mesh(rodPulseGeo, this.knownCurrentMat);
-      this.leftCurrentPulses.push(pRing);
-      this.leftRodGroup.add(pRing);
-    }
 
     // 5) 所求的安培力矢量大箭头 F（当左手大拇指指向正确时高亮伸出并驱动导体棒滑行）
     this.leftForceMat = new THREE.MeshStandardMaterial({
@@ -485,6 +500,8 @@ export class HandRulesBenchMesh {
 
     this.leftRodGroup.position.set(0, 0.208, -0.01);
     this.leftRuleGroup.add(this.leftRodGroup);
+    // 绕竖直轴转 90°，导体棒横在操作者面前（世界 X），滑行变为靠近/远离（世界 Z）。
+    this.leftRuleGroup.rotation.y = -Math.PI / 2;
 
     this.group.add(this.leftRuleGroup);
   }
@@ -540,7 +557,7 @@ export class HandRulesBenchMesh {
     }
 
     // 3) 上下平行金属导轨（沿 X 轴延伸，右侧闭合接入精密微安检流计）
-    const railGeo = createTurnedConductorGeometry(0.36, 0.0052);
+    const railGeo = createGuideShaftGeometry(0.36, 0.0052);
     railGeo.rotateZ(Math.PI / 2);
     const bottomRail = new THREE.Mesh(railGeo, this.liquidChromeMat);
     bottomRail.position.set(-0.04, 0.115, 0);
@@ -603,10 +620,24 @@ export class HandRulesBenchMesh {
     galvoGroup.add(beaconRing);
     this.rightRuleGroup.add(galvoGroup);
 
-    // 5) 沿水平导轨持续做切割磁感线运动的竖直紫铜导体棒
-    const vRodGeo = createTurnedConductorGeometry(0.215, 0.0095);
-    const vRodMesh = new THREE.Mesh(vRodGeo, this.pureCopperMat);
+    // 5) 上下导轨之间的竖直铜质导体棒，两端黄铜触环搭在导轨上
+    const vRodGeo = createConductorRodGeometry(0.248, 0.0096);
+    const vRodMesh = new THREE.Mesh(vRodGeo, this.rodCopper);
+    vRodMesh.castShadow = true;
+    vRodMesh.name = 'RightConductorRod';
     this.rightRodGroup.add(vRodMesh);
+
+    const rightCollar = createContactCollar(0.0096, 0.016);
+    for (const y of [-0.105, 0.105]) {
+      const shoe = new THREE.Mesh(rightCollar, this.contactBrass);
+      shoe.position.y = y;
+      shoe.castShadow = true;
+      this.rightRodGroup.add(shoe);
+    }
+
+    this.rightCurrent = new AxialChargeFlow({ travel: 0.14, axis: 'y', radial: 0.0109 });
+    this.rightCurrent.setFlowVisible(false);
+    this.rightRodGroup.add(this.rightCurrent.group);
 
     // 已知切割运动速度方向 v 的发光紫晶箭头（水平向右 +X 或向左 -X）
     this.rightMotionArrow = new THREE.Group();
@@ -636,14 +667,6 @@ export class HandRulesBenchMesh {
     this.rightInducedArrow.add(indArrowMesh);
     this.rightInducedArrow.position.set(-0.028, 0, 0.018);
     this.rightRodGroup.add(this.rightInducedArrow);
-
-    const indPulseGeo = new THREE.TorusGeometry(0.013, 0.0024, 12, 24);
-    for (let i = 0; i < 3; i++) {
-      const pRing = new THREE.Mesh(indPulseGeo, this.rightInducedMat);
-      pRing.rotation.x = Math.PI / 2;
-      this.rightInducedPulses.push(pRing);
-      this.rightRodGroup.add(pRing);
-    }
 
     this.rightRodGroup.position.set(-0.04, 0.22, 0);
     this.rightRuleGroup.add(this.rightRodGroup);
@@ -763,15 +786,10 @@ export class HandRulesBenchMesh {
     const iz = -config.currentPolarity; // +1 时向里 (-Z)，-1 时向外 (+Z)
     _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(0, 0, iz));
     this.leftCurrentArrow.quaternion.copy(_QUAT);
+    this.leftCurrent.update(dt, iz);
 
-    for (let i = 0; i < this.leftCurrentPulses.length; i++) {
-      const phase = ((this.animClock * 0.9 * iz + i / this.leftCurrentPulses.length) % 1 + 1) % 1;
-      const zPos = -0.075 + phase * 0.15;
-      this.leftCurrentPulses[i].position.set(0, 0, zPos);
-    }
-
-    // 3) 所求的安培力方向 F (沿导轨 +X 向右 或 -X 向左)
-    const fx = evaluation.targetVectorDir.x >= 0 ? 1 : -1;
+    // 3) 所求的安培力方向 F。装置已转 90°，局部 +X 对应世界 +Z（朝向操作者）。
+    const fx = evaluation.targetVectorDir.z >= 0 ? 1 : -1;
     _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(fx, 0, 0));
     this.leftForceArrow.quaternion.copy(_QUAT);
     this.leftForceArrow.position.set(fx * 0.078, 0, 0.01);
@@ -801,7 +819,8 @@ export class HandRulesBenchMesh {
     }
 
     this.leftRodGroup.position.x = this.leftRodDisplacementX;
-    this.targetZoneGroup.position.x = this.leftRodDisplacementX * 0.5;
+    this.targetZoneGroup.position.x = 0;
+    this.targetZoneGroup.position.z = 0.02 + this.leftRodDisplacementX;
   }
 
   private updateRightHandRule(
@@ -835,13 +854,8 @@ export class HandRulesBenchMesh {
       ? 0.96
       : 0.10 + evaluation.alignmentScore * 0.45;
     this.rightInducedMat.opacity += (targetIndOpacity - this.rightInducedMat.opacity) * Math.min(1, dt * 8);
-
-    for (let i = 0; i < this.rightInducedPulses.length; i++) {
-      const phase = ((this.animClock * 1.15 * indY + i / this.rightInducedPulses.length) % 1 + 1) % 1;
-      const yPos = -0.085 + phase * 0.17;
-      this.rightInducedPulses[i].position.set(0, yPos, 0);
-      this.rightInducedPulses[i].visible = evaluation.isMatched || evaluation.alignmentScore > 0.35;
-    }
+    this.rightCurrent.update(dt, indY);
+    this.rightCurrent.setFlowVisible(evaluation.isMatched || evaluation.alignmentScore > 0.35);
 
     // 4) 检流计指针偏转与发光反馈
     const targetNeedleAngle = evaluation.isMatched ? -indY * 0.62 : -indY * evaluation.alignmentScore * 0.18;

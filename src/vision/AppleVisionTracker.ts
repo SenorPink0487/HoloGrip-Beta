@@ -56,9 +56,18 @@ export class AppleVisionTracker {
 
     const platform = PlatformBridge.getInstance().info;
     const isTauri = platform.isTauri || '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
-    const isApplePlatform = platform.os === 'ipados' || platform.os === 'ios' || platform.os === 'macos';
+    if (!isTauri) return false;
 
-    return isTauri && isApplePlatform;
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+    const maxTouchPoints = typeof navigator !== 'undefined' ? navigator.maxTouchPoints || 0 : 0;
+    const isAppleUA = /iPad|iPhone|iPod|Macintosh/i.test(ua) || maxTouchPoints > 1;
+    const isApplePlatform =
+      platform.os === 'ipados' ||
+      platform.os === 'ios' ||
+      platform.os === 'macos' ||
+      isAppleUA;
+
+    return isApplePlatform;
   }
 
   /**
@@ -143,10 +152,17 @@ export class AppleVisionTracker {
       this.isRunning = Boolean(success);
       return this.isRunning;
     } catch (err) {
-      console.warn('[AppleVisionTracker] Failed to start native Apple Vision via Tauri invoke:', err);
-      // 若处于原生环境即便 invoke 失败也开启接收等待
-      this.isRunning = true;
-      return true;
+      console.warn('[AppleVisionTracker] Failed to start native Apple Vision via Tauri command, trying plugin fallback:', err);
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const res: any = await invoke('plugin:apple-vision|start');
+        this.isRunning = Boolean(res?.success);
+        return this.isRunning;
+      } catch (pluginErr) {
+        console.error('[AppleVisionTracker] Native Apple Vision failed to start:', pluginErr);
+        this.isRunning = false;
+        return false;
+      }
     }
   }
 
@@ -155,6 +171,7 @@ export class AppleVisionTracker {
    */
   public async stop(): Promise<boolean> {
     this.isRunning = false;
+    this.lastFrameImage = null;
 
     if (typeof window !== 'undefined' && (window as any).__hologrip_mock_apple_vision) {
       return true;

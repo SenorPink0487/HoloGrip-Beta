@@ -7,6 +7,7 @@ import Tauri
 @objc(AppleVisionPlugin)
 public class AppleVisionPlugin: Plugin {
     public static var shared: AppleVisionPlugin?
+    private weak var attachedWebView: WKWebView?
 
     public override init() {
         super.init()
@@ -14,13 +15,18 @@ public class AppleVisionPlugin: Plugin {
     }
 
     @objc open override func load(webview: WKWebView) {
+        self.attachedWebView = webview
         AppleVisionHandManager.shared.attachWebView(webview)
         NSLog("[AppleVisionPlugin] Loaded and attached webview.")
     }
 
     @objc public func start(_ invoke: Invoke) {
-        let success = AppleVisionHandManager.shared.start()
-        invoke.resolve(["success": success])
+        if let webview = self.attachedWebView {
+            AppleVisionHandManager.shared.attachWebView(webview)
+        }
+        AppleVisionHandManager.shared.startWithCompletion { success in
+            invoke.resolve(["success": success])
+        }
     }
 
     @objc public func stop(_ invoke: Invoke) {
@@ -34,8 +40,10 @@ public class AppleVisionPlugin: Plugin {
 
     @objc public func getStatus(_ invoke: Invoke) {
         let supported = AppleVisionHandManager.shared.isSupported()
+        let running = AppleVisionHandManager.shared.getIsRunning()
         invoke.resolve([
             "supported": supported,
+            "running": running,
             "backend": "Apple Vision Framework (ANE Native)"
         ])
     }

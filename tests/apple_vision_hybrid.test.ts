@@ -255,6 +255,77 @@ await (async () => {
   console.log('✓ Test 6 passed: Right Hand anatomical mapping & camera preview image verified\n');
 })();
 
+// Test 7: iPad Camera Permission & Native Start Failure Error Propagation + Duplicate-Singleton Guard
+await (async () => {
+  console.log('Test 7: iPad Camera Permission & Native Start Failure Error Propagation + Build Guard');
+
+  // 7a. 验证原生 Swift 与 build.rs 的防分裂单例保护、权限请求与安全帧率钳制
+  const swiftManagerPath = path.join(rootDir, 'src-tauri/native_ios/AppleVisionHandManager.swift');
+  const buildRsPath = path.join(rootDir, 'src-tauri/build.rs');
+  const duplicateGenSwiftPath = path.join(
+    rootDir,
+    'src-tauri/gen/apple/Sources/virtuallab/AppleVisionHandManager.swift'
+  );
+
+  assert.strictEqual(
+    fs.existsSync(duplicateGenSwiftPath),
+    false,
+    'Duplicate AppleVisionHandManager.swift must NOT exist in gen/apple/Sources/virtuallab'
+  );
+
+  const buildRsCode = fs.readFileSync(buildRsPath, 'utf-8');
+  assert(
+    buildRsCode.includes('gen/apple/Sources/virtuallab/AppleVisionHandManager.swift'),
+    'build.rs must guard against duplicate AppleVisionHandManager.swift'
+  );
+
+  const swiftCode = fs.readFileSync(swiftManagerPath, 'utf-8');
+  assert(
+    swiftCode.includes('AVCaptureDevice.requestAccess(for: .video)'),
+    'Must explicitly request iPadOS/iOS camera access when authorizationStatus is .notDetermined'
+  );
+  assert(
+    swiftCode.includes('hologrip_apple_vision_start_async'),
+    'Must export async C FFI start symbol returning actual permission & session start status'
+  );
+  assert(
+    swiftCode.includes('CMTimeCompare(targetDuration, chosenRange.minFrameDuration)'),
+    'Must clamp 60 FPS frame duration within chosenRange.[minFrameDuration, maxFrameDuration]'
+  );
+  assert(
+    swiftCode.includes('resolveActiveWebViewOnMain'),
+    'Must provide automatic WKWebView discovery fallback from active UIWindowScene'
+  );
+  assert(
+    !swiftCode.includes('DispatchQueue.main.sync'),
+    'Must NEVER call DispatchQueue.main.sync from sessionQueue (deadlock prevention)'
+  );
+
+  // 7b. 验证当原生相机权限被拒绝或启动返回 false 时，HandGestureService 严禁伪造 running 状态
+  (globalThis as any).__hologrip_mock_apple_vision = true;
+  const service = new HandGestureService({ mirrorX: true });
+  await service.init();
+  assert.strictEqual(service.isAppleVision(), true);
+
+  // 模拟原生启动返回 false（如用户在 iPad 上拒绝相机权限）
+  const tracker = service.getAppleVisionTracker();
+  tracker.start = async () => false;
+
+  let threwError = false;
+  try {
+    await service.start();
+  } catch (_err) {
+    threwError = true;
+  }
+
+  assert.strictEqual(threwError, true, 'HandGestureService.start() must throw when native Apple Vision start fails');
+  assert.strictEqual(service.getStatus(), 'error', 'Service status must transition to error, NEVER fake running');
+
+  service.destroy();
+  delete (globalThis as any).__hologrip_mock_apple_vision;
+  console.log('✓ Test 7 passed: Permission error propagation & anti-duplicate-singleton guard verified\n');
+})();
+
 console.log('========================================================');
-console.log('All Apple Vision Hybrid Architecture Tests Passed Successfully (6/6)!');
+console.log('All Apple Vision Hybrid Architecture Tests Passed Successfully (7/7)!');
 console.log('========================================================\n');

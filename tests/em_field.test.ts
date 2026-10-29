@@ -16,6 +16,7 @@ import {
   type Vector3D,
 } from '../src/physics/em/electrostatic.ts';
 import { FieldBenchMesh } from '../src/scene/em/FieldBenchMesh.ts';
+import { buildGaussianSurfaces, gaussianFlux, traceEquipotentialSurfaces } from '../src/physics/em/fieldSurfaces.ts';
 import EmFieldExperiment from '../src/experiments/catalog/em-field/index.ts';
 import { FieldStatusCard, type FieldCommand } from '../src/ui/vision/FieldStatusCard.ts';
 import { PhysicsDisciplineModal } from '../src/ui/vision/PhysicsDisciplineModal.ts';
@@ -845,6 +846,113 @@ console.log('Test 13: Multi-Charge Superposition Complete Field Line Rendering &
   console.log('✓ Test 13 passed: Multi-charge superposition field lines fully displayed with no truncation');
 }
 
+// ================= Test 14: Gaussian surfaces & equipotential shells =================
+console.log('Test 14: Gaussian surfaces and equipotential shells');
+{
+  assert.deepStrictEqual(buildGaussianSurfaces([]), [], 'No charges yields no Gaussian surfaces');
+  assert.deepStrictEqual(traceEquipotentialSurfaces([]), [], 'No charges yields no equipotentials');
+
+  const single: PointCharge[] = [{ id: 'q1', x: 0, y: 0, z: 0, q: 2 }];
+  const singleGauss = buildGaussianSurfaces(single);
+  assert.strictEqual(singleGauss.length, 1);
+  assert.strictEqual(singleGauss[0].center.x, 0);
+  assert.ok(singleGauss[0].radius > 0.18 && singleGauss[0].radius < 0.3, 'Isolated Gaussian radius stays readable');
+  const expectedFlux = gaussianFlux(2);
+  assert.ok(Math.abs(singleGauss[0].flux - expectedFlux) / expectedFlux < 1e-9, 'Φ = Q/ε₀');
+
+  const dipoleGauss = buildGaussianSurfaces(FIELD_PRESETS.dipole.charges);
+  assert.strictEqual(dipoleGauss.length, 2);
+  assert.ok(dipoleGauss[0].flux * dipoleGauss[1].flux < 0, 'Opposite charges have opposite flux');
+  const separation = Math.hypot(
+    dipoleGauss[0].center.x - dipoleGauss[1].center.x,
+    dipoleGauss[0].center.y - dipoleGauss[1].center.y,
+    dipoleGauss[0].center.z - dipoleGauss[1].center.z,
+  );
+  assert.ok(
+    separation > dipoleGauss[0].radius + dipoleGauss[1].radius - 1e-6,
+    'Neighboring Gaussian spheres must not intersect',
+  );
+
+  const shells = traceEquipotentialSurfaces(single);
+  assert.ok(shells.length >= 2, 'A point charge produces nested equipotential shells');
+  for (const shell of shells) {
+    assert.ok(shell.potential > 0, 'Positive charge equipotentials are positive');
+    assert.strictEqual(shell.normals.length, shell.positions.length);
+    let sum = 0;
+    let sumSq = 0;
+    let count = 0;
+    for (let i = 0; i < shell.positions.length; i += 3) {
+      const radius = Math.hypot(shell.positions[i], shell.positions[i + 1], shell.positions[i + 2]);
+      sum += radius;
+      sumSq += radius * radius;
+      count++;
+    }
+    assert.ok(count > 80, 'Equipotential shell is a resolved surface');
+    const mean = sum / count;
+    const std = Math.sqrt(Math.max(0, sumSq / count - mean * mean));
+    const sampled = potentialAt({ x: mean, y: 0, z: 0 }, single);
+    assert.ok(
+      Math.abs(sampled - shell.potential) / shell.potential < 0.08,
+      `Shell potential matches V(r): ${sampled} vs ${shell.potential}`,
+    );
+    assert.ok(std < 0.02, `Equipotential of a point charge is spherical, std=${std}`);
+  }
+
+  const dipoleShells = traceEquipotentialSurfaces(FIELD_PRESETS.dipole.charges);
+  const zero = dipoleShells.find((shell) => Math.abs(shell.potential) < 1);
+  assert.ok(zero, 'A dipole includes the V = 0 midplane');
+  assert.ok(dipoleShells.some((shell) => shell.potential > 1000));
+  assert.ok(dipoleShells.some((shell) => shell.potential < -1000));
+  let absX = 0;
+  let zeroCount = 0;
+  for (let i = 0; i < zero.positions.length; i += 3) {
+    absX += Math.abs(zero.positions[i]);
+    zeroCount++;
+  }
+  assert.ok(absX / zeroCount < 0.03, 'Dipole zero equipotential lies on the perpendicular bisector');
+
+  const started = performance.now();
+  traceEquipotentialSurfaces(FIELD_PRESETS.quadrupole.charges);
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed < 280, `Equipotential extraction too slow: ${elapsed.toFixed(1)} ms`);
+
+  const commands: FieldCommand[] = [];
+  const card = new FieldStatusCard((cmd) => commands.push(cmd));
+  card.element.querySelector('#field-btn-gaussian').dispatchEvent({ type: 'click' });
+  assert.strictEqual(commands[commands.length - 1].type, 'toggleGaussian');
+  assert.strictEqual((commands[commands.length - 1] as { show: boolean }).show, true);
+  card.element.querySelector('#field-btn-gaussian').dispatchEvent({ type: 'click' });
+  assert.strictEqual((commands[commands.length - 1] as { show: boolean }).show, false);
+  card.element.querySelector('#field-btn-equipotential').dispatchEvent({ type: 'click' });
+  assert.strictEqual(commands[commands.length - 1].type, 'toggleEquipotential');
+  assert.strictEqual((commands[commands.length - 1] as { show: boolean }).show, true);
+  assert.ok(card.element.innerHTML.includes('显示高斯面'));
+  assert.ok(card.element.innerHTML.includes('显示等势面'));
+  assert.strictEqual(card.element.innerHTML.includes('field-toggle-lines'), false);
+
+  const exp = new EmFieldExperiment();
+  exp.init(ctx);
+  exp.setShowGaussian(true);
+  exp.setShowEquipotential(true);
+  const telem = exp.getTelemetry();
+  assert.ok(Math.abs(telem.gaussianFlux ?? 0) > 1, 'Selected Gaussian flux is reported');
+  assert.ok((telem.gaussianRadius ?? 0) > 0.05, 'Selected Gaussian radius is reported');
+  assert.ok((telem.equipotentialCount ?? 0) >= 3, 'Dipole exposes positive, negative, and zero equipotentials');
+  assert.strictEqual(telem.equipotentialHasZero, true);
+  const bench = (exp as any).bench as FieldBenchMesh;
+  assert.strictEqual(bench.gaussianGroup.visible, true, 'Gaussian group is shown');
+  assert.ok(bench.gaussianGroup.children.length >= 2, 'Each dipole charge has a Gaussian surface');
+  assert.strictEqual(bench.equipotentialGroup.visible, true, 'Equipotential group is shown');
+  assert.ok(bench.equipotentialGroup.children.length >= 3, 'Equipotential shells are meshed');
+  exp.setShowGaussian(false);
+  exp.setShowEquipotential(false);
+  assert.strictEqual(bench.gaussianGroup.visible, false);
+  assert.strictEqual(bench.equipotentialGroup.visible, false);
+  exp.dispose(ctx);
+
+  console.log('✓ Test 14 passed: Gaussian surfaces and equipotential shells verified');
+}
+
 console.log('\n========================================================');
-console.log('All Electrostatic Field Exploration Tests Passed (13/13)!');
+console.log('All Electrostatic Field Exploration Tests Passed (14/14)!');
 console.log('========================================================\n');

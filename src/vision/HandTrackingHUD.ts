@@ -48,6 +48,14 @@ export class HandTrackingHUD {
   private cachedRatioTxt = '';
   private cachedFps = '';
   private cachedLatency = '';
+  private cachedBackendTag = '';
+  private isStarting = false;
+  // 双缓冲异步帧解码：front 引用 (readyNativePreviewImage) 始终保持上一帧已完全解码的就绪位图，
+  // 后台新 Image 完成 decode() 后再原子替换，彻底消除重设同一 img.src 导致的黑帧高频闪烁
+  private readyNativePreviewImage: HTMLImageElement | null = null;
+  private decodingNativeImageSrc = '';
+  private queuedNativeImageSrc = '';
+  private lastDecodedNativeImageSrc = '';
   private prevHandLandmarks: Map<string, { lms: NormalizedLandmark[]; timestamp: number }> = new Map();
   private targetHandLandmarks: Map<string, NormalizedLandmark[]> = new Map();
   private smoothedHandLandmarks: Map<string, NormalizedLandmark[]> = new Map();
@@ -602,6 +610,10 @@ export class HandTrackingHUD {
         height: 100%;
         object-fit: cover;
         display: block;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
       }
 
       /* 底部状态区域：双卡片 + 遥测底栏 */
@@ -1102,19 +1114,73 @@ export class HandTrackingHUD {
   private bindEvents(): void {
     const toggleBtn = this.pillEl.querySelector('.vp-pill-toggle-btn') as HTMLButtonElement;
     const camBtn = this.pillEl.querySelector('.vp-pill-cam-btn') as HTMLButtonElement;
+    const pillTitle = this.pillEl.querySelector('.vp-pill-title') as HTMLElement | null;
+    const pillDot = this.pillEl.querySelector('.vp-pill-status-dot') as HTMLElement | null;
     const fsBtn = this.previewModalEl.querySelector('.vp-modal-fullscreen-btn') as HTMLButtonElement;
     const closeBtn = this.previewModalEl.querySelector('.vp-modal-close-btn') as HTMLButtonElement;
     const headerEl = this.previewModalEl.querySelector('.vp-modal-header') as HTMLElement;
 
-    toggleBtn.addEventListener('click', async () => {
+    // 阻止触摸事件穿透至 3D 场景视角旋转层，确保 iPad 上点击胶囊区域 100% 灵敏响应
+    this.pillEl.addEventListener('touchstart', (e) => {
+      e.stopPropagation();
+    });
+    this.previewModalEl.addEventListener('touchstart', (e) => {
+      e.stopPropagation();
+    });
+
+    let lastToggleTouchAt = 0;
+    const handleToggleAction = async () => {
+      if (this.isStarting) return;
       if (this.isEnabled) {
         this.disable();
       } else {
         await this.enable();
       }
+    };
+
+    toggleBtn.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      lastToggleTouchAt = Date.now();
+      void handleToggleAction();
     });
 
-    camBtn.addEventListener('click', () => {
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (Date.now() - lastToggleTouchAt < 450) return;
+      void handleToggleAction();
+    });
+
+    // 允许点击胶囊左侧“手势交互”文本或状态指示圆点直接切换手势开关（扩大 iPad 触控热区）
+    const bindPillLabelTap = (el: HTMLElement | null) => {
+      if (!el) return;
+      el.style.cursor = 'pointer';
+      el.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        lastToggleTouchAt = Date.now();
+        void handleToggleAction();
+      });
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (Date.now() - lastToggleTouchAt < 450) return;
+        void handleToggleAction();
+      });
+    };
+    bindPillLabelTap(pillTitle);
+    bindPillLabelTap(pillDot);
+
+    let lastCamTouchAt = 0;
+    camBtn.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      lastCamTouchAt = Date.now();
+      this.togglePreview();
+    });
+
+    camBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (Date.now() - lastCamTouchAt < 450) return;
       this.togglePreview();
     });
 
@@ -1158,9 +1224,11 @@ export class HandTrackingHUD {
   }
 
   public async enable(): Promise<void> {
+    if (this.isStarting) return;
     const toggleBtn = this.pillEl.querySelector('.vp-pill-toggle-btn') as HTMLButtonElement;
     const dot = this.pillEl.querySelector('.vp-pill-status-dot') as HTMLElement;
 
+    this.isStarting = true;
     try {
       dot.className = 'vp-pill-status-dot loading';
       toggleBtn.textContent = '启动中...';
@@ -1180,6 +1248,8 @@ export class HandTrackingHUD {
       toggleBtn.textContent = '重试';
       toggleBtn.classList.remove('active');
       this.isEnabled = false;
+    } finally {
+      this.isStarting = false;
     }
   }
 
@@ -1188,6 +1258,7 @@ export class HandTrackingHUD {
     const dot = this.pillEl.querySelector('.vp-pill-status-dot') as HTMLElement;
 
     this.stopPreviewRenderLoop();
+    this.resetNativePreviewBuffer();
     this.service.stop();
     this.isEnabled = false;
     toggleBtn.textContent = '开启';
@@ -1196,12 +1267,88 @@ export class HandTrackingHUD {
     this.pillEl.classList.remove('is-active');
   }
 
+  private resetNativePreviewBuffer(): void {
+    this.readyNativePreviewImage = null;
+    this.decodingNativeImageSrc = '';
+    this.queuedNativeImageSrc = '';
+    this.lastDecodedNativeImageSrc = '';
+  }
+
+  /**
+   * 后台双缓冲异步解码原生 JPEG 帧：绝不直接覆盖正在屏幕上渲染的 HTMLImageElement.src，
+   * 仅在新 Image 离屏解码 100% 完成后原子交换 readyNativePreviewImage，彻底消除 20~30Hz 闪烁。
+   */
+  private scheduleNativePreviewDecode(src: string): void {
+    if (!src || this.isDestroyed) return;
+    if (src === this.lastDecodedNativeImageSrc || src === this.decodingNativeImageSrc) {
+      return;
+    }
+    if (this.decodingNativeImageSrc !== '') {
+      // 合并中间帧，仅保留最新到达的一帧，零队列积压
+      this.queuedNativeImageSrc = src;
+      return;
+    }
+    if (typeof Image === 'undefined') return;
+
+    this.decodingNativeImageSrc = src;
+    const stagingImg = new Image();
+    stagingImg.decoding = 'async';
+
+    let settled = false;
+    const finalize = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+
+      if (ok && !this.isDestroyed && stagingImg.naturalWidth > 0) {
+        this.readyNativePreviewImage = stagingImg;
+        this.lastDecodedNativeImageSrc = src;
+      }
+      this.decodingNativeImageSrc = '';
+
+      if (
+        !this.isDestroyed &&
+        this.queuedNativeImageSrc &&
+        this.queuedNativeImageSrc !== this.lastDecodedNativeImageSrc
+      ) {
+        const nextSrc = this.queuedNativeImageSrc;
+        this.queuedNativeImageSrc = '';
+        this.scheduleNativePreviewDecode(nextSrc);
+      } else {
+        this.queuedNativeImageSrc = '';
+      }
+    };
+
+    const onLoaded = () => {
+      if (settled) return;
+      if (typeof stagingImg.decode === 'function') {
+        stagingImg.decode().then(
+          () => finalize(true),
+          () => finalize(stagingImg.naturalWidth > 0)
+        );
+      } else {
+        finalize(true);
+      }
+    };
+
+    stagingImg.onload = onLoaded;
+    stagingImg.onerror = () => finalize(false);
+    stagingImg.src = src;
+
+    if (stagingImg.complete && stagingImg.naturalWidth > 0) {
+      onLoaded();
+    }
+  }
+
   public togglePreview(forceOpen?: boolean): void {
     this.isPreviewOpen = forceOpen !== undefined ? forceOpen : !this.isPreviewOpen;
     const camBtn = this.pillEl.querySelector('.vp-pill-cam-btn') as HTMLButtonElement | null;
     if (this.isPreviewOpen) {
       camBtn?.classList.add('active', 'is-open');
       this.previewModalEl.classList.remove('hidden');
+      const latestImg = this.service.getLastFrameImage();
+      if (latestImg) {
+        this.scheduleNativePreviewDecode(latestImg);
+      }
       if (this.isFullscreen) {
         this.updateFullscreenCanvasSize();
       }
@@ -1227,7 +1374,7 @@ export class HandTrackingHUD {
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const dtSec = Math.max(0.001, Math.min(0.05, (now - this.lastPreviewRenderAt) / 1000));
       this.lastPreviewRenderAt = now;
-      if (this.lastFrame) {
+      if (this.lastFrame || this.service.getLastFrameImage()) {
         this.renderPreviewCanvas(this.lastFrame, dtSec);
       }
       this.previewAnimFrameId = requestAnimationFrame(loop);
@@ -1282,8 +1429,19 @@ export class HandTrackingHUD {
   public updateFullscreenCanvasSize(): void {
     if (!this.isFullscreen) return;
     const video = this.service.getVideoElement();
-    const vw = video && video.videoWidth > 0 ? video.videoWidth : 1280;
-    const vh = video && video.videoHeight > 0 ? video.videoHeight : 720;
+    const nativeImg = this.readyNativePreviewImage;
+    const vw =
+      video && video.videoWidth > 0
+        ? video.videoWidth
+        : nativeImg && nativeImg.naturalWidth > 0
+          ? nativeImg.naturalWidth * 2
+          : 1280;
+    const vh =
+      video && video.videoHeight > 0
+        ? video.videoHeight
+        : nativeImg && nativeImg.naturalHeight > 0
+          ? nativeImg.naturalHeight * 2
+          : 720;
     const aspect = vw / vh || 16 / 9;
 
     const wrap = this.previewModalEl.querySelector('.vp-modal-video-wrap') as HTMLElement | null;
@@ -1309,20 +1467,42 @@ export class HandTrackingHUD {
 
   private listenToService(): void {
     const dot = this.pillEl.querySelector('.vp-pill-status-dot') as HTMLElement;
+    const toggleBtn = this.pillEl.querySelector('.vp-pill-toggle-btn') as HTMLButtonElement | null;
     const fpsVal = this.previewModalEl.querySelector('.vp-fps-val') as HTMLElement;
     const latencyVal = this.previewModalEl.querySelector('.vp-latency-val') as HTMLElement;
     const delegateVal = this.previewModalEl.querySelector('.vp-delegate-val') as HTMLElement | null;
+    const offlineTag = this.previewModalEl.querySelector('.vp-offline-tag') as HTMLElement | null;
     const ratioVal = this.previewModalEl.querySelector('.vp-ratio-val') as HTMLElement | null;
 
     this.service.onStatusChange((telemetry: TrackerTelemetry) => {
       if (telemetry.status === 'running') {
         dot.className = 'vp-pill-status-dot active';
+        this.isEnabled = true;
+        this.pillEl.classList.add('is-active');
+        if (toggleBtn) {
+          toggleBtn.textContent = '关闭';
+          toggleBtn.classList.add('active');
+        }
       } else if (telemetry.status === 'loading') {
         dot.className = 'vp-pill-status-dot loading';
       } else if (telemetry.status === 'error') {
         dot.className = 'vp-pill-status-dot error';
+        this.isEnabled = false;
+        this.pillEl.classList.remove('is-active');
+        if (toggleBtn) {
+          toggleBtn.textContent = '重试';
+          toggleBtn.classList.remove('active');
+        }
       } else {
         dot.className = 'vp-pill-status-dot';
+        if (!this.isStarting) {
+          this.isEnabled = false;
+          this.pillEl.classList.remove('is-active');
+          if (toggleBtn) {
+            toggleBtn.textContent = '开启';
+            toggleBtn.classList.remove('active');
+          }
+        }
       }
 
       const fpsStr = `${telemetry.fps} FPS`;
@@ -1337,11 +1517,33 @@ export class HandTrackingHUD {
         latencyVal.textContent = latStr;
       }
 
+      const isAppleVision = Boolean(telemetry.isAppleVision || telemetry.delegate === 'Apple Vision (ANE)');
+      if (offlineTag) {
+        const tagKey = isAppleVision ? 'apple-vision' : 'mediapipe';
+        if (this.cachedBackendTag !== tagKey) {
+          this.cachedBackendTag = tagKey;
+          offlineTag.innerHTML = isAppleVision
+            ? '<span class="vp-tag-dot"></span>Apple Vision ANE'
+            : '<span class="vp-tag-dot"></span>离线 MediaPipe';
+        }
+      }
+
       if (delegateVal && telemetry.delegate) {
-        const delText = telemetry.delegate === 'GPU' ? 'GPU' : telemetry.delegate === 'CPU' ? 'CPU (降级)' : '-';
+        const delText = isAppleVision
+          ? 'ANE'
+          : telemetry.delegate === 'GPU'
+            ? 'GPU'
+            : telemetry.delegate === 'CPU'
+              ? 'CPU (降级)'
+              : '-';
         if (delegateVal.textContent !== delText) {
           delegateVal.textContent = delText;
-          delegateVal.style.color = telemetry.delegate === 'GPU' ? '#30d158' : telemetry.delegate === 'CPU' ? '#ff9f0a' : 'inherit';
+          delegateVal.style.color =
+            isAppleVision || telemetry.delegate === 'GPU'
+              ? '#30d158'
+              : telemetry.delegate === 'CPU'
+                ? '#ff9f0a'
+                : 'inherit';
         }
       }
     });
@@ -1429,6 +1631,10 @@ export class HandTrackingHUD {
       }
 
       if (this.isPreviewOpen) {
+        const latestImg = this.service.getLastFrameImage();
+        if (latestImg) {
+          this.scheduleNativePreviewDecode(latestImg);
+        }
         this.startPreviewRenderLoop();
         if (this.previewAnimFrameId === null) {
           this.renderPreviewCanvas(frame, 0);
@@ -1442,19 +1648,30 @@ export class HandTrackingHUD {
    * 结合前向速度外推算法与 60 FPS 指数阻尼平滑插值（Lerp），使 20 FPS 的骨骼关键点
    * 在 60 FPS 画布上呈现丝滑跟手效果，并通过批量批处理 Canvas2D 绘制调用实现极致高帧率。
    */
-  private renderPreviewCanvas(frame: HandGestureFrame, dtSec = 0): void {
+  private renderPreviewCanvas(frame: HandGestureFrame | null, dtSec = 0): void {
     const video = this.service.getVideoElement();
+    const nativeFrameSrc = this.service.getLastFrameImage();
     const ctx = this.previewCtx;
     const w = this.previewCanvas.width;
     const h = this.previewCanvas.height;
 
-    ctx.clearRect(0, 0, w, h);
+    if (nativeFrameSrc) {
+      this.scheduleNativePreviewDecode(nativeFrameSrc);
+    }
 
+    // 注意：此处严禁预先调用 clearRect 将画布清空为透明通道！
+    // 每个分支均全屏不透明覆盖绘制 (0, 0, w, h)，避免 WebKit 合成器与毛玻璃背景层发生半透明闪动。
     if (video && video.readyState >= 2) {
       ctx.save();
       ctx.translate(w, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, w, h);
+      ctx.restore();
+    } else if (this.readyNativePreviewImage && this.readyNativePreviewImage.naturalWidth > 0) {
+      ctx.save();
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(this.readyNativePreviewImage, 0, 0, w, h);
       ctx.restore();
     } else {
       ctx.fillStyle = '#0f172a';
@@ -1470,6 +1687,8 @@ export class HandTrackingHUD {
         return;
       }
     }
+
+    if (!frame) return;
 
     const handsToRender: {
       data: SingleHandData;
@@ -1831,6 +2050,7 @@ export class HandTrackingHUD {
   public destroy(): void {
     this.isDestroyed = true;
     this.stopPreviewRenderLoop();
+    this.resetNativePreviewBuffer();
     if (this.bodyObserver) {
       this.bodyObserver.disconnect();
       this.bodyObserver = null;

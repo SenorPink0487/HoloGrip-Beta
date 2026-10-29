@@ -221,12 +221,12 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
 
   const vectors = computeRuleVectors(config);
   assert.strictEqual(vectors.requiredHand, 'left');
-  assert.deepStrictEqual(vectors.targetVectorDir, { x: 1, y: 0, z: 0 });
+  assert.deepStrictEqual(vectors.targetVectorDir, { x: 0, y: 0, z: 1 });
 
   const leftThumbRightFrame = wrapSingleHandFrame(
     'left',
     buildMockLandmarks({
-      thumbDirWorld: { x: 1, y: 0 },
+      thumbDirWorld: { x: 0, y: 0, z: 1 },
       fingersDirWorld: { x: 0, y: 1 },
       curled: false,
     })
@@ -241,7 +241,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   const leftThumbLeftFrame = wrapSingleHandFrame(
     'left',
     buildMockLandmarks({
-      thumbDirWorld: { x: -1, y: 0 },
+      thumbDirWorld: { x: 0, y: 0, z: -1 },
       fingersDirWorld: { x: 0, y: 1 },
       curled: false,
     })
@@ -310,7 +310,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   const frame = wrapSingleHandFrame(
     'left',
     buildMockLandmarks({
-      thumbDirWorld: { x: 1, y: 0 },
+      thumbDirWorld: { x: 0, y: 0, z: 1 },
       fingersDirWorld: { x: 0, y: 1 },
     })
   );

@@ -241,6 +241,137 @@ console.log('=== Starting Active Gesture HUD & MediaPipe Integration Verificatio
   console.log('✓ Test 2 passed: All mediapipe packages, offline models, workers, and services verified\n');
 }
 
+// Test 3: Apple Vision Camera Preview Double-Buffered Async Decode (Zero Dark-Frame Flicker)
+await (async () => {
+  console.log('Test 3: Apple Vision Camera Preview Double-Buffered Async Decode (Zero Flicker)');
+  const { HandTrackingHUD } = await import('../src/vision/HandTrackingHUD.ts');
+
+  // 模拟 WebKit 异步图片解码器：设置 src 后不会立刻 complete，而是等待 decodeResolvers 手动完成解码
+  const pendingDecodes: Array<{ src: string; completeNow: () => void }> = [];
+  class MockWebKitAsyncImage {
+    public decoding = 'async';
+    public complete = false;
+    public naturalWidth = 0;
+    public naturalHeight = 0;
+    public onload: (() => void) | null = null;
+    public onerror: (() => void) | null = null;
+    private _src = '';
+    private _resolveDecode: (() => void) | null = null;
+
+    get src(): string {
+      return this._src;
+    }
+    set src(val: string) {
+      this._src = val;
+      // 模拟 WebKit 行为：每次赋值新 src 时，complete 与 naturalWidth 立即重置为未就绪状态
+      this.complete = false;
+      this.naturalWidth = 0;
+      this.naturalHeight = 0;
+      pendingDecodes.push({
+        src: val,
+        completeNow: () => {
+          this.complete = true;
+          this.naturalWidth = 320;
+          this.naturalHeight = 240;
+          this.onload?.();
+          this._resolveDecode?.();
+        },
+      });
+    }
+
+    decode(): Promise<void> {
+      if (this.complete && this.naturalWidth > 0) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        this._resolveDecode = resolve;
+      });
+    }
+  }
+
+  const prevImage = (globalThis as any).Image;
+  (globalThis as any).Image = MockWebKitAsyncImage;
+
+  let currentNativeSrc: string | null = 'data:image/jpeg;base64,frame1';
+  const mockService: any = {
+    onStatusChange: () => {},
+    onFrame: () => {},
+    getVideoElement: () => null,
+    getLastFrameImage: () => currentNativeSrc,
+    getTelemetry: () => ({ isAppleVision: true, latencyMs: 4.0 }),
+    stop: () => {},
+  };
+
+  const mockParent = new MockElement('DIV');
+  const hud = new HandTrackingHUD(mockService, mockParent as any);
+
+  const drawnImages: string[] = [];
+  let darkFillCountAfterFirstFrame = 0;
+  let firstFrameReady = false;
+
+  (hud as any).previewCanvas.width = 380;
+  (hud as any).previewCanvas.height = 240;
+  (hud as any).previewCtx = {
+    clearRect: () => {},
+    fillRect: () => {
+      if (firstFrameReady) darkFillCountAfterFirstFrame++;
+    },
+    fillText: () => {},
+    translate: () => {},
+    scale: () => {},
+    drawImage: (img: any) => {
+      drawnImages.push(img.src);
+    },
+    save: () => {},
+    restore: () => {},
+    beginPath: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
+    stroke: () => {},
+    arc: () => {},
+    fill: () => {},
+  };
+
+  // 第 1 帧到达并完成异步解码
+  (hud as any).renderPreviewCanvas(null, 0.016);
+  assert.strictEqual(pendingDecodes.length, 1, 'Frame 1 decode scheduled');
+  pendingDecodes.shift()!.completeNow();
+  await Promise.resolve();
+
+  firstFrameReady = true;
+  (hud as any).renderPreviewCanvas(null, 0.016);
+  assert.strictEqual(drawnImages.at(-1), 'data:image/jpeg;base64,frame1', 'Frame 1 rendered cleanly');
+
+  // 第 2 帧到达，此时处于 WebKit 后台异步解码过程中（尚未 complete）：
+  // 连续触发 3 次 60Hz VSync 渲染，必须始终稳定保留绘制 frame1，绝不能闪出任何一次 #0f172a 黑底！
+  currentNativeSrc = 'data:image/jpeg;base64,frame2';
+  (hud as any).renderPreviewCanvas(null, 0.016);
+  (hud as any).renderPreviewCanvas(null, 0.016);
+  (hud as any).renderPreviewCanvas(null, 0.016);
+
+  assert.strictEqual(
+    darkFillCountAfterFirstFrame,
+    0,
+    'ZERO dark background fills allowed while next JPEG frame is decoding asynchronously'
+  );
+  assert.strictEqual(
+    drawnImages.at(-1),
+    'data:image/jpeg;base64,frame1',
+    'Front buffer must continuously display previous ready frame1 during frame2 decode'
+  );
+
+  // 第 2 帧解码完成 -> 下一 VSync 原子无闪烁切换至 frame2
+  assert.strictEqual(pendingDecodes.length, 1, 'Frame 2 decode in flight');
+  pendingDecodes.shift()!.completeNow();
+  await Promise.resolve();
+
+  (hud as any).renderPreviewCanvas(null, 0.016);
+  assert.strictEqual(drawnImages.at(-1), 'data:image/jpeg;base64,frame2', 'Atomically swapped to frame2 once decoded');
+  assert.strictEqual(darkFillCountAfterFirstFrame, 0, 'Still ZERO dark flashes across swap');
+
+  hud.destroy();
+  (globalThis as any).Image = prevImage;
+  console.log('✓ Test 3 passed: Double-buffered async JPEG decode completely eliminates 20-30Hz dark-frame flicker\n');
+})();
+
 console.log('========================================================');
-console.log('All Active Gesture HUD & MediaPipe Tests Passed (2/2)!');
+console.log('All Active Gesture HUD & MediaPipe Tests Passed (3/3)!');
 console.log('========================================================\n');

@@ -687,6 +687,10 @@ export class Engine {
     return id === 'math-stereometry';
   }
 
+  public isCurrentExperimentFreeCursor(): boolean {
+    return this.isFreeCursorExperiment(this.currentExperimentId);
+  }
+
   private initHUD(): void {
     this.currentContext = this.createContext();
     this.hud = new HUD(this.computeBridge, async (id: string) => {
@@ -1006,6 +1010,8 @@ export class Engine {
         else if (cmd.type === 'setPreset') exp.loadPreset?.(cmd.presetKey);
         else if (cmd.type === 'toggleLines') exp.setToggles?.(cmd.show, exp.showFlow);
         else if (cmd.type === 'toggleFlow') exp.setToggles?.(exp.showLines, cmd.show);
+        else if (cmd.type === 'toggleGaussian') exp.setShowGaussian?.(cmd.show);
+        else if (cmd.type === 'toggleEquipotential') exp.setShowEquipotential?.(cmd.show);
         else if (cmd.type === 'setDensity') exp.setDensity?.(cmd.density);
         else if (cmd.type === 'reset') exp.resetGolden?.();
       },
@@ -1447,6 +1453,9 @@ export class Engine {
       this.currentExperimentId = id;
       if (experiment.initialCameraPose && !this.isWhiteboardMode && !this.labEntryActive) {
         this.applyLabEntryPose({ ...experiment.initialCameraPose, fov: this.camera.fov });
+      }
+      if (id === 'em-field') {
+        this.visionModal.fieldCard.resetSurfaceToggles();
       }
       if (id === 'em-hand-rules') {
         const isHandRunning = this.handGestureService?.getStatus() === 'running';

@@ -10,6 +10,8 @@ export type FieldCommand =
   | { type: 'setPreset'; presetKey: string }
   | { type: 'toggleLines'; show: boolean }
   | { type: 'toggleFlow'; show: boolean }
+  | { type: 'toggleGaussian'; show: boolean }
+  | { type: 'toggleEquipotential'; show: boolean }
   | { type: 'setDensity'; density: number }
   | { type: 'reset' };
 
@@ -19,6 +21,8 @@ export class FieldStatusCard {
   private isVisible = false;
   private data: ElectrostaticTelemetry | null = null;
   private activeSliders = new Set<string>();
+  private showGaussian = false;
+  private showEquipotential = false;
 
   constructor(onCommand: (cmd: FieldCommand) => void = () => {}) {
     this.onCommand = onCommand;
@@ -223,6 +227,33 @@ export class FieldStatusCard {
           border-color: rgba(255, 255, 255, 0.32);
           box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
         }
+
+        .apple-toggle-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.35);
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+          flex-shrink: 0;
+        }
+
+        .apple-action-btn.is-on {
+          background: rgba(255, 255, 255, 0.14);
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.28);
+          border-top-color: rgba(255, 255, 255, 0.42);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+        }
+
+        #field-btn-gaussian.is-on .apple-toggle-dot {
+          background: #fb7185;
+          box-shadow: 0 0 8px rgba(251, 113, 133, 0.95);
+        }
+
+        #field-btn-equipotential.is-on .apple-toggle-dot {
+          background: #38bdf8;
+          box-shadow: 0 0 8px rgba(56, 189, 248, 0.95);
+        }
       </style>
 
       <div class="apple-field-panel">
@@ -264,6 +295,17 @@ export class FieldStatusCard {
             </div>
           </div>
 
+          <div class="apple-physics-row" id="field-surface-row" style="display:none">
+            <div class="apple-physics-row-header">
+              <span class="apple-physics-label" id="field-surface-label">高斯通量 Φ</span>
+              <span id="field-surface-value" class="apple-physics-readout">—</span>
+            </div>
+            <div class="apple-physics-scale" style="margin-top: 2px;">
+              <span id="field-surface-meta-left">Φ = Q_enc / ε₀</span>
+              <span id="field-surface-meta-right"></span>
+            </div>
+          </div>
+
           <!-- 选中电荷微调滑块 -->
           <div class="apple-physics-row">
             <div class="apple-physics-row-header">
@@ -277,6 +319,17 @@ export class FieldStatusCard {
               <span>+5.0 µC</span>
             </div>
           </div>
+        </div>
+
+        <div class="apple-actions-row">
+          <button class="apple-action-btn" id="field-btn-gaussian" type="button">
+            <span class="apple-toggle-dot"></span>
+            <span>显示高斯面</span>
+          </button>
+          <button class="apple-action-btn" id="field-btn-equipotential" type="button">
+            <span class="apple-toggle-dot"></span>
+            <span>显示等势面</span>
+          </button>
         </div>
 
         <!-- 操作按钮网格 -->
@@ -373,6 +426,52 @@ export class FieldStatusCard {
             : `受库仑力 F: ${(tc.forceMagnitude * 1e9).toFixed(1)} nN`;
       }
     }
+
+    this.refreshSurfaceReadout();
+  }
+
+  public resetSurfaceToggles(): void {
+    this.showGaussian = false;
+    this.showEquipotential = false;
+    this.element.querySelector('#field-btn-gaussian')?.classList.remove('is-on');
+    this.element.querySelector('#field-btn-equipotential')?.classList.remove('is-on');
+    this.refreshSurfaceReadout();
+  }
+
+  private refreshSurfaceReadout(): void {
+    const row = this.element.querySelector('#field-surface-row') as HTMLElement | null;
+    const label = this.element.querySelector('#field-surface-label');
+    const value = this.element.querySelector('#field-surface-value');
+    const metaLeft = this.element.querySelector('#field-surface-meta-left');
+    const metaRight = this.element.querySelector('#field-surface-meta-right');
+    if (!row) return;
+
+    const visible = this.showGaussian || this.showEquipotential;
+    row.style.display = visible ? '' : 'none';
+    if (!visible || !this.data) return;
+
+    const flux = this.data.gaussianFlux ?? 0;
+    const radius = this.data.gaussianRadius ?? 0;
+    const count = this.data.equipotentialCount ?? 0;
+    const hasZero = Boolean(this.data.equipotentialHasZero);
+    const selected = Boolean(this.data.selectedChargeId);
+
+    if (this.showGaussian) {
+      if (label) label.textContent = selected ? '选中高斯通量 Φ' : '净高斯通量 Φ_net';
+      if (value) value.textContent = formatFlux(flux);
+      if (metaLeft) metaLeft.textContent = radius > 0 ? `R = ${radius.toFixed(2)} m` : '各电荷独立高斯面';
+      if (metaRight) {
+        metaRight.textContent = this.showEquipotential
+          ? `等势面 ${count} 层`
+          : 'Φ = Q_enc / ε₀';
+      }
+      return;
+    }
+
+    if (label) label.textContent = '等势面';
+    if (value) value.textContent = `${count} 层`;
+    if (metaLeft) metaLeft.textContent = hasZero ? '银白面为 V = 0' : '闭合等势壳';
+    if (metaRight) metaRight.textContent = 'V = 常量';
   }
 
   private bind(): void {
@@ -390,6 +489,18 @@ export class FieldStatusCard {
     });
     this.element.querySelector('#field-btn-reset')?.addEventListener('click', () => {
       this.onCommand({ type: 'reset' });
+    });
+    this.element.querySelector('#field-btn-gaussian')?.addEventListener('click', () => {
+      this.showGaussian = !this.showGaussian;
+      this.element.querySelector('#field-btn-gaussian')?.classList.toggle('is-on', this.showGaussian);
+      this.refreshSurfaceReadout();
+      this.onCommand({ type: 'toggleGaussian', show: this.showGaussian });
+    });
+    this.element.querySelector('#field-btn-equipotential')?.addEventListener('click', () => {
+      this.showEquipotential = !this.showEquipotential;
+      this.element.querySelector('#field-btn-equipotential')?.classList.toggle('is-on', this.showEquipotential);
+      this.refreshSurfaceReadout();
+      this.onCommand({ type: 'toggleEquipotential', show: this.showEquipotential });
     });
 
     const slider = this.element.querySelector('#field-charge-slider') as HTMLInputElement | null;
@@ -410,4 +521,20 @@ export class FieldStatusCard {
       });
     }
   }
+}
+
+const SUPERSCRIPT_DIGITS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+
+function formatFlux(value: number): string {
+  if (!Number.isFinite(value) || Math.abs(value) < 1) return '0';
+  const sign = value < 0 ? '-' : '+';
+  const abs = Math.abs(value);
+  const exp = Math.floor(Math.log10(abs));
+  const mantissa = abs / 10 ** exp;
+  const digits = String(Math.abs(exp))
+    .split('')
+    .map((digit) => SUPERSCRIPT_DIGITS[Number(digit)])
+    .join('');
+  const exponent = exp < 0 ? `⁻${digits}` : digits;
+  return `${sign}${mantissa.toFixed(2)}×10${exponent} N·m²/C`;
 }

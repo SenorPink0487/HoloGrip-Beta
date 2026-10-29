@@ -674,14 +674,30 @@ export class HandGestureService {
     }
 
     if (this.isAppleVisionMode) {
+      if (typeof window !== 'undefined' && !(window as any).__hologrip_onAppleVisionFrame) {
+        await this.appleVisionTracker.init((landmarksList, handednessList, timestamp, latencyMs, frameImage) => {
+          this.handleAppleVisionFrame(landmarksList, handednessList, timestamp, latencyMs, frameImage);
+        });
+      }
+      this.status = 'loading';
+      this.notifyStatus();
+
+      const started = await this.appleVisionTracker.start();
+      if (!started) {
+        this.status = 'error';
+        this.errorMessage = '无法启动相机或未授予相机权限，请在系统设置中允许相机访问后重试';
+        this.notifyStatus();
+        throw new Error(this.errorMessage);
+      }
+
       this.status = 'running';
+      this.errorMessage = '';
       this.frameCount = 0;
       this.currentFps = 60;
       this.lastFpsTimestamp = performance.now();
       this.leftTracker.reset();
       this.rightTracker.reset();
       this.notifyStatus();
-      await this.appleVisionTracker.start();
       console.log('[HandGestureService] Apple Vision Native tracking started.');
       return;
     }
@@ -783,9 +799,15 @@ export class HandGestureService {
   public resume(): void {
     if (this.status !== 'paused') return;
     if (this.isAppleVisionMode) {
-      this.appleVisionTracker.start();
       this.status = 'running';
       this.notifyStatus();
+      this.appleVisionTracker.start().then((ok) => {
+        if (!ok && this.status === 'running') {
+          this.status = 'error';
+          this.errorMessage = '无法恢复原生 Apple Vision 相机采集';
+          this.notifyStatus();
+        }
+      });
       return;
     }
     this.status = 'running';

@@ -1,5 +1,7 @@
 import Foundation
 import AVFoundation
+import CoreMedia
+import CoreVideo
 import Vision
 import CoreImage
 import UIKit
@@ -20,6 +22,8 @@ import Tauri
     private let sessionQueue = DispatchQueue(label: "cn.hologrip.appleVisionSessionQueue")
     private let visionQueue = DispatchQueue(label: "cn.hologrip.appleVisionInferenceQueue", qos: .userInteractive)
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    private let orientationLock = NSLock()
+    private var cachedVideoOrientation: AVCaptureVideoOrientation = .landscapeRight
 
     private var isRunning = false
     private var isSetup = false
@@ -63,6 +67,13 @@ import Tauri
 
     private override init() {
         super.init()
+        if Thread.isMainThread {
+            refreshCachedVideoOrientationOnMain()
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.refreshCachedVideoOrientationOnMain()
+            }
+        }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleOrientationDidChange),
@@ -76,8 +87,17 @@ import Tauri
     }
 
     @objc private func handleOrientationDidChange() {
-        sessionQueue.async { [weak self] in
-            self?.updateVideoOrientation()
+        let updateBlock = { [weak self] in
+            guard let self = self else { return }
+            self.refreshCachedVideoOrientationOnMain()
+            self.sessionQueue.async { [weak self] in
+                self?.updateVideoOrientation()
+            }
+        }
+        if Thread.isMainThread {
+            updateBlock()
+        } else {
+            DispatchQueue.main.async(execute: updateBlock)
         }
     }
 
@@ -89,35 +109,184 @@ import Tauri
         return false
     }
 
+    /// 返回当前采集与 Vision 推理管线是否正在运行
+    @objc public func getIsRunning() -> Bool {
+        return isRunning && (captureSession?.isRunning ?? false)
+    }
+
     /// 关联宿主 WKWebView 实例，实现毫秒级直接 JS 管道分发
     @objc public func attachWebView(_ webView: WKWebView) {
         self.webView = webView
+        if Thread.isMainThread {
+            refreshCachedVideoOrientationOnMain()
+        }
         NSLog("[AppleVisionHandManager] Attached WKWebView for direct high-speed JS dispatch.")
     }
 
-    /// 启动原生摄像头采集与 Vision 神经计算管线
-    @objc public func start() -> Bool {
+    /// 当 Plugin.load 时序晚于命令调用或 WebView 重建时，自动从活跃 UIWindowScene 视图树中定位宿主 WKWebView
+    private func resolveActiveWebViewOnMain() -> WKWebView? {
+        if let existing = self.webView {
+            return existing
+        }
+        guard Thread.isMainThread else { return self.webView }
+
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let orderedScenes = scenes.sorted { lhs, rhs in
+            (lhs.activationState == .foregroundActive ? 0 : 1) < (rhs.activationState == .foregroundActive ? 0 : 1)
+        }
+
+        for scene in orderedScenes {
+            let orderedWindows = scene.windows.sorted { lhs, rhs in
+                (lhs.isKeyWindow ? 0 : 1) < (rhs.isKeyWindow ? 0 : 1)
+            }
+            for window in orderedWindows {
+                if let found = findWKWebView(in: window) {
+                    self.webView = found
+                    NSLog("[AppleVisionHandManager] Auto-discovered active WKWebView from UIWindowScene.")
+                    return found
+                }
+            }
+        }
+        return nil
+    }
+
+    private func findWKWebView(in view: UIView) -> WKWebView? {
+        if let wk = view as? WKWebView {
+            return wk
+        }
+        for subview in view.subviews {
+            if let found = findWKWebView(in: subview) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    /// 异步请求/校验相机权限并启动原生 AVCaptureSession + Vision 神经计算管线，回调真实启动结果
+    @objc public func startWithCompletion(_ completion: @escaping (Bool) -> Void) {
+        let callbackLock = NSLock()
+        var didComplete = false
+        let finishOnce: (Bool) -> Void = { success in
+            callbackLock.lock()
+            let alreadyDone = didComplete
+            didComplete = true
+            callbackLock.unlock()
+            if !alreadyDone {
+                completion(success)
+            }
+        }
+
         guard isSupported() else {
             NSLog("[AppleVisionHandManager] Apple Vision hand pose is not supported on this iOS version.")
+            finishOnce(false)
+            return
+        }
+
+        let checkAuthAndStart = { [weak self] in
+            guard let self = self else {
+                finishOnce(false)
+                return
+            }
+            self.refreshCachedVideoOrientationOnMain()
+            _ = self.resolveActiveWebViewOnMain()
+
+            let authStatus = AVCaptureDevice.authorizationStatus(for: .video)
+            switch authStatus {
+            case .authorized:
+                self.startSessionOnQueue(completion: finishOnce)
+
+            case .notDetermined:
+                NSLog("[AppleVisionHandManager] Requesting iPadOS/iOS front camera permission...")
+                AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                    guard let self = self else {
+                        finishOnce(false)
+                        return
+                    }
+                    guard granted else {
+                        NSLog("[AppleVisionHandManager] Camera access denied by user.")
+                        finishOnce(false)
+                        return
+                    }
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else {
+                            finishOnce(false)
+                            return
+                        }
+                        self.refreshCachedVideoOrientationOnMain()
+                        _ = self.resolveActiveWebViewOnMain()
+                        self.startSessionOnQueue(completion: finishOnce)
+                    }
+                }
+
+            case .denied, .restricted:
+                NSLog("[AppleVisionHandManager] Camera access denied or restricted (status=\(authStatus.rawValue)).")
+                finishOnce(false)
+
+            @unknown default:
+                finishOnce(false)
+            }
+        }
+
+        if Thread.isMainThread {
+            checkAuthAndStart()
+        } else {
+            DispatchQueue.main.async(execute: checkAuthAndStart)
+        }
+    }
+
+    private func startSessionOnQueue(completion: @escaping (Bool) -> Void) {
+        sessionQueue.async { [weak self] in
+            guard let self = self else {
+                completion(false)
+                return
+            }
+
+            if let existing = self.captureSession, existing.isRunning {
+                self.updateVideoOrientation()
+                self.isRunning = true
+                completion(true)
+                return
+            }
+
+            if !self.isSetup || self.captureSession == nil {
+                let configured = self.setupCaptureSession()
+                if !configured {
+                    self.isRunning = false
+                    completion(false)
+                    return
+                }
+            }
+
+            guard let session = self.captureSession else {
+                self.isRunning = false
+                completion(false)
+                return
+            }
+
+            self.updateVideoOrientation()
+            if !session.isRunning {
+                session.startRunning()
+            }
+
+            let running = session.isRunning
+            self.isRunning = running
+            if running {
+                NSLog("[AppleVisionHandManager] Native AVCaptureSession & Vision pipeline started.")
+            } else {
+                NSLog("[AppleVisionHandManager] Failed to start AVCaptureSession (isRunning == false).")
+            }
+            completion(running)
+        }
+    }
+
+    /// 兼容同步接口（内部委托给异步权限与会话启动管线）
+    @objc public func start() -> Bool {
+        guard isSupported() else { return false }
+        let authStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        if authStatus == .denied || authStatus == .restricted {
             return false
         }
-
-        if isRunning {
-            return true
-        }
-
-        sessionQueue.async { [weak self] in
-            guard let self = self else { return }
-            if !self.isSetup {
-                self.setupCaptureSession()
-            }
-            if let session = self.captureSession, !session.isRunning {
-                self.updateVideoOrientation()
-                session.startRunning()
-                self.isRunning = true
-                NSLog("[AppleVisionHandManager] Native AVCaptureSession & Vision pipeline started at 60 FPS.")
-            }
-        }
+        startWithCompletion { _ in }
         return true
     }
 
@@ -127,35 +296,41 @@ import Tauri
             guard let self = self else { return }
             if let session = self.captureSession, session.isRunning {
                 session.stopRunning()
-                self.isRunning = false
-                self.previousLandmarks.removeAll()
-                self.lastSeenTimestamp.removeAll()
                 NSLog("[AppleVisionHandManager] Native AVCaptureSession & Vision pipeline stopped.")
             }
+            self.isRunning = false
+            self.previousLandmarks.removeAll()
+            self.lastSeenTimestamp.removeAll()
         }
         return true
     }
 
-    private func setupCaptureSession() {
+    @discardableResult
+    private func setupCaptureSession() -> Bool {
         let session = AVCaptureSession()
         session.beginConfiguration()
 
         if session.canSetSessionPreset(.vga640x480) {
             session.sessionPreset = .vga640x480
+        } else if session.canSetSessionPreset(.hd1280x720) {
+            session.sessionPreset = .hd1280x720
         } else {
             session.sessionPreset = .high
         }
 
+        // 兼容全系列 iPad 前置镜头（含广角镜头、M 系列超广角人物居中横向镜头及原深感镜头）
         let discoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInWideAngleCamera],
+            deviceTypes: [.builtInWideAngleCamera, .builtInUltraWideCamera, .builtInTrueDepthCamera],
             mediaType: .video,
             position: .front
         )
 
-        guard let camera = discoverySession.devices.first else {
-            NSLog("[AppleVisionHandManager] No front camera detected on this Apple device.")
+        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
+            ?? discoverySession.devices.first
+            ?? AVCaptureDevice.default(for: .video) else {
+            NSLog("[AppleVisionHandManager] No camera detected on this Apple device.")
             session.commitConfiguration()
-            return
+            return false
         }
 
         do {
@@ -165,23 +340,12 @@ import Tauri
             } else {
                 NSLog("[AppleVisionHandManager] Failed to add camera input to AVCaptureSession.")
                 session.commitConfiguration()
-                return
+                return false
             }
-
-            try camera.lockForConfiguration()
-            for format in camera.formats {
-                for range in format.videoSupportedFrameRateRanges {
-                    if range.maxFrameRate >= 59.0 {
-                        camera.activeFormat = format
-                        camera.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 60)
-                        camera.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 60)
-                        break
-                    }
-                }
-            }
-            camera.unlockForConfiguration()
         } catch {
-            NSLog("[AppleVisionHandManager] Camera configuration error: \(error.localizedDescription)")
+            NSLog("[AppleVisionHandManager] Failed to create AVCaptureDeviceInput: \(error.localizedDescription)")
+            session.commitConfiguration()
+            return false
         }
 
         let videoOut = AVCaptureVideoDataOutput()
@@ -194,26 +358,103 @@ import Tauri
         if session.canAddOutput(videoOut) {
             session.addOutput(videoOut)
             self.videoOutput = videoOut
+        } else {
+            NSLog("[AppleVisionHandManager] Failed to add AVCaptureVideoDataOutput to AVCaptureSession.")
+            session.commitConfiguration()
+            return false
         }
+
+        // 安全挑选紧凑分辨率（640x480 ~ 1280x720）下的 60 FPS 格式，并严格钳制帧间隔在合法区间内，
+        // 避免误选 4K/12MP 格式或因 59.94fps 区间越界触发 Objective-C NSInvalidArgumentException
+        configureOptimalFrameRate(for: camera)
 
         session.commitConfiguration()
         self.captureSession = session
         self.isSetup = true
         self.updateVideoOrientation()
+        return true
     }
 
-    /// 动态使视频输出方向与当前屏幕 UI 界面方向（横屏/竖屏）严格保持 1:1 一致，彻底消除 90 度旋转偏差
+    private func configureOptimalFrameRate(for camera: AVCaptureDevice) {
+        var bestFormat: AVCaptureDevice.Format?
+        var bestRange: AVFrameRateRange?
+        var bestPixelCount = Int.max
+
+        for format in camera.formats {
+            let desc = format.formatDescription
+            let subType = CMFormatDescriptionGetMediaSubType(desc)
+            let isBiPlanarYuv =
+                subType == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||
+                subType == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+            if !isBiPlanarYuv {
+                continue
+            }
+
+            let dims = CMVideoFormatDescriptionGetDimensions(desc)
+            let width = Int(dims.width)
+            let height = Int(dims.height)
+            guard width >= 640 && width <= 1280 && height >= 480 && height <= 960 else {
+                continue
+            }
+
+            let pixels = width * height
+            for range in format.videoSupportedFrameRateRanges where range.maxFrameRate >= 59.0 {
+                if pixels < bestPixelCount {
+                    bestPixelCount = pixels
+                    bestFormat = format
+                    bestRange = range
+                }
+            }
+        }
+
+        guard let chosenFormat = bestFormat, let chosenRange = bestRange else {
+            return
+        }
+
+        do {
+            try camera.lockForConfiguration()
+            defer { camera.unlockForConfiguration() }
+
+            var targetDuration = CMTime(value: 1, timescale: 60)
+            if CMTimeCompare(targetDuration, chosenRange.minFrameDuration) < 0 {
+                targetDuration = chosenRange.minFrameDuration
+            }
+            if CMTimeCompare(targetDuration, chosenRange.maxFrameDuration) > 0 {
+                targetDuration = chosenRange.maxFrameDuration
+            }
+
+            camera.activeFormat = chosenFormat
+            camera.activeVideoMinFrameDuration = targetDuration
+            camera.activeVideoMaxFrameDuration = targetDuration
+        } catch {
+            NSLog("[AppleVisionHandManager] Optional 60 FPS format lock skipped: \(error.localizedDescription)")
+        }
+    }
+
+    private func refreshCachedVideoOrientationOnMain() {
+        guard Thread.isMainThread else { return }
+        let resolved = currentInterfaceVideoOrientation()
+        orientationLock.lock()
+        cachedVideoOrientation = resolved
+        orientationLock.unlock()
+    }
+
+    /// 动态使视频输出方向与当前屏幕 UI 界面方向（横屏/竖屏）严格保持 1:1 一致，且绝不在 sessionQueue 上同步阻塞主线程
     private func updateVideoOrientation() {
         guard let connection = self.videoOutput?.connection(with: .video),
               connection.isVideoOrientationSupported else { return }
 
-        var targetOrientation: AVCaptureVideoOrientation = .landscapeRight
+        let targetOrientation: AVCaptureVideoOrientation
         if Thread.isMainThread {
-            targetOrientation = currentInterfaceVideoOrientation()
+            let resolved = currentInterfaceVideoOrientation()
+            orientationLock.lock()
+            cachedVideoOrientation = resolved
+            orientationLock.unlock()
+            targetOrientation = resolved
         } else {
-            DispatchQueue.main.sync { [weak self] in
-                targetOrientation = self?.currentInterfaceVideoOrientation() ?? .landscapeRight
-            }
+            orientationLock.lock()
+            targetOrientation = cachedVideoOrientation
+            orientationLock.unlock()
         }
 
         connection.videoOrientation = targetOrientation
@@ -262,7 +503,7 @@ import Tauri
         }
 
         guard let rawObservations = handPoseRequest.results, !rawObservations.isEmpty else {
-            dispatchEmptyFrame(timestamp: now)
+            dispatchEmptyFrame(timestamp: now, pixelBuffer: pixelBuffer)
             return
         }
 
@@ -277,7 +518,7 @@ import Tauri
         }
 
         if parsedHands.isEmpty {
-            dispatchEmptyFrame(timestamp: now)
+            dispatchEmptyFrame(timestamp: now, pixelBuffer: pixelBuffer)
             return
         }
 
@@ -475,15 +716,17 @@ import Tauri
         let height = CVPixelBufferGetHeight(pixelBuffer)
         guard width > 0 && height > 0 else { return nil }
 
-        let scaleX = 320.0 / CGFloat(width)
-        let scaleY = 240.0 / CGFloat(height)
+        let targetW: CGFloat = width < height ? 240.0 : 320.0
+        let targetH: CGFloat = width < height ? 320.0 : 240.0
+        let scaleX = targetW / CGFloat(width)
+        let scaleY = targetH / CGFloat(height)
         let scaledImage = ciImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
 
         guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
               let jpegData = ciContext.jpegRepresentation(
                 of: scaledImage,
                 colorSpace: colorSpace,
-                options: [:]
+                options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.72]
               ) else {
             return nil
         }
@@ -491,8 +734,8 @@ import Tauri
         return jpegData.base64EncodedString()
     }
 
-    private func dispatchEmptyFrame(timestamp: CFAbsoluteTime) {
-        let payload: [String: Any] = [
+    private func dispatchEmptyFrame(timestamp: CFAbsoluteTime, pixelBuffer: CVPixelBuffer? = nil) {
+        var payload: [String: Any] = [
             "hasHand": false,
             "timestamp": timestamp * 1000.0,
             "hands": [],
@@ -500,6 +743,11 @@ import Tauri
             "frameId": frameCounter,
             "backend": "Apple Vision Framework (ANE Native)"
         ]
+        if let pb = pixelBuffer, frameCounter % 2 == 0 {
+            if let frameJpeg = encodePixelBufferToJpegBase64(pixelBuffer: pb) {
+                payload["frameImage"] = "data:image/jpeg;base64," + frameJpeg
+            }
+        }
         dispatchFrame(payload: payload)
     }
 
@@ -510,7 +758,8 @@ import Tauri
         }
 
         DispatchQueue.main.async { [weak self] in
-            guard let self = self, let webView = self.webView else { return }
+            guard let self = self else { return }
+            guard let webView = self.webView ?? self.resolveActiveWebViewOnMain() else { return }
             webView.evaluateJavaScript("window.__hologrip_onAppleVisionFrame && window.__hologrip_onAppleVisionFrame(\(jsonString));", completionHandler: nil)
         }
     }
@@ -523,9 +772,24 @@ public func hologripAppleVisionIsSupported() -> Bool {
     return AppleVisionHandManager.shared.isSupported()
 }
 
+@_cdecl("hologrip_apple_vision_is_running")
+public func hologripAppleVisionIsRunning() -> Bool {
+    return AppleVisionHandManager.shared.getIsRunning()
+}
+
 @_cdecl("hologrip_apple_vision_start")
 public func hologripAppleVisionStart() -> Bool {
     return AppleVisionHandManager.shared.start()
+}
+
+@_cdecl("hologrip_apple_vision_start_async")
+public func hologripAppleVisionStartAsync(
+    _ context: UnsafeMutableRawPointer?,
+    _ callback: @escaping @convention(c) (UnsafeMutableRawPointer?, Bool) -> Void
+) {
+    AppleVisionHandManager.shared.startWithCompletion { success in
+        callback(context, success)
+    }
 }
 
 @_cdecl("hologrip_apple_vision_stop")
