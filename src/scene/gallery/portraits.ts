@@ -29,9 +29,9 @@ export const SCIENTIST_PORTRAITS: readonly ScientistPortrait[] = [
   { id: 'faraday', name: '法拉第', field: '电磁学', file: '/portraits/faraday.jpg' },
 ];
 
-const PAPER = { warm: '#f4efe6', glacier: '#e7eef1' } as const;
-const INK = { warm: '#2a241c', glacier: '#243034' } as const;
-const RULE = { warm: '#b08958', glacier: '#8fa0a8' } as const;
+const PAPER = { warm: '#faf9f5', glacier: '#d4e0e4' } as const;
+const INK = { warm: '#141413', glacier: '#243034' } as const;
+const RULE = { warm: '#d97757', glacier: '#7e9098' } as const;
 
 export function paintNameplate(
   ctx: CanvasRenderingContext2D,
@@ -52,7 +52,7 @@ export function paintNameplate(
   ctx.font = '600 84px "Songti SC", "STSong", "PingFang SC", serif';
   ctx.fillText(portrait.name, width / 2, height * 0.4);
   ctx.font = '400 36px "Songti SC", "STSong", "PingFang SC", serif';
-  ctx.fillStyle = palette === 'warm' ? '#6d6254' : '#5c6c74';
+  ctx.fillStyle = palette === 'warm' ? '#87867f' : '#4a5a62';
   ctx.fillText(portrait.field, width / 2, height * 0.74);
 }
 

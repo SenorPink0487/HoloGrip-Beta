@@ -151,6 +151,85 @@ public class AppleVisionPlugin: Plugin {
             "backend": "Apple Vision Framework (ANE Native)"
         ])
     }
+
+    private var photoPickerDelegate: Any?
+
+    /// 专属原生 Apple 纯净相册直选通道：
+    /// 直接调起系统 Photo Library 界面，彻底杜绝 WebKit 粗糙原生弹窗与遮挡问题。
+    @objc public func pickPhoto(_ invoke: Invoke) {
+        DispatchQueue.main.async {
+            guard let webview = self.attachedWebView,
+                  let rootVC = webview.window?.rootViewController ?? UIApplication.shared.connectedScenes
+                    .compactMap({ ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow })?.rootViewController })
+                    .first else {
+                invoke.reject("No root view controller found")
+                return
+            }
+
+            let picker = UIImagePickerController()
+            picker.sourceType = .photoLibrary
+            picker.mediaTypes = ["public.image"]
+            picker.modalPresentationStyle = .formSheet
+
+            let delegate = HoloGripPhotoPickerDelegate(invoke: invoke, picker: picker) { [weak self] in
+                self?.photoPickerDelegate = nil
+            }
+            self.photoPickerDelegate = delegate
+            picker.delegate = delegate
+
+            rootVC.present(picker, animated: true, completion: nil)
+        }
+    }
+}
+
+private class HoloGripPhotoPickerDelegate: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    private let invoke: Invoke
+    private weak var picker: UIImagePickerController?
+    private let onComplete: () -> Void
+
+    init(invoke: Invoke, picker: UIImagePickerController, onComplete: @escaping () -> Void) {
+        self.invoke = invoke
+        self.picker = picker
+        self.onComplete = onComplete
+        super.init()
+    }
+
+    private static func normalizedPickerImage(_ image: UIImage, maxEdge: CGFloat = 1800) -> UIImage {
+        let srcW = max(1, image.size.width)
+        let srcH = max(1, image.size.height)
+        let scale = min(1.0, maxEdge / max(srcW, srcH))
+        let targetSize = CGSize(width: round(srcW * scale), height: round(srcH * scale))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        return renderer.image { ctx in
+            UIColor.white.setFill()
+            ctx.fill(CGRect(origin: .zero, size: targetSize))
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+    }
+
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        picker.dismiss(animated: true, completion: nil)
+        self.onComplete()
+        if let rawImage = (info[.editedImage] ?? info[.originalImage]) as? UIImage {
+            let normalized = Self.normalizedPickerImage(rawImage, maxEdge: 1800)
+            if let data = normalized.jpegData(compressionQuality: 0.88) {
+                let base64 = data.base64EncodedString()
+                let dataUrl = "data:image/jpeg;base64,\(base64)"
+                self.invoke.resolve(["dataUrl": dataUrl])
+                return
+            }
+        }
+        self.invoke.reject("Failed to encode chosen image")
+    }
+
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true, completion: nil)
+        self.onComplete()
+        self.invoke.resolve(["cancelled": true])
+    }
 }
 
 extension UIViewController {

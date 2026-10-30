@@ -701,9 +701,20 @@ export class AccountModal {
     button.type = 'button';
     button.id = 'btn-join-class';
     button.className = 'apple-cell-action-btn primary';
-    button.textContent = '加入班级';
+    button.textContent = '加入';
     button.addEventListener('click', () => {
       void this.join(input, button);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void this.join(input, button);
+      }
+    });
+
+    input.addEventListener('input', () => {
+      input.value = input.value.toUpperCase();
     });
 
     inputWrap.appendChild(input);

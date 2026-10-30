@@ -274,7 +274,7 @@ export class Engine {
 
   private initScene(): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xe7e2d8);
+    this.scene.background = new THREE.Color(0xe3dacc);
   }
 
   private initCamera(): void {
@@ -1307,6 +1307,12 @@ export class Engine {
           return Promise.reject(new Error('请先打开立体几何'));
         }
         return exp.recognizeProblemImage(dataUrl);
+      },
+      onMathSyncModel: (def: any) => {
+        const exp = this.holoStage?.activeExperiment as any;
+        if (this.currentExperimentId === 'math-stereometry' && typeof exp?.loadRecognizedModelDef === 'function') {
+          exp.loadRecognizedModelDef(def);
+        }
       },
       // 牛顿大炮天体轨道控制台回调
       onNewtonLaunch: () => {

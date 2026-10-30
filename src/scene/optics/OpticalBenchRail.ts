@@ -57,54 +57,111 @@ function safeCanvas(width: number, height: number): HTMLCanvasElement | null {
   }
 }
 
-function paintSteelRule(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-  ctx.fillStyle = '#f8fafc';
+export interface OpticalRailFinish {
+  satin: number;
+  skirt: number;
+  channel: number;
+  chrome: number;
+  brass: number;
+  scaleBackground: string;
+  scaleEdge: string;
+  scaleTick: string;
+  scaleAccent: string;
+}
+
+const DEFAULT_RAIL_FINISH: OpticalRailFinish = {
+  satin: 0xe8eef5,
+  skirt: 0xf8fafc,
+  channel: 0xd5dee8,
+  chrome: 0xffffff,
+  brass: 0xd97706,
+  scaleBackground: '#f8fafc',
+  scaleEdge: '#cbd5e1',
+  scaleTick: '#334155',
+  scaleAccent: '#b45309',
+};
+
+function channelLuma(hex: string): number {
+  const h = hex.replace('#', '');
+  const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const r = lin(parseInt(h.slice(0, 2), 16) / 255);
+  const g = lin(parseInt(h.slice(2, 4), 16) / 255);
+  const b = lin(parseInt(h.slice(4, 6), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** 数字必须和尺面拉开对比。香槟金贴在灰尺上会融掉，就改用刻度线同色。 */
+function numeralInk(finish: OpticalRailFinish): string {
+  const accent = channelLuma(finish.scaleAccent);
+  const paper = channelLuma(finish.scaleBackground);
+  const contrast = (Math.max(accent, paper) + 0.05) / (Math.min(accent, paper) + 0.05);
+  return contrast >= 3 ? finish.scaleAccent : finish.scaleTick;
+}
+
+function paintSteelRule(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  finish: OpticalRailFinish,
+): void {
+  ctx.fillStyle = finish.scaleBackground;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = '#cbd5e1';
-  ctx.fillRect(0, 0, width, 3);
-  ctx.fillRect(0, height - 3, width, 3);
+  const edge = Math.max(2, Math.round(height * 0.015));
+  ctx.fillStyle = finish.scaleEdge;
+  ctx.fillRect(0, 0, width, edge);
+  ctx.fillRect(0, height - edge, width, edge);
 
-  ctx.strokeStyle = '#334155';
-  ctx.fillStyle = '#334155';
-  ctx.font = 'bold 32px -apple-system, "SF Mono", "PingFang SC", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-
-  const scaleStartX = 72;
-  const scaleEndX = width - 128;
+  const scaleStartX = Math.round(width * 0.04);
+  const scaleEndX = Math.round(width * 0.9);
   const scaleSpan = scaleEndX - scaleStartX;
+  const tickTop = Math.round(height * 0.05);
+  const majorBottom = Math.round(height * 0.4);
+  const cmBottom = Math.round(height * 0.28);
+  const fiveBottom = Math.round(height * 0.18);
+  const mmBottom = Math.round(height * 0.11);
+  const labelY = Math.round(height * 0.7);
+  const ink = numeralInk(finish);
+
+  ctx.strokeStyle = finish.scaleTick;
+  ctx.fillStyle = ink;
+  ctx.font = `600 ${Math.round(height * 0.38)}px "SF Mono", "PingFang SC", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineCap = 'butt';
 
   for (let cm = 0; cm <= 100; cm++) {
     const pxCm = scaleStartX + (cm / 100) * scaleSpan;
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = finish.scaleTick;
+    ctx.lineWidth = cm % 10 === 0 ? Math.max(3, height * 0.02) : Math.max(2, height * 0.012);
     ctx.beginPath();
-    ctx.moveTo(pxCm, 6);
-    ctx.lineTo(pxCm, cm % 10 === 0 ? 52 : 40);
+    ctx.moveTo(pxCm, tickTop);
+    ctx.lineTo(pxCm, cm % 10 === 0 ? majorBottom : cmBottom);
     ctx.stroke();
 
     if (cm % 10 === 0) {
-      ctx.fillStyle = '#b45309';
-      ctx.fillText(`${cm}`, pxCm, 60);
-      ctx.fillStyle = '#334155';
+      ctx.fillStyle = ink;
+      ctx.fillText(String(cm), pxCm, labelY);
     }
 
     if (cm < 100) {
+      const millimetre = scaleSpan / 1000;
       for (let mm = 1; mm < 10; mm++) {
-        const pxMm = pxCm + (mm / 10) * (scaleSpan / 100);
+        const pxMm = pxCm + mm * millimetre;
         const is5 = mm === 5;
-        ctx.lineWidth = is5 ? 2 : 1;
+        ctx.lineWidth = is5 ? Math.max(2, height * 0.01) : Math.max(1, height * 0.005);
         ctx.beginPath();
-        ctx.moveTo(pxMm, 6);
-        ctx.lineTo(pxMm, is5 ? 28 : 16);
+        ctx.moveTo(pxMm, tickTop);
+        ctx.lineTo(pxMm, is5 ? fiveBottom : mmBottom);
         ctx.stroke();
       }
     }
   }
 
-  ctx.fillStyle = '#b45309';
-  ctx.font = 'bold 28px "SF Mono", sans-serif';
-  ctx.fillText('cm', scaleEndX + 52, 60);
+  ctx.fillStyle = ink;
+  ctx.font = `600 ${Math.round(height * 0.2)}px "SF Mono", "PingFang SC", sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.fillText('cm', scaleEndX + Math.round(width * 0.012), labelY);
 }
 
 function addMesh(
@@ -130,35 +187,38 @@ export function buildPrecisionOpticalRail(options: {
   width: number;
   height: number;
   name?: string;
+  finish?: OpticalRailFinish;
 }): PrecisionOpticalRail {
   const { length, width, height } = options;
+  const tuned = options.finish != null;
+  const finish = options.finish ?? DEFAULT_RAIL_FINISH;
   const group = new THREE.Group();
   group.name = options.name ?? 'RailGroup';
 
   const satin = new THREE.MeshStandardMaterial({
-    color: 0xe8eef5,
-    metalness: 0.62,
-    roughness: 0.28,
+    color: finish.satin,
+    metalness: tuned ? 0.58 : 0.62,
+    roughness: tuned ? 0.4 : 0.28,
   });
   const satinSkirt = new THREE.MeshStandardMaterial({
-    color: 0xf8fafc,
-    metalness: 0.7,
-    roughness: 0.22,
+    color: finish.skirt,
+    metalness: tuned ? 0.6 : 0.7,
+    roughness: tuned ? 0.36 : 0.22,
   });
   const channel = new THREE.MeshStandardMaterial({
-    color: 0xd5dee8,
+    color: finish.channel,
     metalness: 0.48,
-    roughness: 0.34,
+    roughness: tuned ? 0.42 : 0.34,
   });
   const chrome = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    metalness: 0.98,
-    roughness: 0.08,
+    color: finish.chrome,
+    metalness: tuned ? 0.7 : 0.98,
+    roughness: tuned ? 0.26 : 0.08,
   });
   const brass = new THREE.MeshStandardMaterial({
-    color: 0xd97706,
-    metalness: 0.9,
-    roughness: 0.24,
+    color: finish.brass,
+    metalness: tuned ? 0.72 : 0.9,
+    roughness: tuned ? 0.36 : 0.24,
   });
 
   const skirtH = height * 0.34;
@@ -286,25 +346,33 @@ export function buildPrecisionOpticalRail(options: {
 
   let scaleCanvas: HTMLCanvasElement | null = null;
   let scaleTexture: THREE.CanvasTexture | null = null;
-  scaleCanvas = safeCanvas(2048, 128);
+  // 贴图宽高比跟尺面一致，数字才不会被拉成一条扁线。
+  const plateW = length * 0.93;
+  const plateH = height * 0.82;
+  const canvasH = 192;
+  const canvasW = Math.min(8192, Math.max(2048, Math.round(canvasH * (plateW / Math.max(plateH, 0.001)))));
+  scaleCanvas = safeCanvas(canvasW, canvasH);
   if (scaleCanvas) {
     const ctx = scaleCanvas.getContext('2d');
-    if (ctx) paintSteelRule(ctx, 2048, 128);
+    if (ctx) paintSteelRule(ctx, canvasW, canvasH, finish);
     scaleTexture = new THREE.CanvasTexture(scaleCanvas);
-    scaleTexture.anisotropy = 8;
+    scaleTexture.anisotropy = 16;
     scaleTexture.colorSpace = THREE.SRGBColorSpace;
     const plate = addMesh(
       group,
-      new THREE.PlaneGeometry(length * 0.93, height * 0.56),
+      new THREE.PlaneGeometry(plateW, plateH),
       new THREE.MeshStandardMaterial({
         map: scaleTexture,
         color: 0xffffff,
-        metalness: 0.18,
-        roughness: 0.38,
+        metalness: 0.04,
+        roughness: 0.62,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       }),
       0,
-      height * 0.46,
-      width * 0.5 + 0.0011,
+      height * 0.48,
+      width * 0.5 + 0.0014,
       'RailScale'
     );
     plate.castShadow = false;

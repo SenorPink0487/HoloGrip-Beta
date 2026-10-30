@@ -22,18 +22,19 @@ export class Laboratory {
   private readonly wallRadius = 8.04;
 
   constructor() {
+    const palette = galleryPalette('warm');
     const plaster = new THREE.MeshStandardMaterial({
-      color: 0xf4f1ea,
+      color: palette.plaster,
       roughness: 0.72,
       metalness: 0.0,
       envMapIntensity: 0.22,
       side: THREE.DoubleSide,
     });
     const brass = new THREE.MeshStandardMaterial({
-      color: 0xc6a56e,
-      roughness: 0.3,
-      metalness: 0.9,
-      envMapIntensity: 1.05,
+      color: palette.metal,
+      roughness: palette.metalRoughness,
+      metalness: palette.metalness,
+      envMapIntensity: palette.metalEnv,
       side: THREE.DoubleSide,
     });
 
@@ -41,48 +42,48 @@ export class Laboratory {
       plaster,
       brass,
       stone: new THREE.MeshStandardMaterial({
-        color: 0xe7e0d4,
+        color: palette.stone,
         roughness: 0.38,
         metalness: 0.02,
         side: THREE.DoubleSide,
       }),
       floorBorder: new THREE.MeshStandardMaterial({
-        color: 0xcfc6b8,
+        color: palette.floorBorder,
         roughness: 0.55,
         metalness: 0.02,
         envMapIntensity: 0.2,
         side: THREE.DoubleSide,
       }),
       joint: new THREE.MeshStandardMaterial({
-        color: 0xc9c1b4,
+        color: palette.joint,
         roughness: 0.84,
         metalness: 0.0,
         side: THREE.DoubleSide,
       }),
       shadowGap: new THREE.MeshStandardMaterial({
-        color: 0xc9c2b6,
+        color: palette.shadowGap,
         roughness: 0.94,
         metalness: 0.0,
         side: THREE.DoubleSide,
       }),
       oculus: new THREE.MeshStandardMaterial({
-        color: 0xfff8f1,
-        emissive: 0xfff3e6,
-        emissiveIntensity: 0.95,
+        color: palette.oculus,
+        emissive: palette.oculusEmissive,
+        emissiveIntensity: palette.oculusEmissiveIntensity,
         roughness: 0.5,
         metalness: 0.0,
         side: THREE.DoubleSide,
       }),
       well: new THREE.MeshStandardMaterial({
-        color: 0xddd6cc,
+        color: palette.well,
         roughness: 0.82,
         metalness: 0.0,
         side: THREE.DoubleSide,
       }),
       cove: new THREE.MeshStandardMaterial({
-        color: 0xfff6ee,
-        emissive: 0xfff1e4,
-        emissiveIntensity: 0.62,
+        color: palette.cove,
+        emissive: palette.coveEmissive,
+        emissiveIntensity: palette.coveEmissiveIntensity,
         roughness: 0.45,
         metalness: 0.0,
         side: THREE.DoubleSide,
@@ -210,7 +211,7 @@ export class Laboratory {
         roughnessMap,
         bumpMap,
         bumpScale: 0.002,
-        color: 0xffffff,
+        color: galleryPalette('warm').floor,
         roughness: 0.36,
         metalness: 0.02,
         clearcoat: 0.28,
@@ -236,7 +237,7 @@ export class Laboratory {
     this.group.add(border);
 
     const echoMat = (this.materials.brass as THREE.MeshStandardMaterial).clone();
-    echoMat.roughness = 0.4;
+    echoMat.roughness = galleryPalette('warm').echoRoughness;
     this.echoMat = echoMat;
     const echoRadius = HOLO_TABLE_RADIUS + 0.56;
     const echo = new THREE.Mesh(
@@ -314,10 +315,11 @@ export class Laboratory {
     ceiling.add(skylight);
 
     const bezelMat = (this.materials.brass as THREE.MeshStandardMaterial).clone();
-    bezelMat.color.set(0xd7b56a);
-    bezelMat.roughness = 0.32;
-    bezelMat.metalness = 0.42;
-    bezelMat.envMapIntensity = 0.55;
+    const bezelPalette = galleryPalette('warm');
+    bezelMat.color.set(bezelPalette.bezel);
+    bezelMat.roughness = bezelPalette.bezelRoughness;
+    bezelMat.metalness = bezelPalette.bezelMetalness;
+    bezelMat.envMapIntensity = bezelPalette.bezelEnv;
     this.bezelMat = bezelMat;
     const bezel = new THREE.Mesh(this.lathe([
       new THREE.Vector2(1.4, lipY - 0.008),

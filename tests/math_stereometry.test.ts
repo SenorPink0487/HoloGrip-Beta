@@ -9,6 +9,7 @@ import {
   parseRecognizedFigure,
   RECOGNIZED_MODEL_SPAN,
 } from '../src/scene/math/figureModel.ts';
+import { detectPaperContentCropFromPixels } from '../src/scene/math/recognizeFigure.ts';
 import {
   StereometryMesh,
 } from '../src/scene/math/StereometryMesh.ts';
@@ -1967,8 +1968,144 @@ assert.strictEqual((optManager as any).pinchCooldown, false, 'All fingers lifted
 optMesh.dispose();
 console.log('✓ Test 32 passed: 触控屏交互优化专项测试 (防误旋转、拖拽直接接线、轻触点击容差、外部触控隔离与双指防抖) 验证通过\n');
 
+// ========================================================
+// Test 33: 上传图片与相机实拍三维识图一致性、拓扑自修复与斜二测消隐回归测试
+// ========================================================
+console.log('Test 33: 上传图片与相机实拍三维识图一致性、拓扑自修复与斜二测消隐回归测试');
+
+// 1. 真实高考四棱锥 E-ABCD (EC⊥平面ABCD, AB∥DC, △ACD等边, DC=2AB=2, CB=CE, F在BE上)
+// 同时注入 4 种常见大模型拓扑瑕疵：
+//   a) 四边形底面写成交叉蝴蝶形 ['A','C','B','D']
+//   b) edges 漏写侧棱 ['E','D']
+//   c) edges 误混入底面内部对角线 ['A','C']
+//   d) 存在极短辅助线 ['C','F']
+const chongqingPyramidRaw = {
+  name: '四棱锥 E-ABCD',
+  subtitle: 'EC⊥平面ABCD，AB∥DC，△ACD为等边三角形',
+  vertices: [
+    { id: 'A', x: -1, y: 0, z: Math.sqrt(3) },
+    { id: 'B', x: 0, y: 0, z: Math.sqrt(3) },
+    { id: 'C', x: 0, y: 0, z: 0 },
+    { id: 'D', x: -2, y: 0, z: 0 },
+    { id: 'E', x: 0, y: Math.sqrt(3), z: 0 },
+  ],
+  edges: [
+    ['A', 'B'],
+    ['B', 'C'],
+    ['C', 'D'],
+    ['D', 'A'],
+    ['E', 'A'],
+    ['E', 'B'],
+    ['E', 'C'],
+    // 故意漏掉 ['E', 'D']，且故意把底面对角线 ['A', 'C'] 混进 edges
+    ['A', 'C'],
+  ],
+  faces: [
+    ['A', 'C', 'B', 'D'], // 故意给交叉蝴蝶形顺序
+    ['E', 'A', 'B'],
+    ['E', 'B', 'C'],
+    ['E', 'C', 'D'],
+    ['E', 'D', 'A'],
+  ],
+  points: [{ id: 'F', from: 'B', to: 'E', t: 0.4 }],
+  aux: [['C', 'F']],
+};
+
+const cqModel = buildRecognizedModel(parseRecognizedFigure(chongqingPyramidRaw));
+assert.strictEqual(cqModel.vertices.length, 5, 'E-ABCD must have 5 solid vertices');
+assert.strictEqual(cqModel.faces.length, 5, 'E-ABCD must have 5 faces');
+assert.strictEqual(cqModel.edges.length, 8, 'Missing edge ED must be recovered and diagonal AC excluded from solid edges');
+assert.strictEqual(cqModel.vertices.length - cqModel.edges.length + cqModel.faces.length, 2, 'Euler V-E+F must equal 2');
+
+const cqAuxNames = (cqModel.auxEdges ?? [])
+  .map((e) => {
+    const la = cqModel.keyPoints.find((k) => k.id === e.a)!.label;
+    const lb = cqModel.keyPoints.find((k) => k.id === e.b)!.label;
+    return [la, lb].sort().join('');
+  })
+  .sort();
+assert.deepStrictEqual(cqAuxNames, ['AC', 'CF'], 'Diagonal AC must be demoted to auxEdges alongside short line CF');
+
+// 2. 共面拆分三角形自动合并验证（若底面 ABCD 被拆为 ['A','D','C'] 与 ['A','C','B']）
+const splitBaseModel = buildRecognizedModel(
+  parseRecognizedFigure({
+    ...chongqingPyramidRaw,
+    edges: [
+      ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
+      ['E', 'A'], ['E', 'B'], ['E', 'C'], ['E', 'D'],
+    ],
+    faces: [
+      ['A', 'D', 'C'],
+      ['A', 'C', 'B'],
+      ['E', 'A', 'B'],
+      ['E', 'B', 'C'],
+      ['E', 'C', 'D'],
+      ['E', 'D', 'A'],
+    ],
+    aux: [['A', 'C'], ['C', 'F']],
+  })
+);
+assert.strictEqual(splitBaseModel.faces.length, 5, 'Coplanar split base triangles ADC + ACB must merge into 1 quad face');
+assert.strictEqual(splitBaseModel.edges.length, 8, 'Merged base must keep 8 exterior edges, not 9');
+
+// 3. 验证教材标准右前上方斜二测视角下：7 条可见实线棱 + 仅后底边 DC 1 条虚线棱，且辅助线材质高对比度可见
+const cqExp = new MathStereometryExperiment();
+cqExp.init(mockContext);
+const cqLoaded = cqExp.loadRecognizedFigure(parseRecognizedFigure(chongqingPyramidRaw));
+assert.ok(cqLoaded.modelDef, 'loadRecognizedFigure must return exact PolyhedronModelDef for AR/table sync');
+
+const cqMesh = (cqExp as any).mesh as StereometryMesh;
+assert.notStrictEqual((cqMesh as any).auxEdgeMaterial.color.getHex(), 0xf8fafc, 'Aux edge material must not be washed-out near-white');
+assert.strictEqual((cqMesh as any).auxEdgeMaterial.color.getHex(), 0x059669, 'Aux edge material must be high-contrast Emerald Teal');
+
+cqMesh.group.position.set(0, 0.99 + 0.082, 0.72);
+cqMesh.group.updateMatrixWorld(true);
+const labCam = new THREE.PerspectiveCamera(45, 1.33, 0.1, 50);
+labCam.position.set(0, 1.38, 4.25);
+labCam.lookAt(0, 1.35, 0.72);
+labCam.updateMatrixWorld(true);
+cqMesh.updateEdgeVisibility(labCam, true);
+
+const cqVisibleCount = (cqMesh as any).solidEdgesMesh.geometry.drawRange.count / 2;
+const cqOccludedCount = (cqMesh as any).dashedEdgesMesh.geometry.drawRange.count / 2;
+assert.strictEqual(cqVisibleCount, 7, 'Textbook oblique view must show 7 visible solid edges (AB,BC,DA,EA,EB,EC,ED)');
+assert.strictEqual(cqOccludedCount, 1, 'Textbook oblique view must show only 1 occluded dashed edge (DC)');
+cqExp.dispose(mockContext);
+
+// 4. 验证智能试卷内容区自适应裁切（抗光照渐变 + 排除边角桌面暗区 + 聚焦中央题干线稿）
+const sampleW = 240;
+const sampleH = 180;
+const syntheticSheet = new Uint8ClampedArray(sampleW * sampleH * 4);
+for (let y = 0; y < sampleH; y++) {
+  for (let x = 0; x < sampleW; x++) {
+    const idx = (y * sampleW + x) * 4;
+    // 模拟台灯斜照纸面明暗渐变 (左上 215 -> 右下 155)
+    let v = Math.round(215 - (x / sampleW) * 35 - (y / sampleH) * 25);
+    // 模拟右上角露出深色桌面边缘
+    if (x > sampleW - 10 && y < 36) v = 35;
+    syntheticSheet[idx] = v;
+    syntheticSheet[idx + 1] = v;
+    syntheticSheet[idx + 2] = v;
+    syntheticSheet[idx + 3] = 255;
+  }
+}
+// 在中央偏左区域 (x: 45..135, y: 40..105) 绘制模拟印刷文字与几何线段笔迹
+for (let y = 44; y <= 102; y += 14) {
+  for (let x = 48; x <= 132; x++) {
+    const idx = (y * sampleW + x) * 4;
+    syntheticSheet[idx] = 32;
+    syntheticSheet[idx + 1] = 32;
+    syntheticSheet[idx + 2] = 36;
+  }
+}
+const autoCrop = detectPaperContentCropFromPixels(syntheticSheet, sampleW, sampleH, 4032, 3024);
+assert(autoCrop.sx > 300 && autoCrop.sy > 300, `Auto-crop must trim blank top/left margins and ignore top-right desk corner, got ${JSON.stringify(autoCrop)}`);
+assert(autoCrop.sw < 2800 && autoCrop.sh < 2100, `Auto-crop must zoom tightly into problem region, got ${JSON.stringify(autoCrop)}`);
+
+console.log('✓ Test 33 passed: 上传与实拍识图一致性、拓扑自修复、斜二测消隐与智能卷面裁切全部验证通过\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (32/32)!');
+console.log('All High School Stereometry Tests Passed Successfully (33/33)!');
 console.log('========================================================');
 
 

@@ -55,5 +55,10 @@ import { preloadAccountAssets } from '../src/whiteboard/AccountModal.ts';
 assert.strictEqual(typeof preloadAccountAssets, 'function');
 assert.doesNotThrow(() => preloadAccountAssets());
 
+// 校验班级邀请码行与操作按钮布局规范（防止弹窗内溢出或按钮被截断）
+assert.doesNotMatch(whiteboardCss, /\.account-logout-btn,\s*\.apple-logout-btn,\s*#btn-join-class/, '#btn-join-class must not inherit full-width logout button styles');
+assert.match(whiteboardCss, /#btn-join-class\s*\{[^}]*white-space:\s*nowrap/, '#btn-join-class must prevent text wrapping');
+assert.match(whiteboardCss, /\.join-action-wrap\s*\{[^}]*flex-shrink:\s*0/, '.join-action-wrap must not be compressed by row labels');
+
 console.log('account invite code, performance warmup & Apple-style crossfade button motion tests passed');
 

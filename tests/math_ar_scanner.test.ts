@@ -379,6 +379,117 @@ assert.ok(nativeCameraTriggered, 'Shutter button MUST trigger native camera inpu
 lanScanner.close();
 console.log('✓ Test 9 passed: iPad / LAN HTTP native camera activation fallback verified\n');
 
+// -------------------------------------------------------------
+// Test 10: Apple Minimalist Album Popover (No Icon Overlap & Anti-Native Invariant)
+// -------------------------------------------------------------
+console.log('Test 10: Apple Minimalist Album Popover & Anti-Overlap Invariants');
+
+const popoverScanner = new MathARScannerModal();
+const albumSlot = popoverScanner.element.querySelector('#math-ar-album-slot');
+assert.ok(albumSlot, 'Album action slot container must exist');
+
+const albumBtn = popoverScanner.element.querySelector('#math-ar-album-btn');
+assert.ok(albumBtn, 'Album trigger button must exist');
+
+const albumIconBox = albumBtn.querySelector('.math-ar-album-icon-box');
+assert.ok(albumIconBox, 'Album button must use Apple squircle icon box matching Model button');
+
+const popover = popoverScanner.element.querySelector('#math-ar-album-popover');
+assert.ok(popover, 'Apple album popover must exist');
+assert.ok(popover.classList.contains('hidden'), 'Album popover must be hidden initially');
+
+const libraryItem = popover.querySelector('#math-ar-popover-library');
+const cameraItem = popover.querySelector('#math-ar-popover-camera');
+const fileItem = popover.querySelector('#math-ar-popover-file');
+const notch = popover.querySelector('.math-ar-popover-notch');
+
+assert.ok(libraryItem, 'Library item must exist');
+assert.ok(cameraItem, 'Camera item must exist');
+assert.ok(fileItem, 'File item must exist');
+assert.ok(notch, 'Popover notch indicator must exist pointing down toward album button');
+
+// 验证展开与状态联动
+popoverScanner.toggleAlbumPopover(true);
+assert.ok(!popover.classList.contains('hidden'), 'Popover should be visible when toggled true');
+assert.ok(albumBtn.classList.contains('is-active'), 'Album button must have is-active class when popover is open');
+
+// 验证收起与状态恢复
+popoverScanner.closeAlbumPopover();
+assert.ok(popover.classList.contains('hidden'), 'Popover should be hidden when closed');
+assert.ok(!albumBtn.classList.contains('is-active'), 'Album button must not have is-active class when popover is closed');
+
+// 验证 CSS 中定位规则：严禁遮挡相册图标 (必须位于图标上方并具备毛玻璃效果)
+const cssContent = readFileSync(new URL('../src/whiteboard/whiteboard.css', import.meta.url), 'utf8');
+assert.match(cssContent, /\.math-ar-album-popover/, 'CSS must declare .math-ar-album-popover');
+assert.match(cssContent, /bottom:\s*calc\(100%\s*\+\s*14px\)/, 'Popover must be positioned strictly above album slot (bottom: calc(100% + 14px)) to prevent covering album icon');
+assert.match(cssContent, /backdrop-filter:\s*blur/, 'Popover must use Apple frosted glass blur');
+assert.match(cssContent, /\.math-ar-album-btn\.is-active/, 'Album button must have active highlight state');
+
+popoverScanner.close();
+console.log('✓ Test 10 passed: Apple minimalist album popover & anti-overlap invariants verified\n');
+
+// -------------------------------------------------------------
+// Test 11: Real Recognized Polyhedron Sync (No Hardcoded Square-Pyramid Substitution)
+// -------------------------------------------------------------
+console.log('Test 11: Real Recognized Polyhedron Sync Between AR Scanner and HoloTable');
+
+const { parseRecognizedFigure, buildRecognizedModel } = await import('../src/scene/math/figureModel.ts');
+
+const recognizedCustomDef = buildRecognizedModel(
+  parseRecognizedFigure({
+    name: '四棱锥 E-ABCD',
+    subtitle: 'EC⊥平面ABCD，AB∥DC',
+    vertices: [
+      { id: 'A', x: -1, y: 0, z: 1.7321 },
+      { id: 'B', x: 0, y: 0, z: 1.7321 },
+      { id: 'C', x: 0, y: 0, z: 0 },
+      { id: 'D', x: -2, y: 0, z: 0 },
+      { id: 'E', x: 0, y: 1.7321, z: 0 },
+    ],
+    edges: [
+      ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
+      ['E', 'A'], ['E', 'B'], ['E', 'C'], ['E', 'D'],
+    ],
+    faces: [
+      ['A', 'B', 'C', 'D'],
+      ['E', 'A', 'B'],
+      ['E', 'B', 'C'],
+      ['E', 'C', 'D'],
+      ['E', 'D', 'A'],
+    ],
+    points: [{ id: 'F', from: 'B', to: 'E', t: 0.4 }],
+    aux: [['A', 'C'], ['C', 'F']],
+  })
+);
+
+let lastSyncedToTable: any = null;
+const liveScanner = new MathARScannerModal({
+  onRecognizeImage: async (_dataUrl) => ({
+    name: recognizedCustomDef.name,
+    subtitle: recognizedCustomDef.subtitle,
+    modelDef: recognizedCustomDef,
+  }),
+  onSyncModel: (def) => {
+    lastSyncedToTable = def;
+  },
+});
+
+await (liveScanner as any).processImageData('data:image/jpeg;base64,real_capture', '拍摄题目');
+assert.strictEqual((liveScanner as any).models.length, 1, 'Recognized model must be mounted in AR scanner');
+assert.strictEqual(
+  (liveScanner as any).models[0].modelDef,
+  recognizedCustomDef,
+  'AR scanner must use the exact recognized PolyhedronModelDef, NEVER fallback square-pyramid'
+);
+assert.strictEqual(
+  lastSyncedToTable,
+  recognizedCustomDef,
+  'onSyncModel must forward the exact recognized PolyhedronModelDef back to HoloTable'
+);
+assert.strictEqual(lastSyncedToTable.auxEdges?.length, 2, 'Recognized auxiliary lines AC and CF must be preserved in AR model');
+liveScanner.close();
+console.log('✓ Test 11 passed: Real recognized PolyhedronModelDef preserved across AR scanner & HoloTable\n');
+
 console.log('========================================================');
-console.log('All Math AR Camera Scanner Tests Passed Successfully (9/9)!');
+console.log('All Math AR Camera Scanner Tests Passed Successfully (11/11)!');
 console.log('========================================================');

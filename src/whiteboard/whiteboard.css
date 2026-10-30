@@ -1374,11 +1374,11 @@ body.lab-returning #touch-controls-layer * {
 }
 
 .theme-preview-box.preview-warm {
-  background: linear-gradient(155deg, #f7f4ee 0%, #f4f1ea 58%, #c6a56e 100%);
+  background: linear-gradient(155deg, #faf9f5 0%, #e3dacc 58%, #a89f94 100%);
 }
 
 .theme-preview-box.preview-glacier {
-  background: linear-gradient(155deg, #f4f8f9 0%, #d5e0e4 52%, #eef3f6 100%);
+  background: linear-gradient(155deg, #e4eef2 0%, #c5d0d6 52%, #b8c6d0 100%);
 }
 
 .theme-label {
@@ -2136,8 +2136,7 @@ textarea:focus::placeholder {
 }
 
 .account-logout-btn,
-.apple-logout-btn,
-#btn-join-class {
+.apple-logout-btn {
   width: 100%;
   flex: none;
 }
@@ -2490,8 +2489,9 @@ textarea:focus::placeholder {
 
 .apple-cell-action-btn,
 .invite-copy-btn {
-  height: 26px;
-  padding: 0 10px;
+  height: 28px;
+  min-width: 52px;
+  padding: 0 12px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
@@ -2505,6 +2505,10 @@ textarea:focus::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
+  user-select: none;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .apple-cell-action-btn:hover,
@@ -2517,6 +2521,14 @@ textarea:focus::placeholder {
 .invite-copy-btn:active {
   background: #e8e8ed;
   box-shadow: inset 0 1px 1.5px rgba(0, 0, 0, 0.1);
+}
+
+.apple-cell-action-btn:disabled,
+.invite-copy-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none;
 }
 
 .apple-cell-action-btn.primary {
@@ -2534,27 +2546,68 @@ textarea:focus::placeholder {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  min-height: 48px;
+  padding: 8px 14px;
   gap: 12px;
+  box-sizing: border-box;
+}
+
+.join-row .apple-row-info {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .join-action-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex: none;
+  flex-shrink: 0;
 }
 
 .join-input {
-  width: 120px;
+  width: 110px;
+  height: 28px;
+  box-sizing: border-box !important;
+  flex: none !important;
   text-align: center;
   font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   font-weight: 600;
-  letter-spacing: 1px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
-  padding: 6px 8px !important;
+  padding: 0 8px !important;
   font-size: 13px !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
-  border-radius: 8px !important;
+  line-height: 26px !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  border-radius: 6px !important;
+  background: #fbfbfd !important;
+  color: #1d1d1f !important;
+  outline: none !important;
+  transition: all 0.15s ease;
+}
+
+.join-input:focus {
+  background: #ffffff !important;
+  border-color: #007aff !important;
+  box-shadow: 0 0 0 2.5px rgba(0, 122, 255, 0.18) !important;
+}
+
+.join-input::placeholder {
+  color: #86868b !important;
+  font-size: 12px !important;
+  letter-spacing: normal;
+  font-weight: 400;
+  text-transform: none;
+}
+
+#btn-join-class {
+  height: 28px;
+  min-width: 52px;
+  padding: 0 12px;
+  flex: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .invite-hint {
@@ -2723,9 +2776,11 @@ textarea:focus::placeholder {
   .profile-card,
   .profile-field-row,
   .account-actions-row,
-  .invite-code-row {
+  .invite-code-row,
+  .join-row {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
   }
 
   .theme-selector-deck {
@@ -2735,6 +2790,17 @@ textarea:focus::placeholder {
   .invite-code-value {
     font-size: 22px;
     letter-spacing: 1px;
+  }
+
+  .join-action-wrap {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+
+  .join-action-wrap .join-input {
+    flex: 1 1 auto !important;
+    width: 0 !important;
   }
 
   .invite-copy-btn,
@@ -3198,8 +3264,8 @@ textarea:focus::placeholder {
   top: 48%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(78vw, 420px);
-  height: min(48vh, 320px);
+  width: min(86vw, 680px);
+  height: min(56vh, 440px);
   pointer-events: none;
   z-index: 10;
 }
@@ -3618,6 +3684,7 @@ textarea:focus::placeholder {
   align-items: center;
   justify-content: center;
   min-width: 60px;
+  position: relative;
 }
 
 .math-ar-slot-label {
@@ -3625,9 +3692,10 @@ textarea:focus::placeholder {
   color: rgba(255, 255, 255, 0.7);
   font-weight: 500;
   margin-top: 4px;
+  transition: color 0.2s ease, font-weight 0.2s ease;
 }
 
-/* 相册选择按钮 */
+/* 相册与模型底座按钮 */
 .math-ar-album-btn,
 .math-ar-toggle-tray-btn {
   background: transparent;
@@ -3647,6 +3715,19 @@ textarea:focus::placeholder {
   opacity: 0.8;
 }
 
+.math-ar-album-btn.is-active .math-ar-album-icon-box {
+  background: rgba(56, 189, 248, 0.24);
+  border-color: rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+
+.math-ar-album-btn.is-active .math-ar-slot-label {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.math-ar-album-icon-box,
 .math-ar-tray-icon-box {
   position: relative;
   width: 44px;
@@ -3659,6 +3740,159 @@ textarea:focus::placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
+}
+
+/* Apple 极简相册与题目来源悬浮气泡 (位于相册图标正上方，绝对不遮挡相册图标与标签) */
+.math-ar-album-popover {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: -8px;
+  z-index: 100;
+  width: 228px;
+  background: rgba(24, 24, 28, 0.86);
+  backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  border: 0.5px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  padding: 6px;
+  box-sizing: border-box;
+  transform-origin: 32px bottom;
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+
+.math-ar-album-popover.hidden {
+  opacity: 0;
+  transform: translateY(12px) scale(0.92);
+  pointer-events: none;
+}
+
+.math-ar-album-popover:not(.hidden) {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  animation: apple-ar-popover-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes apple-ar-popover-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 下方向指示三角/倒角气泡尖角 */
+.math-ar-popover-notch {
+  position: absolute;
+  bottom: -6px;
+  left: 32px;
+  width: 12px;
+  height: 12px;
+  background: rgba(24, 24, 28, 0.88);
+  transform: rotate(45deg);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.18);
+  border-right: 0.5px solid rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+.math-ar-popover-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+  z-index: 2;
+}
+
+.math-ar-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  outline: none;
+  transition: background-color 0.15s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+.math-ar-popover-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.math-ar-popover-item:active {
+  transform: scale(0.97);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.math-ar-popover-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.math-ar-popover-icon-box.library {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border: 0.5px solid rgba(56, 189, 248, 0.35);
+}
+
+.math-ar-popover-icon-box.camera {
+  background: rgba(52, 211, 153, 0.18);
+  color: #34d399;
+  border: 0.5px solid rgba(52, 211, 153, 0.35);
+}
+
+.math-ar-popover-icon-box.file {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fbbf24;
+  border: 0.5px solid rgba(251, 191, 36, 0.35);
+}
+
+.math-ar-popover-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.math-ar-popover-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+  line-height: 1.25;
+}
+
+.math-ar-popover-desc {
+  font-size: 11px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.52);
+  margin-top: 2px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.math-ar-popover-divider {
+  height: 0.5px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 2px 6px;
 }
 
 .math-ar-tray-counter-bubble {

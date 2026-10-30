@@ -324,12 +324,13 @@ export class StereometryMesh {
     });
 
     this.auxEdgeMaterial = new THREE.LineDashedMaterial({
-      color: 0xf8fafc,
-      dashSize: 0.012,
-      gapSize: 0.008,
+      color: 0x059669,            // 高对比度翡翠青绿（在白色全息桌面与蔚蓝晶体中均清晰醒目）
+      dashSize: 0.014,
+      gapSize: 0.007,
+      depthTest: false,
       depthWrite: false,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.96,
     });
 
     // 5. 截面：鲜艳发光珊瑚玫瑰磨砂玻璃，配绯红轮廓边缘
@@ -944,14 +945,20 @@ export class StereometryMesh {
     const edgeCount = this.currentModelDef.edges.length;
     this.edgeAdjacencies = [];
 
-    // 预计算棱与面的相邻关系，实现相机视角的瞬时消隐判定
+    // 预计算棱与面的相邻关系（严格检测多边形周界相邻顶点对，排除面内对角线），实现相机视角的瞬时消隐判定
     for (let i = 0; i < edgeCount; i++) {
       const [i1, i2] = this.currentModelDef.edges[i];
       const faceIndices: number[] = [];
       this.currentModelDef.faces.forEach((f, fIdx) => {
         const idxs = f.vertexIndices;
-        if (idxs.includes(i1) && idxs.includes(i2)) {
-          faceIndices.push(fIdx);
+        const n = idxs.length;
+        for (let k = 0; k < n; k++) {
+          const a = idxs[k];
+          const b = idxs[(k + 1) % n];
+          if ((a === i1 && b === i2) || (a === i2 && b === i1)) {
+            faceIndices.push(fIdx);
+            break;
+          }
         }
       });
       this.edgeAdjacencies.push({ edgeIndex: i, i1, i2, faceIndices });
@@ -1257,6 +1264,7 @@ export class StereometryMesh {
   private rebuildAuxEdges(): void {
     const aux = this.currentModelDef.auxEdges;
     if (!aux || aux.length === 0) return;
+    const up = new THREE.Vector3(0, 1, 0);
     for (const edge of aux) {
       const kpA = this.currentModelDef.keyPoints.find((kp) => kp.id === edge.a);
       const kpB = this.currentModelDef.keyPoints.find((kp) => kp.id === edge.b);
@@ -1266,6 +1274,26 @@ export class StereometryMesh {
       line.computeLineDistances();
       line.name = `aux_${edge.a}_${edge.b}`;
       line.renderOrder = 6;
+
+      // 附加超细无反光微芯（解决 Retina/iPad WebGL 单像素 Line 过细难辨识问题，且保持 auxGroup 顶层子节点数不变）
+      const dir = kpB.position.clone().sub(kpA.position);
+      const len = dir.length();
+      if (len > 1e-4) {
+        const coreGeo = new THREE.CylinderGeometry(0.0012, 0.0012, len, 6);
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: 0x10b981,
+          transparent: true,
+          opacity: 0.52,
+          depthTest: false,
+          depthWrite: false,
+        });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        core.position.copy(kpA.position).add(kpB.position).multiplyScalar(0.5);
+        core.quaternion.setFromUnitVectors(up, dir.normalize());
+        core.renderOrder = 5;
+        line.add(core);
+      }
+
       this.auxGroup.add(line);
     }
   }

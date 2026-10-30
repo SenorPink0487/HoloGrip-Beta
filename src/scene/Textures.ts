@@ -55,39 +55,18 @@ export class TextureGenerator {
       const offCtx = off.getContext('2d')!;
       offCtx.putImageData(new ImageData(prebakedFbm as any, 512, 512), 0, 0);
       ctx.drawImage(off, 0, 0, size, size);
-      ctx.fillStyle = 'rgba(236, 230, 218, 0.88)';
+      ctx.fillStyle = 'rgba(227, 218, 204, 0.35)';
       ctx.fillRect(0, 0, size, size);
     } else {
-      ctx.fillStyle = '#e4ddd1';
+      ctx.fillStyle = '#e4e1d8';
       ctx.fillRect(0, 0, size, size);
       const glow = ctx.createRadialGradient(size * 0.5, size * 0.5, 40, size * 0.5, size * 0.5, size * 0.62);
-      glow.addColorStop(0, 'rgba(250, 246, 238, 0.9)');
-      glow.addColorStop(0.42, 'rgba(236, 230, 220, 0.5)');
-      glow.addColorStop(0.78, 'rgba(214, 206, 192, 0.16)');
-      glow.addColorStop(1, 'rgba(186, 176, 160, 0.22)');
+      glow.addColorStop(0, 'rgba(250, 249, 245, 0.28)');
+      glow.addColorStop(0.42, 'rgba(232, 230, 220, 0.16)');
+      glow.addColorStop(0.78, 'rgba(212, 208, 196, 0.12)');
+      glow.addColorStop(1, 'rgba(176, 174, 165, 0.22)');
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, size, size);
-    }
-
-    // 微细洁净水磨石珠光微粒（保持通透纯净质感）
-    let seed = 20260324;
-    const rand = () => {
-      seed = (seed * 16807) % 2147483647;
-      return (seed - 1) / 2147483646;
-    };
-    for (let i = 0; i < 3500; i++) {
-      const x = rand() * size;
-      const y = rand() * size;
-      const r = rand() * 0.9 + 0.3;
-      const shade = rand();
-      ctx.fillStyle = shade > 0.6
-        ? 'rgba(255,252,246,0.5)'
-        : shade > 0.25
-          ? 'rgba(168, 156, 138, 0.16)'
-          : 'rgba(132, 120, 104, 0.1)';
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
     }
 
     const texture = new THREE.CanvasTexture(canvas);

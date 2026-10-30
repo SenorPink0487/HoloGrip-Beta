@@ -12,7 +12,7 @@ import type { ExperimentContext } from '../../../core/types.ts';
 
 export default class OpticsDoubleSlitExperiment extends BaseExperiment {
   public readonly metadata = metadata;
-  public override targetScale = 2.40;
+  public override targetScale = 1.80;
   public override hideCenterEmitter = true;
 
   // 核心 3D 设备与交互管理器
@@ -23,8 +23,8 @@ export default class OpticsDoubleSlitExperiment extends BaseExperiment {
   private latestTelemetry: OpticalDoubleSlitTelemetry | null = null;
 
   public init(context: ExperimentContext): void {
-    // 将光学导轨水平正对操作者横放于实验桌面中央 (Y=0.1365 使底脚稳固平贴桌面，Z=1.28)，平正无偏角，正对操作者视界 (+Z)
-    this.rootGroup.position.set(0, 0.1365, 1.28);
+    // 将光学导轨水平正对操作者横放于实验桌面中央 (Y=0.114 使底脚稳固平贴桌面，Z=1.05)，平正无偏角，整机完全落在圆桌台面与黄铜饰圈之内
+    this.rootGroup.position.set(0, 0.114, 1.05);
     this.rootGroup.rotation.set(0, 0, 0);
 
     // 1. 实例化 3D 光学导轨与杨氏双缝干涉仪器

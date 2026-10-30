@@ -32,7 +32,7 @@ export const PRISM_MATERIALS: Record<PrismMaterialType, PrismMaterialSpec> = {
     cauchyB: 0.00420,
     cauchyC: 0.00001,
     abbeNumber: 64.17,
-    tintHex: 0xe0f2fe,
+    tintHex: 0xc5d3e0,
     emissiveHex: 0x0284c7,
   },
   bariumFlint: {
@@ -44,7 +44,7 @@ export const PRISM_MATERIALS: Record<PrismMaterialType, PrismMaterialSpec> = {
     cauchyB: 0.00820,
     cauchyC: 0.00004,
     abbeNumber: 47.11,
-    tintHex: 0xdbeafe,
+    tintHex: 0xc0cedc,
     emissiveHex: 0x2563eb,
   },
   flint: {
@@ -56,7 +56,7 @@ export const PRISM_MATERIALS: Record<PrismMaterialType, PrismMaterialSpec> = {
     cauchyB: 0.01380,
     cauchyC: 0.00010,
     abbeNumber: 25.76,
-    tintHex: 0xeff6ff,
+    tintHex: 0xc8d0d8,
     emissiveHex: 0x3b82f6,
   },
   quartz: {
@@ -68,7 +68,7 @@ export const PRISM_MATERIALS: Record<PrismMaterialType, PrismMaterialSpec> = {
     cauchyB: 0.00354,
     cauchyC: 0.00001,
     abbeNumber: 67.82,
-    tintHex: 0xf0f9ff,
+    tintHex: 0xd0d8e0,
     emissiveHex: 0x0ea5e9,
   },
   diamond: {
@@ -80,7 +80,7 @@ export const PRISM_MATERIALS: Record<PrismMaterialType, PrismMaterialSpec> = {
     cauchyB: 0.01780,
     cauchyC: 0.00014,
     abbeNumber: 21.40,
-    tintHex: 0xf5f3ff,
+    tintHex: 0xd4d0e2,
     emissiveHex: 0x6366f1,
   },
 };

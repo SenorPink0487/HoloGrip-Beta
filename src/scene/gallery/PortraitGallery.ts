@@ -95,28 +95,29 @@ export class PortraitGallery {
 
   constructor(wallRadius: number) {
     this.group.name = 'portrait-gallery';
+    const warm = galleryPalette('warm');
     this.frameMat = new THREE.MeshStandardMaterial({
-      color: 0xb08958,
-      roughness: 0.42,
-      metalness: 0.7,
-      envMapIntensity: 0.85,
+      color: 0xd97757,
+      roughness: 0.48,
+      metalness: 0.4,
+      envMapIntensity: 0.65,
       side: THREE.DoubleSide,
     });
     this.sightMat = new THREE.MeshStandardMaterial({
-      color: 0x7a5e3c,
-      roughness: 0.48,
-      metalness: 0.62,
-      envMapIntensity: 0.7,
+      color: 0xc6613f,
+      roughness: 0.52,
+      metalness: 0.35,
+      envMapIntensity: 0.5,
       side: THREE.DoubleSide,
     });
     this.matMat = new THREE.MeshStandardMaterial({
-      color: 0xf3ecdf,
+      color: warm.mat,
       roughness: 0.86,
       metalness: 0,
       side: THREE.DoubleSide,
     });
     this.contactMat = new THREE.MeshStandardMaterial({
-      color: 0xb7aea0,
+      color: warm.contact,
       roughness: 0.96,
       metalness: 0,
       side: THREE.DoubleSide,
@@ -196,14 +197,14 @@ export class PortraitGallery {
 
   applyPalette(palette: GalleryPalette): void {
     const warm = palette.id !== 'glacier';
-    this.frameMat.color.set(warm ? 0xb08958 : palette.metal);
-    this.frameMat.roughness = warm ? 0.42 : 0.22;
-    this.frameMat.metalness = warm ? 0.7 : palette.metalness;
-    this.frameMat.envMapIntensity = warm ? 0.85 : palette.metalEnv;
-    this.sightMat.color.set(warm ? 0x7a5e3c : 0x8e9ba2);
-    this.sightMat.roughness = warm ? 0.48 : 0.28;
-    this.sightMat.metalness = warm ? 0.62 : 0.8;
-    this.matMat.color.set(warm ? 0xf3ecdf : palette.mat);
+    this.frameMat.color.set(warm ? 0xd97757 : palette.metal);
+    this.frameMat.roughness = warm ? 0.48 : 0.22;
+    this.frameMat.metalness = warm ? 0.4 : palette.metalness;
+    this.frameMat.envMapIntensity = warm ? 0.65 : palette.metalEnv;
+    this.sightMat.color.set(warm ? 0xc6613f : 0x7e9098);
+    this.sightMat.roughness = warm ? 0.52 : 0.28;
+    this.sightMat.metalness = warm ? 0.35 : 0.8;
+    this.matMat.color.set(palette.mat);
     this.contactMat.color.set(palette.contact);
     for (const redraw of this.redrawLabels) redraw(warm ? 'warm' : 'glacier');
   }

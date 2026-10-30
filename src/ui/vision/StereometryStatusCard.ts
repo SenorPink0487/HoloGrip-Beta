@@ -1,5 +1,5 @@
 import type { StereometryTelemetryData } from '../../experiments/catalog/math-stereometry/index.ts';
-import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
+import type { HighSchoolModelType, PolyhedronModelDef } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 import { MathARScannerModal } from './MathARScannerModal.ts';
 
@@ -22,7 +22,8 @@ export interface StereometryStatusCardCallbacks {
   onToggleFaceCenters?: (show: boolean) => void;
   onToggleLabels?: (show: boolean) => void;
   onApplyPreset?: (preset: 'cube-hexagon' | 'cube-skew-60' | 'tetra-orthogonal' | 'corner-box' | 'cone-conic') => void;
-  onRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string }>;
+  onRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string; modelDef?: PolyhedronModelDef }>;
+  onSyncRecognizedModel?: (def: PolyhedronModelDef) => void;
 }
 
 const MODEL_NAMES: Record<string, string> = {
@@ -518,6 +519,7 @@ export class StereometryStatusCard {
           }
         : undefined,
       onSyncModel: (def) => {
+        this.callbacks.onSyncRecognizedModel?.(def);
         this.clearPresetSelection();
         this.setScanStatus(`已同步「${def.name}」`);
       },

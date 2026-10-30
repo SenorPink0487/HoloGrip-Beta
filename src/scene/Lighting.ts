@@ -13,6 +13,7 @@ export class Lighting {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.setupLights();
+    this.applyPalette('warm');
   }
 
   public applyPalette(id: GalleryPaletteId): void {

@@ -220,8 +220,10 @@ export class MathARSpatialScene {
     }
 
     // 2. 构建 3D 多面体核心网格 (半透明科技晶体 + 高光外骨架)
+    const initialRotY = modelDef.id === 'recognized' ? -0.34 : 0;
     const modelSubGroup = this.buildPolyhedronMesh(modelDef);
     modelSubGroup.name = 'polyhedronMesh';
+    modelSubGroup.rotation.y = initialRotY;
     group.add(modelSubGroup);
 
     // 生长入场动画：从纸面拔地而起
@@ -239,7 +241,7 @@ export class MathARSpatialScene {
       modelDef,
       screenAnchor: screenPos || { x: fallbackW / 2, y: fallbackH / 2 },
       worldPosition: groundPos,
-      rotationY: 0,
+      rotationY: initialRotY,
       rotationX: 0,
       scale: 1,
       group,
@@ -375,11 +377,13 @@ export class MathARSpatialScene {
         const auxGeom = new THREE.BufferGeometry();
         auxGeom.setAttribute('position', new THREE.Float32BufferAttribute(auxPositions, 3));
         const auxMat = new THREE.LineDashedMaterial({
-          color: 0xf59e0b,
-          dashSize: 0.05,
-          gapSize: 0.03,
+          color: 0x34d399,
+          dashSize: 0.022,
+          gapSize: 0.011,
+          depthTest: false,
+          depthWrite: false,
           transparent: true,
-          opacity: 0.9,
+          opacity: 0.96,
         });
         const auxLines = new THREE.LineSegments(auxGeom, auxMat);
         auxLines.computeLineDistances();
@@ -387,13 +391,23 @@ export class MathARSpatialScene {
       }
     }
 
-    // D. 顶点晶珠 (发光圆点)
-    const dotGeom = new THREE.SphereGeometry(0.026, 8, 8);
+    // D. 顶点与辅助动点晶珠 (发光圆点)
+    const dotGeom = new THREE.SphereGeometry(0.018, 10, 10);
     const dotMat = new THREE.MeshBasicMaterial({ color: 0xa5f3fc });
     for (const v of def.vertices) {
       const dot = new THREE.Mesh(dotGeom, dotMat);
       dot.position.copy(v);
       group.add(dot);
+    }
+
+    const customPoints = def.keyPoints?.filter((kp) => kp.type === 'custom') ?? [];
+    if (customPoints.length > 0) {
+      const customDotMat = new THREE.MeshBasicMaterial({ color: 0x34d399 });
+      for (const kp of customPoints) {
+        const dot = new THREE.Mesh(dotGeom, customDotMat);
+        dot.position.copy(kp.position);
+        group.add(dot);
+      }
     }
 
     return group;

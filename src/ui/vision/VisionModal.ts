@@ -78,7 +78,8 @@ export interface VisionModalCallbacks {
   onMathApplyPreset?: (preset: any) => void;
   onMathZoom?: (direction: 1 | -1) => void;
   onMathResetScale?: () => void;
-  onMathRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string }>;
+  onMathRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string; modelDef?: any }>;
+  onMathSyncModel?: (def: any) => void;
   // 牛顿大炮天体轨道回调
   onNewtonLaunch?: () => void;
   onNewtonClear?: () => void;
@@ -370,6 +371,7 @@ export class VisionModal {
         if (!this.callbacks.onMathRecognizeImage) return Promise.reject(new Error('识图还没接上'));
         return this.callbacks.onMathRecognizeImage(dataUrl);
       },
+      onSyncRecognizedModel: (def) => this.callbacks.onMathSyncModel?.(def),
     });
 
     this.hallStatusCard = new HallStatusCard({

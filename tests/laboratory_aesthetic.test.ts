@@ -4,6 +4,7 @@ import { Laboratory } from '../src/scene/Laboratory.ts';
 import { HoloTable, HOLO_TABLE_RADIUS, HOLO_TABLE_TOP_Y } from '../src/scene/HoloTable.ts';
 import { SCIENTIST_PORTRAITS } from '../src/scene/gallery/portraits.ts';
 import { PORTRAIT_BAY_STRIDE, WALL_BAY_COUNT } from '../src/scene/gallery/PortraitGallery.ts';
+import { galleryPalette } from '../src/scene/gallery/palette.ts';
 
 const createMockElement = (tag = 'div'): any => ({
   tagName: tag.toUpperCase(),
@@ -167,14 +168,15 @@ lab.setPortraitsVisible(true);
 assert.strictEqual(gallery.visible, true);
 
 const plaster = lab.materials.plaster as THREE.MeshStandardMaterial;
-assert.strictEqual(plaster.color.getHex(), 0xf4f1ea);
+const warmPlaster = galleryPalette('warm').plaster;
+assert.strictEqual(plaster.color.getHex(), warmPlaster);
 lab.applyPalette('glacier');
-assert.notStrictEqual(plaster.color.getHex(), 0xf4f1ea);
+assert.strictEqual(plaster.color.getHex(), galleryPalette('glacier').plaster);
 const frameMat = (qianRail.material as THREE.MeshStandardMaterial);
-assert.ok(frameMat.color.getHex() !== 0xb08958, 'Glacier frames leave the warm brass molding');
+assert.ok(frameMat.color.getHex() !== 0xd97757, 'Glacier frames leave the warm clay molding');
 lab.applyPalette('warm');
-assert.strictEqual(plaster.color.getHex(), 0xf4f1ea);
-assert.strictEqual(frameMat.color.getHex(), 0xb08958);
+assert.strictEqual(plaster.color.getHex(), warmPlaster);
+assert.strictEqual(frameMat.color.getHex(), 0xd97757);
 
 wallTransmission = false;
 lab.group.traverse(child => {

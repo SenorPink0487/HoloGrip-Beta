@@ -193,6 +193,7 @@ const allPhysicsExperiments = [
   'em-hall',
   'em-capacitor-discharge',
   'optics-diffraction',
+  'optics-dispersion',
   'optics-double-slit',
   'optics-polarization',
   'optics-reflection-refraction',

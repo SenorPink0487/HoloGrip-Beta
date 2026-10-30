@@ -389,6 +389,26 @@ export class PhysicsDisciplineModal {
       `,
     },
     {
+      id: 'optics-dispersion',
+      name: '光的色散',
+      category: '三棱镜光谱与柯西色散',
+      formula: 'n(λ) = A + B/λ² · δ = θ₁ + θ₄ - α',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="12" width="7" height="12" rx="1.2" stroke-width="1.6"/>
+          <circle cx="8.2" cy="18" r="1.5" fill="currentColor"/>
+          <line x1="10" y1="18" x2="15" y2="18" stroke-width="1.6"/>
+          <line x1="15" y1="11" x2="15" y2="25" stroke-width="1.7"/>
+          <path d="M17 24 L22 12 L27 24 Z" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M24 18 C28 14, 31 12, 33 11" stroke-width="1.5" stroke="#ef4444"/>
+          <path d="M24.5 18.5 C28.5 16, 31.5 15, 33.5 14.5" stroke-width="1.5" stroke="#eab308"/>
+          <path d="M25 19 C29 18, 32 17.5, 34 17.2" stroke-width="1.5" stroke="#22c55e"/>
+          <path d="M25.2 19.6 C29.2 20.4, 32 21.2, 34 22" stroke-width="1.5" stroke="#3b82f6"/>
+          <path d="M25.4 20.2 C29 22.5, 31.5 24.5, 33.2 26.5" stroke-width="1.5" stroke="#8b5cf6"/>
+        </svg>
+      `,
+    },
+    {
       id: 'optics-diffraction',
       name: '光的衍射',
       category: '波动光学与夫琅禾费衍射',

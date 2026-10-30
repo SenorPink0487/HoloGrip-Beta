@@ -859,6 +859,17 @@ export class StereometryInteractionManager {
     this.rotationVelocity.set(0, 0);
   }
 
+  /**
+   * 针对拍照/识图还原模型：从【右前上方】标准教材斜二测视角观测，
+   * 使 +X 水平向右、+Y 竖直向上、+Z 向左下方延伸，虚实棱遮挡与试卷印刷图完全一致。
+   */
+  public resetToTextbookObliqueView(): void {
+    this.mesh.modelContainer.rotation.set(0.22, -0.34, 0);
+    this.targetRotationX = 0.22;
+    this.targetRotationY = -0.34;
+    this.rotationVelocity.set(0, 0);
+  }
+
   public resetToFrontView(): void {
     this.mesh.modelContainer.rotation.set(0, 0, 0);
     this.targetRotationX = 0;

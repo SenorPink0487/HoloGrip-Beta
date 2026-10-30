@@ -16,7 +16,7 @@ export interface ARModelItem {
 
 export interface MathARScannerModalOptions {
   onSyncModel?: (def: PolyhedronModelDef) => void;
-  onRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string }>;
+  onRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string; modelDef?: PolyhedronModelDef }>;
   onClose?: () => void;
 }
 
@@ -41,6 +41,9 @@ export class MathARScannerModal {
   private torchToggleBtn: HTMLButtonElement | null = null;
   private albumInputEl: HTMLInputElement | null = null;
   private cameraInputEl: HTMLInputElement | null = null;
+  private fileInputEl: HTMLInputElement | null = null;
+  private albumPopoverEl: HTMLElement | null = null;
+  private albumBtn: HTMLButtonElement | null = null;
   private finderHintEl: HTMLElement | null = null;
   private isLiveCameraActive = false;
 
@@ -137,18 +140,74 @@ export class MathARScannerModal {
 
       <!-- 4. 底部相机操作控制底栏 -->
       <footer class="math-ar-bottom-bar">
-        <!-- 左侧：相册导入题目 -->
-        <div class="math-ar-action-slot left">
-          <button type="button" class="math-ar-album-btn" id="math-ar-album-btn" title="从相册选取题目">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
+        <!-- 左侧：相册与题目导入插槽 -->
+        <div class="math-ar-action-slot left" id="math-ar-album-slot">
+          <!-- Apple 极简悬浮气泡菜单 (位于相册图标正上方，绝不遮挡相册图标与标签) -->
+          <div class="math-ar-album-popover hidden" id="math-ar-album-popover" role="dialog" aria-label="选取题目来源">
+            <div class="math-ar-popover-menu">
+              <!-- 选项 1: 照片图库 -->
+              <button type="button" class="math-ar-popover-item" id="math-ar-popover-library" data-action="library">
+                <div class="math-ar-popover-icon-box library">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="3" ry="3"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                </div>
+                <div class="math-ar-popover-text">
+                  <span class="math-ar-popover-title">照片图库</span>
+                  <span class="math-ar-popover-desc">从相册选取试卷题目</span>
+                </div>
+              </button>
+
+              <div class="math-ar-popover-divider"></div>
+
+              <!-- 选项 2: 拍摄试卷 -->
+              <button type="button" class="math-ar-popover-item" id="math-ar-popover-camera" data-action="camera">
+                <div class="math-ar-popover-icon-box camera">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                </div>
+                <div class="math-ar-popover-text">
+                  <span class="math-ar-popover-title">拍摄试卷</span>
+                  <span class="math-ar-popover-desc">使用系统相机重新取景</span>
+                </div>
+              </button>
+
+              <div class="math-ar-popover-divider"></div>
+
+              <!-- 选项 3: 浏览文件 -->
+              <button type="button" class="math-ar-popover-item" id="math-ar-popover-file" data-action="file">
+                <div class="math-ar-popover-icon-box file">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </div>
+                <div class="math-ar-popover-text">
+                  <span class="math-ar-popover-title">选取文件</span>
+                  <span class="math-ar-popover-desc">从 iCloud 或本地文件夹导入</span>
+                </div>
+              </button>
+            </div>
+            <div class="math-ar-popover-notch"></div>
+          </div>
+
+          <!-- 相册主触发按钮 -->
+          <button type="button" class="math-ar-album-btn" id="math-ar-album-btn" title="从相册或文件导入题目" aria-haspopup="true" aria-expanded="false">
+            <div class="math-ar-album-icon-box">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </div>
             <span class="math-ar-slot-label">相册</span>
           </button>
           <input type="file" id="math-ar-album-input" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" style="display:none;" />
           <input type="file" id="math-ar-camera-input" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" capture="environment" style="display:none;" />
+          <input type="file" id="math-ar-file-input" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp,application/pdf" style="display:none;" />
         </div>
 
         <!-- 中间：Apple 经典同心圆快门按钮 -->
@@ -190,6 +249,12 @@ export class MathARScannerModal {
     this.torchToggleBtn = this.element.querySelector('#math-ar-torch-btn');
     this.albumInputEl = this.element.querySelector('#math-ar-album-input');
     this.cameraInputEl = this.element.querySelector('#math-ar-camera-input');
+    this.fileInputEl = this.element.querySelector('#math-ar-file-input');
+    this.albumPopoverEl = this.element.querySelector('#math-ar-album-popover');
+    if (this.albumPopoverEl) {
+      this.albumPopoverEl.classList.add('hidden');
+    }
+    this.albumBtn = this.element.querySelector('#math-ar-album-btn');
     this.finderHintEl = this.element.querySelector('.math-ar-finder-hint');
     if (this.albumInputEl) {
       this.albumInputEl.setAttribute('accept', 'image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp');
@@ -197,6 +262,9 @@ export class MathARScannerModal {
     if (this.cameraInputEl) {
       this.cameraInputEl.setAttribute('accept', 'image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp');
       this.cameraInputEl.setAttribute('capture', 'environment');
+    }
+    if (this.fileInputEl) {
+      this.fileInputEl.setAttribute('accept', 'image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp,application/pdf');
     }
   }
 
@@ -246,11 +314,57 @@ export class MathARScannerModal {
       void this.toggleTorch();
     });
 
-    // 5. 自定义相册导入 (秒开 + 异步多级位图降采样)
-    this.element.querySelector('#math-ar-album-btn')?.addEventListener('click', () => {
-      this.setStatus('正在打开相册…', 1500);
-      this.albumInputEl?.click();
+    // 5. Apple 极简相册气泡菜单交互 (悬浮于相册图标正上方，绝不遮挡相册图标与标签)
+    this.albumBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleAlbumPopover();
     });
+
+    // 点击弹窗背景任意非插槽区域自动收起气泡
+    this.element.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest('#math-ar-album-slot')) {
+        this.closeAlbumPopover();
+      }
+    });
+
+    // 选项 1: 照片图库 (秒开系统相册)
+    this.element.querySelector('#math-ar-popover-library')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      this.closeAlbumPopover();
+      await this.handlePhotoLibraryPick();
+    });
+
+    // 选项 2: 拍摄试卷 (调用系统相机)
+    this.element.querySelector('#math-ar-popover-camera')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeAlbumPopover();
+      this.cameraInputEl?.click();
+    });
+
+    // 选项 3: 浏览文件 (从 iCloud 或本地文件夹)
+    this.element.querySelector('#math-ar-popover-file')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeAlbumPopover();
+      this.fileInputEl?.click();
+    });
+
+    const onFileSelected = async (file: File | undefined, label: string) => {
+      if (!file) return;
+
+      this.setStatus(`正在优化并载入${label}…`);
+      this.shutterBtn?.classList.add('is-busy');
+
+      try {
+        const { displayDataUrl, thumbDataUrl } = await this.optimizeImageFile(file);
+        this.displayPaperBackdrop(displayDataUrl);
+        await this.processImageData(displayDataUrl, label, thumbDataUrl);
+      } catch (err) {
+        this.setStatus(err instanceof Error ? err.message : '图片载入失败');
+      } finally {
+        this.shutterBtn?.classList.remove('is-busy');
+      }
+    };
 
     this.albumInputEl?.addEventListener('cancel', () => {
       this.setStatus('已取消相册选择');
@@ -258,49 +372,28 @@ export class MathARScannerModal {
 
     this.albumInputEl?.addEventListener('change', async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      this.setStatus('正在优化并载入相册试卷…');
-      this.shutterBtn?.classList.add('is-busy');
-
-      try {
-        const { displayDataUrl, thumbDataUrl } = await this.optimizeImageFile(file);
-
-        // 将相册试卷投射到取景底纸上，立体几何模型直接立于该题目之上
-        this.displayPaperBackdrop(displayDataUrl);
-
-        // 处理几何识别与 3D 模型生成 (传入轻量微缩图，避免巨量内存占用)
-        await this.processImageData(displayDataUrl, '相册试卷题目', thumbDataUrl);
-      } catch (err) {
-        this.setStatus(err instanceof Error ? err.message : '相册图片载入失败');
-      } finally {
-        this.shutterBtn?.classList.remove('is-busy');
-        (e.target as HTMLInputElement).value = '';
-      }
+      await onFileSelected(file, '相册试卷题目');
+      (e.target as HTMLInputElement).value = '';
     });
 
-    // 6. 原生相机拍照直传 (局域网 HTTP 或无 WebRTC 实时流时的极速物理兜底)
+    this.fileInputEl?.addEventListener('cancel', () => {
+      this.setStatus('已取消文件选择');
+    });
+
+    this.fileInputEl?.addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      await onFileSelected(file, '导入试卷文件');
+      (e.target as HTMLInputElement).value = '';
+    });
+
     this.cameraInputEl?.addEventListener('cancel', () => {
       this.setStatus('已取消相机拍摄');
     });
 
     this.cameraInputEl?.addEventListener('change', async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      this.setStatus('正在处理拍摄照片…');
-      this.shutterBtn?.classList.add('is-busy');
-
-      try {
-        const { displayDataUrl, thumbDataUrl } = await this.optimizeImageFile(file);
-        this.displayPaperBackdrop(displayDataUrl);
-        await this.processImageData(displayDataUrl, `题目 ${this.models.length + 1}`, thumbDataUrl);
-      } catch (err) {
-        this.setStatus(err instanceof Error ? err.message : '拍照处理失败，请重试');
-      } finally {
-        this.shutterBtn?.classList.remove('is-busy');
-        (e.target as HTMLInputElement).value = '';
-      }
+      await onFileSelected(file, `拍摄试卷题目`);
+      (e.target as HTMLInputElement).value = '';
     });
 
     // 取景框点击交互：若当前未激活实时视频流，轻触取景框亦可直接调起系统相机
@@ -322,6 +415,10 @@ export class MathARScannerModal {
     // 7. ESC 快捷键退出
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && document.body?.contains(this.element)) {
+        if (this.albumPopoverEl && !this.albumPopoverEl.classList.contains('hidden')) {
+          this.closeAlbumPopover();
+          return;
+        }
         this.close();
       }
     };
@@ -348,8 +445,16 @@ export class MathARScannerModal {
       this.videoEl.autoplay = true;
     }
 
-    // 渐进式多级降级约束尝试（避免 iPad/iPhone 在纵向或特定硬件下因 strict min 抛出 OverconstrainedError）
+    // 渐进式多级降级约束尝试（优先请求 1440p 高清取景以保证试卷印刷公式与细短辅助线锐利清晰）
     const constraintTiers: MediaStreamConstraints[] = [
+      {
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 2560 },
+          height: { ideal: 1440 },
+        },
+      },
       {
         audio: false,
         video: {
@@ -542,15 +647,22 @@ export class MathARScannerModal {
     let srcWidth = 0;
     let srcHeight = 0;
 
-    // 1. 优先使用 createImageBitmap 在后台独立线程完成高效解码，避免主线程掉帧
+    // 1. 优先使用 createImageBitmap 在后台独立线程完成高效解码并自动校正 EXIF 旋转方向
     if (typeof createImageBitmap === 'function') {
       try {
-        const bitmap = await createImageBitmap(file);
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
         imgSource = bitmap;
         srcWidth = bitmap.width;
         srcHeight = bitmap.height;
       } catch {
-        imgSource = null;
+        try {
+          const bitmap = await createImageBitmap(file);
+          imgSource = bitmap;
+          srcWidth = bitmap.width;
+          srcHeight = bitmap.height;
+        } catch {
+          imgSource = null;
+        }
       }
     }
 
@@ -590,8 +702,8 @@ export class MathARScannerModal {
     srcWidth = srcWidth || 1280;
     srcHeight = srcHeight || 720;
 
-    // 3. 产出高清展示底图 (最长边限制 1600px，压缩至 ~200KB，极致清晰且绝不占显存)
-    const maxEdge = 1600;
+    // 3. 产出高清展示与识别底图 (最长边 1800px，质量 0.88，与上传识图管线规格严格对齐)
+    const maxEdge = 1800;
     const dispScale = Math.min(1, maxEdge / Math.max(srcWidth, srcHeight, 1));
     const dispW = Math.max(1, Math.round(srcWidth * dispScale));
     const dispH = Math.max(1, Math.round(srcHeight * dispScale));
@@ -601,9 +713,11 @@ export class MathARScannerModal {
     dispCanvas.height = dispH;
     const dispCtx = dispCanvas.getContext('2d');
     if (dispCtx && imgSource) {
+      dispCtx.fillStyle = '#ffffff';
+      dispCtx.fillRect(0, 0, dispW, dispH);
       dispCtx.drawImage(imgSource, 0, 0, dispW, dispH);
     }
-    const displayDataUrl = dispCanvas.toDataURL ? dispCanvas.toDataURL('image/jpeg', 0.82) : 'data:image/jpeg;base64,mock';
+    const displayDataUrl = dispCanvas.toDataURL ? dispCanvas.toDataURL('image/jpeg', 0.88) : 'data:image/jpeg;base64,mock';
 
     // 4. 产出底部托盘专用轻量微缩图 (128x128，仅 ~4KB，杜绝底栏频繁重绘卡顿)
     const thumbSize = 128;
@@ -656,16 +770,60 @@ export class MathARScannerModal {
 
     let dataUrl = '';
     if (this.videoEl && this.videoEl.videoWidth > 0) {
+      const videoW = this.videoEl.videoWidth;
+      const videoH = this.videoEl.videoHeight;
+      let sx = 0;
+      let sy = 0;
+      let sw = videoW;
+      let sh = videoH;
+
+      // 精确穿透 video 的 object-fit: cover 映射，仅截取 #math-ar-finder 取景框（外扩 18% 安全留白），
+      // 杜绝将整张广角桌面背景与四周杂字全部缩进 1024px 导致取景框内题干与短辅助线模糊丢失！
+      const finderEl = this.element.querySelector('#math-ar-finder');
+      const vwRect = this.videoEl.getBoundingClientRect();
+      const fRect = finderEl?.getBoundingClientRect();
+      if (
+        fRect &&
+        vwRect.width > 0 &&
+        vwRect.height > 0 &&
+        fRect.width > 0 &&
+        fRect.height > 0 &&
+        (fRect.width < vwRect.width * 0.96 || fRect.height < vwRect.height * 0.96)
+      ) {
+        const coverScale = Math.max(vwRect.width / videoW, vwRect.height / videoH);
+        const renderedW = videoW * coverScale;
+        const renderedH = videoH * coverScale;
+        const offsetX = (vwRect.width - renderedW) * 0.5;
+        const offsetY = (vwRect.height - renderedH) * 0.5;
+
+        const padX = fRect.width * 0.18;
+        const padY = fRect.height * 0.18;
+        const x0 = Math.max(0, Math.floor((fRect.left - padX - vwRect.left - offsetX) / coverScale));
+        const y0 = Math.max(0, Math.floor((fRect.top - padY - vwRect.top - offsetY) / coverScale));
+        const x1 = Math.min(videoW, Math.ceil((fRect.right + padX - vwRect.left - offsetX) / coverScale));
+        const y1 = Math.min(videoH, Math.ceil((fRect.bottom + padY - vwRect.top - offsetY) / coverScale));
+        if (x1 - x0 >= 120 && y1 - y0 >= 120) {
+          sx = x0;
+          sy = y0;
+          sw = x1 - x0;
+          sh = y1 - y0;
+        }
+      }
+
+      const maxEdge = 1800;
+      const outScale = Math.min(1, maxEdge / Math.max(sw, sh, 1));
       const captureCanvas = document.createElement('canvas');
-      captureCanvas.width = this.videoEl.videoWidth;
-      captureCanvas.height = this.videoEl.videoHeight;
+      captureCanvas.width = Math.max(1, Math.round(sw * outScale));
+      captureCanvas.height = Math.max(1, Math.round(sh * outScale));
       const ctx = captureCanvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(this.videoEl, 0, 0, captureCanvas.width, captureCanvas.height);
-        dataUrl = captureCanvas.toDataURL('image/jpeg', 0.86);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, captureCanvas.width, captureCanvas.height);
+        ctx.drawImage(this.videoEl, sx, sy, sw, sh, 0, 0, captureCanvas.width, captureCanvas.height);
+        dataUrl = captureCanvas.toDataURL('image/jpeg', 0.88);
       }
     } else if (this.canvasLayerEl) {
-      dataUrl = this.canvasLayerEl.toDataURL('image/jpeg', 0.86);
+      dataUrl = this.canvasLayerEl.toDataURL('image/jpeg', 0.88);
     }
 
     if (!dataUrl) {
@@ -690,29 +848,35 @@ export class MathARScannerModal {
       let title = defaultName;
       let subtitle = '高考数学立体几何';
 
-      try {
-        if (this.options.onRecognizeImage) {
-          const res = await this.options.onRecognizeImage(dataUrl);
-          title = res.name || title;
-          subtitle = res.subtitle || subtitle;
-        } else {
+      if (this.options.onRecognizeImage) {
+        const res = await this.options.onRecognizeImage(dataUrl);
+        title = res.name || title;
+        subtitle = res.subtitle || subtitle;
+        modelDef = res.modelDef ?? null;
+      } else {
+        try {
           const figure = await recognizeStereometryImage(dataUrl);
           title = figure.name || title;
           subtitle = figure.subtitle || subtitle;
           modelDef = buildRecognizedModel(figure);
+        } catch (err) {
+          // 仅在无后端/离线模拟画布（如单元测试 mock dataUrl）下启用内置演示模型兜底
+          if (!this.isLiveCameraActive || dataUrl.length < 128) {
+            const fallbackCatalog: { type: any; name: string; subtitle: string }[] = [
+              { type: 'square-pyramid', name: '正四棱锥', subtitle: '经典截面与线面角' },
+              { type: 'cube', name: '正方体模型', subtitle: '外接球与二面角' },
+              { type: 'tetrahedron', name: '正四面体', subtitle: '对棱垂直与嵌入长方体' },
+              { type: 'triangular-prism', name: '直三棱柱', subtitle: '斜截面与体积分割' },
+              { type: 'corner-pyramid', name: '墙角模型三棱锥', subtitle: '三条侧棱两两垂直' },
+            ];
+            const selected = fallbackCatalog[this.models.length % fallbackCatalog.length];
+            modelDef = GeometrySolver.createModel(selected.type);
+            title = selected.name;
+            subtitle = selected.subtitle;
+          } else {
+            throw err;
+          }
         }
-      } catch {
-        const fallbackCatalog: { type: any; name: string; subtitle: string }[] = [
-          { type: 'square-pyramid', name: '正四棱锥', subtitle: '经典截面与线面角' },
-          { type: 'cube', name: '正方体模型', subtitle: '外接球与二面角' },
-          { type: 'tetrahedron', name: '正四面体', subtitle: '对棱垂直与嵌入长方体' },
-          { type: 'triangular-prism', name: '直三棱柱', subtitle: '斜截面与体积分割' },
-          { type: 'corner-pyramid', name: '墙角模型三棱锥', subtitle: '三条侧棱两两垂直' },
-        ];
-        const selected = fallbackCatalog[this.models.length % fallbackCatalog.length];
-        modelDef = GeometrySolver.createModel(selected.type);
-        title = selected.name;
-        subtitle = selected.subtitle;
       }
 
       if (!modelDef) {
@@ -915,26 +1079,83 @@ export class MathARScannerModal {
   }
 
   private setStatus(text: string, duration?: number): void {
-    if (this.statusTextEl) {
-      this.statusTextEl.textContent = text;
+    const targetEl = this.statusTextEl ?? this.finderHintEl;
+    if (targetEl) {
+      targetEl.textContent = text;
     }
     if (duration) {
       setTimeout(() => {
-        if (this.statusTextEl && this.statusTextEl.textContent === text) {
+        const activeEl = this.statusTextEl ?? this.finderHintEl;
+        if (activeEl && activeEl.textContent === text) {
           const defaultHint =
             this.models.length > 0
               ? `试卷上已立起 ${this.models.length} 个 3D 模型，可继续拍摄下一题`
-              : '对准试卷上的立体几何题目';
-          this.statusTextEl.textContent = defaultHint;
+              : '将题目放置于取景框内拍照';
+          activeEl.textContent = defaultHint;
         }
       }, duration);
     }
   }
 
   /**
+   * 切换 Apple 极简相册气泡菜单展开/收起状态。
+   * 该气泡位于相册按钮正上方，绝不遮挡相册图标与文字。
+   */
+  public toggleAlbumPopover(force?: boolean): void {
+    if (!this.albumPopoverEl) return;
+    const isCurrentlyOpen = !this.albumPopoverEl.classList.contains('hidden');
+    const shouldOpen = force !== undefined ? force : !isCurrentlyOpen;
+
+    this.albumPopoverEl.classList.toggle('hidden', !shouldOpen);
+    this.albumBtn?.classList.toggle('is-active', shouldOpen);
+    this.albumBtn?.setAttribute('aria-expanded', String(shouldOpen));
+  }
+
+  /**
+   * 安全收起 Apple 极简相册气泡菜单。
+   */
+  public closeAlbumPopover(): void {
+    this.toggleAlbumPopover(false);
+  }
+
+  /**
+   * 从系统相册选取试卷图片：
+   * 优先调用 iPadOS/iOS Tauri 专属无原生弹窗的直连 PhotoLibrary 通道，
+   * 彻底避免 WebKit 粗糙原生弹窗遮挡；在标准 Web 环境下平滑兜底触发文件输入。
+   */
+  private async handlePhotoLibraryPick(): Promise<void> {
+    if (typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const res: any = await invoke('plugin:apple-vision|pickPhoto');
+        if (res && res.dataUrl) {
+          this.setStatus('正在优化并载入相册试卷…');
+          this.shutterBtn?.classList.add('is-busy');
+          try {
+            this.displayPaperBackdrop(res.dataUrl);
+            await this.processImageData(res.dataUrl, '相册试卷题目');
+          } finally {
+            this.shutterBtn?.classList.remove('is-busy');
+          }
+          return;
+        } else if (res && res.cancelled) {
+          this.setStatus('已取消相册选择');
+          return;
+        }
+      } catch (_nativeErr) {
+        // 原生插件调用未命中时平滑降级使用标准 input
+      }
+    }
+
+    this.setStatus('正在打开相册…', 1500);
+    this.albumInputEl?.click();
+  }
+
+  /**
    * 退出并关闭工作台，同步最终模型并安全清理硬件资源。
    */
   public close(): void {
+    this.closeAlbumPopover();
     this.isLiveCameraActive = false;
     if (this.selectedModelId) {
       const active = this.models.find((m) => m.id === this.selectedModelId);

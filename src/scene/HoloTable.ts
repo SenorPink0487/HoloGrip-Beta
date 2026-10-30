@@ -31,6 +31,7 @@ export class HoloTable {
   private isHovered = false;
   private stoneMat!: THREE.MeshPhysicalMaterial;
   private inlayMat!: THREE.MeshStandardMaterial;
+  private pedestalMat!: THREE.MeshStandardMaterial;
 
   public applyPalette(id: GalleryPaletteId): void {
     const palette = galleryPalette(id);
@@ -39,6 +40,7 @@ export class HoloTable {
     this.inlayMat.roughness = palette.metalRoughness;
     this.inlayMat.metalness = palette.metalness;
     this.inlayMat.envMapIntensity = palette.metalEnv;
+    this.pedestalMat.color.set(palette.id === 'glacier' ? 0xc9d2d8 : 0xc4c1b8);
   }
 
   constructor() {
@@ -50,8 +52,9 @@ export class HoloTable {
   }
 
   private createTableStructure(): void {
+    const warm = galleryPalette('warm');
     const stone = new THREE.MeshPhysicalMaterial({
-      color: 0xf3efe6,
+      color: warm.tableStone,
       metalness: 0.02,
       roughness: 0.46,
       clearcoat: 0.12,
@@ -62,20 +65,21 @@ export class HoloTable {
     });
     this.stoneMat = stone;
     const aluminum = new THREE.MeshStandardMaterial({
-      color: 0xe7ebf0,
+      color: 0xc4c1b8,
       metalness: 0.8,
       roughness: 0.24,
       envMapIntensity: 0.9,
       side: THREE.DoubleSide,
     });
     const brass = new THREE.MeshStandardMaterial({
-      color: 0xc6a56e,
-      metalness: 0.9,
-      roughness: 0.3,
-      envMapIntensity: 1.05,
+      color: warm.metal,
+      metalness: warm.metalness,
+      roughness: warm.metalRoughness,
+      envMapIntensity: warm.metalEnv,
       side: THREE.DoubleSide,
     });
     this.inlayMat = brass;
+    this.pedestalMat = aluminum;
 
     const pedestal = new THREE.Mesh(
       new THREE.LatheGeometry(this.pedestalProfile(), 128),

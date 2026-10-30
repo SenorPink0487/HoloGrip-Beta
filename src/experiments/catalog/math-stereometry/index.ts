@@ -12,6 +12,7 @@ import {
   GeometrySolver,
   type HighSchoolModelType,
   type KeyPoint,
+  type PolyhedronModelDef,
   type CrossSectionResult,
   type SphereAnalysisResult,
   type SkewLineResult,
@@ -252,18 +253,22 @@ export default class MathStereometryExperiment extends BaseExperiment {
     });
   }
 
-  public loadRecognizedFigure(figure: RecognizedFigure): { name: string; subtitle: string } {
-    const model = buildRecognizedModel(figure);
+  public loadRecognizedModelDef(model: PolyhedronModelDef): { name: string; subtitle: string; modelDef: PolyhedronModelDef } {
     this.modelType = 'recognized';
     this.cachedTelemetry = null;
     this.lastTelemetryStateKey = '';
     this.mesh.loadRecognizedModel(model);
     this.interactionManager?.resetSelection();
-    this.interactionManager?.resetToIsometricView();
-    return { name: model.name, subtitle: model.subtitle };
+    this.interactionManager?.resetToTextbookObliqueView();
+    return { name: model.name, subtitle: model.subtitle, modelDef: model };
   }
 
-  public async recognizeProblemImage(dataUrl: string): Promise<{ name: string; subtitle: string }> {
+  public loadRecognizedFigure(figure: RecognizedFigure): { name: string; subtitle: string; modelDef: PolyhedronModelDef } {
+    const model = buildRecognizedModel(figure);
+    return this.loadRecognizedModelDef(model);
+  }
+
+  public async recognizeProblemImage(dataUrl: string): Promise<{ name: string; subtitle: string; modelDef: PolyhedronModelDef }> {
     const figure = await recognizeStereometryImage(dataUrl);
     return this.loadRecognizedFigure(figure);
   }
@@ -325,7 +330,11 @@ export default class MathStereometryExperiment extends BaseExperiment {
   public resetView(type: 'iso' | 'front' | 'side' | 'top'): void {
     switch (type) {
       case 'iso':
-        this.interactionManager.resetToIsometricView();
+        if (this.modelType === 'recognized') {
+          this.interactionManager.resetToTextbookObliqueView();
+        } else {
+          this.interactionManager.resetToIsometricView();
+        }
         break;
       case 'front':
         this.interactionManager.resetToFrontView();
