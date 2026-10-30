@@ -714,8 +714,8 @@ console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n
   assert(knobGeo.parameters.radiusTop >= 0.015, `Knob radius must be enlarged for ergonomic laboratory precision (got ${knobGeo.parameters.radiusTop} >= 0.015)`);
   assert(knobGeo.parameters.height <= 0.012, `Knob must be compact in axial length, not an overly long cylinder (got ${knobGeo.parameters.height} <= 0.012)`);
 
-  // 微米鼓轮必须包含倒角游标刻度环、32道滚花棱纹、铬合金倒角环、精致端面阶梯等丰富装配细节
-  assert(bench.micrometerKnob.children.length >= 10, `Micrometer knob must have high mechanical craftsmanship (found ${bench.micrometerKnob.children.length} sub-features)`);
+  // 微米鼓轮采用舒展清晰的大防滑齿条与工整大气的端面结构 (杜绝细碎杂乱)
+  assert(bench.micrometerKnob.children.length >= 10, `Micrometer knob must have clean bold mechanical features (found ${bench.micrometerKnob.children.length} sub-features)`);
   // 转换轮必须包含防滑凹槽、中心液态铬端盖、激光蚀刻象限分度标记等细节
   assert(bench.turretWheel.children.length >= 10, `Turret wheel must have high mechanical craftsmanship (found ${bench.turretWheel.children.length} sub-features)`);
 
@@ -753,12 +753,12 @@ console.log('=== Starting Light Diffraction Analytical & Integration Tests ===\n
   raycaster.ray.origin.set(knobWorldPos.x, knobWorldPos.y, knobWorldPos.z + 0.5);
   raycaster.ray.direction.set(0, 0, -1);
 
-  // a. 没接触前悬停：应出现提示文本与 3D 原生光晕环
+  // a. 没接触前悬停：应出现准星文字提示，同时彻底移除蓝色旋转光晕特效 (保持台面纯净物理呈现)
   const preHover = exp.getHoverTarget(raycaster);
   assert.ok(preHover !== null, 'Should detect hover target before interaction');
   assert.strictEqual(preHover?.id, 'slit_micrometer');
   assert(preHover?.label && preHover.label.length > 0, 'Must have hover prompt before contact');
-  assert.strictEqual(bench.micrometerHoverCue.visible, true, '3D hover cue halo must be visible before contact');
+  assert.strictEqual(bench.micrometerHoverCue.visible, false, '3D hover cue halo must be disabled/hidden (no blue rotational effect)');
 
   // b. 交互触发：执行 pointerdown
   const hitKnob = { object: bench.micrometerKnob, point: knobWorldPos } as any;

@@ -160,21 +160,29 @@ console.log('=== Starting Free Fall & Newton Tube Experiment Analytical & Integr
   console.log(`  [In Air] Cork land time:    ${cork.landTimeS.toFixed(4)} s`);
   console.log(`  [In Air] Feather land time: ${feather.landTimeS.toFixed(4)} s`);
 
-  // In air: Coin lands first, Cork lands slightly after, Feather lands substantially later
+  // In air: Coin lands first, Cork lands with significant delay, Feather floats and lands substantially later
   assert(
     coin.landTimeS < cork.landTimeS,
     `In air, coin (${coin.landTimeS.toFixed(3)}s) must land before cork (${cork.landTimeS.toFixed(3)}s)`
+  );
+  assert(
+    cork.landTimeS - coin.landTimeS > 0.25,
+    `In air, cork (${cork.landTimeS.toFixed(3)}s) must have significant visible delay over coin (${coin.landTimeS.toFixed(3)}s)`
   );
   assert(
     cork.landTimeS < feather.landTimeS,
     `In air, cork (${cork.landTimeS.toFixed(3)}s) must land before feather (${feather.landTimeS.toFixed(3)}s)`
   );
   assert(
-    feather.landTimeS > coin.landTimeS * 1.8,
-    `In air, feather (${feather.landTimeS.toFixed(3)}s) must take significantly longer than coin (${coin.landTimeS.toFixed(3)}s)`
+    feather.landTimeS - cork.landTimeS > 0.8,
+    `In air, feather (${feather.landTimeS.toFixed(3)}s) must have significant visible delay over cork (${cork.landTimeS.toFixed(3)}s)`
+  );
+  assert(
+    feather.landTimeS > coin.landTimeS * 3.5,
+    `In air, feather (${feather.landTimeS.toFixed(3)}s) must take at least 3.5x longer than coin (${coin.landTimeS.toFixed(3)}s)`
   );
 
-  console.log('✓ Test 1 passed: In air, coin lands first, cork follows, and feather lands substantially later due to air drag\n');
+  console.log('✓ Test 1 passed: In air, coin lands first, cork follows with clear delay, and feather lands substantially later due to air drag\n');
 }
 
 // Test 2: Physics Dynamics in Vacuum (0 kPa) - Exact Equivalence Principle
@@ -405,8 +413,28 @@ console.log('=== Starting Free Fall & Newton Tube Experiment Analytical & Integr
   const handled = exp.onPointerDown(mockEvent, hit, mockContext);
   assert.strictEqual(handled, true, 'PointerDown on rotate button must be handled');
 
+  // Ray pointing directly at speed button (3D Slow-Mo Toggle)
+  const speedBtnPivot = exp['mesh']['speedButtonPivot'];
+  const speedPos = new THREE.Vector3();
+  speedBtnPivot.getWorldPosition(speedPos);
+
+  raycaster.ray.origin.set(speedPos.x, speedPos.y, speedPos.z + 1.0);
+  raycaster.ray.direction.set(0, 0, -1);
+
+  const speedHoverInfo = exp.getHoverTarget(raycaster);
+  assert(speedHoverInfo !== null, 'Should detect hover on speed button');
+  assert.strictEqual(speedHoverInfo?.id, 'freefall-speed-button');
+  assert(speedHoverInfo?.label.includes('慢放对比按钮'), 'Tooltip must indicate 3D speed button');
+
+  // Verify pointer click on speed button
+  const speedHit = { object: exp['mesh']['speedButtonHitBox'] } as any;
+  const initialScale = exp['timeScale'];
+  const speedHandled = exp.onPointerDown(mockEvent, speedHit, mockContext);
+  assert.strictEqual(speedHandled, true, 'PointerDown on speed button must be handled');
+  assert.notStrictEqual(exp['timeScale'], initialScale, 'TimeScale should toggle on speed button click');
+
   exp.dispose(mockContext);
-  console.log('✓ Test 7 passed: 3D raycast hover target detected and pointer click handles inversion\n');
+  console.log('✓ Test 7 passed: 3D raycast hover target detected and pointer click handles inversion & slow-mo speed toggle\n');
 }
 
 // Test 8: Modal & Catalog Registration
@@ -453,9 +481,11 @@ console.log('=== Starting Free Fall & Newton Tube Experiment Analytical & Integr
   const midY = coin.position.y;
   assert(midY < startY, `Gravity must pull downward: midY (${midY}) < startY (${startY})`);
 
-  // Step until all landed
-  for (let i = 0; i < 200; i++) {
-    exp.update(0.016, 1.1 + i * 0.016, mockContext);
+  // Step until all objects land
+  let steps = 0;
+  while (exp.getTelemetry().isFalling && steps < 1200) {
+    exp.update(0.016, 1.1 + steps * 0.016, mockContext);
+    steps++;
   }
 
   assert(Math.abs(coin.position.y - (-halfH)) < 0.05, `Coin landed position (${coin.position.y}) must be at bottom cushion (-${halfH})`);

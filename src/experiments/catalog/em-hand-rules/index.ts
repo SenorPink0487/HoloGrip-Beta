@@ -19,7 +19,6 @@ export default class EmHandRulesExperiment extends BaseExperiment {
   public readonly metadata = metadata;
   public override targetScale = 3.6;
   public override hideCenterEmitter = true;
-  public readonly initialCameraPose = { x: 0, y: 2.35, z: 4.2, yaw: 0, pitch: -0.15 };
 
   private bench!: HandRulesBenchMesh;
 
@@ -163,18 +162,11 @@ export default class EmHandRulesExperiment extends BaseExperiment {
         curled: true,
       });
       return wrapSyntheticHandFrame('right', lms);
-    } else if (this.config.mode === 'left-hand-rule') {
-      const fx = this.config.currentPolarity * this.config.fieldPolarity;
-      const lms = buildSyntheticHandLandmarks({
-        thumbDirWorld: { x: 0, y: 0, z: fx > 0 ? 1 : -1 },
-        fingersDirWorld: { x: 0, y: 1 },
-        curled: false,
-      });
-      return wrapSyntheticHandFrame('left', lms);
     } else {
+      const vx = this.config.motionPolarity;
       const indY = this.config.motionPolarity * this.config.fieldPolarity;
       const lms = buildSyntheticHandLandmarks({
-        thumbDirWorld: { x: 1, y: 0 },
+        thumbDirWorld: { x: vx > 0 ? 1 : -1, y: 0 },
         fingersDirWorld: { x: 0, y: indY > 0 ? 1 : -1 },
         curled: false,
       });
@@ -187,25 +179,42 @@ export default class EmHandRulesExperiment extends BaseExperiment {
     hit: THREE.Intersection | null,
     context: ExperimentContext
   ): boolean {
-    if (this.config.mode !== 'right-hand-screw' || !hit || this.pointerGrab || (event.button ?? 0) !== 0) return false;
-    const conductor = this.bench.floatingConductor;
-    const action = conductor.actionFor(hit.object);
-    if (action === 'polarity') {
-      this.reverseCurrent();
+    if (!hit || this.pointerGrab || (event.button ?? 0) !== 0) return false;
+
+    if (this.config.mode === 'right-hand-screw') {
+      const conductor = this.bench.floatingConductor;
+      const action = conductor.actionFor(hit.object);
+      if (action === 'polarity') {
+        this.reverseCurrent();
+        return true;
+      }
+      if (action !== 'conductor') return false;
+      this.pointerGrab = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+      conductor.setDragging(true);
+      if (context.camera) {
+        // Plane and pointer are world-space; the grab offset and constraints live
+        // in the apparatus frame, including the stage's animated scale/transform.
+        context.camera.getWorldDirection(this.dragNormal);
+        this.dragPlane.setFromNormalAndCoplanarPoint(this.dragNormal, hit.point);
+        const point = conductor.group.worldToLocal(hit.point.clone());
+        this.dragOffset.subVectors(conductor.assembly.position, point);
+      }
       return true;
     }
-    if (action !== 'conductor') return false;
-    this.pointerGrab = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
-    conductor.setDragging(true);
-    if (context.camera) {
-      // Plane and pointer are world-space; the grab offset and constraints live
-      // in the apparatus frame, including the stage's animated scale/transform.
-      context.camera.getWorldDirection(this.dragNormal);
-      this.dragPlane.setFromNormalAndCoplanarPoint(this.dragNormal, hit.point);
-      const point = conductor.group.worldToLocal(hit.point.clone());
-      this.dragOffset.subVectors(conductor.assembly.position, point);
+
+    if (this.config.mode === 'right-hand-rule') {
+      let obj: THREE.Object3D | null = hit.object;
+      while (obj && obj !== this.rootGroup) {
+        if (obj.name === 'RightConductorRod') {
+          this.toggleDesktopField();
+          return true;
+        }
+        obj = obj.parent;
+      }
+      return false;
     }
-    return true;
+
+    return false;
   }
 
   private toggleDesktopField(): void {
@@ -261,11 +270,25 @@ export default class EmHandRulesExperiment extends BaseExperiment {
   }
 
   public override getHoverTarget(raycaster: THREE.Raycaster): { id: string; label: string; cursor: string } | null {
-    if (this.config.mode !== 'right-hand-screw') return null;
-    if (this.pointerGrab) return { id: 'floating-conductor', label: '', cursor: 'grabbing' };
-    for (const hit of raycaster.intersectObject(this.bench.floatingConductor.group, true)) {
-      const action = this.bench.floatingConductor.actionFor(hit.object);
-      if (action) return { id: action, label: '', cursor: action === 'conductor' ? 'grab' : 'pointer' };
+    if (this.config.mode === 'right-hand-screw') {
+      if (this.pointerGrab) return { id: 'floating-conductor', label: '', cursor: 'grabbing' };
+      for (const hit of raycaster.intersectObject(this.bench.floatingConductor.group, true)) {
+        const action = this.bench.floatingConductor.actionFor(hit.object);
+        if (action) return { id: action, label: '', cursor: action === 'conductor' ? 'grab' : 'pointer' };
+      }
+      return null;
+    }
+    if (this.config.mode === 'right-hand-rule') {
+      const hits = raycaster.intersectObject(this.bench.group, true);
+      for (const hit of hits) {
+        let obj: THREE.Object3D | null = hit.object;
+        while (obj && obj !== this.bench.group) {
+          if (obj.name === 'RightConductorRod') {
+            return { id: 'right-rod', label: '', cursor: 'pointer' };
+          }
+          obj = obj.parent;
+        }
+      }
     }
     return null;
   }

@@ -637,6 +637,23 @@ export class OpticalDiffractionBenchMesh {
       roughness: 0.48,
     });
 
+    // 旋钮精密纹理专用材质 (高对比度深钛黑激光刻蚀与哑光缎面银铝表盘，确保微米纹理极其分明立体)
+    const engraveLineMat = new THREE.MeshStandardMaterial({
+      color: 0x090d16, // 极深钛灰激光刻槽
+      metalness: 0.70,
+      roughness: 0.35,
+    });
+    const dialSilverMat = new THREE.MeshStandardMaterial({
+      color: 0xf1f5f9, // 阳极氧化缎面银铝
+      metalness: 0.90,
+      roughness: 0.15,
+    });
+    const knurlTeethMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b, // 亮金高光齿牙
+      metalness: 0.85,
+      roughness: 0.18,
+    });
+
     // 1. 挡板底部镜面导杆夹持插套与锁紧螺钉 (钛晶灰蓝)
     const holderSocketGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.020, 24);
     const holderSocket = new THREE.Mesh(holderSocketGeo, titaniumSlateMat);
@@ -1017,7 +1034,7 @@ export class OpticalDiffractionBenchMesh {
     // 旋钮做大 (直径由原来的 18.4mm 加大到 35mm)，轴向厚度紧凑平整 (由原来的 41mm 突起缩短为约 14mm)，杜绝多余长杆
     const knobRadius = 0.0175; // 大直径 35mm
     const knobLength = 0.0080; // 紧凑轴向厚度 8mm
-    const knobGeo = new THREE.CylinderGeometry(knobRadius, knobRadius, knobLength, 36);
+    const knobGeo = new THREE.CylinderGeometry(knobRadius, knobRadius, knobLength, 48);
     knobGeo.rotateX(Math.PI / 2);
     this.micrometerKnob = new THREE.Mesh(knobGeo, brassMat);
     this.micrometerKnob.name = 'SlitMicrometerKnob';
@@ -1032,44 +1049,49 @@ export class OpticalDiffractionBenchMesh {
     bevelCollar.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(bevelCollar);
 
-    // 倒角游标环周向激光分度线 (12 条等分微米分度线)
-    for (let i = 0; i < 12; i++) {
-      const vAngle = (i / 12) * Math.PI * 2;
-      const vTickGeo = new THREE.BoxGeometry(0.0005, 0.0018, 0.0022);
-      const vTick = new THREE.Mesh(vTickGeo, titaniumSlateMat);
+    // 倒角游标环周向激光分度线 (8 条等分清晰主分度线)
+    for (let i = 0; i < 8; i++) {
+      const vAngle = (i / 8) * Math.PI * 2;
+      const vTickGeo = new THREE.BoxGeometry(0.0008, 0.0024, 0.0024);
+      const vTick = new THREE.Mesh(vTickGeo, engraveLineMat);
       vTick.position.set(Math.cos(vAngle) * 0.0152, Math.sin(vAngle) * 0.0152, -knobLength * 0.5 - 0.0010);
       vTick.rotation.z = vAngle;
       vTick.userData = { interactiveId: 'slit_micrometer' };
       bevelCollar.add(vTick);
     }
 
-    // 32 道精密机械防滑滚花棱纹 (Precision Knurling Flutes)
-    for (let i = 0; i < 32; i++) {
-      const kAngle = (i / 32) * Math.PI * 2;
-      const ribGeo = new THREE.BoxGeometry(0.0007, 0.0007, knobLength - 0.0006);
-      const rib = new THREE.Mesh(ribGeo, brassMat);
-      rib.position.set(Math.cos(kAngle) * (knobRadius + 0.0001), Math.sin(kAngle) * (knobRadius + 0.0001), 0);
-      rib.rotation.z = kAngle;
-      rib.userData = { interactiveId: 'slit_micrometer' };
-      this.micrometerKnob.add(rib);
+    // 周向 8 瓣粗大圆润手轮防滑凸瓣 (Bold Rounded Handwheel Lobes - 宽阔粗厚圆润，绝无细窄毛刺感，整体统一纯色)
+    const lobeCount = 8;
+    const lobeGeo = new THREE.CylinderGeometry(0.0042, 0.0042, knobLength, 24);
+    lobeGeo.rotateX(Math.PI / 2);
+    for (let i = 0; i < lobeCount; i++) {
+      const kAngle = (i / lobeCount) * Math.PI * 2;
+      const lobe = new THREE.Mesh(lobeGeo, brassMat);
+      lobe.position.set(
+        Math.cos(kAngle) * (knobRadius - 0.0005),
+        Math.sin(kAngle) * (knobRadius - 0.0005),
+        0
+      );
+      lobe.userData = { interactiveId: 'slit_micrometer' };
+      this.micrometerKnob.add(lobe);
     }
 
-    // 滚花鼓轮两端高光镜面滚边倒角 (Liquid Chrome Chamfered Rims)
-    const rimFrontGeo = new THREE.CylinderGeometry(knobRadius + 0.0001, knobRadius + 0.0001, 0.0006, 36);
+    // 鼓轮两端平滑过渡倒角环 (统一纯色香槟金)
+    const rimFrontGeo = new THREE.CylinderGeometry(knobRadius + 0.0006, knobRadius + 0.0006, 0.0008, 36);
     rimFrontGeo.rotateX(Math.PI / 2);
-    const rimFront = new THREE.Mesh(rimFrontGeo, chromeRodMat);
-    rimFront.position.set(0, 0, knobLength * 0.5 - 0.0003);
+    const rimFront = new THREE.Mesh(rimFrontGeo, brassMat);
+    rimFront.position.set(0, 0, knobLength * 0.5 - 0.0004);
     rimFront.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(rimFront);
 
-    const rimBackGeo = new THREE.CylinderGeometry(knobRadius + 0.0001, knobRadius + 0.0001, 0.0006, 36);
+    const rimBackGeo = new THREE.CylinderGeometry(knobRadius + 0.0006, knobRadius + 0.0006, 0.0008, 36);
     rimBackGeo.rotateX(Math.PI / 2);
-    const rimBack = new THREE.Mesh(rimBackGeo, chromeRodMat);
-    rimBack.position.set(0, 0, -knobLength * 0.5 + 0.0003);
+    const rimBack = new THREE.Mesh(rimBackGeo, brassMat);
+    rimBack.position.set(0, 0, -knobLength * 0.5 + 0.0004);
     rimBack.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(rimBack);
 
-    // 正面精致同心倒角阶梯端面 (Front Face Chamfer & Inset Precision Dial Cap, 平整紧凑不向外突伸)
+    // 正面纯净大气同心倒角外环 (统一纯色香槟金)
     const frontBevelGeo = new THREE.CylinderGeometry(0.0150, knobRadius, 0.0014, 36);
     frontBevelGeo.rotateX(Math.PI / 2);
     const frontBevel = new THREE.Mesh(frontBevelGeo, brassMat);
@@ -1077,43 +1099,38 @@ export class OpticalDiffractionBenchMesh {
     frontBevel.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(frontBevel);
 
-    const stepRingGeo = new THREE.CylinderGeometry(0.0110, 0.0110, 0.0010, 32);
-    stepRingGeo.rotateX(Math.PI / 2);
-    const stepRing = new THREE.Mesh(stepRingGeo, chromeRodMat);
-    stepRing.position.set(0, 0, knobLength * 0.5 + 0.0012);
-    stepRing.userData = { interactiveId: 'slit_micrometer' };
-    this.micrometerKnob.add(stepRing);
+    // 正面中间纯色平整盖板 (Clean Solid Face - 遵从用户要求：中间完全用纯色，无任何杂色黑圈/螺孔/刻线)
+    const frontFaceGeo = new THREE.CylinderGeometry(0.0150, 0.0150, 0.0008, 36);
+    frontFaceGeo.rotateX(Math.PI / 2);
+    const frontFace = new THREE.Mesh(frontFaceGeo, brassMat);
+    frontFace.position.set(0, 0, knobLength * 0.5 + 0.0012);
+    frontFace.userData = { interactiveId: 'slit_micrometer' };
+    this.micrometerKnob.add(frontFace);
 
-    const centerHubGeo = new THREE.CylinderGeometry(0.0070, 0.0070, 0.0014, 24);
-    centerHubGeo.rotateX(Math.PI / 2);
-    const centerHub = new THREE.Mesh(centerHubGeo, brassMat);
-    centerHub.position.set(0, 0, knobLength * 0.5 + 0.0018);
-    centerHub.userData = { interactiveId: 'slit_micrometer' };
-    this.micrometerKnob.add(centerHub);
-
-    // 顶端精密车削对中凹坑 (Lathe Center Dimple)
-    const dimpleGeo = new THREE.SphereGeometry(0.0022, 16, 16);
-    const dimple = new THREE.Mesh(dimpleGeo, titaniumSlateMat);
-    dimple.position.set(0, 0, knobLength * 0.5 + 0.0022);
-    dimple.userData = { interactiveId: 'slit_micrometer' };
-    this.micrometerKnob.add(dimple);
+    // 正面中心微凸圆润缎面轴盖 (统一纯色香槟金，平滑过渡无孔洞)
+    const centerCapGeo = new THREE.CylinderGeometry(0.0075, 0.0085, 0.0006, 32);
+    centerCapGeo.rotateX(Math.PI / 2);
+    const centerCap = new THREE.Mesh(centerCapGeo, brassMat);
+    centerCap.position.set(0, 0, knobLength * 0.5 + 0.0016);
+    centerCap.userData = { interactiveId: 'slit_micrometer' };
+    this.micrometerKnob.add(centerCap);
 
     this.micrometerThimbleGroup.add(this.micrometerKnob);
 
-    // c. 测微鼓轮 3D 原生悬浮提示引导光晕环 (适配大旋钮轮廓，未接触前柔和微光)
+    // c. 测微鼓轮 3D 原生悬浮提示 - 用户要求：彻底删掉交互时的蓝色旋转特效，保持不可见
     const micrometerCueGeo = new THREE.TorusGeometry(0.0210, 0.0008, 16, 48, Math.PI * 1.6);
     micrometerCueGeo.rotateX(Math.PI / 2);
     const micrometerCueMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
       transparent: true,
-      opacity: 0.90,
+      opacity: 0,
       depthWrite: false,
     });
     this.micrometerHoverCue = new THREE.Mesh(micrometerCueGeo, micrometerCueMat);
     this.micrometerHoverCue.name = 'MicrometerHoverCue';
     this.micrometerHoverCue.position.set(0, 0, 0.0068);
     this.micrometerHoverCue.visible = false;
-    this.micrometerThimbleGroup.add(this.micrometerHoverCue);
+    // 删掉蓝色旋转特效：不挂载入渲染树，保持 visible=false
 
     this.slitStageGroup.add(this.micrometerThimbleGroup);
 
@@ -1534,12 +1551,13 @@ export class OpticalDiffractionBenchMesh {
     }
   }
 
-  public setKnobHovered(id: 'slit_micrometer' | 'slit_turret' | null, hovered: boolean): void {
+  public setKnobHovered(_id: 'slit_micrometer' | 'slit_turret' | null, _hovered: boolean): void {
+    // 用户明确要求：彻底删掉交互时的蓝色旋转特效，保持台面纯净物理呈现
     if (this.micrometerHoverCue) {
-      this.micrometerHoverCue.visible = (id === 'slit_micrometer' && hovered && !this.hasInteractedWithMicrometer);
+      this.micrometerHoverCue.visible = false;
     }
     if (this.turretHoverCue) {
-      this.turretHoverCue.visible = (id === 'slit_turret' && hovered && !this.hasInteractedWithTurret);
+      this.turretHoverCue.visible = false;
     }
   }
 
@@ -1593,12 +1611,12 @@ export class OpticalDiffractionBenchMesh {
       }
     }
 
-    // 悬浮提示环细腻微光缓动旋转
-    if (this.micrometerHoverCue && this.micrometerHoverCue.visible) {
-      this.micrometerHoverCue.rotation.z += dt * 1.8;
+    // 严格遵循用户规范：彻底删掉交互时的蓝色旋转特效，不执行任何旋转光效动画
+    if (this.micrometerHoverCue) {
+      this.micrometerHoverCue.visible = false;
     }
-    if (this.turretHoverCue && this.turretHoverCue.visible) {
-      this.turretHoverCue.rotation.z += dt * 1.8;
+    if (this.turretHoverCue) {
+      this.turretHoverCue.visible = false;
     }
 
     if (this.isScreenDirty) {

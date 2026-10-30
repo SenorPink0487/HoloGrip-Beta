@@ -11,10 +11,10 @@
  *    物体同时受重力与空气阻力作用：
  *    m·a = m·g - F_drag
  *    其中 F_drag = 1/2 · C_d · ρ · A · v²
- *    - 硬币：密度高、迎风面积小、质量大，F_drag 远小于重力，近似自由落体。
- *    - 软木塞：密度中等，阻力稍有影响，微落后于硬币。
- *    - 羽毛：质量极轻 (约 0.15g)、有效表面积大、阻力系数大，迅速达到极小收尾速度 (约 1.0 m/s)，
- *      并在空气扰动中轻盈摆动，明显落后于硬币与软木塞。
+ *    - 硬币：密度极高、迎风面积小、质量大，F_drag 远小于重力，近似纯自由落体 (~0.46s)。
+ *    - 软木塞：中等有效密度与阻力，常压下明显滞后于硬币 (~0.85s)，肉眼清晰可辨。
+ *    - 羽毛：质量极轻 (约 0.045g)、有效迎风面积大、阻力系数大，收尾速度极低 (~0.50 m/s)，
+ *      在空气扰动中轻盈左右飘摆迟缓降落 (~2.14s)，与硬币形成极大反差。
  */
 
 export interface FreeFallObjectConfig {
@@ -70,27 +70,27 @@ export const OBJECT_CONFIGS: Record<'feather' | 'coin' | 'cork', FreeFallObjectC
   feather: {
     id: 'feather',
     name: '羽毛',
-    massKg: 0.00015, // 0.15 克轻羽
-    crossSectionAreaM2: 0.0016, // 约 7cm x 2.3cm 有效投影
-    dragCoefficient: 1.35, // 扁平多孔羽片高阻力系数
+    massKg: 0.000045, // 0.045 克天然轻羽
+    crossSectionAreaM2: 0.0020, // 蓬松羽丝有效受风面积
+    dragCoefficient: 1.45, // 扁平多孔高阻力系数
     radiusM: 0.015,
     heightM: 0.08,
   },
   cork: {
     id: 'cork',
     name: '软木塞',
-    massKg: 0.0035, // 3.5 克软木
-    crossSectionAreaM2: 0.00045, // 半径约 1.2cm
-    dragCoefficient: 0.85, // 钝体圆台
-    radiusM: 0.012,
-    heightM: 0.03,
+    massKg: 0.000085, // 0.085 克轻质软木片/木塞
+    crossSectionAreaM2: 0.00060, // 钝体迎风投影
+    dragCoefficient: 1.15, // 钝体圆柱圆台阻力系数
+    radiusM: 0.014,
+    heightM: 0.02,
   },
   coin: {
     id: 'coin',
     name: '硬币',
     massKg: 0.0062, // 6.2 克标准硬币
     crossSectionAreaM2: 0.00030, // 侧滑/翻滚有效平均面积
-    dragCoefficient: 0.50, // 金属扁圆体
+    dragCoefficient: 0.45, // 金属扁圆体低阻力
     radiusM: 0.0125,
     heightM: 0.002,
   },
@@ -206,6 +206,11 @@ export class FreeFallDynamicsSolver {
   public triggerInversion(): void {
     if (this.isTubeRotating) return;
 
+    // 若当前物体仍在下落途中被触发翻转，先平滑归位于管底，确保翻转轨迹连续不突跳
+    if (this.isFalling) {
+      this.resetObjectsToBottom();
+    }
+
     this.isTubeRotating = true;
     this.tubeFlipProgress = 0.0;
     this.tubeStartAngleRad = this.tubeRotationAngleRad;
@@ -254,11 +259,13 @@ export class FreeFallDynamicsSolver {
 
   /**
    * 动力学步进更新
+   * @param dt 真实渲染帧间隔 (秒)
+   * @param timeScale 落体运动时间演化倍率 (默认 1.0；在慢放模式下对自由落体积分应用慢放)
    */
-  public step(dt: number): void {
+  public step(dt: number, timeScale = 1.0): void {
     const clampedDt = Math.min(0.05, Math.max(0.0005, dt));
 
-    // 1. 处理气压变化（抽气中 / 充气中）
+    // 1. 处理气压变化（抽气中 / 充气中，保持设备机械正常速率）
     if (this.isPumpRunning) {
       // 连续指数级抽气直至接近零
       this.airPressureKPa = Math.max(
@@ -278,7 +285,7 @@ export class FreeFallDynamicsSolver {
       }
     }
 
-    // 2. 处理牛顿管翻转插值
+    // 2. 处理牛顿管翻转插值 (保持翻转手感为 0.65s 真实利落机械翻转)
     if (this.isTubeRotating) {
       this.tubeFlipProgress += clampedDt / this.tubeFlipDurationS;
       if (this.tubeFlipProgress >= 1.0) {
@@ -300,11 +307,12 @@ export class FreeFallDynamicsSolver {
       return;
     }
 
-    // 3. 物体自由落体物理动力学积分
+    // 3. 物体自由落体物理动力学积分 (应用 timeScale 慢放倍率，精细观察对比)
     if (!this.isFalling) return;
 
-    this.elapsedFallTimeS += clampedDt;
-    this.flutterPhase += clampedDt * 8.0;
+    const fallDt = clampedDt * Math.max(0.05, Math.min(2.0, timeScale));
+    this.elapsedFallTimeS += fallDt;
+    this.flutterPhase += fallDt * 8.0;
 
     const rho = this.airDensity;
     const g = this.gravity;
@@ -331,8 +339,8 @@ export class FreeFallDynamicsSolver {
       state.dragForceN = dragForce;
 
       // 速度与位移数值积分 (Velocity-Verlet / 改进欧拉)
-      state.velocityM_S += a * clampedDt;
-      state.yM += state.velocityM_S * clampedDt;
+      state.velocityM_S += a * fallDt;
+      state.yM += state.velocityM_S * fallDt;
 
       // 羽毛特有的空气飘舞动力学模拟
       if (key === 'feather') {
@@ -353,7 +361,7 @@ export class FreeFallDynamicsSolver {
       if (state.yM >= this.fallDistanceM) {
         const overshoot = state.yM - this.fallDistanceM;
         const vStep = Math.max(1e-4, state.velocityM_S);
-        const dtOver = Math.min(clampedDt, Math.max(0, overshoot / vStep));
+        const dtOver = Math.min(fallDt, Math.max(0, overshoot / vStep));
         state.yM = this.fallDistanceM;
         state.hasLanded = true;
         state.landTimeS = Math.max(0, this.elapsedFallTimeS - dtOver);

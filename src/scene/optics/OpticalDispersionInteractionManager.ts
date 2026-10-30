@@ -22,13 +22,18 @@ export class OpticalDispersionInteractionManager {
   private callbacks: OpticalDispersionInteractionCallbacks;
 
   // 拖拽状态
-  private dragMode: 'none' | 'screen' | 'micrometer' | 'collimator' | 'turret' = 'none';
+  private dragMode: 'none' | 'screen' | 'micrometer' | 'collimator' | 'turret' | 'prism_turntable' = 'none';
   private dragPlane = new THREE.Plane();
   private dragStartScreenX = 0;
   private dragStartPointerPos = new THREE.Vector3();
+  private dragStartPointerAngle = 0;
   private dragStartClientX = 0;
   private dragStartClientY = 0;
   private dragStartIncidentAngle = 58.0;
+  private dragStartPrismRotation = 0;
+  private dragStartLocalX = 0;
+  private dragStartLocalY = 0;
+  private dragGrabRadius = 0;
   private dragStartTurretAngle = 0;
   private hasDragMoved = false;
 
@@ -62,6 +67,15 @@ export class OpticalDispersionInteractionManager {
       return {
         id: 'screen_handle',
         label: `滑动全景彩虹光谱屏 · 棱镜至屏距 L = ${distMm} mm (角色散 Δδ = ${telem.angularDispersionDeg.toFixed(2)}°)`,
+        cursor: 'grabbing',
+      };
+    }
+
+    if (this.dragMode === 'prism_turntable') {
+      this.apparatus.setKnobHovered('prism_turntable', true);
+      return {
+        id: 'prism_turntable',
+        label: `高色散水晶三棱镜转台 · 入射角 θ₁ = ${this.apparatus.incidentAngleDeg.toFixed(1)}°`,
         cursor: 'grabbing',
       };
     }
@@ -189,17 +203,41 @@ export class OpticalDispersionInteractionManager {
         }
 
         if (
-          id === 'prism_micrometer' ||
-          cur.name === 'PrismMicrometerKnob' ||
+          id === 'prism_turntable' ||
+          cur.name === 'PrismTurntableGroup' ||
           cur.name === 'PrimaryCrystalPrismMesh' ||
           cur.name === 'PrismBottomPlateMesh' ||
+          cur.name === 'PrismSubTurntableMesh' ||
+          cur.name === 'PrismTopCapMesh' ||
+          cur.name === 'PrismTopFinialMesh'
+        ) {
+          if (!this.hasInteractedWithMicrometer) {
+            this.apparatus.setKnobHovered('prism_turntable', true);
+            return {
+              id: 'prism_turntable',
+              label: `高色散水晶三棱镜转台 (按住拖拽旋转调节入射角 θ₁ = ${this.apparatus.incidentAngleDeg.toFixed(1)}°)`,
+              cursor: 'grab',
+            };
+          } else {
+            this.apparatus.setKnobHovered('prism_turntable', false);
+            return {
+              id: 'prism_turntable',
+              label: '',
+              cursor: 'grab',
+            };
+          }
+        }
+
+        if (
+          id === 'prism_micrometer' ||
+          cur.name === 'PrismMicrometerKnob' ||
           cur.name === 'PrismMicrometerGroup'
         ) {
           if (!this.hasInteractedWithMicrometer) {
             this.apparatus.setKnobHovered('prism_micrometer', true);
             return {
               id: 'prism_micrometer',
-              label: `精密测角鼓轮与三棱镜工作台 (按住左右拖拽调节入射角 θ₁ = ${this.apparatus.incidentAngleDeg.toFixed(1)}°)`,
+              label: `精密测角鼓轮 (按住左右拖拽调节入射角 θ₁ = ${this.apparatus.incidentAngleDeg.toFixed(1)}°)`,
               cursor: 'ew-resize',
             };
           } else {
@@ -299,9 +337,21 @@ export class OpticalDispersionInteractionManager {
         break;
       }
       if (
-        cur.name === 'PrismMicrometerKnob' ||
+        cur.userData?.interactiveId === 'prism_turntable' ||
+        cur.name === 'PrismTurntableGroup' ||
         cur.name === 'PrimaryCrystalPrismMesh' ||
         cur.name === 'PrismBottomPlateMesh' ||
+        cur.name === 'PrismSubTurntableMesh' ||
+        cur.name === 'PrismTopCapMesh' ||
+        cur.name === 'PrismTopFinialMesh'
+      ) {
+        targetId = 'prism_turntable';
+        targetObject = cur;
+        break;
+      }
+      if (
+        cur.userData?.interactiveId === 'prism_micrometer' ||
+        cur.name === 'PrismMicrometerKnob' ||
         cur.name === 'PrismMicrometerGroup'
       ) {
         targetId = 'prism_micrometer';
@@ -388,7 +438,39 @@ export class OpticalDispersionInteractionManager {
       return true;
     }
 
-    // 7. 拖动三棱镜测角鼓轮或平行光管转臂 (连续调节入射角 θ1)
+    // 7. 拖拽三棱镜物理动力学转台 (直接在 3D 空间拖动旋转三棱镜)
+    if (targetId === 'prism_turntable') {
+      this.hasInteractedWithMicrometer = true;
+      this.apparatus.hideMicrometerHint();
+      this.dragMode = 'prism_turntable';
+      this.hasDragMoved = false;
+      this.dragStartClientX = event.clientX ?? 0;
+      this.dragStartClientY = event.clientY ?? 0;
+      this.dragStartIncidentAngle = this.apparatus.incidentAngleDeg;
+      this.dragStartPrismRotation = this.apparatus.prismRotationDeg;
+
+      // 拖拽平面贴在抓取点上，法线为仪器正面 (+Z)。避免用转台中心平面造成视差，
+      // 也避免用「抓点相对轴心的极角」：晶体中心附近半径只有几毫米，极角会在几个像素内跳满 25°~80°。
+      const normal = new THREE.Vector3(0, 0, 1).transformDirection(this.rootGroup.matrixWorld);
+      this.dragPlane.setFromNormalAndCoplanarPoint(normal, hit.point);
+      this.dragStartPointerPos.copy(hit.point);
+
+      const invWorld = this.rootGroup.matrixWorld.clone().invert();
+      const localHit = hit.point.clone().applyMatrix4(invWorld);
+      this.dragStartLocalX = localHit.x;
+      this.dragStartLocalY = localHit.y;
+      this.dragGrabRadius = Math.hypot(
+        localHit.x - this.apparatus.prismCenterX,
+        localHit.y - this.apparatus.prismCenterY
+      );
+      this.dragStartPointerAngle = Math.atan2(
+        localHit.y - this.apparatus.prismCenterY,
+        localHit.x - this.apparatus.prismCenterX
+      );
+      return true;
+    }
+
+    // 8. 拖动三棱镜测角鼓轮或平行光管转臂 (连续调节入射角 θ1)
     if (targetId === 'prism_micrometer' || targetId === 'collimator_arm') {
       this.hasInteractedWithMicrometer = true;
       this.apparatus.hideMicrometerHint();
@@ -483,8 +565,83 @@ export class OpticalDispersionInteractionManager {
       return;
     }
 
-    // B. 测微鼓轮旋转与微调
+    // B. 三棱镜转台：手指转过的角度直接写成晶体转角，光发射器不动
+    if (this.dragMode === 'prism_turntable') {
+      const applyRotation = (deltaDeg: number) => {
+        this.apparatus.setPrismTurntableDegrees(this.dragStartPrismRotation + deltaDeg);
+        this.callbacks.onIncidentAngleChange?.(
+          this.apparatus.incidentAngleDeg,
+          this.apparatus.getTelemetry()
+        );
+      };
+
+      const isPointerLocked = typeof document !== 'undefined' && document.pointerLockElement !== null;
+      if (isPointerLocked) {
+        const movX = event.movementX ?? 0;
+        const movY = event.movementY ?? 0;
+        if (Math.abs(movX) > 0 || Math.abs(movY) > 0) {
+          applyRotation((movX - movY * 0.4) * 0.45);
+          return;
+        }
+      }
+
+      const intersectPoint = new THREE.Vector3();
+      if (raycaster && raycaster.ray && raycaster.ray.intersectPlane(this.dragPlane, intersectPoint)) {
+        const invWorld = this.rootGroup.matrixWorld.clone().invert();
+        const localPoint = intersectPoint.clone().applyMatrix4(invWorld);
+        const deltaX = localPoint.x - this.dragStartLocalX;
+        const deltaY = localPoint.y - this.dragStartLocalY;
+        const lx = localPoint.x - this.apparatus.prismCenterX;
+        const ly = localPoint.y - this.apparatus.prismCenterY;
+        const curR = Math.hypot(lx, ly);
+        const lever = Math.max(this.dragGrabRadius, 0.06);
+
+        if (this.dragGrabRadius > 0.05 && curR > 0.03) {
+          let angleDiff = Math.atan2(ly, lx) - this.dragStartPointerAngle;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          applyRotation(THREE.MathUtils.radToDeg(angleDiff));
+          return;
+        }
+
+        if (Math.hypot(deltaX, deltaY) > 0.0008) {
+          const tx = -Math.sin(this.dragStartPointerAngle);
+          const ty = Math.cos(this.dragStartPointerAngle);
+          const tangential = this.dragGrabRadius > 0.02
+            ? deltaX * tx + deltaY * ty
+            : deltaX * 0.45 + deltaY;
+          applyRotation(THREE.MathUtils.radToDeg(tangential / lever));
+          return;
+        }
+      }
+
+      const dx = (event.clientX ?? this.dragStartClientX) - this.dragStartClientX;
+      const dy = (event.clientY ?? this.dragStartClientY) - this.dragStartClientY;
+      applyRotation((dx - dy * 0.5) * 0.28);
+      return;
+    }
+
+    // C. 测微鼓轮旋转与微调
     if (this.dragMode === 'micrometer') {
+      const isPointerLocked = typeof document !== 'undefined' && document.pointerLockElement !== null;
+      if (isPointerLocked) {
+        const movX = event.movementX ?? 0;
+        const movY = event.movementY ?? 0;
+        if (Math.abs(movX) > 0 || Math.abs(movY) > 0) {
+          const deltaDeg = (movX - movY * 0.5) * 0.18;
+          const nextAngle = THREE.MathUtils.clamp(
+            this.apparatus.incidentAngleDeg + deltaDeg,
+            25.0,
+            80.0
+          );
+          this.apparatus.setIncidentAngle(nextAngle);
+          this.callbacks.onIncidentAngleChange?.(
+            this.apparatus.incidentAngleDeg,
+            this.apparatus.getTelemetry()
+          );
+          return;
+        }
+      }
       const clientX = event.clientX ?? this.dragStartClientX;
       const clientY = event.clientY ?? this.dragStartClientY;
       const dx = clientX - this.dragStartClientX;

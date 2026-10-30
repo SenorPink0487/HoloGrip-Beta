@@ -233,25 +233,7 @@ export class HandRulesStatusCard {
             <h3 class="math-tile-name">右手螺旋法则</h3>
           </div>
 
-          <!-- 2. 左手定则 -->
-          <div class="math-branch-tile hr-branch-tile hr-mode-tab" data-mode="left-hand-rule" role="button" tabindex="0" aria-label="左手定则">
-            <div class="math-tile-icon-box hr-tile-icon-box">
-              <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                <!-- Vertical Magnetic Field B -->
-                <line x1="22" y1="38" x2="22" y2="8" stroke-width="2.2"/>
-                <polyline points="17 13 22 8 27 13" stroke-width="2.2"/>
-                <!-- Horizontal Ampere Force F -->
-                <line x1="7" y1="24" x2="37" y2="24" stroke-width="2.2"/>
-                <polyline points="32 19 37 24 32 29" stroke-width="2.2"/>
-                <!-- Current I entering into screen (orthogonal conductor cross-section) -->
-                <circle cx="22" cy="24" r="4.5" fill="currentColor" fill-opacity="0.18" stroke-width="2.0"/>
-                <circle cx="22" cy="24" r="1.5" fill="currentColor"/>
-              </svg>
-            </div>
-            <h3 class="math-tile-name">左手定则</h3>
-          </div>
-
-          <!-- 3. 右手定则 -->
+          <!-- 2. 右手定则 -->
           <div class="math-branch-tile hr-branch-tile hr-mode-tab" data-mode="right-hand-rule" role="button" tabindex="0" aria-label="右手定则">
             <div class="math-tile-icon-box hr-tile-icon-box">
               <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -399,8 +381,6 @@ export class HandRulesStatusCard {
       this.formulaBadgeEl.textContent =
         d.mode === 'right-hand-screw'
           ? '安培定则 (右手螺旋)'
-          : d.mode === 'left-hand-rule'
-          ? '左手定则 (安培力)'
           : '右手定则 (电磁感应)';
     }
 

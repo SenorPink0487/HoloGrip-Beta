@@ -83,12 +83,13 @@ function createChamferedBlockGeometry(
 }
 
 /**
- * 构建面对台前操作者的单层纯净全息干涉光毯几何体
- * 倾角约 18.5°，正对操作者视线，彻底消除多层交叉网格带来的杂乱莫尔纹与重影
+ * 构建严格水平对齐于光轴高程 (Y = beamHeightY) 的单层高纯度全息干涉光毯几何体
+ * 严格保持水平基准面 (rotateX = -PI/2)，左右关于 Z 轴对称无偏角，
+ * 在俯视 19.3° 台前视界中自然舒展，与导轨、激光发射器和接收屏水平赤道线完美对齐
  */
 function createInterferenceFieldGeometry(width: number, height: number): THREE.BufferGeometry {
   const geo = new THREE.PlaneGeometry(width, height, 160, 60);
-  geo.rotateX(-Math.PI * 0.5 + 0.24); // 向上微倾 13.8°，既正对操作者视线又保持纯净轻盈
+  geo.rotateX(-Math.PI * 0.5); // 纯净水平基准面，高度精准贴合光轴 Y = beamHeightY
   return geo;
 }
 
@@ -173,6 +174,8 @@ export class OpticalDoubleSlitBenchMesh {
   public wavefrontArcsGroup!: THREE.Group;
   public interferenceRaysGroup!: THREE.Group;
   public interferenceFieldMesh!: THREE.Mesh;
+  public opticalPathDiffGroup!: THREE.Group;
+  public showOpticalPathDiff = true;
   private interferenceFieldMaterial!: THREE.ShaderMaterial;
   private beamMaterial!: THREE.MeshBasicMaterial;
   private secondaryBeamMaterial!: THREE.MeshBasicMaterial;
@@ -182,6 +185,12 @@ export class OpticalDoubleSlitBenchMesh {
   private wavePhase = 0;
   private s1WaveRings: THREE.Mesh[] = [];
   private s2WaveRings: THREE.Mesh[] = [];
+  private s1WaveMaterials: THREE.MeshBasicMaterial[] = [];
+  private s2WaveMaterials: THREE.MeshBasicMaterial[] = [];
+  private opdLabelCanvas: HTMLCanvasElement | null = null;
+  private opdLabelTexture: THREE.CanvasTexture | null = null;
+  private opdLabelSprite: THREE.Sprite | null = null;
+  private order1TargetSprite: THREE.Sprite | null = null;
 
   // 屏幕纹理与标尺 Canvas
   private screenCanvas: HTMLCanvasElement | null = null;
@@ -1403,32 +1412,50 @@ export class OpticalDoubleSlitBenchMesh {
     this.secondaryBeamMesh.name = 'SecondaryWavefrontFanS2';
     this.group.add(this.secondaryBeamMesh);
 
-    // 4. 双缝出口局部同心波阵面组（保留对象引用以确保向后兼容与生命周期管理，但默认隐藏）
+    // 4. 双缝出口相干同心波阵面组 (惠更斯-菲涅耳微观次波扩展，直观演示两组同心圆相交干涉原理)
     this.wavefrontArcsGroup = new THREE.Group();
     this.wavefrontArcsGroup.name = 'HuygensWavefrontRipplesGroup';
-    this.wavefrontArcsGroup.visible = false;
+    this.wavefrontArcsGroup.visible = true;
     this.s1WaveRings = [];
     this.s2WaveRings = [];
+    this.s1WaveMaterials = [];
+    this.s2WaveMaterials = [];
 
-    const ringCount = 6;
-    const unitWaveArcGeo = new THREE.RingGeometry(0.95, 1.0, 40, 1, -Math.PI * 0.34, Math.PI * 0.68);
+    const ringCount = 8;
+    const unitWaveArcGeo = new THREE.RingGeometry(0.96, 1.0, 48, 1, -Math.PI * 0.42, Math.PI * 0.84);
     for (let i = 0; i < ringCount; i++) {
-      const ringS1 = new THREE.Mesh(unitWaveArcGeo, this.wavefrontCrestMaterial);
+      const matS1 = new THREE.MeshBasicMaterial({
+        color: colorRGB,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const ringS1 = new THREE.Mesh(unitWaveArcGeo, matS1);
       ringS1.name = `WavefrontRippleS1_${i}`;
       ringS1.rotation.x = Math.PI * 0.5;
       this.wavefrontArcsGroup.add(ringS1);
       this.s1WaveRings.push(ringS1);
+      this.s1WaveMaterials.push(matS1);
 
-      const ringS2 = new THREE.Mesh(unitWaveArcGeo, this.wavefrontCrestMaterial);
+      const matS2 = new THREE.MeshBasicMaterial({
+        color: colorRGB,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const ringS2 = new THREE.Mesh(unitWaveArcGeo, matS2);
       ringS2.name = `WavefrontRippleS2_${i}`;
       ringS2.rotation.x = Math.PI * 0.5;
       this.wavefrontArcsGroup.add(ringS2);
       this.s2WaveRings.push(ringS2);
+      this.s2WaveMaterials.push(matS2);
     }
     this.group.add(this.wavefrontArcsGroup);
 
     // 5. 全场波动干涉图样系统 (从双缝一路扩散交叠至屏幕的真实波动干涉场，展现腹线相长与节线相消)
-    // 采用单层纯净全息干涉光毯，倾斜约 18.3° 正对操作者视线，杜绝任何多层交叉莫尔纹与杂乱伪影
+    // 采用单层纯净水平全息干涉光毯，严格贴合 Y=beamHeightY 光轴水平基准面，左右关于 Z 轴对称
     const fieldPlaneGeo = createInterferenceFieldGeometry(1.0, 0.25);
     this.interferenceFieldMaterial = new THREE.ShaderMaterial({
       uniforms: {
@@ -1438,7 +1465,7 @@ export class OpticalDoubleSlitBenchMesh {
         uWavelength: { value: 0.046 },
         uPhase: { value: 0.0 },
         uColor: { value: this.getActiveBeamColor() },
-        uOpacity: { value: this.laserPower ? 0.65 : 0.0 },
+        uOpacity: { value: this.laserPower ? 0.75 : 0.0 },
         uHalfSpan: { value: 0.138 },
       },
       vertexShader: `
@@ -1464,8 +1491,8 @@ export class OpticalDoubleSlitBenchMesh {
           float dx = vUv.x * max(0.01, uLenX);
           float z = (vUv.y - 0.5) * (uHalfSpan * 2.0);
 
-          // 1. 到两狭缝源点 S1 与 S2 的空间物理距离
-          float halfSep = max(0.002, uSlitSep * 0.5);
+          // 1. 到两狭缝源点 S1 与 S2 的空间物理距离 (S1 在 -z, S2 在 +z)
+          float halfSep = max(0.0015, uSlitSep * 0.5);
           float r1 = sqrt(dx * dx + (z + halfSep) * (z + halfSep));
           float r2 = sqrt(dx * dx + (z - halfSep) * (z - halfSep));
 
@@ -1476,36 +1503,39 @@ export class OpticalDoubleSlitBenchMesh {
           float angleTan = z / max(0.002, dx);
           float phaseDiffScreen = 6.283185307 * (angleTan / max(0.001, uDeltaZPerL));
 
-          // 近场双孔同心圆扩散，远场精确贴合光具座屏幕干涉条纹
-          float nearWeight = clamp(1.0 - dx / 0.10, 0.0, 1.0);
-          float totalPhaseDiff = mix(phaseDiffScreen, kWave * (r2 - r1), nearWeight * 0.40);
+          // 近场双孔同心圆演化，远场精确贴合光具座屏幕干涉条纹
+          float nearWeight = clamp(1.0 - dx / 0.12, 0.0, 1.0);
+          float totalPhaseDiff = mix(phaseDiffScreen, kWave * (r2 - r1), nearWeight * 0.45);
 
-          // 相长干涉腹线双曲包络 (1.0 为纯相长，0.0 为完全相消)
-          float envelope = cos(totalPhaseDiff * 0.5);
-          float envIntensity = envelope * envelope;
+          // 相长干涉腹线双曲包络：纯相长干涉 cos²(Δφ/2)
+          float baseFringe = cos(totalPhaseDiff * 0.5);
+          float fringeIntensity = baseFringe * baseFringe;
 
-          // 平滑前向行进正弦波 (产生优雅连续的波动涟漪流动感，绝无碎块虚线伪影)
+          // 增强明暗对比度与边缘锐度，节线区彻底全暗，腹线区通透高亮
+          float crispFringe = pow(fringeIntensity, 1.85);
+
+          // 4. 连续相干微光流动（高频顺滑行进流光，彻底消除切块断层的棋盘格与百叶窗伪影）
+          // 基础连续光强占 82%，动态微流动波纹仅占 18%，光柱始终连贯饱满
           float avgR = (r1 + r2) * 0.5;
-          float wavePhase = kWave * avgR - uPhase;
-          float waveCarrier = cos(wavePhase);
-          float wavePulse = waveCarrier * 0.5 + 0.5;
+          float wavePhase = kWave * 2.6 * avgR - uPhase * 4.0;
+          float shimmer = 0.82 + 0.18 * cos(wavePhase);
 
-          // 综合空间光强场：纯净透明基底 + 腹线相长辉光 (0.40) + 前向波峰行进亮带 (0.60)
-          // 节线相消区受 envIntensity 压制严格归零，展现清晰黑色节线走廊
-          float waveField = envIntensity * (0.40 + 0.60 * wavePulse);
+          // 综合空间光强场：连续贯通的相长双曲光束束群
+          float waveField = crispFringe * shimmer;
 
-          // 边缘平滑柔和渐隐：由双缝微米出射孔向屏幕干涉屏自然喇叭口发散展开
-          float xFadeIn = smoothstep(0.0, 0.020, dx);
+          // 5. 边缘平滑柔和渐隐：由双缝微米出射孔向屏幕干涉屏自然喇叭口发散展开
+          float xFadeIn = smoothstep(0.0, 0.015, dx);
           float xFadeOut = smoothstep(uLenX, uLenX - 0.006, dx);
-          float beamAperture = mix(0.016, uHalfSpan, smoothstep(0.0, uLenX * 0.90, dx));
-          float zNorm = abs(z) / max(0.006, beamAperture);
-          float zFade = smoothstep(1.0, 0.60, zNorm);
+          float beamAperture = mix(0.014, uHalfSpan, smoothstep(0.0, uLenX * 0.88, dx));
+          float zNorm = abs(z) / max(0.004, beamAperture);
+          float zFade = smoothstep(1.0, 0.55, zNorm);
 
           float alpha = waveField * xFadeIn * xFadeOut * zFade * uOpacity;
-          if (alpha < 0.005) discard;
+          if (alpha < 0.004) discard;
 
-          // 腹线中心波峰带柔和白芯激光高光
-          vec3 finalColor = mix(uColor, vec3(1.0, 1.0, 1.0), wavePulse * envIntensity * 0.35);
+          // 6. 腹线中心相长极大激光核心高光
+          float corePeak = pow(fringeIntensity, 5.0) * 0.45;
+          vec3 finalColor = mix(uColor, vec3(1.0, 1.0, 1.0), corePeak);
 
           gl_FragColor = vec4(finalColor, alpha);
         }
@@ -1524,6 +1554,11 @@ export class OpticalDoubleSlitBenchMesh {
     this.interferenceRaysGroup = new THREE.Group();
     this.interferenceRaysGroup.name = 'InterferenceRaysGroup';
     this.group.add(this.interferenceRaysGroup);
+
+    // 7. 空间几何光程差推导教学辅助系统 (从双缝 S1/S2 到第一阶明纹 P1，以垂线截出 δ = λ)
+    this.opticalPathDiffGroup = new THREE.Group();
+    this.opticalPathDiffGroup.name = 'OpticalPathDiffGroup';
+    this.group.add(this.opticalPathDiffGroup);
   }
 
   private getActiveBeamColor(): THREE.Color {
@@ -1639,6 +1674,12 @@ export class OpticalDoubleSlitBenchMesh {
       this.wavefrontCrestMaterial.color.copy(colorRGB);
       this.wavefrontCrestMaterial.opacity = this.laserPower ? 0.48 : 0.0;
     }
+    for (const m of this.s1WaveMaterials) {
+      m.color.copy(colorRGB);
+    }
+    for (const m of this.s2WaveMaterials) {
+      m.color.copy(colorRGB);
+    }
     if (this.interferenceFieldMaterial) {
       this.interferenceFieldMaterial.uniforms.uColor.value.copy(colorRGB);
       this.interferenceFieldMaterial.uniforms.uOpacity.value = this.laserPower ? 0.90 : 0.0;
@@ -1744,6 +1785,7 @@ export class OpticalDoubleSlitBenchMesh {
       this.laserSwitchMesh.rotation.z = on ? -0.25 : 0.25;
     }
     this.updateLaserIndicators();
+    this.updateBeams();
     this.isScreenDirty = true;
   }
 
@@ -1969,6 +2011,7 @@ export class OpticalDoubleSlitBenchMesh {
       if (this.wavefrontArcsGroup) this.wavefrontArcsGroup.visible = false;
       if (this.interferenceRaysGroup) this.interferenceRaysGroup.visible = false;
       if (this.interferenceFieldMesh) this.interferenceFieldMesh.visible = false;
+      if (this.opticalPathDiffGroup) this.opticalPathDiffGroup.visible = false;
       return;
     }
 
@@ -1976,8 +2019,9 @@ export class OpticalDoubleSlitBenchMesh {
     if (this.preBeamHaloMesh) this.preBeamHaloMesh.visible = true;
     if (this.incidentWaveRibbonMesh) this.incidentWaveRibbonMesh.visible = false;
     if (this.incidentWaveVectorsMesh) this.incidentWaveVectorsMesh.visible = false;
-    if (this.wavefrontArcsGroup) this.wavefrontArcsGroup.visible = false;
+    if (this.wavefrontArcsGroup) this.wavefrontArcsGroup.visible = this.showBeamsInAir && this.laserPower;
     if (this.interferenceFieldMesh) this.interferenceFieldMesh.visible = true;
+    if (this.opticalPathDiffGroup) this.opticalPathDiffGroup.visible = this.showOpticalPathDiff && this.laserPower;
 
     const screenX = this.getScreenCarrierX();
     const beamY = this.beamHeightY;
@@ -1997,7 +2041,7 @@ export class OpticalDoubleSlitBenchMesh {
       const uniforms = this.interferenceFieldMaterial.uniforms;
       uniforms.uLenX.value = lenX;
       uniforms.uColor.value.copy(this.getActiveBeamColor());
-      uniforms.uOpacity.value = this.laserPower ? 0.65 : 0.0;
+      uniforms.uOpacity.value = this.laserPower ? 0.78 : 0.0;
       uniforms.uHalfSpan.value = halfSpan;
 
       const screenVisualPerMm = (0.29 - 0.010) / 14.0;
@@ -2015,30 +2059,256 @@ export class OpticalDoubleSlitBenchMesh {
     if (this.postBeamMesh) this.postBeamMesh.visible = false;
     if (this.secondaryBeamMesh) this.secondaryBeamMesh.visible = false;
 
-    // 空间相长干涉射线设为静默状态（仅保留 k=0 等对象节点以保证生命周期与单元测试兼容），避免生硬圆柱线条破坏纯净波动光场
+    // 空间各级相长干涉特征主极大激光线 (k = 0, ±1, ±2) 与立体相干光幕更新
     if (this.interferenceRaysGroup) {
       for (const child of this.interferenceRaysGroup.children) {
         if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose();
-        if ((child as THREE.Mesh).material) ((child as THREE.Mesh).material as THREE.Material).dispose();
+        if ((child as THREE.Mesh).material) {
+          if (Array.isArray((child as THREE.Mesh).material)) {
+            ((child as THREE.Mesh).material as THREE.Material[]).forEach((m) => m.dispose());
+          } else {
+            ((child as THREE.Mesh).material as THREE.Material).dispose();
+          }
+        }
       }
       this.interferenceRaysGroup.clear();
-      this.interferenceRaysGroup.visible = false;
+      this.interferenceRaysGroup.visible = this.showOrderRays && this.laserPower;
 
       const pStart = new THREE.Vector3(this.slitX, beamY, 0);
       const pEnd = new THREE.Vector3(screenX, beamY, 0);
       const dir = new THREE.Vector3().subVectors(pEnd, pStart);
       const len = Math.max(0.01, dir.length());
-      const rayGeo = new THREE.CylinderGeometry(0.0006, 0.0006, len, 6);
-      rayGeo.rotateZ(Math.PI / 2);
-      const rayMat = new THREE.MeshBasicMaterial({ color: this.getActiveBeamColor(), transparent: true, opacity: 0.0 });
-      const k0Ray = new THREE.Mesh(rayGeo, rayMat);
+      const beamColor = this.getActiveBeamColor();
+
+      // 1. 中央 k = 0 相长干涉极大准直激光射线 (核心基准光轴)
+      const rayGeoK0 = new THREE.CylinderGeometry(0.0006, 0.0006, len, 8);
+      rayGeoK0.rotateZ(Math.PI / 2);
+      const rayMatK0 = new THREE.MeshBasicMaterial({
+        color: beamColor,
+        transparent: true,
+        opacity: this.laserPower ? 0.72 : 0.0,
+      });
+      const k0Ray = new THREE.Mesh(rayGeoK0, rayMatK0);
       k0Ray.name = 'ConstructiveOrderRay_k0';
       k0Ray.position.copy(pStart).addScaledVector(dir, 0.5);
       this.interferenceRaysGroup.add(k0Ray);
+
+      // 2. 各级相长干涉主极大光线 (k = ±1, ±2) 与垂直相干立体光幕
+      const screenVisualPerMm = (0.29 - 0.010) / 14.0;
+      const zFringe1 = spacingMm * screenVisualPerMm;
+
+      const orders = [
+        { k: 1, zSign: 1, opacity: 0.55 },
+        { k: 1, zSign: -1, opacity: 0.55 },
+        { k: 2, zSign: 2, opacity: 0.35 },
+        { k: 2, zSign: -2, opacity: 0.35 },
+      ];
+
+      for (const ord of orders) {
+        const targetZ = ord.zSign * zFringe1;
+        if (Math.abs(targetZ) < 0.095) {
+          const pOrderEnd = new THREE.Vector3(screenX, beamY, targetZ);
+          const orderDir = new THREE.Vector3().subVectors(pOrderEnd, pStart);
+          const orderLen = orderDir.length();
+          const orderRayGeo = new THREE.CylinderGeometry(0.0005, 0.0005, orderLen, 8);
+          orderRayGeo.rotateZ(Math.PI / 2);
+          const orderRayMat = new THREE.MeshBasicMaterial({
+            color: beamColor,
+            transparent: true,
+            opacity: this.laserPower ? ord.opacity : 0.0,
+          });
+          const orderRayMesh = new THREE.Mesh(orderRayGeo, orderRayMat);
+          orderRayMesh.name = `ConstructiveOrderRay_k${ord.k}_${ord.zSign > 0 ? 'pos' : 'neg'}`;
+          orderRayMesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), orderDir.clone().normalize());
+          orderRayMesh.position.copy(pStart).addScaledVector(orderDir, 0.5);
+          this.interferenceRaysGroup.add(orderRayMesh);
+
+          // 垂直立体相干发散光幕 (连接狭缝高度与屏幕干涉条纹高度，彻底解决纸片平面的无厚度感)
+          const slitH = 0.014;
+          const screenH = 0.120;
+          const sheetGeo = new THREE.BufferGeometry();
+          const sheetVerts = new Float32Array([
+            pStart.x, pStart.y - slitH * 0.5, pStart.z,
+            pStart.x, pStart.y + slitH * 0.5, pStart.z,
+            pOrderEnd.x, pOrderEnd.y + screenH * 0.5, pOrderEnd.z,
+
+            pStart.x, pStart.y - slitH * 0.5, pStart.z,
+            pOrderEnd.x, pOrderEnd.y + screenH * 0.5, pOrderEnd.z,
+            pOrderEnd.x, pOrderEnd.y - screenH * 0.5, pOrderEnd.z,
+          ]);
+          sheetGeo.setAttribute('position', new THREE.BufferAttribute(sheetVerts, 3));
+          const sheetMat = new THREE.MeshBasicMaterial({
+            color: beamColor,
+            transparent: true,
+            opacity: this.laserPower ? ord.opacity * 0.20 : 0.0,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          });
+          const sheetMesh = new THREE.Mesh(sheetGeo, sheetMat);
+          sheetMesh.name = `ConstructiveOrderSheet_k${ord.k}_${ord.zSign > 0 ? 'pos' : 'neg'}`;
+          this.interferenceRaysGroup.add(sheetMesh);
+        }
+      }
+
+      // k = 0 中央主极大垂直立体光幕
+      const slitH0 = 0.014;
+      const screenH0 = 0.120;
+      const sheetGeo0 = new THREE.BufferGeometry();
+      const sheetVerts0 = new Float32Array([
+        pStart.x, pStart.y - slitH0 * 0.5, 0,
+        pStart.x, pStart.y + slitH0 * 0.5, 0,
+        pEnd.x, pEnd.y + screenH0 * 0.5, 0,
+
+        pStart.x, pStart.y - slitH0 * 0.5, 0,
+        pEnd.x, pEnd.y + screenH0 * 0.5, 0,
+        pEnd.x, pEnd.y - screenH0 * 0.5, 0,
+      ]);
+      sheetGeo0.setAttribute('position', new THREE.BufferAttribute(sheetVerts0, 3));
+      const sheetMat0 = new THREE.MeshBasicMaterial({
+        color: beamColor,
+        transparent: true,
+        opacity: this.laserPower ? 0.18 : 0.0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const sheetMesh0 = new THREE.Mesh(sheetGeo0, sheetMat0);
+      sheetMesh0.name = 'ConstructiveOrderSheet_k0';
+      this.interferenceRaysGroup.add(sheetMesh0);
     }
+
+    // 空间光程差几何推导教学辅助图解 (从 S1 与 S2 出射到一阶明纹 P1，以垂线截出 δ = λ)
+    this.updateOpticalPathDifferenceHelper(screenX, beamY, spacingMm);
 
     // 同步首帧叠加在准直激光束上的正弦电磁波与双缝波阵面动效
     this.updateWaveAnimation();
+  }
+
+  // ==================== 空间几何光程差推导教学辅助图解 ====================
+  private updateOpticalPathDifferenceHelper(screenX: number, beamY: number, spacingMm: number): void {
+    if (!this.opticalPathDiffGroup) return;
+
+    for (const child of this.opticalPathDiffGroup.children) {
+      if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose();
+      if ((child as THREE.Mesh).material) {
+        if (Array.isArray((child as THREE.Mesh).material)) {
+          ((child as THREE.Mesh).material as THREE.Material[]).forEach((m) => m.dispose());
+        } else {
+          ((child as THREE.Mesh).material as THREE.Material).dispose();
+        }
+      }
+    }
+    this.opticalPathDiffGroup.clear();
+
+    if (!this.showOpticalPathDiff || !this.laserPower) {
+      this.opticalPathDiffGroup.visible = false;
+      return;
+    }
+    this.opticalPathDiffGroup.visible = true;
+
+    const s1Z = this.leftSlitLightMesh ? this.leftSlitLightMesh.position.z : -0.0022;
+    const s2Z = this.rightSlitLightMesh ? this.rightSlitLightMesh.position.z : 0.0022;
+    const pS1 = new THREE.Vector3(this.slitX, beamY, s1Z);
+    const pS2 = new THREE.Vector3(this.slitX, beamY, s2Z);
+
+    const screenVisualPerMm = (0.29 - 0.010) / 14.0;
+    const zFringe1 = spacingMm * screenVisualPerMm;
+    const pP1 = new THREE.Vector3(screenX, beamY, zFringe1);
+
+    // 1. 从 S1 到 P1 和从 S2 到 P1 的几何光程辅助线
+    const rayMat = new THREE.LineBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.60,
+    });
+
+    const ray1Geo = new THREE.BufferGeometry().setFromPoints([pS1, pP1]);
+    const ray1Line = new THREE.Line(ray1Geo, rayMat);
+    ray1Line.name = 'OPD_Ray1';
+    this.opticalPathDiffGroup.add(ray1Line);
+
+    const ray2Geo = new THREE.BufferGeometry().setFromPoints([pS2, pP1]);
+    const ray2Line = new THREE.Line(ray2Geo, rayMat);
+    ray2Line.name = 'OPD_Ray2';
+    this.opticalPathDiffGroup.add(ray2Line);
+
+    // 2. 自 S2 向光线 1 作垂直波前垂线，交于点 H，截取光程差 δ = S1H ≈ λ
+    const v1 = new THREE.Vector3().subVectors(pP1, pS1);
+    const u1 = v1.clone().normalize();
+    const vS1S2 = new THREE.Vector3().subVectors(pS2, pS1);
+    const projDist = vS1S2.dot(u1);
+    const pH = pS1.clone().addScaledVector(u1, projDist);
+
+    // 垂线 S2 -> H (同相波前垂直切线)
+    const normalGeo = new THREE.BufferGeometry().setFromPoints([pS2, pH]);
+    const normalMat = new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.85,
+    });
+    const normalLine = new THREE.Line(normalGeo, normalMat);
+    normalLine.name = 'OPD_WavefrontNormal';
+    this.opticalPathDiffGroup.add(normalLine);
+
+    // 3. 高亮光程差关键线段 S1 -> H (δ = λ)
+    const opdDir = new THREE.Vector3().subVectors(pH, pS1);
+    const opdLen = Math.max(0.0001, opdDir.length());
+    const opdGeo = new THREE.CylinderGeometry(0.0009, 0.0009, opdLen, 8);
+    opdGeo.rotateZ(Math.PI / 2);
+    const opdMat = new THREE.MeshBasicMaterial({
+      color: 0xf59e0b, // 香槟金高对比醒目标记
+      transparent: true,
+      opacity: 0.95,
+    });
+    const opdCylinder = new THREE.Mesh(opdGeo, opdMat);
+    opdCylinder.name = 'OPD_SegmentDelta';
+    opdCylinder.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), opdDir.clone().normalize());
+    opdCylinder.position.copy(pS1).addScaledVector(opdDir, 0.5);
+    this.opticalPathDiffGroup.add(opdCylinder);
+
+    // 4. 纯净 3D 浮动文字标牌 (显示光程差数值与物理意义)
+    const refWl = this.lightSourceMode === 'white' ? 550.0 : this.wavelengthNm;
+    this.updateOpdBadgeSprite(pH, refWl);
+  }
+
+  private updateOpdBadgeSprite(anchorPos: THREE.Vector3, wlNm: number): void {
+    if (!this.opdLabelCanvas) {
+      this.opdLabelCanvas = document.createElement('canvas');
+      this.opdLabelCanvas.width = 512;
+      this.opdLabelCanvas.height = 128;
+      this.opdLabelTexture = new THREE.CanvasTexture(this.opdLabelCanvas);
+    }
+    const ctx = this.opdLabelCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = this.opdLabelCanvas.width;
+    const h = this.opdLabelCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (typeof ctx.save === 'function') ctx.save();
+    ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText(`δ = λ = ${wlNm.toFixed(0)} nm (k=1 光程差)`, w / 2, h / 2);
+    if (typeof ctx.restore === 'function') ctx.restore();
+
+    if (this.opdLabelTexture) this.opdLabelTexture.needsUpdate = true;
+
+    if (!this.opdLabelSprite) {
+      const spriteMat = new THREE.SpriteMaterial({
+        map: this.opdLabelTexture,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false,
+      });
+      this.opdLabelSprite = new THREE.Sprite(spriteMat);
+      this.opdLabelSprite.name = 'OPD_TextSprite';
+      this.opdLabelSprite.scale.set(0.14, 0.035, 1);
+    }
+    this.opdLabelSprite.position.set(anchorPos.x + 0.04, anchorPos.y + 0.022, anchorPos.z);
+    this.opticalPathDiffGroup.add(this.opdLabelSprite);
   }
 
   // ==================== 全场波动干涉相位行进与波阵面动态计算 ====================
@@ -2050,21 +2320,26 @@ export class OpticalDoubleSlitBenchMesh {
     if (this.wavefrontArcsGroup && this.wavefrontArcsGroup.visible) {
       const s1Z = this.leftSlitLightMesh ? this.leftSlitLightMesh.position.z : -0.0022;
       const s2Z = this.rightSlitLightMesh ? this.rightSlitLightMesh.position.z : 0.0022;
-      const maxWaveRadius = 0.085;
+      const maxWaveRadius = 0.078;
       const ringCount = this.s1WaveRings.length;
       const fracPhase = ((this.wavePhase / (Math.PI * 2.0)) % 1.0 + 1.0) % 1.0;
 
       for (let i = 0; i < ringCount; i++) {
         const progress = (i + fracPhase) / ringCount;
-        const radius = 0.008 + progress * (maxWaveRadius - 0.008);
+        const radius = 0.003 + progress * (maxWaveRadius - 0.003);
 
         const r1 = this.s1WaveRings[i];
-        r1.position.set(this.slitX + 0.002, this.beamHeightY + 0.0005, s1Z * 2.2);
+        r1.position.set(this.slitX + 0.001, this.beamHeightY, s1Z);
         r1.scale.setScalar(radius);
 
         const r2 = this.s2WaveRings[i];
-        r2.position.set(this.slitX + 0.002, this.beamHeightY - 0.0005, s2Z * 2.2);
+        r2.position.set(this.slitX + 0.001, this.beamHeightY, s2Z);
         r2.scale.setScalar(radius);
+
+        // 柔和正弦渐变：双缝近端平滑展开，干涉核心交汇区达到峰值，边缘平滑融入远场光束
+        const waveAlpha = Math.sin(progress * Math.PI) * (this.laserPower ? 0.48 : 0.0);
+        if (this.s1WaveMaterials[i]) this.s1WaveMaterials[i].opacity = waveAlpha;
+        if (this.s2WaveMaterials[i]) this.s2WaveMaterials[i].opacity = waveAlpha;
       }
     }
   }
@@ -2148,6 +2423,14 @@ export class OpticalDoubleSlitBenchMesh {
     this.bezelScaleTexture?.dispose();
     this.gimbalDialTexture?.dispose();
     this.slitPlateTexture?.dispose();
+    this.opdLabelTexture?.dispose();
+
+    for (const m of this.s1WaveMaterials) {
+      m.dispose();
+    }
+    for (const m of this.s2WaveMaterials) {
+      m.dispose();
+    }
 
     this.incidentWaveRibbonMesh?.geometry?.dispose();
     this.incidentWaveVectorsMesh?.geometry?.dispose();

@@ -461,6 +461,160 @@ console.log('=== Starting Light Dispersion & Newton Prism Recombination Analytic
   console.log('✓ Test 7 passed: Button & knob rotation ergonomics and tactile feedback verified\n');
 }
 
+// -------------------------------------------------------------
+// Test 8: Prism Turntable Direct 3D Drag Rotation & Physical Turntable Invariants
+// -------------------------------------------------------------
+{
+  console.log('Test 8: Prism Turntable Direct 3D Drag Rotation & Physical Turntable Invariants');
+  const rootGroup = new THREE.Group();
+  const apparatus = new OpticalDispersionApparatusMesh();
+  rootGroup.add(apparatus.group);
+  rootGroup.updateMatrixWorld(true);
+
+  // 1. Initial turntable orientation at default 58.0°
+  assert.strictEqual(apparatus.incidentAngleDeg, 58.0);
+  assert.strictEqual(apparatus.prismTurntableGroup.rotation.z, 0.0);
+
+  // 2. Incident angle adjustment drives 3D turntable physical rotation
+  apparatus.setIncidentAngle(70.0);
+  assert(
+    apparatus.prismTurntableGroup.rotation.z > 0.05,
+    `Turntable must rotate physically in 3D when incident angle increases, got ${apparatus.prismTurntableGroup.rotation.z}`
+  );
+  apparatus.setIncidentAngle(45.0);
+  assert(
+    apparatus.prismTurntableGroup.rotation.z < -0.05,
+    `Turntable rotation must reverse when incident angle decreases below 58°, got ${apparatus.prismTurntableGroup.rotation.z}`
+  );
+
+  // Reset to default
+  apparatus.setIncidentAngle(58.0);
+  assert.strictEqual(apparatus.prismTurntableGroup.rotation.z, 0.0);
+
+  let angleChanged = 0;
+  const mgr = new OpticalDispersionInteractionManager(apparatus, rootGroup, {
+    onIncidentAngleChange: (a) => { angleChanged = a; },
+  });
+
+  // 3. Direct Raycast Hover on PrimaryCrystalPrismMesh
+  const raycaster = new THREE.Raycaster();
+  const prismWorldPos = new THREE.Vector3();
+  apparatus.prismCrystalMesh.getWorldPosition(prismWorldPos);
+  raycaster.ray.origin.set(prismWorldPos.x, prismWorldPos.y, prismWorldPos.z + 0.5);
+  raycaster.ray.direction.set(0, 0, -1);
+
+  const hoverInfo = mgr.getHoverTarget(raycaster);
+  assert.ok(hoverInfo, 'Hovering over primary crystal prism mesh must return target info');
+  assert.strictEqual(hoverInfo?.id, 'prism_turntable');
+  assert.strictEqual(hoverInfo?.cursor, 'grab');
+
+  // 4. Direct 3D Manipulation: PointerDown on PrimaryCrystalPrismMesh & Polar Rotation
+  const hitPrism = { object: apparatus.prismCrystalMesh, point: prismWorldPos } as any;
+  const downAccepted = mgr.onPointerDown(
+    new PointerEvent('pointerdown', { clientX: 500, clientY: 500 }),
+    hitPrism
+  );
+  assert.strictEqual(downAccepted, true, 'PointerDown on primary crystal prism must be accepted');
+  assert.strictEqual(mgr.isDragging, true, 'Manager must enter active dragging mode');
+
+  // Drag in 3D space: move pointer to simulate turntable circular drag.
+  // 像素拖拽把转台转过约 17°，入射角随之变为 58° − 转角，光发射器保持不动。
+  const armBefore = apparatus.collimatorArmGroup.rotation.z;
+  mgr.onPointerMove(new PointerEvent('pointermove', { clientX: 550, clientY: 480 }), raycaster);
+  assert(
+    Math.abs(apparatus.prismRotationDeg) > 12,
+    `Direct prism drag must turn the crystal by a clearly visible angle, got ${apparatus.prismRotationDeg}`
+  );
+  assert(
+    apparatus.prismTurntableGroup.rotation.z > 0.2,
+    'Prism turntable assembly must physically rotate with direct manipulation'
+  );
+  assert(
+    Math.abs(apparatus.incidentAngleDeg - (58 - apparatus.prismRotationDeg)) < 1.5,
+    `Incident angle must follow the prism rotation, got θ=${apparatus.incidentAngleDeg} rot=${apparatus.prismRotationDeg}`
+  );
+  assert.strictEqual(
+    apparatus.collimatorArmGroup.rotation.z,
+    armBefore,
+    'Dragging the prism must leave the light emitter aimed where it was'
+  );
+  assert.strictEqual(angleChanged, apparatus.incidentAngleDeg);
+  mgr.onPointerUp(new PointerEvent('pointerup'));
+  assert.strictEqual(mgr.isDragging, false, 'PointerUp must end dragging mode');
+
+  // 4b. A small planar drag on the crystal turns it in proportion and does not pin the angle to a stop.
+  apparatus.setIncidentAngle(58.0);
+  const smallHitPoint = prismWorldPos.clone();
+  const armBeforeSmall = apparatus.collimatorArmGroup.rotation.z;
+  mgr.onPointerDown(
+    new PointerEvent('pointerdown', { clientX: 400, clientY: 400 }),
+    { object: apparatus.prismCrystalMesh, point: smallHitPoint } as any
+  );
+  const offsetRay = new THREE.Raycaster();
+  offsetRay.ray.origin.set(smallHitPoint.x + 0.02, smallHitPoint.y + 0.01, smallHitPoint.z + 1);
+  offsetRay.ray.direction.set(0, 0, -1);
+  mgr.onPointerMove(new PointerEvent('pointermove', { clientX: 430, clientY: 380 }), offsetRay);
+  assert(
+    Math.abs(apparatus.prismRotationDeg) > 8 && Math.abs(apparatus.prismRotationDeg) < 40,
+    `Small prism drag must rotate the turntable visibly without hitting the stop, got ${apparatus.prismRotationDeg}`
+  );
+  assert(
+    apparatus.incidentAngleDeg > 25 && apparatus.incidentAngleDeg < 80,
+    `Incident angle must stay inside the optical range, got ${apparatus.incidentAngleDeg}`
+  );
+  assert.strictEqual(apparatus.collimatorArmGroup.rotation.z, armBeforeSmall);
+  mgr.onPointerUp(new PointerEvent('pointerup'));
+
+  // 4c. Dragging the goniometer ring turns the prism by the swept hand angle.
+  apparatus.setIncidentAngle(58.0);
+  const rimPoint = prismWorldPos.clone();
+  rimPoint.x += 0.12;
+  const dialHit = apparatus.goniometerDialGroup.children[0];
+  mgr.onPointerDown(
+    new PointerEvent('pointerdown', { clientX: 400, clientY: 400 }),
+    { object: dialHit, point: rimPoint } as any
+  );
+  const rimRay = new THREE.Raycaster();
+  rimRay.ray.origin.set(rimPoint.x + 0.008, rimPoint.y + 0.028, rimPoint.z + 1);
+  rimRay.ray.direction.set(0, 0, -1);
+  mgr.onPointerMove(new PointerEvent('pointermove', { clientX: 430, clientY: 360 }), rimRay);
+  assert(
+    apparatus.prismRotationDeg > 8 && apparatus.prismRotationDeg < 25,
+    `Dial drag must turn the prism with the hand, got ${apparatus.prismRotationDeg}`
+  );
+  assert(
+    apparatus.incidentAngleDeg < 58,
+    `Turning the prism against a fixed beam must change incidence, got ${apparatus.incidentAngleDeg}`
+  );
+  mgr.onPointerUp(new PointerEvent('pointerup'));
+
+  // 5. Pointer Lock Mode: Drag with movementX
+  (globalThis as any).document.pointerLockElement = (globalThis as any).document.body;
+  apparatus.setIncidentAngle(58.0);
+  mgr.onPointerDown(new PointerEvent('pointerdown'), hitPrism);
+  const prevRot = apparatus.prismRotationDeg;
+  mgr.onPointerMove(new PointerEvent('pointermove', { movementX: 30, movementY: 0 }), raycaster);
+  assert(
+    apparatus.prismRotationDeg > prevRot + 8,
+    'Pointer lock movementX must rotate the prism turntable'
+  );
+  mgr.onPointerUp(new PointerEvent('pointerup'));
+  (globalThis as any).document.pointerLockElement = null;
+
+  // 6. Ray Tracing and Geometry Alignment at extremes
+  for (const testAngle of [25.0, 40.0, 58.0, 72.0, 80.0]) {
+    apparatus.setIncidentAngle(testAngle);
+    const telem = apparatus.getTelemetry();
+    assert.ok(!isNaN(telem.angularDispersionDeg), 'Angular dispersion must be a valid number');
+    assert.ok(!isNaN(telem.yellowDeviationDeg), 'Yellow deviation must be a valid number');
+    const p1 = apparatus.getIncidentPointP1();
+    assert.ok(!isNaN(p1.x) && !isNaN(p1.y), 'P1 incident coordinates must be valid numbers');
+  }
+
+  apparatus.dispose();
+  console.log('✓ Test 8 passed: Direct 3D prism drag, physical turntable rotation & pointer lock verified\n');
+}
+
 console.log('========================================================');
-console.log('All Light Dispersion & Prism Recombination Tests Passed (7/7)!');
+console.log('All Light Dispersion & Prism Recombination Tests Passed (8/8)!');
 console.log('========================================================\n');

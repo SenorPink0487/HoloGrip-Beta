@@ -17,7 +17,7 @@ import {
   terminalBrass,
 } from './conductorRod.ts';
 import { ArticulatedHandSkeletonMesh } from './ArticulatedHandSkeletonMesh.ts';
-import { FloatingConductorMesh } from './FloatingConductorMesh.ts';
+import { FloatingConductorMesh, createPrecisionRodGeometry } from './FloatingConductorMesh.ts';
 import type {
   HandRuleConfig,
   HandRuleEvaluation,
@@ -91,23 +91,37 @@ function createSculptedArrowGeometry(
 }
 
 /**
- * 创建车削成型的精密导体圆棒（带两端黄铜压紧阶梯轴肩与滚花槽环，沿 Y 轴，中心在原点）
+ * 创建高辨识度航天级流线型矢量箭头几何体（沿 +Y 轴，中心在原点）
+ * 头部为纤细尖锥（尖端半径收敛至 0，带倒钩肩台），尾部为大直径喇叭形倒流尾翼（半径扩大至 finRadius，带内凹空腔）
+ * 从任意三维视角（包括正对或轴向俯视），均能凭“尖端针头 vs 宽大尾翼”瞬间清晰区分正反方向。
  */
-function createTurnedConductorGeometry(length = 0.24, radius = 0.009): THREE.BufferGeometry {
+function createHighVisibilityArrowGeometry(
+  length = 0.042,
+  shaftRadius = 0.0028,
+  headRadius = 0.0075,
+  headLength = 0.016,
+  finRadius = 0.0095
+): THREE.BufferGeometry {
   const half = length * 0.5;
+  const neckY = half - headLength;
+  const finY = -half + 0.009;
+
   const profile: THREE.Vector2[] = [
-    new THREE.Vector2(0.0, -half),
-    new THREE.Vector2(radius * 1.28, -half + 0.003),
-    new THREE.Vector2(radius * 1.28, -half + 0.018),
-    new THREE.Vector2(radius * 0.92, -half + 0.022),
-    new THREE.Vector2(radius, -half + 0.026),
-    new THREE.Vector2(radius, half - 0.026),
-    new THREE.Vector2(radius * 0.92, half - 0.022),
-    new THREE.Vector2(radius * 1.28, half - 0.018),
-    new THREE.Vector2(radius * 1.28, half - 0.003),
+    new THREE.Vector2(0.0, -half + 0.003),
+    new THREE.Vector2(shaftRadius * 0.7, -half + 0.002),
+    new THREE.Vector2(finRadius * 0.85, -half + 0.0005),
+    new THREE.Vector2(finRadius, -half),
+    new THREE.Vector2(finRadius * 0.96, -half + 0.0025),
+    new THREE.Vector2(shaftRadius * 1.5, finY - 0.002),
+    new THREE.Vector2(shaftRadius, finY),
+    new THREE.Vector2(shaftRadius, neckY),
+    new THREE.Vector2(headRadius, neckY),
+    new THREE.Vector2(headRadius * 0.85, neckY + 0.004),
+    new THREE.Vector2(headRadius * 0.50, neckY + 0.010),
     new THREE.Vector2(0.0, half),
   ];
-  const geo = new THREE.LatheGeometry(profile, 28);
+
+  const geo = new THREE.LatheGeometry(profile, 24);
   geo.computeVertexNormals();
   return geo;
 }
@@ -165,20 +179,77 @@ function createFrontScaleTexture(): THREE.CanvasTexture {
   });
 }
 
+/**
+ * 生成正对操作者的清晰 "速度 v" 标识纹理
+ */
+function createVelocityLabelTexture(): THREE.CanvasTexture {
+  return paintTexture(512, 256, (ctx: any, w, h) => {
+    if (typeof ctx.clearRect === 'function') ctx.clearRect(0, 0, w, h);
+    if (typeof ctx.fillText !== 'function') return;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const cy = h * 0.5;
+
+    if (typeof ctx.strokeText === 'function') {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = 12;
+      ctx.font = '900 86px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
+      ctx.strokeText('速度', 170, cy);
+      ctx.font = 'italic 900 110px "Times New Roman", STSong, Georgia, serif';
+      ctx.strokeText('v', 335, cy - 3);
+    }
+
+    ctx.fillStyle = '#9333ea';
+    ctx.font = '900 86px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
+    ctx.fillText('速度', 170, cy);
+    ctx.font = 'italic 900 110px "Times New Roman", STSong, Georgia, serif';
+    ctx.fillText('v', 335, cy - 3);
+  });
+}
+
+/**
+ * 生成正对操作者的清晰 "感应电流 I" 标识纹理
+ */
+function createInducedCurrentLabelTexture(): THREE.CanvasTexture {
+  return paintTexture(512, 256, (ctx: any, w, h) => {
+    if (typeof ctx.clearRect === 'function') ctx.clearRect(0, 0, w, h);
+    if (typeof ctx.fillText !== 'function') return;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const cy = h * 0.5;
+
+    if (typeof ctx.strokeText === 'function') {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = 12;
+      ctx.font = '900 78px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
+      ctx.strokeText('感应电流', 200, cy);
+      ctx.font = 'italic 900 102px "Times New Roman", STSong, Georgia, serif';
+      ctx.strokeText('I', 415, cy - 3);
+    }
+
+    ctx.fillStyle = '#059669';
+    ctx.font = '900 78px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
+    ctx.fillText('感应电流', 200, cy);
+    ctx.font = 'italic 900 102px "Times New Roman", STSong, Georgia, serif';
+    ctx.fillText('I', 415, cy - 3);
+  });
+}
+
 const _UP = new THREE.Vector3(0, 1, 0);
 const _QUAT = new THREE.Quaternion();
 
 /**
- * 电磁学三大定则（右手螺旋法则、左手定则、右手定则）纯 3D 导体与磁铁实验台
+ * 电磁学手势定则（右手螺旋法则、右手定则）纯 3D 导体与磁铁实验台
  * 严格遵循零弹窗、纯导体/磁铁实体建模、发光目标感应区与方向箭头引导规范
  */
 export class HandRulesBenchMesh {
   public readonly group = new THREE.Group();
   public readonly handSkeleton: ArticulatedHandSkeletonMesh;
 
-  // 三大定则独立 3D 机械总成
+  // 定则独立 3D 机械总成
   private get screwGroup(): THREE.Group { return this.floatingConductor.group; }
-  private readonly leftRuleGroup = new THREE.Group();
   private readonly rightRuleGroup = new THREE.Group();
 
   // 导体周围发光目标引导区域
@@ -189,31 +260,15 @@ export class HandRulesBenchMesh {
   public readonly floatingConductor = new FloatingConductorMesh();
   private readonly isolationBase = new THREE.Group();
 
-  // 2. 左手定则组件
-  private leftRodGroup = new THREE.Group();
-  private leftCurrentArrow!: THREE.Group;
-  private leftCurrent!: AxialChargeFlow;
-  private readonly leftFieldArrows: THREE.Group[] = [];
-  private leftForceArrow!: THREE.Group;
-  private leftForceMat!: THREE.MeshStandardMaterial;
-  private leftPoleTopMat!: THREE.MeshStandardMaterial;
-  private leftPoleBottomMat!: THREE.MeshStandardMaterial;
-  private leftPoleTopBadge!: THREE.Mesh;
-  private leftPoleBottomBadge!: THREE.Mesh;
-  private leftRodDisplacementX = 0;
-  private leftRodVelocityX = 0;
-
-  // 3. 右手定则组件
+  // 2. 右手定则组件：严格遵循极简纯净物理台面规范，只保留运动导体棒与矢量指示
   private rightRodGroup = new THREE.Group();
   private rightMotionArrow!: THREE.Group;
-  private readonly rightFieldArrows: THREE.Group[] = [];
+  private rightMotionLabel!: THREE.Mesh;
   private rightInducedArrow!: THREE.Group;
   private rightInducedMat!: THREE.MeshStandardMaterial;
+  private rightInducedLabelMat!: THREE.MeshBasicMaterial;
+  private rightInducedLabel!: THREE.Mesh;
   private rightCurrent!: AxialChargeFlow;
-  private rightPoleFrontMat!: THREE.MeshStandardMaterial;
-  private rightPoleBackMat!: THREE.MeshStandardMaterial;
-  private rightGalvoNeedlePivot = new THREE.Group();
-  private rightLoopGlowMat!: THREE.MeshStandardMaterial;
   private rightCutPhase = 0;
 
   // 共用高规格实验室材质
@@ -225,8 +280,6 @@ export class HandRulesBenchMesh {
     roughness: 0.08,
   });
   private readonly champagneBrassMat = polishedGold(0xf59e0b);
-  private readonly rodCopper = brushedCopper();
-  private readonly contactBrass = terminalBrass();
   private readonly knownCurrentMat = labGlow(0xf59e0b, 0.68); // 琥珀金：已知电流 I
   private readonly knownFieldMat = labGlow(0x38bdf8, 0.62);   // 冰海青：已知磁场 B
   private readonly knownMotionMat = labGlow(0xa855f7, 0.65);  // 紫晶光：已知切割运动 v
@@ -241,7 +294,6 @@ export class HandRulesBenchMesh {
     this.buildIsolationBase();
     this.buildTargetGuidanceZone();
     this.buildRightHandScrewApparatus();
-    this.buildLeftHandRuleApparatus();
     this.buildRightHandRuleApparatus();
 
     this.handSkeleton = new ArticulatedHandSkeletonMesh();
@@ -304,6 +356,7 @@ export class HandRulesBenchMesh {
     scaleFace.position.set(0, 0.031, 0.196);
     baseGroup.add(scaleFace);
 
+    baseGroup.visible = false;
     this.group.add(baseGroup);
   }
 
@@ -311,6 +364,7 @@ export class HandRulesBenchMesh {
    * 2. 构建导体周围的发光目标感应区域（引导手部骨骼靠近并摆出定则手势）
    */
   private buildTargetGuidanceZone(): void {
+    this.targetZoneGroup.visible = false;
     this.targetRingMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
       emissive: 0x0284c7,
@@ -365,310 +419,116 @@ export class HandRulesBenchMesh {
     this.group.add(this.floatingConductor.group);
   }
 
-  private buildLeftHandRuleApparatus(): void {
-    this.leftRuleGroup.name = 'LeftHandRuleApparatus';
-
-    // 1) 上下磁极与后侧 C 型航天银铝磁轭（产生竖直方向匀强磁场 B）
-    const yokeBackGeo = createChamferedBoxGeometry(0.14, 0.34, 0.045, 0.01, 0.002);
-    const yokeBack = new THREE.Mesh(yokeBackGeo, this.brushedSlateMat);
-    yokeBack.position.set(0, 0.05, -0.125);
-    this.leftRuleGroup.add(yokeBack);
-
-    this.leftPoleBottomMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      metalness: 0.55,
-      roughness: 0.28,
-    });
-    this.leftPoleTopMat = new THREE.MeshStandardMaterial({
-      color: 0x3b82f6,
-      metalness: 0.55,
-      roughness: 0.28,
-    });
-
-    const poleGeo = createChamferedBoxGeometry(0.16, 0.032, 0.18, 0.008, 0.002);
-    const bottomPole = new THREE.Mesh(poleGeo, this.leftPoleBottomMat);
-    bottomPole.position.set(0, 0.06, -0.02);
-    const topPole = new THREE.Mesh(poleGeo, this.leftPoleTopMat);
-    topPole.position.set(0, 0.35, -0.02);
-    this.leftRuleGroup.add(bottomPole, topPole);
-
-    // 磁极正前方 (+Z) N/S 极性标识铭牌
-    const badgeGeo = new THREE.PlaneGeometry(0.026, 0.026);
-    this.leftPoleBottomBadge = new THREE.Mesh(
-      badgeGeo,
-      new THREE.MeshBasicMaterial({ map: this.texN })
-    );
-    this.leftPoleBottomBadge.position.set(0, 0.076, 0.071);
-
-    this.leftPoleTopBadge = new THREE.Mesh(
-      badgeGeo,
-      new THREE.MeshBasicMaterial({ map: this.texS })
-    );
-    this.leftPoleTopBadge.position.set(0, 0.366, 0.071);
-    this.leftRuleGroup.add(this.leftPoleBottomBadge, this.leftPoleTopBadge);
-
-    // 2) 已知匀强磁场 B 的竖直三维磁感线箭头阵列
-    const bArrowGeo = createSculptedArrowGeometry(0.20, 0.0026, 0.0085, 0.024);
-    const bOffsets: Array<[number, number]> = [
-      [-0.048, -0.045],
-      [0.048, -0.045],
-      [-0.048, 0.025],
-      [0.048, 0.025],
-    ];
-    for (const [bx, bz] of bOffsets) {
-      const bArrowGroup = new THREE.Group();
-      const bMesh = new THREE.Mesh(bArrowGeo, this.knownFieldMat);
-      bArrowGroup.add(bMesh);
-      bArrowGroup.position.set(bx, 0.21, bz);
-      this.leftFieldArrows.push(bArrowGroup);
-      this.leftRuleGroup.add(bArrowGroup);
-    }
-
-    // 3) 沿 X 轴水平左右舒展的双精密镜面铬合金平行导轨
-    const railGeo = createGuideShaftGeometry(0.46, 0.0055);
-    railGeo.rotateZ(Math.PI / 2);
-    const frontRail = new THREE.Mesh(railGeo, this.liquidChromeMat);
-    frontRail.position.set(0, 0.195, 0.068);
-    const backRail = new THREE.Mesh(railGeo, this.liquidChromeMat);
-    backRail.position.set(0, 0.195, -0.088);
-    this.leftRuleGroup.add(frontRail, backRail);
-
-    // 导轨两端绝缘支撑立柱与香槟金接线柱
-    const standoffGeo = createTurnedConductorGeometry(0.145, 0.007);
-    for (const sx of [-0.215, 0.215]) {
-      for (const sz of [-0.088, 0.068]) {
-        const post = new THREE.Mesh(standoffGeo, this.satinSilverMat);
-        post.position.set(sx, 0.122, sz);
-        const cap = new THREE.Mesh(
-          new THREE.TorusGeometry(0.009, 0.0025, 12, 24),
-          this.champagneBrassMat
-        );
-        cap.rotation.x = Math.PI / 2;
-        cap.position.set(sx, 0.198, sz);
-        this.leftRuleGroup.add(post, cap);
-      }
-    }
-
-    // 4) 架在前后导轨上的铜质导体棒。棒身沿 Z，黄铜触环压在导轨上，电流沿棒轴向流动。
-    const rodGeo = createConductorRodGeometry(0.24, 0.012);
-    rodGeo.rotateX(Math.PI / 2);
-    const rodMesh = new THREE.Mesh(rodGeo, this.rodCopper);
-    rodMesh.castShadow = true;
-    rodMesh.name = 'LeftConductorRod';
-    this.leftRodGroup.add(rodMesh);
-
-    const leftCollar = createContactCollar(0.012, 0.018);
-    leftCollar.rotateX(Math.PI / 2);
-    for (const z of [-0.078, 0.078]) {
-      const shoe = new THREE.Mesh(leftCollar, this.contactBrass);
-      shoe.position.z = z;
-      shoe.castShadow = true;
-      this.leftRodGroup.add(shoe);
-    }
-
-    this.leftCurrent = new AxialChargeFlow({ travel: 0.14, axis: 'z', radial: 0.0136 });
-    this.leftRodGroup.add(this.leftCurrent.group);
-
-    // 导体棒上方的已知电流方向 I
-    this.leftCurrentArrow = new THREE.Group();
-    const leftIMesh = new THREE.Mesh(
-      createSculptedArrowGeometry(0.13, 0.004, 0.012, 0.03),
-      this.knownCurrentMat
-    );
-    this.leftCurrentArrow.add(leftIMesh);
-    this.leftCurrentArrow.position.set(0, 0.028, 0);
-    this.leftRodGroup.add(this.leftCurrentArrow);
-
-    // 5) 所求的安培力矢量大箭头 F（当左手大拇指指向正确时高亮伸出并驱动导体棒滑行）
-    this.leftForceMat = new THREE.MeshStandardMaterial({
-      color: 0x34d399,
-      emissive: 0x10b981,
-      emissiveIntensity: 0.85,
-      metalness: 0.3,
-      roughness: 0.15,
-      transparent: true,
-      opacity: 0.18,
-    });
-    this.leftForceArrow = new THREE.Group();
-    const fArrowMesh = new THREE.Mesh(
-      createSculptedArrowGeometry(0.145, 0.0055, 0.015, 0.038),
-      this.leftForceMat
-    );
-    this.leftForceArrow.add(fArrowMesh);
-    this.leftForceArrow.position.set(0, 0, 0.01);
-    this.leftRodGroup.add(this.leftForceArrow);
-
-    this.leftRodGroup.position.set(0, 0.208, -0.01);
-    this.leftRuleGroup.add(this.leftRodGroup);
-    // 绕竖直轴转 90°，导体棒横在操作者面前（世界 X），滑行变为靠近/远离（世界 Z）。
-    this.leftRuleGroup.rotation.y = -Math.PI / 2;
-
-    this.group.add(this.leftRuleGroup);
-  }
-
   /**
-   * 5. 构建「右手定则（电磁感应切割磁感线）」3D 水平切割导轨 + 闭合回路检流表装置
+   * 2. 构建「右手定则（电磁感应切割磁感线）」独立导体棒总成
+   * 严格遵循极简纯净物理台面规范：只保留导体棒，删除所有磁极板、底座、看板与额外器材
    */
   private buildRightHandRuleApparatus(): void {
     this.rightRuleGroup.name = 'RightHandRuleApparatus';
 
-    // 1) 前后相对布置的磁极靴（产生沿 Z 轴穿入掌心的匀强磁场 B）
-    this.rightPoleFrontMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      metalness: 0.55,
-      roughness: 0.28,
-      transparent: true,
-      opacity: 0.42, // 前侧极靴采用半透晶化处理，绝不遮挡内部切割导体棒视线
-    });
-    this.rightPoleBackMat = new THREE.MeshStandardMaterial({
-      color: 0x3b82f6,
-      metalness: 0.55,
-      roughness: 0.28,
-    });
+    // 竖直航天银铝运动导体棒（右手螺旋法则同款精密模型：全长 0.38m，半径 0.0092m，两端车削黄铜端子与端盖）
+    const rodRadius = 0.0092;
+    const rodLength = 0.38;
+    const half = rodLength * 0.5;
 
-    const backPoleMesh = new THREE.Mesh(
-      createChamferedBoxGeometry(0.24, 0.20, 0.026, 0.008, 0.002),
-      this.rightPoleBackMat
-    );
-    backPoleMesh.position.set(-0.04, 0.22, -0.095);
-
-    const frontPoleFrame = new THREE.Mesh(
-      createChamferedBoxGeometry(0.24, 0.022, 0.022, 0.005, 0.0015),
-      this.rightPoleFrontMat
-    );
-    frontPoleFrame.position.set(-0.04, 0.095, 0.085);
-    this.rightRuleGroup.add(backPoleMesh, frontPoleFrame);
-
-    // 2) 已知磁场 B 方向箭头（沿 Z 轴穿入/穿出）
-    const bArrowGeo = createSculptedArrowGeometry(0.13, 0.0028, 0.0085, 0.024);
-    const gridPts: Array<[number, number]> = [
-      [-0.11, 0.17],
-      [0.03, 0.17],
-      [-0.11, 0.27],
-      [0.03, 0.27],
-    ];
-    for (const [gx, gy] of gridPts) {
-      const bGrp = new THREE.Group();
-      const bMesh = new THREE.Mesh(bArrowGeo, this.knownFieldMat);
-      bGrp.add(bMesh);
-      bGrp.position.set(gx, gy, -0.005);
-      this.rightFieldArrows.push(bGrp);
-      this.rightRuleGroup.add(bGrp);
-    }
-
-    // 3) 上下平行金属导轨（沿 X 轴延伸，右侧闭合接入精密微安检流计）
-    const railGeo = createGuideShaftGeometry(0.36, 0.0052);
-    railGeo.rotateZ(Math.PI / 2);
-    const bottomRail = new THREE.Mesh(railGeo, this.liquidChromeMat);
-    bottomRail.position.set(-0.04, 0.115, 0);
-    const topRail = new THREE.Mesh(railGeo, this.liquidChromeMat);
-    topRail.position.set(-0.04, 0.325, 0);
-    this.rightRuleGroup.add(bottomRail, topRail);
-
-    // 左侧绝缘支柱
-    const leftPost = new THREE.Mesh(
-      createTurnedConductorGeometry(0.28, 0.0075),
-      this.satinSilverMat
-    );
-    leftPost.position.set(-0.22, 0.19, 0);
-    this.rightRuleGroup.add(leftPost);
-
-    // 4) 右侧正对操作者 (+Z) 的精密中心零位检流计 (Galvanometer G)
-    const galvoGroup = new THREE.Group();
-    galvoGroup.position.set(0.20, 0.14, 0.02);
-
-    const galvoHousing = new THREE.Mesh(
-      createChamferedBoxGeometry(0.115, 0.135, 0.056, 0.01, 0.002),
-      this.satinSilverMat
-    );
-    galvoGroup.add(galvoHousing);
-
-    const dialFace = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.092, 0.088),
-      new THREE.MeshBasicMaterial({ map: dialTexture() })
-    );
-    dialFace.position.set(0, 0.072, 0.029);
-    galvoGroup.add(dialFace);
-
-    // 检流计指针枢轴
-    this.rightGalvoNeedlePivot.position.set(0, 0.048, 0.031);
-    const needleMesh = new THREE.Mesh(
-      createSculptedArrowGeometry(0.048, 0.0014, 0.0036, 0.010),
-      new THREE.MeshBasicMaterial({ color: 0x34d399 })
-    );
-    needleMesh.position.y = 0.022;
-    const pivotCap = new THREE.Mesh(
-      new THREE.SphereGeometry(0.004, 14, 12),
-      this.champagneBrassMat
-    );
-    this.rightGalvoNeedlePivot.add(needleMesh, pivotCap);
-    galvoGroup.add(this.rightGalvoNeedlePivot);
-
-    // 顶部感应电流发光环座
-    this.rightLoopGlowMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.2,
-      metalness: 0.3,
-      roughness: 0.2,
-    });
-    const beaconRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.018, 0.0032, 12, 28),
-      this.rightLoopGlowMat
-    );
-    beaconRing.position.set(0, 0.15, 0);
-    galvoGroup.add(beaconRing);
-    this.rightRuleGroup.add(galvoGroup);
-
-    // 5) 上下导轨之间的竖直铜质导体棒，两端黄铜触环搭在导轨上
-    const vRodGeo = createConductorRodGeometry(0.248, 0.0096);
-    const vRodMesh = new THREE.Mesh(vRodGeo, this.rodCopper);
+    // 恒定高质感喷砂银铝中央导电金属长棒
+    const shankGeo = createPrecisionRodGeometry(rodLength, rodRadius);
+    const vRodMesh = new THREE.Mesh(shankGeo, this.satinSilverMat);
     vRodMesh.castShadow = true;
+    vRodMesh.receiveShadow = true;
     vRodMesh.name = 'RightConductorRod';
     this.rightRodGroup.add(vRodMesh);
 
-    const rightCollar = createContactCollar(0.0096, 0.016);
-    for (const y of [-0.105, 0.105]) {
-      const shoe = new THREE.Mesh(rightCollar, this.contactBrass);
-      shoe.position.y = y;
-      shoe.castShadow = true;
-      this.rightRodGroup.add(shoe);
+    // 两端精密车削黄铜接线端子与端盖（右手螺旋法则同款端子）
+    for (const sign of [-1, 1] as const) {
+      const cap = new THREE.Group();
+      cap.position.y = sign * (half - 0.006);
+      if (sign < 0) cap.rotation.x = Math.PI;
+
+      const collar = new THREE.Mesh(
+        new THREE.CylinderGeometry(rodRadius * 1.05, rodRadius * 1.05, 0.010, 32),
+        this.champagneBrassMat
+      );
+      collar.castShadow = true;
+
+      const endCap = new THREE.Mesh(
+        new THREE.CylinderGeometry(rodRadius * 0.88, rodRadius * 1.02, 0.004, 32),
+        this.satinSilverMat
+      );
+      endCap.position.y = 0.007;
+      endCap.castShadow = true;
+
+      cap.add(collar, endCap);
+      this.rightRodGroup.add(cap);
     }
 
-    this.rightCurrent = new AxialChargeFlow({ travel: 0.14, axis: 'y', radial: 0.0109 });
+    // 导体内电荷流动模拟通道（沿直导线 Y 轴，无暗色观察镜片色偏）
+    this.rightCurrent = new AxialChargeFlow({ travel: 0.32, axis: 'y', radial: 0.0098, speed: 0.32 });
+    this.rightCurrent.bed.visible = false;
     this.rightCurrent.setFlowVisible(false);
     this.rightRodGroup.add(this.rightCurrent.group);
 
-    // 已知切割运动速度方向 v 的发光紫晶箭头（水平向右 +X 或向左 -X）
+    // 切割运动速度方向 v 的高精细车削发光矢量箭头
     this.rightMotionArrow = new THREE.Group();
+    this.rightMotionArrow.name = 'VelocityDirectionArrow';
+
     const vArrowMesh = new THREE.Mesh(
-      createSculptedArrowGeometry(0.115, 0.0042, 0.0125, 0.032),
+      createHighVisibilityArrowGeometry(0.082, 0.0030, 0.0088, 0.022, 0.011),
       this.knownMotionMat
     );
+    vArrowMesh.castShadow = true;
     this.rightMotionArrow.add(vArrowMesh);
-    this.rightMotionArrow.position.set(0, 0, 0.025);
     this.rightRodGroup.add(this.rightMotionArrow);
 
-    // 所求的感应电流方向箭头 I_ind（当右手四指指向正确时高亮发光）
+    // 独立 3D "速度 v" 标识看板（独立定位，永远保持端正水平朝向操作者 +Z，杜绝文字旋转倾倒）
+    const vTex = createVelocityLabelTexture();
+    const vLabelMat = new THREE.MeshBasicMaterial({
+      map: vTex,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.rightMotionLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.054, 0.027), vLabelMat);
+    this.rightMotionLabel.position.set(0.055, 0.032, rodRadius + 0.0055);
+    this.rightRodGroup.add(this.rightMotionLabel);
+
+    // 所求的感应电流方向高精度翠绿矢量箭头 I_ind（手势正确时高亮发光）
     this.rightInducedMat = new THREE.MeshStandardMaterial({
       color: 0x34d399,
       emissive: 0x10b981,
-      emissiveIntensity: 0.88,
-      metalness: 0.3,
+      emissiveIntensity: 0.95,
+      metalness: 0.25,
       roughness: 0.15,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.12,
+      depthWrite: false,
     });
     this.rightInducedArrow = new THREE.Group();
+    this.rightInducedArrow.name = 'InducedCurrentArrow';
+
     const indArrowMesh = new THREE.Mesh(
-      createSculptedArrowGeometry(0.165, 0.0048, 0.0135, 0.034),
+      createHighVisibilityArrowGeometry(0.096, 0.0034, 0.0095, 0.025, 0.012),
       this.rightInducedMat
     );
+    indArrowMesh.castShadow = true;
     this.rightInducedArrow.add(indArrowMesh);
-    this.rightInducedArrow.position.set(-0.028, 0, 0.018);
     this.rightRodGroup.add(this.rightInducedArrow);
 
-    this.rightRodGroup.position.set(-0.04, 0.22, 0);
+    // 独立 3D "感应电流 I" 标识看板（永远保持端正水平朝向操作者 +Z，不发生文字倒挂）
+    const indTex = createInducedCurrentLabelTexture();
+    this.rightInducedLabelMat = new THREE.MeshBasicMaterial({
+      map: indTex,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      opacity: 0.12,
+    });
+    this.rightInducedLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.068, 0.034), this.rightInducedLabelMat);
+    this.rightInducedLabel.position.set(-0.048, 0.052, rodRadius + 0.0055);
+    this.rightRodGroup.add(this.rightInducedLabel);
+
+    this.rightRodGroup.name = 'RightConductorRodAssembly';
+    this.rightRodGroup.position.set(-0.12, 0.22, 0);
     this.rightRuleGroup.add(this.rightRodGroup);
 
     this.group.add(this.rightRuleGroup);
@@ -676,30 +536,22 @@ export class HandRulesBenchMesh {
 
   public setMode(mode: HandRuleMode): void {
     this.screwGroup.visible = mode === 'right-hand-screw';
-    this.leftRuleGroup.visible = mode === 'left-hand-rule';
     this.rightRuleGroup.visible = mode === 'right-hand-rule';
 
-    this.isolationBase.visible = mode !== 'right-hand-screw';
-    this.targetZoneGroup.visible = mode !== 'right-hand-screw';
+    this.isolationBase.visible = false;
+    this.targetZoneGroup.visible = false;
     this.floatingConductor.reset();
 
     if (mode === 'right-hand-screw') {
       this.targetZoneGroup.position.set(0, 0.30, 0);
-    } else if (mode === 'left-hand-rule') {
-      this.targetZoneGroup.position.set(0, 0.21, 0.02);
-      this.targetZoneGroup.rotation.set(0, 0, 0);
-      this.leftRodDisplacementX = 0;
-      this.leftRodVelocityX = 0;
     } else {
-      this.targetZoneGroup.position.set(-0.04, 0.22, 0.025);
+      this.targetZoneGroup.position.set(0, 0.22, 0);
       this.targetZoneGroup.rotation.set(0, 0, 0);
       this.rightCutPhase = 0;
     }
   }
 
   public resetMotion(): void {
-    this.leftRodDisplacementX = 0;
-    this.leftRodVelocityX = 0;
     this.rightCutPhase = 0;
     this.floatingConductor.reset();
   }
@@ -749,9 +601,6 @@ export class HandRulesBenchMesh {
       this.updateRightHandScrew(dt, config.currentPolarity, evaluation);
       const rod = this.floatingConductor.assembly.position;
       this.handSkeleton.group.position.set(rod.x, rod.y - 0.25, rod.z);
-    } else if (config.mode === 'left-hand-rule') {
-      this.handSkeleton.group.position.set(0, 0, 0);
-      this.updateLeftHandRule(dt, config, evaluation);
     } else {
       this.handSkeleton.group.position.set(0, 0, 0);
       this.updateRightHandRule(dt, config, evaluation);
@@ -766,105 +615,59 @@ export class HandRulesBenchMesh {
     this.floatingConductor.update(dt, currentPolarity, evaluation);
   }
 
-  private updateLeftHandRule(
-    dt: number,
-    config: HandRuleConfig,
-    evaluation: HandRuleEvaluation
-  ): void {
-    // 1) 磁场方向 B (+Y 向上：下 N 上 S；-Y 向下：上 N 下 S)
-    const by = config.fieldPolarity;
-    this.leftPoleBottomMat.color.setHex(by > 0 ? 0xef4444 : 0x3b82f6);
-    this.leftPoleTopMat.color.setHex(by > 0 ? 0x3b82f6 : 0xef4444);
-    (this.leftPoleBottomBadge.material as THREE.MeshBasicMaterial).map = by > 0 ? this.texN : this.texS;
-    (this.leftPoleTopBadge.material as THREE.MeshBasicMaterial).map = by > 0 ? this.texS : this.texN;
-
-    for (const bArr of this.leftFieldArrows) {
-      bArr.rotation.z = by > 0 ? 0 : Math.PI;
-    }
-
-    // 2) 已知电流方向 I (沿导体棒 -Z 或 +Z)
-    const iz = -config.currentPolarity; // +1 时向里 (-Z)，-1 时向外 (+Z)
-    _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(0, 0, iz));
-    this.leftCurrentArrow.quaternion.copy(_QUAT);
-    this.leftCurrent.update(dt, iz);
-
-    // 3) 所求的安培力方向 F。装置已转 90°，局部 +X 对应世界 +Z（朝向操作者）。
-    const fx = evaluation.targetVectorDir.z >= 0 ? 1 : -1;
-    _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(fx, 0, 0));
-    this.leftForceArrow.quaternion.copy(_QUAT);
-    this.leftForceArrow.position.set(fx * 0.078, 0, 0.01);
-
-    const targetForceOpacity = evaluation.isMatched
-      ? 0.96
-      : 0.10 + evaluation.alignmentScore * 0.45;
-    this.leftForceMat.opacity += (targetForceOpacity - this.leftForceMat.opacity) * Math.min(1, dt * 8);
-
-    // 当左手大拇指指向正确时，导体棒在安培力 F 作用下沿导轨真实加速滑行
-    if (evaluation.isMatched) {
-      const targetLimitX = fx * 0.135;
-      this.leftRodVelocityX += fx * 0.28 * dt;
-      this.leftRodDisplacementX += this.leftRodVelocityX * dt;
-      if (Math.abs(this.leftRodDisplacementX) >= Math.abs(targetLimitX)) {
-        // 到达导轨行程末端后平滑归位并再次受安培力推出，形成清晰连贯的受力运动观察
-        this.leftRodDisplacementX = targetLimitX;
-        this.leftRodVelocityX = 0;
-        if (Math.sin(this.animClock * 3.0) < -0.85) {
-          this.leftRodDisplacementX = 0;
-        }
-      }
-    } else {
-      // 未匹配时平滑回中
-      this.leftRodVelocityX = 0;
-      this.leftRodDisplacementX += (0 - this.leftRodDisplacementX) * Math.min(1, dt * 6);
-    }
-
-    this.leftRodGroup.position.x = this.leftRodDisplacementX;
-    this.targetZoneGroup.position.x = 0;
-    this.targetZoneGroup.position.z = 0.02 + this.leftRodDisplacementX;
-  }
-
   private updateRightHandRule(
     dt: number,
     config: HandRuleConfig,
     evaluation: HandRuleEvaluation
   ): void {
-    // 1) 已知磁场 B (沿 Z 轴穿入 -Z 或穿出 +Z)
-    const bz = -config.fieldPolarity;
-    _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(0, 0, bz));
-    for (const bGrp of this.rightFieldArrows) {
-      bGrp.quaternion.copy(_QUAT);
-    }
-
-    // 2) 已知导体棒切割磁感线运动方向 v (+X 向右 或 -X 向左)
+    // 1) 导体棒在台面中心平稳重复运动 (切割行程在 -0.12m 与 +0.12m 之间)
     const vx = config.motionPolarity;
+    // 速度矢量车削雕刻箭头：精密指向切割运动方向 (+X 或 -X)
     _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(vx, 0, 0));
     this.rightMotionArrow.quaternion.copy(_QUAT);
-    this.rightMotionArrow.position.set(vx * 0.062, 0, 0.025);
+    this.rightMotionArrow.position.set(vx * 0.048, 0, 0.0092 + 0.0035);
 
-    // 导体棒沿切割速度 v 方向持续平稳切割磁感线
-    this.rightCutPhase = (this.rightCutPhase + dt * 0.55) % 1;
-    const sweepOffset = (this.rightCutPhase - 0.5) * 0.18 * vx;
-    this.rightRodGroup.position.x = -0.04 + sweepOffset;
+    // 速度 3D 文字标签位置动态定位，文字本身永远保持端正水平面向操作者
+    if (this.rightMotionLabel) {
+      this.rightMotionLabel.position.set(vx * 0.055, 0.032, 0.0092 + 0.0055);
+    }
 
-    // 3) 所求的感应电流方向 I_ind (+Y 向上 或 -Y 向下)
-    const indY = evaluation.targetVectorDir.y >= 0 ? 1 : -1;
-    this.rightInducedArrow.rotation.z = indY > 0 ? 0 : Math.PI;
+    const strokeStart = vx > 0 ? -0.12 : 0.12;
+    const strokeEnd = vx > 0 ? 0.12 : -0.12;
+    const strokeLen = strokeEnd - strokeStart;
 
-    const targetIndOpacity = evaluation.isMatched
+    // 周期 2.4 秒：前 82% 时间稳定匀速切割，后 18% 平滑余弦快速回位，循环重复
+    this.rightCutPhase = (this.rightCutPhase + dt / 2.4) % 1;
+    let u: number;
+    if (this.rightCutPhase < 0.82) {
+      u = this.rightCutPhase / 0.82;
+    } else {
+      const r = (this.rightCutPhase - 0.82) / 0.18;
+      u = 0.5 + 0.5 * Math.cos(r * Math.PI);
+    }
+    this.rightRodGroup.position.x = strokeStart + u * strokeLen;
+
+    // 2) 感应电流方向高精度翠绿矢量箭头 I_ind (+Y 向上 或 -Y 向下)
+    const indY = (config.motionPolarity * config.fieldPolarity) as Polarity;
+    _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(0, indY, 0));
+    this.rightInducedArrow.quaternion.copy(_QUAT);
+    this.rightInducedArrow.position.set(-vx * 0.012, indY * 0.058, 0.0092 + 0.0035);
+
+    // 独立 3D "感应电流 I" 标识看板：随感应电流方向在 Y 轴自适应平移，并与速度标识错开 X 轴，永不重叠
+    if (this.rightInducedLabel) {
+      this.rightInducedLabel.position.set(-vx * 0.048, indY * 0.052, 0.0092 + 0.0055);
+    }
+
+    const isCorrect = evaluation.isMatched;
+    const targetIndOpacity = isCorrect
       ? 0.96
-      : 0.10 + evaluation.alignmentScore * 0.45;
+      : 0.12 + evaluation.alignmentScore * 0.45;
     this.rightInducedMat.opacity += (targetIndOpacity - this.rightInducedMat.opacity) * Math.min(1, dt * 8);
-    this.rightCurrent.update(dt, indY);
-    this.rightCurrent.setFlowVisible(evaluation.isMatched || evaluation.alignmentScore > 0.35);
-
-    // 4) 检流计指针偏转与发光反馈
-    const targetNeedleAngle = evaluation.isMatched ? -indY * 0.62 : -indY * evaluation.alignmentScore * 0.18;
-    this.rightGalvoNeedlePivot.rotation.z +=
-      (targetNeedleAngle - this.rightGalvoNeedlePivot.rotation.z) * Math.min(1, dt * 8);
-
-    this.rightLoopGlowMat.color.setHex(evaluation.isMatched ? 0x34d399 : 0x38bdf8);
-    this.rightLoopGlowMat.emissive.setHex(evaluation.isMatched ? 0x10b981 : 0x0284c7);
-    this.rightLoopGlowMat.emissiveIntensity = evaluation.isMatched ? 0.85 : 0.2;
+    this.rightInducedLabelMat.opacity = this.rightInducedMat.opacity;
+    this.rightCurrent.setFlowVisible(isCorrect && this.rightInducedMat.opacity > 0.3);
+    if (isCorrect) {
+      this.rightCurrent.update(dt, indY);
+    }
   }
 
   public dispose(): void {

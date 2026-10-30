@@ -674,6 +674,49 @@ console.log('=== Starting Young\'s Double-Slit Interference Analytical & Integra
   console.log('✓ Test 17 passed: Ergonomic operator-facing single-knob standard for double slit stage verified\n');
 }
 
+// -------------------------------------------------------------
+// Test 18: Refactored Optical Path Difference Helper, Huygens Wavefront Ripples & Horizontal Beam Alignment Invariant
+// -------------------------------------------------------------
+{
+  console.log('Test 18: Refactored Optical Path Difference Helper, Huygens Wavefront Ripples & Horizontal Alignment');
+  const exp = new OpticsDoubleSlitExperiment();
+  const mockContext = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), setParameter: () => {} } as any;
+  exp.init(mockContext);
+
+  const bench = exp.getBench();
+
+  // 1. Verify Huygens wavefront ripples group is active and animated
+  assert.ok(bench.wavefrontArcsGroup, 'Huygens wavefront ripples group must exist');
+  assert.strictEqual(bench.wavefrontArcsGroup.visible, true, 'Huygens wavefront ripples must be visible when laser is on');
+  assert(bench.wavefrontArcsGroup.children.length >= 12, 'Must have at least 12 wavefront arc rings for S1 & S2');
+
+  // 2. Verify constructive interference order rays & volumetric sheets
+  assert.ok(bench.interferenceRaysGroup, 'Interference rays group must exist');
+  assert.strictEqual(bench.interferenceRaysGroup.visible, true, 'Interference rays must be visible');
+  assert.ok(bench.interferenceRaysGroup.getObjectByName('ConstructiveOrderRay_k0'), 'k=0 straight laser ray must exist');
+  assert.ok(bench.interferenceRaysGroup.getObjectByName('ConstructiveOrderRay_k1_pos'), 'k=+1 constructive ray must exist');
+  assert.ok(bench.interferenceRaysGroup.getObjectByName('ConstructiveOrderRay_k1_neg'), 'k=-1 constructive ray must exist');
+  assert.ok(bench.interferenceRaysGroup.getObjectByName('ConstructiveOrderSheet_k0'), 'k=0 vertical volumetric light sheet must exist');
+
+  // 3. Verify optical path difference (OPD) helper system
+  assert.ok(bench.opticalPathDiffGroup, 'Optical path difference helper group must exist');
+  assert.strictEqual(bench.opticalPathDiffGroup.visible, true, 'OPD helper must be visible');
+  assert.ok(bench.opticalPathDiffGroup.getObjectByName('OPD_Ray1'), 'Ray from S1 to P1 must exist');
+  assert.ok(bench.opticalPathDiffGroup.getObjectByName('OPD_Ray2'), 'Ray from S2 to P1 must exist');
+  assert.ok(bench.opticalPathDiffGroup.getObjectByName('OPD_WavefrontNormal'), 'Perpendicular wavefront normal must exist');
+  assert.ok(bench.opticalPathDiffGroup.getObjectByName('OPD_SegmentDelta'), 'Path difference segment δ must exist');
+  assert.ok(bench.opticalPathDiffGroup.getObjectByName('OPD_TextSprite'), 'Path difference 3D text label sprite must exist');
+
+  // 4. Turning off laser power must cleanly disable air beams, ripples, rays and OPD helpers
+  bench.setLaserPower(false);
+  assert.strictEqual(bench.wavefrontArcsGroup.visible, false, 'Wavefront ripples must turn off with laser');
+  assert.strictEqual(bench.interferenceRaysGroup.visible, false, 'Interference rays must turn off with laser');
+  assert.strictEqual(bench.opticalPathDiffGroup.visible, false, 'OPD helper must turn off with laser');
+
+  exp.dispose(mockContext);
+  console.log('✓ Test 18 passed: Refactored Optical Path Difference Helper, Huygens Wavefront Ripples & Horizontal Alignment verified\n');
+}
+
 console.log('========================================================');
-console.log('All Young\'s Double-Slit Interference Tests Passed (17/17)!');
+console.log('All Young\'s Double-Slit Interference Tests Passed (18/18)!');
 console.log('========================================================\n');

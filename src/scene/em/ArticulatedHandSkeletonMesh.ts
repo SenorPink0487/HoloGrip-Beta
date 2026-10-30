@@ -842,14 +842,17 @@ export class ArticulatedHandSkeletonMesh {
     const palmCenterY = (wrist.y + middleMcp.y) * 0.5;
     const palmCenterZ = (wrist.z + middleMcp.z) * 0.5;
 
-    const mirroredNormX = 0.5 - palmCenterX;
-    const mirroredNormY = 0.5 - palmCenterY;
+    // 前置摄像头镜像坐标映射：画面右侧即用户真实右手侧 (+X)，画面左侧即左手侧 (-X)
+    const normX = 0.5 - palmCenterX;
+    const normY = 0.5 - palmCenterY;
 
-    const anchorBaseY = mode === 'right-hand-screw' ? 0.25 : 0.24;
-    const anchorBaseZ = 0.11;
+    // VR 第一人称操作者视角：手部从操作者身前 (+Z 前景) 伸向实验台器材内部 (-Z 纵深，朝里包握，手背朝向操作者)
+    const anchorBaseY = mode === 'right-hand-screw' ? 0.23 : 0.22;
+    // 导体棒位于 Z ≈ 0 轴线上，掌心锚定在近侧 Z ≈ 0.035，手腕位于更靠近操作者的 +Z (Z ≈ 0.08~0.10)
+    const anchorBaseZ = mode === 'right-hand-screw' ? 0.035 : 0.045;
 
-    const handWorldCenterX = THREE.MathUtils.clamp(mirroredNormX * 0.34, -0.18, 0.18);
-    const handWorldCenterY = THREE.MathUtils.clamp(anchorBaseY + mirroredNormY * 0.22, 0.13, 0.40);
+    const handWorldCenterX = THREE.MathUtils.clamp(normX * 0.30, -0.16, 0.16);
+    const handWorldCenterY = THREE.MathUtils.clamp(anchorBaseY + normY * 0.20, 0.12, 0.38);
     const handWorldCenterZ = anchorBaseZ;
 
     const pDirX = wrist.x - middleMcp.x;
@@ -871,9 +874,16 @@ export class ArticulatedHandSkeletonMesh {
       const regDx = alongPalm * ux + acrossPalm * lx;
       const regDy = alongPalm * uy + acrossPalm * ly;
 
+      // 1. 水平 X：保持与操作者真实手臂及四指包握方向完全一致（右臂在右侧 +X，四指向左 -X 包裹导线）
       const localX = regDx * targetHandSpan;
+      // 2. 纵向 Y：指尖朝上/朝下保持一致 (+Y 为向上)
       const localY = regDy * targetHandSpan;
-      const localZ = (palmCenterZ - lm.z) * targetHandSpan * 0.50;
+      // 3. 纵深 Z：VR 机械臂朝里伸展：
+      // alongPalm < 0 为手腕端（更靠近操作者 +Z 前景）；alongPalm > 0 为指尖端（深入台面内部 -Z 纵深）
+      const reachZ = -alongPalm * targetHandSpan * 0.65;
+      // 弯曲/抓握时的纵深内卷（手指包绕导体朝里弯曲）
+      const curlZ = (palmCenterZ - lm.z) * targetHandSpan * 0.60;
+      const localZ = reachZ - curlZ;
 
       this.targetPoints[i].set(
         handWorldCenterX + localX,

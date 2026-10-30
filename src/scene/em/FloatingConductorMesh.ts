@@ -20,7 +20,7 @@ function ring(radius: number, tube: number, material: THREE.Material, y = 0): TH
  * 车削成型的高精细航天级喷砂银铝导电直导线几何体（严禁无倒角简单圆柱体拼接）
  * 全长 0.38m，半径 0.0092m，两端具有精密切削机械倒角与定位环槽
  */
-function createPrecisionRodGeometry(length = 0.38, radius = 0.0092): THREE.BufferGeometry {
+export function createPrecisionRodGeometry(length = 0.38, radius = 0.0092): THREE.BufferGeometry {
   const half = length * 0.5;
   const profile: THREE.Vector2[] = [
     new THREE.Vector2(0, -half),

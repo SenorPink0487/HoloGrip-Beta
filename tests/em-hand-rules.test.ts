@@ -209,49 +209,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   console.log('✓ Test 2 passed: Right-Hand Screw Rule evaluation verified');
 }
 
-// Test 3: Left-Hand Rule (Ampere Force F = I x B)
-{
-  const config: HandRuleConfig = {
-    mode: 'left-hand-rule',
-    currentPolarity: 1,
-    fieldPolarity: 1,
-    motionPolarity: 1,
-    gestureEnabled: true,
-  };
-
-  const vectors = computeRuleVectors(config);
-  assert.strictEqual(vectors.requiredHand, 'left');
-  assert.deepStrictEqual(vectors.targetVectorDir, { x: 0, y: 0, z: 1 });
-
-  const leftThumbRightFrame = wrapSingleHandFrame(
-    'left',
-    buildMockLandmarks({
-      thumbDirWorld: { x: 0, y: 0, z: 1 },
-      fingersDirWorld: { x: 0, y: 1 },
-      curled: false,
-    })
-  );
-  const evalRight = evaluateHandRuleFrame(config, leftThumbRightFrame);
-  assert.strictEqual(evalRight.isMatched, true);
-  assert.strictEqual(evalRight.status, 'matched');
-
-  config.fieldPolarity = -1;
-  assert.strictEqual(evaluateHandRuleFrame(config, leftThumbRightFrame).isMatched, false);
-
-  const leftThumbLeftFrame = wrapSingleHandFrame(
-    'left',
-    buildMockLandmarks({
-      thumbDirWorld: { x: 0, y: 0, z: -1 },
-      fingersDirWorld: { x: 0, y: 1 },
-      curled: false,
-    })
-  );
-  assert.strictEqual(evaluateHandRuleFrame(config, leftThumbLeftFrame).isMatched, true);
-
-  console.log('✓ Test 3 passed: Left-Hand Rule evaluation verified');
-}
-
-// Test 4: Right-Hand Rule (Electromagnetic Induction I_ind)
+// Test 3: Right-Hand Rule (Electromagnetic Induction I_ind)
 {
   const config: HandRuleConfig = {
     mode: 'right-hand-rule',
@@ -286,10 +244,10 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   );
   assert.strictEqual(evaluateHandRuleFrame(config, rightFingersDownFrame).isMatched, true);
 
-  console.log('✓ Test 4 passed: Right-Hand Rule evaluation verified');
+  console.log('✓ Test 3 passed: Right-Hand Rule evaluation verified');
 }
 
-// Test 5: 3D T-800 ArticulatedHandSkeletonMesh & EmHandRulesExperiment lifecycle
+// Test 4: 3D T-800 ArticulatedHandSkeletonMesh & EmHandRulesExperiment lifecycle
 {
   const skeleton = new ArticulatedHandSkeletonMesh();
   assert.strictEqual(HAND_BONE_CONNECTIONS.length, 23);
@@ -305,12 +263,12 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   const exp = new EmHandRulesExperiment();
   exp.init({} as any);
   exp.setGestureEnabled(true);
-  exp.setRuleMode('left-hand-rule');
+  exp.setRuleMode('right-hand-rule');
 
   const frame = wrapSingleHandFrame(
-    'left',
+    'right',
     buildMockLandmarks({
-      thumbDirWorld: { x: 0, y: 0, z: 1 },
+      thumbDirWorld: { x: 1, y: 0 },
       fingersDirWorld: { x: 0, y: 1 },
     })
   );
@@ -320,7 +278,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   // Verify 3D bounding box of the updated skeleton never has oversized/unscaled 1.0m geometries
   const evalSnap = evaluateHandRuleFrame(
     {
-      mode: 'left-hand-rule',
+      mode: 'right-hand-rule',
       currentPolarity: 1,
       fieldPolarity: 1,
       motionPolarity: 1,
@@ -339,16 +297,16 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   );
 
   const telem = exp.getTelemetryData();
-  assert.strictEqual(telem.mode, 'left-hand-rule');
+  assert.strictEqual(telem.mode, 'right-hand-rule');
   assert.strictEqual(telem.isMatched, true);
   assert.strictEqual(telem.status, 'matched');
 
   exp.dispose({} as any);
   skeleton.dispose();
-  console.log('✓ Test 5 passed: 3D T-800 ArticulatedHandSkeletonMesh & EmHandRulesExperiment lifecycle verified\n');
+  console.log('✓ Test 4 passed: 3D T-800 ArticulatedHandSkeletonMesh & EmHandRulesExperiment lifecycle verified\n');
 }
 
-// Test 6: Single Conductor Right-Hand Screw Apparatus & Continuous Current Invariant (只要一个导体，始终有电流流过)
+// Test 5: Single Conductor Right-Hand Screw Apparatus & Continuous Current Invariant (只要一个导体，始终有电流流过)
 {
   const exp = new EmHandRulesExperiment();
   exp.init({} as any);
@@ -402,10 +360,10 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   assert.strictEqual(bench.floatingConductor.currentFlowMaterial.uniforms.direction.value, -1, 'Surface flow and 3D markers must agree');
 
   exp.dispose({} as any);
-  console.log('✓ Test 6 passed: Single Conductor Right-Hand Screw Apparatus & Continuous Current verified');
+  console.log('✓ Test 5 passed: Single Conductor Right-Hand Screw Apparatus & Continuous Current verified');
 }
 
-// Test 7: Magnetic Field Appears Strictly When Hand is Correct (手摆放正确时，磁场出现)
+// Test 6: Magnetic Field Appears Strictly When Hand is Correct (手摆放正确时，磁场出现)
 {
   const exp = new EmHandRulesExperiment();
   exp.init({} as any);
@@ -465,10 +423,10 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   assert(magMat.opacity <= 0.01, 'Opacity must decay back to near 0');
 
   exp.dispose({} as any);
-  console.log('✓ Test 7 passed: Magnetic Field Appears Strictly When Hand is Correct verified');
+  console.log('✓ Test 6 passed: Magnetic Field Appears Strictly When Hand is Correct verified');
 }
 
-// Test 8: The rod toggles the field; either end ferrule reverses current
+// Test 7: The rod toggles the field; either end ferrule reverses current
 {
   const exp = new EmHandRulesExperiment();
   exp.init({} as any);
@@ -509,17 +467,17 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
     'A low world-space hit outside this apparatus must not change polarity');
   exp.resetExperiment();
   assert.strictEqual(exp.getTelemetryData().isMatched, false, 'Reset clears the desktop hand as well as the field');
-  exp.setRuleMode('left-hand-rule');
+  exp.setRuleMode('right-hand-rule');
   assert.strictEqual(exp.onPointerDown(tap, { object: centralConductor, point: new THREE.Vector3() } as any, {} as any), false,
     'Hidden apparatus must not intercept another rule');
   unrelated.geometry.dispose();
   (unrelated.material as THREE.Material).dispose();
 
   exp.dispose({} as any);
-  console.log('✓ Test 8 passed: 3D direct manipulation verified\n');
+  console.log('✓ Test 7 passed: 3D direct manipulation verified\n');
 }
 
-// Test 9: Raycast drag under translated/scaled parents, release and cancellation.
+// Test 8: Raycast drag under translated/scaled parents, release and cancellation.
 {
   const exp = new EmHandRulesExperiment();
   exp.init({} as any);
@@ -580,7 +538,102 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   assert(apparatus.circulationSpeed < -0.85, 'B circulation reverses with I');
   assert(apparatus.assembly.position.y - 0.155 > 0.08, 'Rod remains freely suspended above the table');
   exp.dispose(context);
-  console.log('✓ Test 9 passed: transformed drag, damped return, cancellation and continuous reversal verified');
+  console.log('✓ Test 8 passed: transformed drag, damped return, cancellation and continuous reversal verified');
+}
+
+// Test 9: Right-Hand Rule Apparatus & Directional Vectors Verification (只保留导体棒，删除所有额外器材)
+{
+  const exp = new EmHandRulesExperiment();
+  exp.init({} as any);
+  exp.setRuleMode('right-hand-rule');
+  exp.update(0.016, 0.1, {} as any);
+
+  const bench = (exp as any).bench;
+  const rightRuleGroup = bench.group.getObjectByName('RightHandRuleApparatus') as THREE.Group;
+  assert(rightRuleGroup, 'RightHandRuleApparatus must exist in bench');
+
+  // Verify Single Conductor Rod Invariant: only the conductor rod assembly exists
+  const rightRodMesh = bench.group.getObjectByName('RightConductorRod');
+  assert(rightRodMesh, 'RightConductorRod must exist');
+
+  // Verify all extra apparatus (field lines, rear yoke, front base, B signboards) are deleted
+  assert.strictEqual(rightRuleGroup.getObjectByName('StaticMagneticFieldLines'), undefined, 'Must not have StaticMagneticFieldLines');
+  assert.strictEqual(rightRuleGroup.getObjectByName('RearYoke'), undefined, 'Must not have RearYoke');
+  assert.strictEqual(rightRuleGroup.getObjectByName('FrontBase'), undefined, 'Must not have FrontBase');
+  assert.strictEqual(rightRuleGroup.getObjectByName('RightBLabel'), undefined, 'Must not have RightBLabel');
+  assert.strictEqual(rightRuleGroup.children.length, 1, 'RightHandRuleApparatus must only contain the conductor rod assembly');
+  assert.strictEqual(rightRuleGroup.children[0].name, 'RightConductorRodAssembly', 'Sole child must be RightConductorRodAssembly');
+
+  const motionArrow = bench.rightMotionArrow as THREE.Group;
+  const inducedArrow = bench.rightInducedArrow as THREE.Group;
+  const motionLabel = bench.rightMotionLabel as THREE.Mesh;
+  const inducedLabel = bench.rightInducedLabel as THREE.Mesh;
+
+  assert(motionArrow, 'Must have velocity direction arrow');
+  assert(inducedArrow, 'Must have induced current arrow');
+  assert(motionLabel, 'Must have velocity label');
+  assert(inducedLabel, 'Must have induced current label');
+
+  // Verify Velocity Arrow points along X axis (+X or -X)
+  // Initial config: motionPolarity = 1 -> pointing +X
+  const vTipInitial = new THREE.Vector3(0, 1, 0).applyQuaternion(motionArrow.quaternion);
+  assert(
+    vTipInitial.x > 0.95 && Math.abs(vTipInitial.y) < 0.05 && Math.abs(vTipInitial.z) < 0.05,
+    `Velocity arrow must point in +X direction! Got (${vTipInitial.x}, ${vTipInitial.y}, ${vTipInitial.z})`
+  );
+
+  // Reverse motion polarity: motionPolarity = -1 -> pointing -X
+  exp.reverseMotion();
+  exp.update(0.016, 0.2, {} as any);
+  const vTipReversed = new THREE.Vector3(0, 1, 0).applyQuaternion(motionArrow.quaternion);
+  assert(
+    vTipReversed.x < -0.95 && Math.abs(vTipReversed.y) < 0.05 && Math.abs(vTipReversed.z) < 0.05,
+    `Velocity arrow must point in -X direction! Got (${vTipReversed.x}, ${vTipReversed.y}, ${vTipReversed.z})`
+  );
+
+  // Verify Induced Current Arrow points along Y axis (+Y or -Y)
+  // Current config: motionPolarity = -1, fieldPolarity = 1 -> indY = (-1) * (1) = -1 (downward -Y)
+  const indTipInitial = new THREE.Vector3(0, 1, 0).applyQuaternion(inducedArrow.quaternion);
+  assert(
+    indTipInitial.y < -0.95,
+    `Induced current arrow must point in -Y direction! Got y = ${indTipInitial.y}`
+  );
+  assert(
+    inducedLabel.position.y < 0,
+    `Induced current label must be at negative Y when indY < 0! Got y = ${inducedLabel.position.y}`
+  );
+
+  // Reverse field polarity: motionPolarity = -1, fieldPolarity = -1 -> indY = (-1) * (-1) = +1 (upward +Y)
+  exp.reverseField();
+  exp.update(0.016, 0.3, {} as any);
+  const indTipUp = new THREE.Vector3(0, 1, 0).applyQuaternion(inducedArrow.quaternion);
+  assert(
+    indTipUp.y > 0.95,
+    `Induced current arrow must point in +Y direction! Got y = ${indTipUp.y}`
+  );
+  assert(
+    inducedLabel.position.y > 0,
+    `Induced current label must be at positive Y when indY > 0! Got y = ${inducedLabel.position.y}`
+  );
+
+  // Labels must not overlap in X
+  assert(
+    Math.sign(motionLabel.position.x) !== Math.sign(inducedLabel.position.x),
+    'Velocity label and induced current label must be separated on opposite X sides to prevent overlap'
+  );
+
+  // Clicking right conductor rod triggers simulated hand match
+  const tap = { pointerId: 1, clientX: 500, clientY: 300, button: 0 } as PointerEvent;
+  const handled = exp.onPointerDown(tap, { object: rightRodMesh, point: new THREE.Vector3() } as any, {} as any);
+  assert.strictEqual(handled, true, 'Clicking RightConductorRod must handle interaction');
+
+  for (let i = 0; i < 20; i++) exp.update(0.016, 0.4 + i * 0.016, {} as any);
+  const telem = exp.getTelemetryData();
+  assert.strictEqual(telem.isMatched, true, 'Simulated hand must match right-hand rule');
+  assert(bench.rightInducedMat.opacity > 0.8, 'Induced current arrow must become bright upon match');
+
+  exp.dispose({} as any);
+  console.log('✓ Test 9 passed: Right-Hand Rule Single Conductor Rod & Directional Vectors verified');
 }
 
 console.log('========================================================');

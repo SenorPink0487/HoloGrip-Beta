@@ -21,10 +21,17 @@ export class NewtonTubeMesh {
   // 1. 支架总成
   private standGroup = new THREE.Group();
   private rotateButtonPivot = new THREE.Group();
-  private rotateButtonRing: THREE.Mesh;
-  private rotateButtonIcon: THREE.Mesh;
-  private rotateButtonHitBox: THREE.Mesh;
+  private rotateButtonRing!: THREE.Mesh;
+  private rotateButtonIcon!: THREE.Mesh;
+  private rotateButtonHitBox!: THREE.Mesh;
   private rotateButtonHovered = false;
+
+  private speedButtonPivot = new THREE.Group();
+  private speedButtonRing!: THREE.Mesh;
+  private speedButtonIcon = new THREE.Group();
+  private speedButtonHitBox!: THREE.Mesh;
+  private speedButtonHovered = false;
+  private speedButtonGlowMaterial!: THREE.MeshStandardMaterial;
 
   // 2. 牛顿管旋转总成 (围绕中央水平轴旋转)
   public tubePivot = new THREE.Group();
@@ -225,6 +232,15 @@ export class NewtonTubeMesh {
       roughness: 0.15,
     });
 
+    // 慢动作切换按钮发光材质 (翠绿全息光 / 琥珀金)
+    this.speedButtonGlowMaterial = new THREE.MeshStandardMaterial({
+      color: 0x34d399,
+      emissive: 0x10b981,
+      emissiveIntensity: 0.70,
+      metalness: 0.65,
+      roughness: 0.20,
+    });
+
     // 抽气机 LED 指示灯材质
     this.ledMaterial = new THREE.MeshStandardMaterial({
       color: 0x10b981,
@@ -348,61 +364,127 @@ export class NewtonTubeMesh {
     lockKnob.position.set(0, this.PIVOT_HEIGHT_Y, -0.052);
     this.standGroup.add(lockKnob);
 
-    // 4. 正前方 3D 旋转操作控制台按钮 (在底座前部斜向上 45° 完美迎向用户视线，绝不遮挡管内物体)
+    // 4. 正前方 3D 双功能交互控制台 (在底座前部斜向上 45° 完美迎向用户视线，绝不遮挡管内物体)
+    // 左键：↻ 180° 旋转倒转按钮 (快捷键 R)
+    // 右键：⏱ 0.35x 慢动作对比切换按钮 (快捷键 T)
     const consoleZ = 0.165;
     const consoleY = 0.055;
+    const btnOffset = 0.052;
 
-    // 倾斜控制台基座 (深空钛阳极氧化)
-    const pedestalGeo = new THREE.CylinderGeometry(0.052, 0.058, 0.032, 32);
-    const pedestal = new THREE.Mesh(pedestalGeo, this.precisionSlateMaterial);
-    pedestal.position.set(0, 0.026, consoleZ);
-    pedestal.castShadow = true;
-    this.standGroup.add(pedestal);
+    // 倾斜双位控制台基座 (深空钛阳极氧化机身，中间带黄铜激光铭牌连接桥)
+    const pedestalLeftGeo = new THREE.CylinderGeometry(0.044, 0.048, 0.032, 32);
+    const pedestalLeft = new THREE.Mesh(pedestalLeftGeo, this.precisionSlateMaterial);
+    pedestalLeft.position.set(-btnOffset, 0.026, consoleZ);
+    pedestalLeft.castShadow = true;
+    this.standGroup.add(pedestalLeft);
 
-    const pedestalTrimGeo = new THREE.TorusGeometry(0.054, 0.0025, 16, 32);
-    const pedestalTrim = new THREE.Mesh(pedestalTrimGeo, this.chromeMaterial);
-    pedestalTrim.rotation.x = Math.PI / 2;
-    pedestalTrim.position.set(0, 0.042, consoleZ);
-    this.standGroup.add(pedestalTrim);
+    const pedestalRight = new THREE.Mesh(pedestalLeftGeo, this.precisionSlateMaterial);
+    pedestalRight.position.set(btnOffset, 0.026, consoleZ);
+    pedestalRight.castShadow = true;
+    this.standGroup.add(pedestalRight);
 
-    this.rotateButtonPivot.position.set(0, consoleY, consoleZ);
+    // 中间稳固连接桥与香槟金铭牌条
+    const bridgeGeo = new THREE.BoxGeometry(btnOffset * 2, 0.024, 0.065);
+    const bridgeMesh = new THREE.Mesh(bridgeGeo, this.precisionSlateMaterial);
+    bridgeMesh.position.set(0, 0.022, consoleZ);
+    this.standGroup.add(bridgeMesh);
+
+    const bridgePlateGeo = new THREE.PlaneGeometry(0.065, 0.012);
+    const bridgePlate = new THREE.Mesh(bridgePlateGeo, this.brassMaterial);
+    bridgePlate.position.set(0, 0.035, consoleZ + 0.033);
+    this.standGroup.add(bridgePlate);
+
+    const pedestalTrimGeo = new THREE.TorusGeometry(0.046, 0.0025, 16, 32);
+    const trimLeft = new THREE.Mesh(pedestalTrimGeo, this.chromeMaterial);
+    trimLeft.rotation.x = Math.PI / 2;
+    trimLeft.position.set(-btnOffset, 0.042, consoleZ);
+    this.standGroup.add(trimLeft);
+
+    const trimRight = new THREE.Mesh(pedestalTrimGeo, this.chromeMaterial);
+    trimRight.rotation.x = Math.PI / 2;
+    trimRight.position.set(btnOffset, 0.042, consoleZ);
+    this.standGroup.add(trimRight);
+
+    // --- 左侧按钮：旋转倒转 (180° Inversion) ---
+    this.rotateButtonPivot.position.set(-btnOffset, consoleY, consoleZ);
     this.rotateButtonPivot.rotation.x = -Math.PI / 4; // 倾角 45° 迎向用户
     this.rotateButtonPivot.name = 'freefall-rotate-button';
 
-    // 旋转外圆环
-    const btnRingGeo = new THREE.TorusGeometry(0.042, 0.006, 16, 48);
+    const btnRingGeo = new THREE.TorusGeometry(0.036, 0.005, 16, 48);
     this.rotateButtonRing = new THREE.Mesh(btnRingGeo, this.buttonGlowMaterial);
     this.rotateButtonPivot.add(this.rotateButtonRing);
 
-    // 圆盘中央底垫 (深邃海洋蓝黑高对比度视窗面板)
-    const btnCenterGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.008, 32);
+    const btnCenterGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.008, 32);
     const btnCenter = new THREE.Mesh(btnCenterGeo, this.sapphireDisplayMaterial);
     btnCenter.rotation.x = Math.PI / 2;
     this.rotateButtonPivot.add(btnCenter);
 
-    // 3D 旋转箭头图标 (抛光铬)
-    const arrowCurveGeo = new THREE.TorusGeometry(0.024, 0.0035, 12, 32, Math.PI * 1.3);
+    const arrowCurveGeo = new THREE.TorusGeometry(0.018, 0.0028, 12, 32, Math.PI * 1.3);
     this.rotateButtonIcon = new THREE.Mesh(arrowCurveGeo, this.chromeMaterial);
     this.rotateButtonIcon.position.z = 0.006;
     this.rotateButtonPivot.add(this.rotateButtonIcon);
 
-    // 箭头尖端锥体
-    const arrowTipGeo = new THREE.ConeGeometry(0.007, 0.012, 16);
+    const arrowTipGeo = new THREE.ConeGeometry(0.0055, 0.010, 16);
     const arrowTip = new THREE.Mesh(arrowTipGeo, this.chromeMaterial);
-    arrowTip.position.set(0.023, 0.005, 0.006);
+    arrowTip.position.set(0.017, 0.004, 0.006);
     arrowTip.rotation.z = -Math.PI / 4;
     this.rotateButtonPivot.add(arrowTip);
 
-    // 增大射线检测范围的透明隐形包围盒
-    const hitGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.05, 24);
+    const hitGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.05, 24);
     const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
     this.rotateButtonHitBox = new THREE.Mesh(hitGeo, hitMat);
     this.rotateButtonHitBox.rotation.x = Math.PI / 2;
     this.rotateButtonHitBox.name = 'freefall-rotate-button';
     this.rotateButtonHitBox.userData = { isRotateButton: true };
     this.rotateButtonPivot.add(this.rotateButtonHitBox);
-
     this.standGroup.add(this.rotateButtonPivot);
+
+    // --- 右侧按钮：慢动作时间倍率切换 (Slow-Mo / 1.0x Real-time) ---
+    this.speedButtonPivot.position.set(btnOffset, consoleY, consoleZ);
+    this.speedButtonPivot.rotation.x = -Math.PI / 4; // 倾角 45° 迎向用户
+    this.speedButtonPivot.name = 'freefall-speed-button';
+
+    this.speedButtonRing = new THREE.Mesh(btnRingGeo, this.speedButtonGlowMaterial);
+    this.speedButtonPivot.add(this.speedButtonRing);
+
+    const speedBtnCenter = new THREE.Mesh(btnCenterGeo, this.sapphireDisplayMaterial);
+    speedBtnCenter.rotation.x = Math.PI / 2;
+    this.speedButtonPivot.add(speedBtnCenter);
+
+    // 3D 秒表 / 慢放仪表图标
+    const timerRingGeo = new THREE.TorusGeometry(0.014, 0.0022, 12, 32);
+    const timerRing = new THREE.Mesh(timerRingGeo, this.chromeMaterial);
+    timerRing.position.z = 0.006;
+    this.speedButtonIcon.add(timerRing);
+
+    // 秒表顶部按把
+    const timerStemGeo = new THREE.CylinderGeometry(0.002, 0.002, 0.005, 12);
+    const timerStem = new THREE.Mesh(timerStemGeo, this.brassMaterial);
+    timerStem.position.set(0, 0.016, 0.006);
+    this.speedButtonIcon.add(timerStem);
+
+    // 秒表指针 (指示在 10 点钟方向)
+    const handGeo = new THREE.BoxGeometry(0.002, 0.009, 0.002);
+    const hand = new THREE.Mesh(handGeo, this.chromeMaterial);
+    hand.position.set(-0.003, 0.004, 0.007);
+    hand.rotation.z = Math.PI / 6;
+    this.speedButtonIcon.add(hand);
+
+    // 中心微轴
+    const axisGeo = new THREE.CylinderGeometry(0.0025, 0.0025, 0.003, 12);
+    const axis = new THREE.Mesh(axisGeo, this.brassMaterial);
+    axis.rotation.x = Math.PI / 2;
+    axis.position.z = 0.0075;
+    this.speedButtonIcon.add(axis);
+
+    this.speedButtonPivot.add(this.speedButtonIcon);
+
+    this.speedButtonHitBox = new THREE.Mesh(hitGeo, hitMat);
+    this.speedButtonHitBox.rotation.x = Math.PI / 2;
+    this.speedButtonHitBox.name = 'freefall-speed-button';
+    this.speedButtonHitBox.userData = { isSpeedButton: true };
+    this.speedButtonPivot.add(this.speedButtonHitBox);
+    this.standGroup.add(this.speedButtonPivot);
   }
 
   /**
@@ -971,60 +1053,76 @@ export class NewtonTubeMesh {
   ): void {
     const halfH = this.FALL_DISTANCE_M / 2;
 
-    const coinRestX = -0.038;
-    const corkRestX = 0;
-    const featherRestX = 0.038;
+    const coinLaneX = -0.038;
+    const corkLaneX = 0;
+    const featherLaneX = 0.038;
 
     if (isRotating) {
       // 翻转过程中：物体跟随管底端盖在旋转圆弧上平滑上升至管顶
-      const k = Math.round(startAngle / Math.PI);
-      const yEnd = (k % 2 === 0 ? -1 : 1) * halfH;
+      // 翻转开始前各物体在管底 (-halfH)，其横向通道坐标由翻转起点管体朝向决定
+      const N_start = Math.round(startAngle / Math.PI);
+      const signStart = Math.abs(N_start) % 2 === 0 ? 1 : -1;
 
-      const cosTheta = Math.cos(tubeRotationAngle);
-      const sinTheta = Math.sin(tubeRotationAngle);
+      const coinStartX = coinLaneX * signStart;
+      const corkStartX = corkLaneX * signStart;
+      const featherStartX = featherLaneX * signStart;
 
-      // 硬币跟随旋转
+      // 相对当前次翻转起点的旋转角增量 alpha ∈ [0, π]
+      const alpha = tubeRotationAngle - startAngle;
+      const cosA = Math.cos(alpha);
+      const sinA = Math.sin(alpha);
+
+      // 围绕中央转轴进行严密的刚体旋转变换：
+      // 起点为 (xStart, -halfH)
+      // x' = xStart * cos(alpha) - (-halfH) * sin(alpha) = xStart * cos(alpha) + halfH * sin(alpha)
+      // y' = xStart * sin(alpha) + (-halfH) * cos(alpha) = xStart * sin(alpha) - halfH * cos(alpha)
       this.coinGroup.position.set(
-        coinRestX * cosTheta - yEnd * sinTheta,
-        coinRestX * sinTheta + yEnd * cosTheta,
+        coinStartX * cosA + halfH * sinA,
+        coinStartX * sinA - halfH * cosA,
         0
       );
       this.coinGroup.rotation.z = tubeRotationAngle;
 
-      // 软木塞跟随旋转
       this.corkGroup.position.set(
-        corkRestX * cosTheta - yEnd * sinTheta,
-        corkRestX * sinTheta + yEnd * cosTheta,
+        corkStartX * cosA + halfH * sinA,
+        corkStartX * sinA - halfH * cosA,
         0
       );
       this.corkGroup.rotation.z = tubeRotationAngle;
 
-      // 羽毛跟随旋转
       this.featherGroup.position.set(
-        featherRestX * cosTheta - yEnd * sinTheta,
-        featherRestX * sinTheta + yEnd * cosTheta,
+        featherStartX * cosA + halfH * sinA,
+        featherStartX * sinA - halfH * cosA,
         0
       );
       this.featherGroup.rotation.z = tubeRotationAngle;
     } else {
       // 竖直状态下：下落运动或管底静止
-      // y 从 0 (管顶) 到 fallDistanceM (管底)
-      // 空间 Y 坐标：halfH - y (从 +halfH 下落至 -halfH，重力恒定垂直向下！)
+      // 当前竖直管体朝向周期：
+      const N_end = Math.round(tubeRotationAngle / Math.PI);
+      const signEnd = Math.abs(N_end) % 2 === 0 ? 1 : -1;
+
+      // 翻转完成到达管顶释放点时，世界空间 X 坐标与翻转到达点完全平滑连续 (无突跳)
+      const curCoinX = coinLaneX * signEnd;
+      const curCorkX = corkLaneX * signEnd;
+      const curFeatherX = featherLaneX * signEnd;
+
+      // y 从 0 (管顶 +halfH) 到 fallDistanceM (管底 -halfH)，重力方向恒定垂直向下！
       const localFeatherY = halfH - featherY;
       const localCoinY = halfH - coinY;
       const localCorkY = halfH - corkY;
 
       // 硬币
-      this.coinGroup.position.set(coinRestX, localCoinY, 0);
-      this.coinGroup.rotation.z = 0;
+      this.coinGroup.position.set(curCoinX, localCoinY, 0);
+      this.coinGroup.rotation.z = Math.abs(N_end) % 2 === 0 ? 0 : Math.PI;
 
       // 软木塞
-      this.corkGroup.position.set(corkRestX, localCorkY, 0);
-      this.corkGroup.rotation.z = 0;
+      this.corkGroup.position.set(curCorkX, localCorkY, 0);
+      this.corkGroup.rotation.z = Math.abs(N_end) % 2 === 0 ? 0 : Math.PI;
 
       // 羽毛：带有空气阻力引发的左右飘舞与迎角
-      this.featherGroup.position.set(featherRestX + flutterX, localFeatherY, 0);
-      this.featherGroup.rotation.z = flutterAngle;
+      this.featherGroup.position.set(curFeatherX + flutterX, localFeatherY, 0);
+      this.featherGroup.rotation.z = (Math.abs(N_end) % 2 === 0 ? 0 : Math.PI) + flutterAngle;
     }
   }
 
@@ -1073,10 +1171,54 @@ export class NewtonTubeMesh {
     }, 120);
   }
 
+  /**
+   * 设置 3D 慢动作按钮高亮状态
+   */
+  public setSpeedButtonHovered(hovered: boolean): void {
+    if (this.speedButtonHovered === hovered) return;
+    this.speedButtonHovered = hovered;
+    if (hovered) {
+      this.speedButtonPivot.scale.set(1.08, 1.08, 1.08);
+      this.speedButtonGlowMaterial.emissiveIntensity = 0.95;
+    } else {
+      this.speedButtonPivot.scale.set(1.0, 1.0, 1.0);
+      this.speedButtonGlowMaterial.emissiveIntensity = 0.70;
+    }
+  }
+
+  /**
+   * 触发慢动作按钮点击脉冲波动画
+   */
+  public pulseSpeedButton(): void {
+    this.speedButtonPivot.scale.set(0.92, 0.92, 0.92);
+    setTimeout(() => {
+      this.speedButtonPivot.scale.set(1.0, 1.0, 1.0);
+    }, 120);
+  }
+
+  /**
+   * 更新慢动作按钮发光状态与色彩
+   */
+  public setSpeedState(isSlowMo: boolean): void {
+    if (isSlowMo) {
+      // 慢动作激活：翠绿高能发光
+      this.speedButtonGlowMaterial.color.setHex(0x34d399);
+      this.speedButtonGlowMaterial.emissive.setHex(0x10b981);
+      this.speedButtonGlowMaterial.emissiveIntensity = 0.75;
+    } else {
+      // 1.0x 物理原速：琥珀暖金微光
+      this.speedButtonGlowMaterial.color.setHex(0xfbbf24);
+      this.speedButtonGlowMaterial.emissive.setHex(0xf59e0b);
+      this.speedButtonGlowMaterial.emissiveIntensity = 0.45;
+    }
+  }
+
   public getInteractiveObjects(): THREE.Object3D[] {
     const list: THREE.Object3D[] = [];
     if (this.rotateButtonHitBox) list.push(this.rotateButtonHitBox);
     else if (this.rotateButtonPivot) list.push(this.rotateButtonPivot);
+    if (this.speedButtonHitBox) list.push(this.speedButtonHitBox);
+    else if (this.speedButtonPivot) list.push(this.speedButtonPivot);
     if (this.pumpSwitchHitBox) list.push(this.pumpSwitchHitBox);
     else if (this.pumpPowerSwitchMesh) list.push(this.pumpPowerSwitchMesh);
     if (this.valveHitBox) list.push(this.valveHitBox);

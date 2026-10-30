@@ -401,7 +401,7 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(html.includes('霍尔效应原理'), 'Must contain 霍尔效应原理');
   assert(html.includes('静电场探索与电力线叠加'), 'Must contain 静电场探索与电力线叠加');
   assert(html.includes('电容器充放电过程'), 'Must contain 电容器充放电过程');
-  assert(html.includes('右手螺旋与左右手定则'), 'Must contain 右手螺旋与左右手定则');
+  assert(html.includes('右手螺旋与右手定则'), 'Must contain 右手螺旋与右手定则');
 
   // Verify deleted experiments are NOT present
   assert(!html.includes('em-induction'), 'Must NOT contain em-induction');

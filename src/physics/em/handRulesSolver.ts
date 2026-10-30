@@ -1,12 +1,12 @@
 import type { HandGestureFrame, NormalizedLandmark, SingleHandData } from '../../vision/types.ts';
 
-export type HandRuleMode = 'right-hand-screw' | 'left-hand-rule' | 'right-hand-rule';
+export type HandRuleMode = 'right-hand-screw' | 'right-hand-rule';
 
 export type Polarity = 1 | -1;
 
 export type HandPoseStatus =
   | 'idle'           // 未开启手势或视野内无手
-  | 'wrong-hand'     // 伸错了左右手（如左手定则伸了右手）
+  | 'wrong-hand'     // 伸错了左右手（如右手定则伸了左手）
   | 'adjusting'      // 左右手正确，正在调整方向/姿势
   | 'matched';       // 手势方向正确，触发物理响应
 
@@ -18,8 +18,8 @@ export interface Vec3 {
 
 export interface HandRuleConfig {
   mode: HandRuleMode;
-  currentPolarity: Polarity; // +1 或 -1（用于右手螺旋定则、左手定则）
-  fieldPolarity: Polarity;   // +1 或 -1（用于左手定则、右手定则）
+  currentPolarity: Polarity; // +1 或 -1（用于右手螺旋定则）
+  fieldPolarity: Polarity;   // +1 或 -1（用于右手定则）
   motionPolarity: Polarity;  // +1 或 -1（用于右手定则导体切割运动方向）
   gestureEnabled: boolean;
 }
@@ -246,21 +246,6 @@ export function computeRuleVectors(config: HandRuleConfig): {
     };
   }
 
-  if (config.mode === 'left-hand-rule') {
-    // 导体棒横在画面左右（电流沿 X）。B 竖直向上时，F = I × B 指向操作者（+Z）或远离操作者（-Z）。
-    const by = config.fieldPolarity;
-    const ix = config.currentPolarity;
-    const fz = (ix * by) as Polarity;
-    return {
-      requiredHand: 'left',
-      knownCurrentDir: { x: ix, y: 0, z: 0 },
-      knownFieldDir: { x: 0, y: by, z: 0 },
-      knownMotionDir: null,
-      targetVectorDir: { x: 0, y: 0, z: fz },
-      screwCirculationSign: 1,
-    };
-  }
-
   // 右手定则：已知磁场 B 沿前后方向 (0, 0, -fieldPolarity) 穿入掌心，导体切割速度 v 沿水平导轨 (motionPolarity, 0, 0)
   // 感应电流方向 I_ind = v × B = (vx, 0, 0) × (0, 0, bz) = (0, -vx * bz, 0) = (0, motionPolarity * fieldPolarity, 0)
   const bz = -config.fieldPolarity;
@@ -384,33 +369,6 @@ export function evaluateHandRuleFrame(
       statusLabel: isMatched
         ? `右手螺旋匹配成功：环绕磁场 B 已点亮`
         : `请用右手弯曲四指，大拇指指向电流 I (${targetVectorDir.y > 0 ? '向上' : '向下'})`,
-    };
-  }
-
-  if (config.mode === 'left-hand-rule') {
-    // 左手定则：已知磁场 B 和电流 I，求安培力 F —— 只要左手大拇指指向正确的安培力 F 方向即算对
-    const thumbDot = dotVec3(thumbDir, targetVectorDir);
-    const alignmentScore = Math.max(0, Math.min(1, (thumbDot - 0.15) / 0.55));
-    const isMatched = thumbDot >= 0.42;
-
-    return {
-      mode: config.mode,
-      requiredHand,
-      detectedHand: 'left',
-      status: isMatched ? 'matched' : 'adjusting',
-      alignmentScore,
-      isMatched,
-      knownCurrentDir,
-      knownFieldDir,
-      knownMotionDir,
-      targetVectorDir,
-      screwCirculationSign,
-      thumbDir,
-      fourFingersDir,
-      fingerCurlRatio,
-      statusLabel: isMatched
-        ? `左手定则判定正确：安培力 F 驱动导体向${targetVectorDir.z > 0 ? '前' : '后'}运动`
-        : `已知 B 与 I，请伸左手使大拇指指向正确的安培力 F 方向`,
     };
   }
 

@@ -290,6 +290,7 @@ export class OpticalPolarizationApparatusMesh {
   // 光源控制面板按键
   public laserSwitchMesh!: THREE.Mesh;
   public laserLedMesh!: THREE.Mesh;
+  public laserApertureRingMesh!: THREE.Mesh;
   public whiteLightBtnMesh!: THREE.Mesh;
   public wlButtons: { [wl: number]: THREE.Mesh } = {};
 
@@ -900,31 +901,123 @@ export class OpticalPolarizationApparatusMesh {
     band.position.set(0.004, this.beamCenterY, 0);
     this.emitterGroup.add(band);
 
-    // 4. 前置准直光学物镜筒与香槟金出光压圈 (+X 端)
-    const nozzleGeo = new THREE.CylinderGeometry(0.0155, 0.019, 0.018, 32);
+    // 4. 前置科研级精密激光/非偏振光准直扩束物镜筒与香槟金光阑压圈 (+X 端)
+    // 4.1 镜筒过渡阶梯环 (航天级喷砂银铝，与主筒精密衔接)
+    const collarGeo = createHollowRingFrameGeometry(barrelRadius + 0.0012, 0.0140, 0.0035, 0.0006, 36);
+    collarGeo.rotateY(Math.PI / 2);
+    const collar = new THREE.Mesh(collarGeo, satinSilverMat);
+    collar.position.set(barrelLen * 0.5 + 0.0015, this.beamCenterY, 0);
+    this.emitterGroup.add(collar);
+
+    // 4.2 准直外物镜套筒：双阶外圆锥倒角外壳，中空通光内孔 (openEnded: true，彻底杜绝共面 Z-Fighting)
+    const nozzleLen = 0.014;
+    const nozzleRadiusFront = 0.0165;
+    const nozzleRadiusBack = 0.0192;
+    const nozzleGeo = new THREE.CylinderGeometry(
+      nozzleRadiusFront,
+      nozzleRadiusBack,
+      nozzleLen,
+      36,
+      1,
+      true
+    );
     nozzleGeo.rotateZ(Math.PI / 2);
     const nozzle = new THREE.Mesh(nozzleGeo, titaniumSlateMat);
-    nozzle.position.set(barrelLen * 0.5 + 0.004, this.beamCenterY, 0);
+    nozzle.position.set(barrelLen * 0.5 + 0.008, this.beamCenterY, 0);
+    nozzle.castShadow = true;
     this.emitterGroup.add(nozzle);
 
-    const brassRingGeo = new THREE.TorusGeometry(0.0145, 0.0028, 16, 32);
-    brassRingGeo.rotateY(Math.PI / 2);
-    const brassRing = new THREE.Mesh(brassRingGeo, brassMat);
-    brassRing.position.set(barrelLen * 0.5 + 0.012, this.beamCenterY, 0);
-    this.emitterGroup.add(brassRing);
+    // 4.3 筒内消杂散光微孔光阑环 (深色哑光发黑内壁)
+    const baffleGeo = createHollowRingFrameGeometry(0.0150, 0.0090, 0.0015, 0.0003, 32);
+    baffleGeo.rotateY(Math.PI / 2);
+    const baffle = new THREE.Mesh(baffleGeo, titaniumSlateMat);
+    baffle.position.set(barrelLen * 0.5 + 0.006, this.beamCenterY, 0);
+    this.emitterGroup.add(baffle);
 
-    const lensGeo = new THREE.CircleGeometry(0.0125, 32);
+    // 4.4 前置香槟金精密镜头锁紧压圈 (带倒角机械锁紧外圈与内光阑通孔)
+    const bezelOuterR = 0.0168;
+    const bezelInnerR = 0.0108;
+    const bezelDepth = 0.0030;
+    const bezelGeo = createHollowRingFrameGeometry(bezelOuterR, bezelInnerR, bezelDepth, 0.0006, 36);
+    bezelGeo.rotateY(Math.PI / 2);
+    const brassBezel = new THREE.Mesh(bezelGeo, brassMat);
+    brassBezel.position.set(barrelLen * 0.5 + 0.0125, this.beamCenterY, 0);
+    brassBezel.castShadow = true;
+    this.emitterGroup.add(brassBezel);
+
+    // 4.5 压圈端面 4 处 90° 扳手调节槽 (Thorlabs 标准镜头压圈扳手工艺槽，真实工业装配细节)
+    for (let sIdx = 0; sIdx < 4; sIdx++) {
+      const sAng = (sIdx * Math.PI) / 2;
+      const slotGeo = createChamferedBlockGeometry(0.0012, 0.0015, 0.0008, 0.0002);
+      const slot = new THREE.Mesh(slotGeo, titaniumSlateMat);
+      slot.position.set(
+        barrelLen * 0.5 + 0.0142,
+        this.beamCenterY + Math.sin(sAng) * (bezelInnerR + 0.0022),
+        Math.cos(sAng) * (bezelInnerR + 0.0022)
+      );
+      this.emitterGroup.add(slot);
+    }
+
+    // 4.6 压圈外周微米级滚花防滑凸棱 (8 道微细防滑棱)
+    for (let kIdx = 0; kIdx < 8; kIdx++) {
+      const kAng = (kIdx * Math.PI) / 4;
+      const knurlGeo = new THREE.CylinderGeometry(0.0004, 0.0004, bezelDepth * 0.85, 8);
+      knurlGeo.rotateZ(Math.PI / 2);
+      const knurl = new THREE.Mesh(knurlGeo, brassMat);
+      knurl.position.set(
+        barrelLen * 0.5 + 0.0125,
+        this.beamCenterY + Math.sin(kAng) * (bezelOuterR + 0.0002),
+        Math.cos(kAng) * (bezelOuterR + 0.0002)
+      );
+      this.emitterGroup.add(knurl);
+    }
+
+    // 4.7 纯净光学玻璃准直透镜片 (带真实菲涅尔反射与透光折射)
+    const glassLensGeo = new THREE.CylinderGeometry(0.0105, 0.0105, 0.0016, 32);
+    glassLensGeo.rotateZ(Math.PI / 2);
+    const glassLensMat = new THREE.MeshPhysicalMaterial({
+      color: 0xf8fafc,
+      metalness: 0.02,
+      roughness: 0.08,
+      transmission: 0.88,
+      ior: 1.52,
+      transparent: true,
+      opacity: 0.82,
+    });
+    const glassLens = new THREE.Mesh(glassLensGeo, glassLensMat);
+    glassLens.position.set(barrelLen * 0.5 + 0.0122, this.beamCenterY, 0);
+    this.emitterGroup.add(glassLens);
+
+    // 4.8 核心发光透镜片 (置于通光孔内，无任何共面背景，彻底消除 Z-Fighting 碎斑)
+    const lensGeo = new THREE.CircleGeometry(0.0098, 36);
     lensGeo.rotateY(Math.PI / 2);
     this.laserLedMesh = new THREE.Mesh(
       lensGeo,
       new THREE.MeshBasicMaterial({
-        color: 0x22c55e,
+        color: this.getActiveBeamColor(),
         transparent: true,
-        opacity: 0.96,
+        opacity: this.laserPower ? 0.96 : 0.15,
+        side: THREE.DoubleSide,
       })
     );
-    this.laserLedMesh.position.set(barrelLen * 0.5 + 0.013, this.beamCenterY, 0);
+    this.laserLedMesh.position.set(barrelLen * 0.5 + 0.0116, this.beamCenterY, 0);
     this.emitterGroup.add(this.laserLedMesh);
+
+    // 4.9 准直出光口微光环 (光阑边缘高亮光圈，增强光源聚焦科技质感)
+    const haloRingGeo = new THREE.RingGeometry(0.0096, 0.0106, 36);
+    haloRingGeo.rotateY(Math.PI / 2);
+    this.laserApertureRingMesh = new THREE.Mesh(
+      haloRingGeo,
+      new THREE.MeshBasicMaterial({
+        color: this.getActiveBeamColor(),
+        transparent: true,
+        opacity: this.laserPower ? 0.75 : 0.12,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    this.laserApertureRingMesh.position.set(barrelLen * 0.5 + 0.0138, this.beamCenterY, 0);
+    this.emitterGroup.add(this.laserApertureRingMesh);
 
     // 5. 尾部香槟金航空锁紧接头与柔性同轴电源线
     const rearCapGeo = new THREE.CylinderGeometry(0.011, 0.014, 0.012, 24);
@@ -2275,6 +2368,12 @@ export class OpticalPolarizationApparatusMesh {
       mat.opacity = this.laserPower ? 0.96 : 0.15;
     }
 
+    if (this.laserApertureRingMesh) {
+      const mat = this.laserApertureRingMesh.material as THREE.MeshBasicMaterial;
+      mat.color.copy(activeColor);
+      mat.opacity = this.laserPower ? 0.75 : 0.12;
+    }
+
     if (this.whiteLightBtnMesh) {
       const m = this.whiteLightBtnMesh.material as THREE.MeshStandardMaterial;
       m.color.setHex(isWhite ? 0xfffbeb : 0xcbd5e1);
@@ -2539,7 +2638,7 @@ export class OpticalPolarizationApparatusMesh {
       );
 
     // -------- 段 1: 非偏振自然光多方位全向星芒横波簇 (emitterNozzleX -> polarizerX) --------
-    const xStart1 = this.emitterNozzleX + 0.010;
+    const xStart1 = this.emitterNozzleX;
     const xEnd1 = this.polarizerX - 0.012;
     const len1 = Math.max(0.02, xEnd1 - xStart1);
     const azimuthsDeg = [0, 30, 60, 90, 120, 150];

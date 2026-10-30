@@ -337,9 +337,9 @@ export class PhysicsDisciplineModal {
     },
     {
       id: 'em-hand-rules',
-      name: '右手螺旋与左右手定则',
-      category: '安培右手螺旋 · 左手定则 · 右手定则 3D手部骨骼',
-      formula: '\\vec{F} = I\\vec{L}\\times\\vec{B} · \\mathcal{E} = BLv',
+      name: '右手螺旋与右手定则',
+      category: '安培右手螺旋 · 右手定则 3D手部骨骼',
+      formula: '\\mathcal{E} = BLv · \\oint \\vec{B}\\cdot d\\vec{l} = \\mu_0 I',
       iconSvg: `
         <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
           <!-- Orthogonal Physical Vector Axes (I, B, F) & Articulated Hand Skeleton Nodes -->

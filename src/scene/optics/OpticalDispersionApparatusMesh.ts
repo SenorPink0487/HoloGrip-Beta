@@ -193,6 +193,10 @@ export class OpticalDispersionApparatusMesh {
   public laserPower = true;
   public prismMaterial: PrismMaterialType = 'flint'; // 默认采用高色散重火石光学玻璃，彩虹张角鲜明壮观
   public incidentAngleDeg = 58.0; // 第一界面入射角 θ1 (25° ~ 80°)
+  /** 转台转角（度）。0 为默认姿态。正值使晶体绕 +Z 逆时针转动，与入射角解耦。 */
+  public prismRotationDeg = 0;
+  /** 为 true 时准直管追随入射角；拖拽三棱镜时为 false，光发射器保持不动。 */
+  private collimatorFollowsPrism = true;
   public apexAngleDeg = 60.0; // 三棱镜顶角 α (45° ~ 70°)
   public screenDistanceM = 0.60; // 棱镜至光谱接收屏距离 L (0.30m ~ 0.85m)
   public enableRecombinationPrism = false; // 牛顿第二倒置三棱镜复合白光开关
@@ -255,9 +259,11 @@ export class OpticalDispersionApparatusMesh {
   public goniometerDialGroup!: THREE.Group;
   public collimatorArmGroup!: THREE.Group;
   public prismStageGroup!: THREE.Group;
+  public prismTurntableGroup!: THREE.Group;
   public prismCrystalMesh!: THREE.Mesh;
   public prismTopCapMesh!: THREE.Mesh;
   public prismBottomPlateMesh!: THREE.Mesh;
+  public prismSubTurntableMesh!: THREE.Mesh;
   public prismMicrometerKnob!: THREE.Mesh;
   public materialTurretWheel!: THREE.Group;
   public recombinationGroup!: THREE.Group;
@@ -571,6 +577,8 @@ export class OpticalDispersionApparatusMesh {
     this.goniometerDialGroup = new THREE.Group();
     this.goniometerDialGroup.name = 'GoniometerDialGroup';
     this.goniometerDialGroup.position.set(this.prismCenterX, this.prismCenterY, -0.044);
+    // 分度环与晶体同属转台：拖拽环面按绕轴角度转动三棱镜（刻度环本身保持固定基准）
+    this.goniometerDialGroup.userData = { interactiveId: 'prism_turntable' };
 
     const satinSilverMat = new THREE.MeshStandardMaterial({
       color: 0xe2e8f0,
@@ -774,12 +782,18 @@ export class OpticalDispersionApparatusMesh {
       clearcoatRoughness: 0.02,
       reflectivity: 0.98,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.5,
       depthWrite: false,
       side: THREE.DoubleSide,
       emissive: matSpec.emissiveHex,
       emissiveIntensity: 0.16,
     });
+
+    // 1. 三棱镜动力学转台总成 (Prism Turntable Assembly - 随入射角与拖拽物理旋转)
+    this.prismTurntableGroup = new THREE.Group();
+    this.prismTurntableGroup.name = 'PrismTurntableGroup';
+    this.prismTurntableGroup.position.set(0, 0, 0);
+    this.prismTurntableGroup.userData = { interactiveId: 'prism_turntable' };
 
     const vertices = this.getPrimaryPrismVerticesLocal();
     const prismGeo = createBeveledPrismGeometry(
@@ -791,9 +805,46 @@ export class OpticalDispersionApparatusMesh {
     );
     this.prismCrystalMesh = new THREE.Mesh(prismGeo, this.prismGlassMaterial);
     this.prismCrystalMesh.name = 'PrimaryCrystalPrismMesh';
-    this.prismCrystalMesh.userData = { interactiveId: 'prism_micrometer' };
+    this.prismCrystalMesh.userData = { interactiveId: 'prism_turntable' };
     this.prismCrystalMesh.renderOrder = 8;
-    this.prismStageGroup.add(this.prismCrystalMesh);
+    this.prismTurntableGroup.add(this.prismCrystalMesh);
+
+    // 晶体棱边：转台一转，轮廓立刻能看出来
+    const prismEdgeGeo = new THREE.EdgesGeometry(prismGeo, 18);
+    const prismEdgeMat = new THREE.LineBasicMaterial({
+      color: 0xf8fafc,
+      transparent: true,
+      opacity: 0.95,
+    });
+    const prismEdges = new THREE.LineSegments(prismEdgeGeo, prismEdgeMat);
+    prismEdges.name = 'PrimaryCrystalPrismEdges';
+    prismEdges.raycast = () => {};
+    this.prismTurntableGroup.add(prismEdges);
+
+    // 略大于晶体的拾取体，透明，专门接住拖拽
+    const pickMat = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      colorWrite: false,
+    });
+    const prismPick = new THREE.Mesh(prismGeo.clone(), pickMat);
+    prismPick.name = 'PrismTurntablePick';
+    prismPick.scale.set(1.28, 1.28, 1.7);
+    prismPick.userData = { interactiveId: 'prism_turntable' };
+    this.prismTurntableGroup.add(prismPick);
+
+    // 随晶体一起转的分度指针环，落在固定测角环的内孔里
+    const indexRing = new THREE.Mesh(new THREE.TorusGeometry(0.084, 0.0026, 12, 72), brassMat);
+    indexRing.name = 'PrismIndexRing';
+    indexRing.userData = { interactiveId: 'prism_turntable' };
+    this.prismTurntableGroup.add(indexRing);
+
+    const indexTooth = new THREE.Mesh(createChamferedBlockGeometry(0.010, 0.020, 0.007, 0.001), brassMat);
+    indexTooth.name = 'PrismIndexTooth';
+    indexTooth.position.set(0, 0.084, 0.005);
+    indexTooth.userData = { interactiveId: 'prism_turntable' };
+    this.prismTurntableGroup.add(indexTooth);
 
     // 2. 三棱镜底部精密运动学承载托盘 (Kinematic Prism Platform) 与三点香槟金调平螺丝
     const baseY = vertices.vLeft.y - 0.008;
@@ -803,32 +854,41 @@ export class OpticalDispersionApparatusMesh {
     this.prismBottomPlateMesh.name = 'PrismBottomPlateMesh';
     this.prismBottomPlateMesh.position.set(0, baseY, 0);
     this.prismBottomPlateMesh.castShadow = true;
-    this.prismBottomPlateMesh.userData = { interactiveId: 'prism_micrometer' };
-    this.prismStageGroup.add(this.prismBottomPlateMesh);
+    this.prismBottomPlateMesh.userData = { interactiveId: 'prism_turntable' };
+    this.prismTurntableGroup.add(this.prismBottomPlateMesh);
 
     // 托盘下沿深空钛灰分度转盘座与三枚香槟金滚花调平螺丝
     const subTurntableGeo = new THREE.CylinderGeometry(0.048, 0.052, 0.014, 36);
-    const subTurntable = new THREE.Mesh(subTurntableGeo, titaniumSlateMat);
-    subTurntable.position.set(0, baseY - 0.012, 0);
-    this.prismStageGroup.add(subTurntable);
+    this.prismSubTurntableMesh = new THREE.Mesh(subTurntableGeo, titaniumSlateMat);
+    this.prismSubTurntableMesh.name = 'PrismSubTurntableMesh';
+    this.prismSubTurntableMesh.userData = { interactiveId: 'prism_turntable' };
+    this.prismSubTurntableMesh.position.set(0, baseY - 0.012, 0);
+    this.prismTurntableGroup.add(this.prismSubTurntableMesh);
 
     for (const sx of [-plateW * 0.36, 0, plateW * 0.36]) {
       const screwGeo = new THREE.CylinderGeometry(0.0055, 0.0055, 0.008, 18);
       const screw = new THREE.Mesh(screwGeo, brassMat);
+      screw.userData = { interactiveId: 'prism_turntable' };
       screw.position.set(sx, baseY - 0.007, this.prismDepth * 0.42);
-      this.prismStageGroup.add(screw);
+      this.prismTurntableGroup.add(screw);
     }
 
     // 3. 三棱镜顶部香槟金/银铝防松压帽 (Top Optical Retaining Bridge)
     const capGeo = createChamferedBlockGeometry(0.026, 0.008, this.prismDepth + 0.008, 0.0012);
     this.prismTopCapMesh = new THREE.Mesh(capGeo, satinSilverMat);
+    this.prismTopCapMesh.name = 'PrismTopCapMesh';
+    this.prismTopCapMesh.userData = { interactiveId: 'prism_turntable' };
     this.prismTopCapMesh.position.set(0, vertices.vTop.y + 0.005, 0);
-    this.prismStageGroup.add(this.prismTopCapMesh);
+    this.prismTurntableGroup.add(this.prismTopCapMesh);
 
     const topFinialGeo = new THREE.CylinderGeometry(0.005, 0.006, 0.009, 20);
     const topFinial = new THREE.Mesh(topFinialGeo, brassMat);
+    topFinial.name = 'PrismTopFinialMesh';
+    topFinial.userData = { interactiveId: 'prism_turntable' };
     topFinial.position.set(0, 0.007, 0);
     this.prismTopCapMesh.add(topFinial);
+
+    this.prismStageGroup.add(this.prismTurntableGroup);
 
     // 4. 中央主立柱 (连接转台底部与导轨凸台)
     const centerStemH = (this.prismCenterY + baseY - 0.018) - 0.042;
@@ -1715,15 +1775,27 @@ export class OpticalDispersionApparatusMesh {
     return { vLeft, vRight, vTop, alphaRad };
   }
 
+  public getPrismRotationRad(): number {
+    return THREE.MathUtils.degToRad(this.prismRotationDeg);
+  }
+
   /**
-   * 获取第一界面入射点 P1 的局部基准坐标
+   * 获取第一界面入射点 P1 的局部基准坐标 (随三棱镜转台转角动态同步)
    */
   public getIncidentPointP1(): THREE.Vector2 {
     const { vLeft, vTop } = this.getPrimaryPrismVerticesLocal();
-    const ax1 = this.prismCenterX + vLeft.x;
-    const ay1 = this.prismCenterY + vLeft.y;
-    const bx1 = this.prismCenterX + vTop.x;
-    const by1 = this.prismCenterY + vTop.y;
+    const prismRotRad = this.getPrismRotationRad();
+    const cosR = Math.cos(prismRotRad);
+    const sinR = Math.sin(prismRotRad);
+    const vLeftRotX = vLeft.x * cosR - vLeft.y * sinR;
+    const vLeftRotY = vLeft.x * sinR + vLeft.y * cosR;
+    const vTopRotX = vTop.x * cosR - vTop.y * sinR;
+    const vTopRotY = vTop.x * sinR + vTop.y * cosR;
+
+    const ax1 = this.prismCenterX + vLeftRotX;
+    const ay1 = this.prismCenterY + vLeftRotY;
+    const bx1 = this.prismCenterX + vTopRotX;
+    const by1 = this.prismCenterY + vTopRotY;
     return new THREE.Vector2(ax1 + 0.54 * (bx1 - ax1), ay1 + 0.54 * (by1 - ay1));
   }
 
@@ -1771,6 +1843,9 @@ export class OpticalDispersionApparatusMesh {
 
     if (this.prismBottomPlateMesh) {
       this.prismBottomPlateMesh.position.y = vLeft.y - 0.008;
+    }
+    if (this.prismSubTurntableMesh) {
+      this.prismSubTurntableMesh.position.y = vLeft.y - 0.020;
     }
     if (this.prismTopCapMesh) {
       this.prismTopCapMesh.position.y = vTop.y + 0.005;
@@ -1870,7 +1945,7 @@ export class OpticalDispersionApparatusMesh {
 
   // ==================== 2. 精确二维/三维棱镜色散光线追踪与视觉网格更新 ====================
   public updateOpticalPaths(): OpticalDispersionTelemetry {
-    const spectrum = OpticalPhysics.calculatePrismSpectrum(
+    let spectrum = OpticalPhysics.calculatePrismSpectrum(
       this.incidentAngleDeg,
       this.apexAngleDeg,
       this.prismMaterial
@@ -1880,28 +1955,83 @@ export class OpticalDispersionApparatusMesh {
     const { vLeft, vRight, vTop, alphaRad } = this.getPrimaryPrismVerticesLocal();
     const halfAlpha = alphaRad * 0.5;
 
+    // 三棱镜转台：拖拽直接写入 prismRotationDeg，网格 1:1 跟随
+    const prismRotRad = this.getPrismRotationRad();
+    if (this.prismTurntableGroup) {
+      this.prismTurntableGroup.rotation.z = prismRotRad;
+    }
+
+    const cosR = Math.cos(prismRotRad);
+    const sinR = Math.sin(prismRotRad);
+
+    const vLeftRotX = vLeft.x * cosR - vLeft.y * sinR;
+    const vLeftRotY = vLeft.x * sinR + vLeft.y * cosR;
+    const vTopRotX = vTop.x * cosR - vTop.y * sinR;
+    const vTopRotY = vTop.x * sinR + vTop.y * cosR;
+    const vRightRotX = vRight.x * cosR - vRight.y * sinR;
+    const vRightRotY = vRight.x * sinR + vRight.y * cosR;
+
     // 转换到实验台全局局部坐标 (加上 prismCenterX, prismCenterY)
-    const ax1 = this.prismCenterX + vLeft.x;
-    const ay1 = this.prismCenterY + vLeft.y;
-    const bx1 = this.prismCenterX + vTop.x;
-    const by1 = this.prismCenterY + vTop.y;
-    const cx1 = this.prismCenterX + vRight.x;
-    const cy1 = this.prismCenterY + vRight.y;
+    const ax1 = this.prismCenterX + vLeftRotX;
+    const ay1 = this.prismCenterY + vLeftRotY;
+    const bx1 = this.prismCenterX + vTopRotX;
+    const by1 = this.prismCenterY + vTopRotY;
+    const cx1 = this.prismCenterX + vRightRotX;
+    const cy1 = this.prismCenterY + vRightRotY;
 
-    // 第一界面入射点 P1 (左斜面中点偏上 54% 处)
-    const p1X = ax1 + 0.54 * (bx1 - ax1);
-    const p1Y = ay1 + 0.54 * (by1 - ay1);
+    // 第一界面入射点 P1 (左斜面中点偏上 54% 处，随三棱镜表面精密同步)
+    let p1X = ax1 + 0.54 * (bx1 - ax1);
+    let p1Y = ay1 + 0.54 * (by1 - ay1);
 
-    // 入射光线方向角 psi_inc = theta_1 - alpha / 2
-    const theta1Rad = THREE.MathUtils.degToRad(this.incidentAngleDeg);
-    const psiIncRad = theta1Rad - halfAlpha;
-    const incDirX = Math.cos(psiIncRad);
-    const incDirY = Math.sin(psiIncRad);
+    // 第一界面斜面方向与内法线角度
+    const face1Angle = Math.atan2(by1 - ay1, bx1 - ax1);
+    const inwardNormAngle = face1Angle - Math.PI * 0.5;
 
-    // 同步左侧平行光管摆臂位置与俯仰角，使其喷嘴精确对准 P1
-    if (this.collimatorArmGroup) {
-      this.collimatorArmGroup.position.set(p1X, p1Y, 0);
-      this.collimatorArmGroup.rotation.z = psiIncRad;
+    let psiIncRad: number;
+    let incDirX: number;
+    let incDirY: number;
+    let theta1Rad = THREE.MathUtils.degToRad(this.incidentAngleDeg);
+
+    if (this.collimatorArmGroup && !this.collimatorFollowsPrism) {
+      // 光发射器保持当前姿态，入射角由转台转角与固定光束的夹角决定
+      psiIncRad = this.collimatorArmGroup.rotation.z;
+      incDirX = Math.cos(psiIncRad);
+      incDirY = Math.sin(psiIncRad);
+      const nozzleX = this.collimatorArmGroup.position.x;
+      const nozzleY = this.collimatorArmGroup.position.y;
+      const faceHit = intersectRayWithSegment2D(
+        nozzleX - incDirX * 0.45,
+        nozzleY - incDirY * 0.45,
+        incDirX,
+        incDirY,
+        ax1,
+        ay1,
+        bx1,
+        by1
+      );
+      if (faceHit) {
+        p1X = faceHit.x;
+        p1Y = faceHit.y;
+        let thetaDeg = THREE.MathUtils.radToDeg(psiIncRad - inwardNormAngle);
+        while (thetaDeg > 180) thetaDeg -= 360;
+        while (thetaDeg < -180) thetaDeg += 360;
+        this.incidentAngleDeg = THREE.MathUtils.clamp(thetaDeg, 25.0, 80.0);
+        theta1Rad = THREE.MathUtils.degToRad(this.incidentAngleDeg);
+      }
+      spectrum = OpticalPhysics.calculatePrismSpectrum(
+        this.incidentAngleDeg,
+        this.apexAngleDeg,
+        this.prismMaterial
+      );
+      this.cachedSpectrum = spectrum;
+    } else {
+      psiIncRad = inwardNormAngle + theta1Rad;
+      incDirX = Math.cos(psiIncRad);
+      incDirY = Math.sin(psiIncRad);
+      if (this.collimatorArmGroup) {
+        this.collimatorArmGroup.position.set(p1X, p1Y, 0);
+        this.collimatorArmGroup.rotation.z = psiIncRad;
+      }
     }
 
     // 同步测微鼓轮旋转角度与微米轴向进给
@@ -1927,8 +2057,13 @@ export class OpticalDispersionApparatusMesh {
 
     // 1. 更新入射准直光束 (从准直管喷嘴到 P1)
     const nozzleDist = 0.116;
-    const startX = p1X - incDirX * nozzleDist;
-    const startY = p1Y - incDirY * nozzleDist;
+    const beamFromFixedEmitter = this.collimatorArmGroup && !this.collimatorFollowsPrism;
+    const startX = beamFromFixedEmitter
+      ? this.collimatorArmGroup.position.x
+      : p1X - incDirX * nozzleDist;
+    const startY = beamFromFixedEmitter
+      ? this.collimatorArmGroup.position.y
+      : p1Y - incDirY * nozzleDist;
     this.positionCylinderBetween(
       this.incidentBeamMesh,
       new THREE.Vector3(startX, startY, 0),
@@ -1941,8 +2076,8 @@ export class OpticalDispersionApparatusMesh {
     );
     this.entrySpotMesh.position.set(p1X, p1Y, 0);
 
-    // 2. 更新第一界面菲涅尔反射光束 (法线 N1 方向角为 pi - alpha/2)
-    const n1Angle = Math.PI - halfAlpha;
+    // 2. 更新第一界面菲涅尔反射光束
+    const n1Angle = Math.PI + inwardNormAngle;
     const reflAngle = n1Angle - theta1Rad;
     const reflLen = 0.145;
     const reflEndX = p1X + Math.cos(reflAngle) * reflLen;
@@ -1987,9 +2122,9 @@ export class OpticalDispersionApparatusMesh {
         this.prismMaterial
       );
 
-      // 棱镜内部方向角 psi_int = theta_2 - alpha / 2
+      // 棱镜内部折射方向角 psi_int = inwardNormAngle + theta_2
       const theta2Rad = THREE.MathUtils.degToRad(trace.refractionAngle1Deg);
-      const psiIntRad = theta2Rad - halfAlpha;
+      const psiIntRad = inwardNormAngle + theta2Rad;
       const intDirX = Math.cos(psiIntRad);
       const intDirY = Math.sin(psiIntRad);
 
@@ -2137,7 +2272,7 @@ export class OpticalDispersionApparatusMesh {
 
     for (const band of activeBands) {
       const theta2Rad = THREE.MathUtils.degToRad(band.refractionAngle1Deg);
-      const psiIntRad = theta2Rad - halfAlpha;
+      const psiIntRad = inwardNormAngle + theta2Rad;
       const intDirX = Math.cos(psiIntRad);
       const intDirY = Math.sin(psiIntRad);
 
@@ -2215,7 +2350,8 @@ export class OpticalDispersionApparatusMesh {
         bottomVioletY = endY;
       } else {
         // 发生第二界面全反射 (TIR)：光线在右斜面内部全反射折向棱镜底边并向下射出
-        const n2InwardAngle = halfAlpha + Math.PI;
+        const face2Angle = Math.atan2(cy1 - by1, cx1 - bx1);
+        const n2InwardAngle = face2Angle - Math.PI * 0.5;
         const theta3Rad = THREE.MathUtils.degToRad(band.internalIncidentAngle2Deg);
         const tirDirAngle = n2InwardAngle + theta3Rad;
         const tirDirX = Math.cos(tirDirAngle);
@@ -2264,7 +2400,7 @@ export class OpticalDispersionApparatusMesh {
         const bandPy = redTopPy + cauchyT * (violetBottomPy - redTopPy);
         const bandTargetY = screenCenterY + (512 - bandPy) * pxToM;
         const theta2Rad = THREE.MathUtils.degToRad(band.refractionAngle1Deg);
-        const psiIntRad = theta2Rad - halfAlpha;
+        const psiIntRad = inwardNormAngle + theta2Rad;
         const hitP2 = intersectRayWithSegment2D(
           p1X,
           p1Y,
@@ -2332,6 +2468,10 @@ export class OpticalDispersionApparatusMesh {
     );
 
     const spreadMm = Math.abs(topRedY - bottomVioletY) * 1000.0;
+    // 彩虹光扇、法线与偏向角弧线只负责显示，不能挡住三棱镜和准直管的拖拽
+    this.beamsGroup.traverse((obj) => {
+      obj.raycast = () => {};
+    });
     return this.buildTelemetryFromSpectrum(spectrum, spreadMm);
   }
 
@@ -2729,6 +2869,19 @@ export class OpticalDispersionApparatusMesh {
 
   public setIncidentAngle(angleDeg: number): void {
     this.incidentAngleDeg = THREE.MathUtils.clamp(angleDeg, 25.0, 80.0);
+    this.prismRotationDeg = this.incidentAngleDeg - 58.0;
+    this.collimatorFollowsPrism = true;
+    this.updatePrismValueLabel();
+    this.updateOpticalPaths();
+    this.updateScreenTexture();
+  }
+
+  /**
+   * 直接转动三棱镜转台。光发射器保持当前指向，入射角改由转角与光束的夹角决定。
+   */
+  public setPrismTurntableDegrees(rotationDeg: number): void {
+    this.prismRotationDeg = THREE.MathUtils.clamp(rotationDeg, -40.0, 40.0);
+    this.collimatorFollowsPrism = false;
     this.updatePrismValueLabel();
     this.updateOpticalPaths();
     this.updateScreenTexture();
@@ -2842,12 +2995,14 @@ export class OpticalDispersionApparatusMesh {
   }
 
   public setKnobHovered(
-    id: 'prism_micrometer' | 'prism_material_turret' | 'recombination_toggle' | null,
+    id: 'prism_turntable' | 'prism_micrometer' | 'prism_material_turret' | 'recombination_toggle' | null,
     hovered: boolean
   ): void {
     if (this.micrometerHoverCue) {
       this.micrometerHoverCue.visible =
-        id === 'prism_micrometer' && hovered && !this.hasInteractedWithMicrometer;
+        (id === 'prism_micrometer' || id === 'prism_turntable') &&
+        hovered &&
+        !this.hasInteractedWithMicrometer;
     }
     if (this.turretHoverCue) {
       this.turretHoverCue.visible =
@@ -2914,6 +3069,7 @@ export class OpticalDispersionApparatusMesh {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.copy(pStart).addScaledVector(dir, 0.5);
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.normalize());
+    mesh.raycast = () => {};
     return mesh;
   }
 
@@ -2935,6 +3091,8 @@ export class OpticalDispersionApparatusMesh {
     const list: THREE.Object3D[] = [];
     if (this.collimatorArmGroup) list.push(this.collimatorArmGroup);
     if (this.prismStageGroup) list.push(this.prismStageGroup);
+    if (this.prismTurntableGroup) list.push(this.prismTurntableGroup);
+    if (this.goniometerDialGroup) list.push(this.goniometerDialGroup);
     if (this.screenCarrierGroup) list.push(this.screenCarrierGroup);
     if (this.recombinationGroup) list.push(this.recombinationGroup);
     return list;

@@ -17,7 +17,7 @@ export default class MechFreeFallExperiment extends BaseExperiment {
   private mesh!: NewtonTubeMesh;
   private solver!: FreeFallDynamicsSolver;
   private isDisposed = false;
-  private timeScale = 1.0;
+  private timeScale = 0.35; // 默认开启 0.35x 慢动作，使人眼能够清晰辨识物体下落过程与触底时差
   private lastHoveredTarget: string | null = null;
   private keydownListener: ((e: KeyboardEvent) => void) | null = null;
 
@@ -25,8 +25,20 @@ export default class MechFreeFallExperiment extends BaseExperiment {
     // 将实验设备平稳置于实验台上表面正前方 (Y=0.08, Z=1.35)，大尺寸正面朝向用户
     this.rootGroup.position.set(0, 0.08, 1.35);
 
+    // 读取初始参数或应用默认 0.35x 慢动作
+    const paramTimeScale = typeof context.getParameter === 'function'
+      ? context.getParameter('timeScale')
+      : (context.parameters?.['timeScale'] ?? 0.35);
+    if (typeof paramTimeScale === 'number' && !isNaN(paramTimeScale)) {
+      this.timeScale = Math.max(0.1, Math.min(2.0, paramTimeScale));
+    } else {
+      this.timeScale = 0.35;
+      context.setParameter?.('timeScale', 0.35);
+    }
+
     // 实例化 3D 设备总成
     this.mesh = new NewtonTubeMesh();
+    this.mesh.setSpeedState(this.timeScale < 0.7);
     this.rootGroup.add(this.mesh.group);
     this.addDisposable(() => this.mesh.dispose());
 
@@ -37,7 +49,7 @@ export default class MechFreeFallExperiment extends BaseExperiment {
       fallDistanceM: this.mesh.FALL_DISTANCE_M,
     });
 
-    // 监听键盘快捷操作 (R 键旋转倒转，V 键切换抽气机；空格键专用于视角上升，绝不拦截)
+    // 监听键盘快捷操作 (R 键旋转倒转，V 键切换抽气机，T 键切换慢动作；空格键专用于视角上升，绝不拦截)
     if (typeof window !== 'undefined') {
       this.keydownListener = (e: KeyboardEvent) => {
         if (this.isDisposed) return;
@@ -50,6 +62,9 @@ export default class MechFreeFallExperiment extends BaseExperiment {
         } else if (e.code === 'KeyV') {
           e.preventDefault();
           this.togglePump();
+        } else if (e.code === 'KeyT') {
+          e.preventDefault();
+          this.toggleTimeScale(context);
         }
       };
       window.addEventListener('keydown', this.keydownListener);
@@ -92,6 +107,7 @@ export default class MechFreeFallExperiment extends BaseExperiment {
     if (hits.length === 0) {
       if (this.lastHoveredTarget) {
         this.mesh.setRotateButtonHovered(false);
+        this.mesh.setSpeedButtonHovered(false);
         this.lastHoveredTarget = null;
       }
       return null;
@@ -103,6 +119,7 @@ export default class MechFreeFallExperiment extends BaseExperiment {
         // 1. 旋转倒转按钮
         if (cur.name === 'freefall-rotate-button' || cur.userData?.isRotateButton) {
           this.mesh.setRotateButtonHovered(true);
+          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-rotate-button';
           const isRotating = this.solver.isTubeRotating;
           return {
@@ -114,9 +131,23 @@ export default class MechFreeFallExperiment extends BaseExperiment {
           };
         }
 
-        // 2. 抽气机电源按键或机体
+        // 2. 慢动作倍率切换按钮 (0.35x 慢放 / 1.0x 原速)
+        if (cur.name === 'freefall-speed-button' || cur.userData?.isSpeedButton) {
+          this.mesh.setRotateButtonHovered(false);
+          this.mesh.setSpeedButtonHovered(true);
+          this.lastHoveredTarget = 'freefall-speed-button';
+          const isSlow = this.timeScale < 0.7;
+          return {
+            id: 'freefall-speed-button',
+            label: `3D 慢放对比按钮 [当前: ${isSlow ? '0.35x 慢动作 (清晰推荐)' : '1.0x 真实原速'}] · 单击切换 (快捷键: T 键)`,
+            cursor: 'pointer',
+          };
+        }
+
+        // 3. 抽气机电源按键或机体
         if (cur.name === 'freefall-pump-switch' || cur.userData?.isPumpSwitch) {
           this.mesh.setRotateButtonHovered(false);
+          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-pump-switch';
           const isRunning = this.solver.isPumpRunning;
           const p = this.solver.airPressureKPa.toFixed(1);
@@ -129,9 +160,10 @@ export default class MechFreeFallExperiment extends BaseExperiment {
           };
         }
 
-        // 3. 抽气与排气阀门
+        // 4. 抽气与排气阀门
         if (cur.name === 'freefall-valve' || cur.userData?.isValve) {
           this.mesh.setRotateButtonHovered(false);
+          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-valve';
           const isVacuum = this.solver.airPressureKPa < 1.0;
           return {
@@ -143,36 +175,48 @@ export default class MechFreeFallExperiment extends BaseExperiment {
           };
         }
 
-        // 4. 管内对比物体 (羽毛、硬币、软木塞)
+        // 5. 管内对比物体 (羽毛、硬币、软木塞)
         if (cur.name === 'freefall-feather') {
           this.mesh.setRotateButtonHovered(false);
+          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-feather';
           const isVacuum = this.solver.airPressureKPa < 1.0;
+          const featherState = this.solver.getObjectState('feather');
+          const timeInfo = featherState.hasLanded ? ` · 耗时: ${featherState.landTimeS.toFixed(2)}s` : '';
           return {
             id: 'freefall-feather',
             label: isVacuum
-              ? '轻盈羽毛 [真空状态] · 完全摆脱空气阻力，与硬币、软木塞同步自由落体！'
-              : '轻盈羽毛 [常压空气状态] · 质量极轻(0.15g)、受显著空气阻力，轻盈飘浮迟缓下落',
+              ? `轻盈羽毛 [高真空状态] · 完全摆脱空气阻力，与硬币、软木塞同步自由落体！${timeInfo}`
+              : `轻盈羽毛 [常压空气状态] · 质量极轻(0.045g)、迎风阻力大(收尾速度仅0.5m/s)，轻盈飘舞迟缓降落${timeInfo}`,
             cursor: 'default',
           };
         }
 
         if (cur.name === 'freefall-coin') {
           this.mesh.setRotateButtonHovered(false);
+          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-coin';
+          const coinState = this.solver.getObjectState('coin');
+          const timeInfo = coinState.hasLanded ? ` · 耗时: ${coinState.landTimeS.toFixed(2)}s` : '';
           return {
             id: 'freefall-coin',
-            label: '硬币 (24K纯金) [6.2g 金属] · 密度高且空气阻力小，迅速冲向管底',
+            label: `硬币 (24K纯金) [6.2g 金属] · 密度极高且阻力微弱，以最大重力加速度直冲管底${timeInfo}`,
             cursor: 'default',
           };
         }
 
         if (cur.name === 'freefall-cork') {
           this.mesh.setRotateButtonHovered(false);
+          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-cork';
+          const isVacuum = this.solver.airPressureKPa < 1.0;
+          const corkState = this.solver.getObjectState('cork');
+          const timeInfo = corkState.hasLanded ? ` · 耗时: ${corkState.landTimeS.toFixed(2)}s` : '';
           return {
             id: 'freefall-cork',
-            label: '软木塞 (天然软木) [3.5g 木质] · 密度中等，常压下略落后于硬币',
+            label: isVacuum
+              ? `轻质软木塞 [高真空状态] · 摆脱空气阻力，与硬币、羽毛分秒不差同步自由落体！${timeInfo}`
+              : `轻质软木塞 [常压空气状态] · 密度适中(0.085g)，受明显空气阻力滞后，清晰晚于硬币落地${timeInfo}`,
             cursor: 'default',
           };
         }
@@ -187,12 +231,13 @@ export default class MechFreeFallExperiment extends BaseExperiment {
       while (cur && cur !== this.mesh.group) {
         if (cur.name === 'freefall-tube' || cur.userData?.isNewtonTube) {
           this.mesh.setRotateButtonHovered(false);
+          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-tube';
           const p = this.solver.airPressureKPa.toFixed(1);
           const envDesc = this.solver.airPressureKPa < 1.0 ? '高真空环境 (无空气阻力)' : '常压空气环境 (存在空气阻力)';
           return {
             id: 'freefall-tube',
-            label: `牛顿真空管 [${envDesc} · ${p} kPa] · 点击亦可直接倒转 180°`,
+            label: `牛顿真空管 [${envDesc} · ${p} kPa] · 点击倒转 180° (R) | 切换慢放 (T)`,
             cursor: 'pointer',
           };
         }
@@ -202,6 +247,7 @@ export default class MechFreeFallExperiment extends BaseExperiment {
 
     if (this.lastHoveredTarget) {
       this.mesh.setRotateButtonHovered(false);
+      this.mesh.setSpeedButtonHovered(false);
       this.lastHoveredTarget = null;
     }
     return null;
@@ -217,12 +263,16 @@ export default class MechFreeFallExperiment extends BaseExperiment {
   ): boolean | void {
     if (!hit) return false;
 
-    let targetType: 'rotate_button' | 'pump' | 'valve' | 'tube' | 'none' = 'none';
+    let targetType: 'rotate_button' | 'speed_button' | 'pump' | 'valve' | 'tube' | 'none' = 'none';
     let obj: THREE.Object3D | null = hit.object;
 
     while (obj && obj !== this.mesh.group) {
       if (obj.name === 'freefall-rotate-button' || obj.userData?.isRotateButton) {
         targetType = 'rotate_button';
+        break;
+      }
+      if (obj.name === 'freefall-speed-button' || obj.userData?.isSpeedButton) {
+        targetType = 'speed_button';
         break;
       }
       if (obj.name === 'freefall-pump-switch' || obj.userData?.isPumpSwitch) {
@@ -243,6 +293,11 @@ export default class MechFreeFallExperiment extends BaseExperiment {
     if (targetType === 'rotate_button' || targetType === 'tube') {
       this.invertTube();
       this.mesh.pulseRotateButton();
+      return true;
+    }
+
+    if (targetType === 'speed_button') {
+      this.toggleTimeScale(context);
       return true;
     }
 
@@ -269,6 +324,17 @@ export default class MechFreeFallExperiment extends BaseExperiment {
   }
 
   /**
+   * 切换时间倍率 (0.35x 慢动作与 1.0x 物理原速交替)
+   */
+  public toggleTimeScale(context?: ExperimentContext): number {
+    this.timeScale = this.timeScale < 0.7 ? 1.0 : 0.35;
+    this.mesh.setSpeedState(this.timeScale < 0.7);
+    this.mesh.pulseSpeedButton();
+    context?.setParameter?.('timeScale', this.timeScale);
+    return this.timeScale;
+  }
+
+  /**
    * 切换抽气机开关
    */
   public togglePump(forceState?: boolean): boolean {
@@ -289,9 +355,9 @@ export default class MechFreeFallExperiment extends BaseExperiment {
   public override update(delta: number, _elapsed: number, context: ExperimentContext): void {
     if (this.isDisposed) return;
 
-    // 步进动力学解算器
-    const simDt = Math.min(0.033, Math.max(0.001, delta)) * this.timeScale;
-    this.solver.step(simDt);
+    // 步进动力学解算器 (翻转与气泵按真实时间顺畅运行，落体过程应用 timeScale 慢放倍率)
+    const simDt = Math.min(0.033, Math.max(0.001, delta));
+    this.solver.step(simDt, this.timeScale);
 
     // 同步 3D 渲染图元
     this.syncVisuals();
@@ -311,6 +377,7 @@ export default class MechFreeFallExperiment extends BaseExperiment {
       this.mesh.setPumpState(this.solver.isPumpRunning, this.solver.airPressureKPa);
     } else if (id === 'timeScale') {
       this.timeScale = Math.max(0.1, Math.min(2.0, Number(value)));
+      this.mesh.setSpeedState(this.timeScale < 0.7);
     } else if (id === 'gravity') {
       this.solver.gravity = Math.max(0.5, Number(value));
     }

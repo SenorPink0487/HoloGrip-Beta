@@ -50,7 +50,7 @@ class MockElement {
 
   private getOrCreateTabs(): MockElement[] {
     if (!this.tabsCache) {
-      const modes = ['right-hand-screw', 'left-hand-rule', 'right-hand-rule'];
+      const modes = ['right-hand-screw', 'right-hand-rule'];
       this.tabsCache = modes.map(mode => {
         const el = new MockElement('button');
         el.className = 'hr-apple-seg-btn hr-mode-tab';
@@ -62,11 +62,8 @@ class MockElement {
   }
 
   querySelector(selector: string): MockElement | null {
-    if (selector.includes('data-mode="left-hand-rule"')) {
-      return this.getOrCreateTabs()[1];
-    }
     if (selector.includes('data-mode="right-hand-rule"')) {
-      return this.getOrCreateTabs()[2];
+      return this.getOrCreateTabs()[1];
     }
     if (selector.includes('data-mode="right-hand-screw"')) {
       return this.getOrCreateTabs()[0];
@@ -150,12 +147,7 @@ console.log('✓ Test 1 passed: HandRulesStatusCard instantiated with VisionOS l
 // Test 2: Mode switching via segmented buttons
 console.log('Test 2: Apple Segmented Control Tab Navigation');
 const tabs = card.element.querySelectorAll('.hr-mode-tab');
-assert.strictEqual(tabs.length, 3, 'Must contain 3 mode tabs');
-
-const leftHandTab = card.element.querySelector('.hr-mode-tab[data-mode="left-hand-rule"]') as any;
-assert(leftHandTab !== null, 'Left hand rule tab must exist');
-leftHandTab.click();
-assert.strictEqual(selectedMode, 'left-hand-rule', 'Clicking tab must trigger onSelectMode callback');
+assert.strictEqual(tabs.length, 2, 'Must contain 2 mode tabs');
 
 const rightHandTab = card.element.querySelector('.hr-mode-tab[data-mode="right-hand-rule"]') as any;
 assert(rightHandTab !== null, 'Right hand rule tab must exist');
@@ -163,7 +155,7 @@ rightHandTab.click();
 assert.strictEqual(selectedMode, 'right-hand-rule', 'Clicking tab must trigger onSelectMode callback');
 console.log('✓ Test 2 passed: Apple Segmented Control tab switching verified\n');
 
-// Test 3: Telemetry updates across all 3 modes
+// Test 3: Telemetry updates across modes
 console.log('Test 3: Telemetry Synchronization & Dynamic Content');
 
 // 1. Right-hand screw telemetry
@@ -195,28 +187,28 @@ const statusBadge = card.element.querySelector('#hr-status-badge');
 assert.strictEqual(statusBadge?.textContent, '定则吻合', 'Status badge must display 定则吻合');
 assert(statusBadge?.classList.contains('matched'), 'Status badge must have matched class');
 
-// 2. Left-hand rule telemetry
+// 2. Right-hand rule wrong hand telemetry (required right, detected left)
 card.updateFromTelemetry({
-  mode: 'left-hand-rule',
+  mode: 'right-hand-rule',
   currentPolarity: 1,
   fieldPolarity: 1,
   motionPolarity: 1,
   gestureEnabled: true,
-  requiredHand: 'left',
-  detectedHand: 'right',
+  requiredHand: 'right',
+  detectedHand: 'left',
   status: 'wrong-hand',
   alignmentScore: 0.35,
   isMatched: false,
-  statusLabel: '检测到右手，左手定则请伸出左手',
+  statusLabel: '当前为左手，请换用右手',
 });
 
-assert(formulaBadge?.textContent?.includes('左手定则'), 'Formula badge must reflect left hand rule');
-assert.strictEqual(chiralBadge?.textContent, '伸出左手', 'Must require left hand');
-assert(chiralBadge?.classList.contains('is-left'), 'Must have is-left class');
+assert(formulaBadge?.textContent?.includes('右手定则'), 'Formula badge must reflect right hand rule');
+assert.strictEqual(chiralBadge?.textContent, '伸出右手', 'Must require right hand');
+assert(chiralBadge?.classList.contains('is-right'), 'Must have is-right class');
 assert.strictEqual(statusBadge?.textContent, '请换手', 'Status badge must display 请换手');
 assert(statusBadge?.classList.contains('wrong-hand'), 'Status badge must have wrong-hand class');
 
-// 3. Right-hand rule telemetry
+// 3. Right-hand rule idle telemetry
 card.updateFromTelemetry({
   mode: 'right-hand-rule',
   currentPolarity: 1,
@@ -234,7 +226,7 @@ card.updateFromTelemetry({
 assert(formulaBadge?.textContent?.includes('右手定则'), 'Formula badge must reflect right hand rule');
 assert.strictEqual(chiralBadge?.textContent, '伸出右手', 'Must require right hand');
 assert.strictEqual(statusBadge?.textContent, '待机', 'Status badge must display 待机');
-console.log('✓ Test 3 passed: Telemetry updates across all 3 modes verified\n');
+console.log('✓ Test 3 passed: Telemetry updates across modes verified\n');
 
 // Test 4: Direction buttons & action toolbar
 console.log('Test 4: Direction Inversion & Action Buttons');
