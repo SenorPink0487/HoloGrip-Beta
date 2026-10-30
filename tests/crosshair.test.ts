@@ -194,7 +194,6 @@ const allPhysicsExperiments = [
   'em-capacitor-discharge',
   'optics-diffraction',
   'optics-double-slit',
-  'optics-dispersion',
   'optics-polarization',
   'optics-reflection-refraction',
   'thermo-carnot',

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OpticalPhysics } from './OpticalPhysics.ts';
+import { createChamferedBlockGeometry } from './OpticalBenchRail.ts';
+import { createKnurledBand } from '../em/conductorRod.ts';
 
 export type LiquidMediumType = 'water' | 'ethanol' | 'glycerin' | 'glass' | 'flint' | 'diamond' | 'custom';
 
@@ -235,27 +237,29 @@ export class OpticalDiskApparatusMesh {
       metalness: 0.95,
       roughness: 0.10,
     });
-    const darkFootPadMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.85,
-      metalness: 0.05,
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      metalness: 0.9,
+      roughness: 0.24,
     });
 
-    // 1.1 一体成型倒角实心铝合金底座 (平整贴合桌面 Y = 0)
-    // 宽 0.38m，深 0.18m，厚 0.012m，边缘带有细腻的高光倒角
-    const basePlateGeo = new THREE.BoxGeometry(0.38, 0.012, 0.18);
-    const basePlate = new THREE.Mesh(basePlateGeo, spaceGrayMat);
+    // 1.1 缎面银铝倒角底座。顶面仍在 Y = 0.012，悬臂铰点不用上移。
+    const basePlateGeo = createChamferedBlockGeometry(0.42, 0.012, 0.22, 0.0028);
+    const basePlate = new THREE.Mesh(basePlateGeo, anodizedSilverMat);
     basePlate.position.set(0, 0.006, 0);
     basePlate.castShadow = true;
     basePlate.receiveShadow = true;
     standGroup.add(basePlate);
 
-    // 底座四角防滑阻尼脚垫
+    const inlayGeo = new THREE.BoxGeometry(0.36, 0.0012, 0.002);
+    const inlay = new THREE.Mesh(inlayGeo, brassMat);
+    inlay.position.set(0, 0.008, 0.111);
+    standGroup.add(inlay);
+
     for (const sx of [-0.16, 0.16]) {
-      for (const sz of [-0.07, 0.07]) {
-        const padGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.002, 24);
-        const pad = new THREE.Mesh(padGeo, darkFootPadMat);
-        pad.position.set(sx, 0.001, sz);
+      for (const sz of [-0.078, 0.078]) {
+        const pad = new THREE.Mesh(createKnurledBand(0.012, 0.0045), brassMat);
+        pad.position.set(sx, 0.0142, sz);
         standGroup.add(pad);
       }
     }
@@ -267,7 +271,7 @@ export class OpticalDiskApparatusMesh {
 
     // 支柱下铰链座
     const lowerJointGeo = new THREE.CylinderGeometry(0.022, 0.024, 0.020, 32);
-    const lowerJoint = new THREE.Mesh(lowerJointGeo, spaceGrayMat);
+    const lowerJoint = new THREE.Mesh(lowerJointGeo, anodizedSilverMat);
     lowerJoint.position.set(0, 0.010, 0);
     armGroup.add(lowerJoint);
 

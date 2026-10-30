@@ -91,36 +91,23 @@ function createSculptedArrowGeometry(
 }
 
 /**
- * 创建高辨识度航天级流线型矢量箭头几何体（沿 +Y 轴，中心在原点）
- * 头部为纤细尖锥（尖端半径收敛至 0，带倒钩肩台），尾部为大直径喇叭形倒流尾翼（半径扩大至 finRadius，带内凹空腔）
- * 从任意三维视角（包括正对或轴向俯视），均能凭“尖端针头 vs 宽大尾翼”瞬间清晰区分正反方向。
+ * 创建与右手螺旋法则直导线完全相同的精密矢量指示箭头几何体（标准圆柱杆 + 圆锥头，沿 +Y 轴，中心在原点）
  */
-function createHighVisibilityArrowGeometry(
-  length = 0.042,
-  shaftRadius = 0.0028,
-  headRadius = 0.0075,
+function createScrewStyleArrowGeometry(
+  shaftLength = 0.026,
+  shaftRadius = 0.0020,
   headLength = 0.016,
-  finRadius = 0.0095
+  headRadius = 0.0055
 ): THREE.BufferGeometry {
-  const half = length * 0.5;
+  const half = (shaftLength + headLength) * 0.5;
   const neckY = half - headLength;
-  const finY = -half + 0.009;
-
   const profile: THREE.Vector2[] = [
-    new THREE.Vector2(0.0, -half + 0.003),
-    new THREE.Vector2(shaftRadius * 0.7, -half + 0.002),
-    new THREE.Vector2(finRadius * 0.85, -half + 0.0005),
-    new THREE.Vector2(finRadius, -half),
-    new THREE.Vector2(finRadius * 0.96, -half + 0.0025),
-    new THREE.Vector2(shaftRadius * 1.5, finY - 0.002),
-    new THREE.Vector2(shaftRadius, finY),
+    new THREE.Vector2(0, -half),
+    new THREE.Vector2(shaftRadius, -half),
     new THREE.Vector2(shaftRadius, neckY),
     new THREE.Vector2(headRadius, neckY),
-    new THREE.Vector2(headRadius * 0.85, neckY + 0.004),
-    new THREE.Vector2(headRadius * 0.50, neckY + 0.010),
-    new THREE.Vector2(0.0, half),
+    new THREE.Vector2(0, half),
   ];
-
   const geo = new THREE.LatheGeometry(profile, 24);
   geo.computeVertexNormals();
   return geo;
@@ -180,60 +167,68 @@ function createFrontScaleTexture(): THREE.CanvasTexture {
 }
 
 /**
- * 生成正对操作者的清晰 "速度 v" 标识纹理
+ * 生成正对操作者的清晰 "速度 v" 标识纹理（与右手螺旋法则同款规格与排版）
  */
 function createVelocityLabelTexture(): THREE.CanvasTexture {
   return paintTexture(512, 256, (ctx: any, w, h) => {
     if (typeof ctx.clearRect === 'function') ctx.clearRect(0, 0, w, h);
     if (typeof ctx.fillText !== 'function') return;
 
-    ctx.textAlign = 'center';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
+
     const cy = h * 0.5;
 
+    // 白色高对比度衬底微光描边，确保在任何 3D 背景及视角下均清晰无眩光
     if (typeof ctx.strokeText === 'function') {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
       ctx.lineWidth = 12;
-      ctx.font = '900 86px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
-      ctx.strokeText('速度', 170, cy);
-      ctx.font = 'italic 900 110px "Times New Roman", STSong, Georgia, serif';
-      ctx.strokeText('v', 335, cy - 3);
+      ctx.font = '900 88px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.strokeText('速度', 36, cy);
+      ctx.font = 'italic 900 112px "Times New Roman", STSong, Georgia, serif';
+      ctx.strokeText('v', 246, cy - 3);
     }
 
+    // 紫晶速度主题色
     ctx.fillStyle = '#9333ea';
-    ctx.font = '900 86px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
-    ctx.fillText('速度', 170, cy);
-    ctx.font = 'italic 900 110px "Times New Roman", STSong, Georgia, serif';
-    ctx.fillText('v', 335, cy - 3);
+    ctx.font = '900 88px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('速度', 36, cy);
+
+    ctx.font = 'italic 900 112px "Times New Roman", STSong, Georgia, serif';
+    ctx.fillText('v', 246, cy - 3);
   });
 }
 
 /**
- * 生成正对操作者的清晰 "感应电流 I" 标识纹理
+ * 生成正对操作者的清晰红底白边 "电流 I" 激光蚀刻与 HUD 铭牌纹理（与右手螺旋法则保持完全一致）
  */
 function createInducedCurrentLabelTexture(): THREE.CanvasTexture {
   return paintTexture(512, 256, (ctx: any, w, h) => {
     if (typeof ctx.clearRect === 'function') ctx.clearRect(0, 0, w, h);
     if (typeof ctx.fillText !== 'function') return;
 
-    ctx.textAlign = 'center';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
+
     const cy = h * 0.5;
 
+    // 白色高对比度衬底微光描边，确保在任何 3D 背景及视角下均清晰无眩光
     if (typeof ctx.strokeText === 'function') {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
       ctx.lineWidth = 12;
-      ctx.font = '900 78px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
-      ctx.strokeText('感应电流', 200, cy);
-      ctx.font = 'italic 900 102px "Times New Roman", STSong, Georgia, serif';
-      ctx.strokeText('I', 415, cy - 3);
+      ctx.font = '900 88px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.strokeText('电流', 36, cy);
+      ctx.font = 'italic 900 112px "Times New Roman", STSong, Georgia, serif';
+      ctx.strokeText('I', 246, cy - 3);
     }
 
-    ctx.fillStyle = '#059669';
-    ctx.font = '900 78px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
-    ctx.fillText('感应电流', 200, cy);
-    ctx.font = 'italic 900 102px "Times New Roman", STSong, Georgia, serif';
-    ctx.fillText('I', 415, cy - 3);
+    // 鲜红饱和主题色（与右手螺旋法则电流保持完全一致）
+    ctx.fillStyle = '#dc2626';
+    ctx.font = '900 88px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('电流', 36, cy);
+
+    ctx.font = 'italic 900 112px "Times New Roman", STSong, Georgia, serif';
+    ctx.fillText('I', 246, cy - 3);
   });
 }
 
@@ -282,7 +277,13 @@ export class HandRulesBenchMesh {
   private readonly champagneBrassMat = polishedGold(0xf59e0b);
   private readonly knownCurrentMat = labGlow(0xf59e0b, 0.68); // 琥珀金：已知电流 I
   private readonly knownFieldMat = labGlow(0x38bdf8, 0.62);   // 冰海青：已知磁场 B
-  private readonly knownMotionMat = labGlow(0xa855f7, 0.65);  // 紫晶光：已知切割运动 v
+  private readonly knownMotionMat = new THREE.MeshStandardMaterial({
+    color: 0xa855f7,
+    emissive: 0x9333ea,
+    emissiveIntensity: 0.85,
+    roughness: 0.22,
+    metalness: 0.15,
+  });
   private readonly texN = letterTexture('N', '#fecaca');
   private readonly texS = letterTexture('S', '#bfdbfe');
 
@@ -468,19 +469,19 @@ export class HandRulesBenchMesh {
     this.rightCurrent.setFlowVisible(false);
     this.rightRodGroup.add(this.rightCurrent.group);
 
-    // 切割运动速度方向 v 的高精细车削发光矢量箭头
+    // 3) 速度与电流矢量指示系统（与右手螺旋法则使用完全相同的箭头几何造型与文字标识规格）
+    const arrowGeo = createScrewStyleArrowGeometry(0.026, 0.0020, 0.016, 0.0055);
+
+    // 切割运动速度方向 v 的发光矢量箭头
     this.rightMotionArrow = new THREE.Group();
     this.rightMotionArrow.name = 'VelocityDirectionArrow';
 
-    const vArrowMesh = new THREE.Mesh(
-      createHighVisibilityArrowGeometry(0.082, 0.0030, 0.0088, 0.022, 0.011),
-      this.knownMotionMat
-    );
+    const vArrowMesh = new THREE.Mesh(arrowGeo, this.knownMotionMat);
     vArrowMesh.castShadow = true;
     this.rightMotionArrow.add(vArrowMesh);
     this.rightRodGroup.add(this.rightMotionArrow);
 
-    // 独立 3D "速度 v" 标识看板（独立定位，永远保持端正水平朝向操作者 +Z，杜绝文字旋转倾倒）
+    // 独立 3D "速度 v" 标识看板（与右手螺旋法则同款规格：512x256，高对比白边描边，PlaneGeometry 0.058x0.029）
     const vTex = createVelocityLabelTexture();
     const vLabelMat = new THREE.MeshBasicMaterial({
       map: vTex,
@@ -488,43 +489,40 @@ export class HandRulesBenchMesh {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
-    this.rightMotionLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.054, 0.027), vLabelMat);
-    this.rightMotionLabel.position.set(0.055, 0.032, rodRadius + 0.0055);
+    this.rightMotionLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.029), vLabelMat);
+    this.rightMotionLabel.position.set(0.052, 0.028, rodRadius + 0.0035);
     this.rightRodGroup.add(this.rightMotionLabel);
 
-    // 所求的感应电流方向高精度翠绿矢量箭头 I_ind（手势正确时高亮发光）
+    // 所求的电流方向高精度矢量箭头 I（与右手螺旋法则保持完全一致的红箭造型与材质）
     this.rightInducedMat = new THREE.MeshStandardMaterial({
-      color: 0x34d399,
-      emissive: 0x10b981,
-      emissiveIntensity: 0.95,
-      metalness: 0.25,
-      roughness: 0.15,
+      color: 0xef4444,
+      emissive: 0xdc2626,
+      emissiveIntensity: 0.85,
+      metalness: 0.15,
+      roughness: 0.22,
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.15,
       depthWrite: false,
     });
     this.rightInducedArrow = new THREE.Group();
     this.rightInducedArrow.name = 'InducedCurrentArrow';
 
-    const indArrowMesh = new THREE.Mesh(
-      createHighVisibilityArrowGeometry(0.096, 0.0034, 0.0095, 0.025, 0.012),
-      this.rightInducedMat
-    );
+    const indArrowMesh = new THREE.Mesh(arrowGeo, this.rightInducedMat);
     indArrowMesh.castShadow = true;
     this.rightInducedArrow.add(indArrowMesh);
     this.rightRodGroup.add(this.rightInducedArrow);
 
-    // 独立 3D "感应电流 I" 标识看板（永远保持端正水平朝向操作者 +Z，不发生文字倒挂）
+    // 独立 3D "电流 I" 标识看板（与右手螺旋法则同款红底白边，PlaneGeometry 0.058x0.029）
     const indTex = createInducedCurrentLabelTexture();
     this.rightInducedLabelMat = new THREE.MeshBasicMaterial({
       map: indTex,
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
-      opacity: 0.12,
+      opacity: 0.15,
     });
-    this.rightInducedLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.068, 0.034), this.rightInducedLabelMat);
-    this.rightInducedLabel.position.set(-0.048, 0.052, rodRadius + 0.0055);
+    this.rightInducedLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.029), this.rightInducedLabelMat);
+    this.rightInducedLabel.position.set(-0.052, 0.065, rodRadius + 0.0035);
     this.rightRodGroup.add(this.rightInducedLabel);
 
     this.rightRodGroup.name = 'RightConductorRodAssembly';
@@ -622,14 +620,14 @@ export class HandRulesBenchMesh {
   ): void {
     // 1) 导体棒在台面中心平稳重复运动 (切割行程在 -0.12m 与 +0.12m 之间)
     const vx = config.motionPolarity;
-    // 速度矢量车削雕刻箭头：精密指向切割运动方向 (+X 或 -X)
+    // 速度矢量指示箭头：精密指向切割运动方向 (+X 或 -X)
     _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(vx, 0, 0));
     this.rightMotionArrow.quaternion.copy(_QUAT);
-    this.rightMotionArrow.position.set(vx * 0.048, 0, 0.0092 + 0.0035);
+    this.rightMotionArrow.position.set(vx * 0.042, 0, 0.0092 + 0.0025);
 
     // 速度 3D 文字标签位置动态定位，文字本身永远保持端正水平面向操作者
     if (this.rightMotionLabel) {
-      this.rightMotionLabel.position.set(vx * 0.055, 0.032, 0.0092 + 0.0055);
+      this.rightMotionLabel.position.set(vx * 0.052, 0.028, 0.0092 + 0.0035);
     }
 
     const strokeStart = vx > 0 ? -0.12 : 0.12;
@@ -647,21 +645,21 @@ export class HandRulesBenchMesh {
     }
     this.rightRodGroup.position.x = strokeStart + u * strokeLen;
 
-    // 2) 感应电流方向高精度翠绿矢量箭头 I_ind (+Y 向上 或 -Y 向下)
+    // 2) 电流方向矢量箭头 I (+Y 向上 或 -Y 向下)
     const indY = (config.motionPolarity * config.fieldPolarity) as Polarity;
     _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(0, indY, 0));
     this.rightInducedArrow.quaternion.copy(_QUAT);
-    this.rightInducedArrow.position.set(-vx * 0.012, indY * 0.058, 0.0092 + 0.0035);
+    this.rightInducedArrow.position.set(-vx * 0.018, indY * 0.065, 0.0092 + 0.0025);
 
-    // 独立 3D "感应电流 I" 标识看板：随感应电流方向在 Y 轴自适应平移，并与速度标识错开 X 轴，永不重叠
+    // 独立 3D "电流 I" 标识看板：随电流方向在 Y 轴自适应平移，并与速度标识错开 X 轴，永不重叠
     if (this.rightInducedLabel) {
-      this.rightInducedLabel.position.set(-vx * 0.048, indY * 0.052, 0.0092 + 0.0055);
+      this.rightInducedLabel.position.set(-vx * 0.052, indY * 0.065, 0.0092 + 0.0035);
     }
 
     const isCorrect = evaluation.isMatched;
     const targetIndOpacity = isCorrect
       ? 0.96
-      : 0.12 + evaluation.alignmentScore * 0.45;
+      : 0.15 + evaluation.alignmentScore * 0.45;
     this.rightInducedMat.opacity += (targetIndOpacity - this.rightInducedMat.opacity) * Math.min(1, dt * 8);
     this.rightInducedLabelMat.opacity = this.rightInducedMat.opacity;
     this.rightCurrent.setFlowVisible(isCorrect && this.rightInducedMat.opacity > 0.3);

@@ -72,8 +72,10 @@ export class Engine {
   public lighting: Lighting;
   private envScene: THREE.Scene | null = null;
   private envShellMat: THREE.MeshBasicMaterial | null = null;
+  private envCeilingMat: THREE.MeshBasicMaterial | null = null;
   private envOculusMat: THREE.MeshBasicMaterial | null = null;
   private envCoveMat: THREE.MeshBasicMaterial | null = null;
+  private envTableMat: THREE.MeshBasicMaterial | null = null;
   private envFloorMat: THREE.MeshBasicMaterial | null = null;
   private envHemi: THREE.HemisphereLight | null = null;
   private envKey: THREE.DirectionalLight | null = null;
@@ -315,45 +317,78 @@ export class Engine {
   }
 
   /**
-   * 圆形实验室的反射环境：暖灰泥壳、中央圆光、一圈脚灯。
-   * 石材与缎面铝只映这三样，不再映青色灯带。
+   * 圆形实验室的全方位平衡反射环境 (360° x 180° 无缝 IBL)。
+   * 以实验台操作区仪器中心为探针原点，完整建模天顶天窗、发光暗槽、浅碟穹顶灰泥壳、全息台面及实验室大范围地坪。
+   * 探针底面与背景均填充地面反射色，彻底杜绝下半球与斜向反射黑洞导致的金属构件俯视发黑问题。
    */
   private initImageBasedLighting(): void {
     const envScene = new THREE.Scene();
+    const preferences = accountPreferences();
+    const initialPalette = galleryPalette(preferences.galleryPalette);
+    envScene.background = new THREE.Color(initialPalette.envFloor);
 
-    const shellMat = new THREE.MeshBasicMaterial({ color: 0xe6e0d4, side: THREE.BackSide });
+    // 所有反射环境模型均启用 DoubleSide，杜绝任何法线或视线背面剔除
+    const shellMat = new THREE.MeshBasicMaterial({ color: initialPalette.envShell, side: THREE.DoubleSide });
+    const ceilingMat = new THREE.MeshBasicMaterial({ color: initialPalette.envShell, side: THREE.DoubleSide });
+    const oculusMat = new THREE.MeshBasicMaterial({ color: initialPalette.envOculus, side: THREE.DoubleSide });
+    const coveMat = new THREE.MeshBasicMaterial({ color: initialPalette.envCove, side: THREE.DoubleSide });
+    const tableMat = new THREE.MeshBasicMaterial({ color: initialPalette.tableStone, side: THREE.DoubleSide });
+    const floorMat = new THREE.MeshBasicMaterial({ color: initialPalette.envFloor, side: THREE.DoubleSide });
+
+    // 探针中心原点 (0, 0, 0) 对应全息工作台上方仪器工作区域 (世界坐标 Y ≈ 1.35m)
+
+    // 1. 周围圆柱形灰泥墙体 (涵盖从地面 Y = -1.35m 到檐口 Y = 2.45m，高 3.8m，半径 8.2m)
+    const wallHeight = 3.8;
     const shell = new THREE.Mesh(
-      new THREE.CylinderGeometry(8.2, 8.2, 4.2, 48, 1, true),
+      new THREE.CylinderGeometry(8.2, 8.2, wallHeight, 48, 1, true),
       shellMat,
     );
-    shell.position.y = 2.05;
+    shell.position.y = -1.35 + wallHeight / 2; // Y = 0.55
     envScene.add(shell);
 
-    const oculusMat = new THREE.MeshBasicMaterial({ color: 0xfff6ec });
+    // 2. 浅碟穹顶天花板 (完全封闭顶部环区，半径 1.4m 到 8.2m，杜绝空洞漏黑)
+    const ceiling = new THREE.Mesh(
+      new THREE.RingGeometry(1.4, 8.2, 48),
+      ceilingMat,
+    );
+    ceiling.position.y = 2.45;
+    ceiling.rotation.x = Math.PI / 2;
+    envScene.add(ceiling);
+
+    // 3. 中央圆天窗天光 (半径 1.4m，柔和暖白漫反射)
     const oculus = new THREE.Mesh(
-      new THREE.CircleGeometry(1.28, 48),
+      new THREE.CircleGeometry(1.4, 48),
       oculusMat,
     );
-    oculus.position.y = 4.18;
+    oculus.position.y = 2.46;
     oculus.rotation.x = Math.PI / 2;
     envScene.add(oculus);
 
-    const coveMat = new THREE.MeshBasicMaterial({ color: 0xfff3e6, side: THREE.DoubleSide });
+    // 4. 顶部周边洗墙暗槽灯环 (檐口一圈明亮环光)
     const cove = new THREE.Mesh(
-      new THREE.RingGeometry(7.4, 7.85, 64),
+      new THREE.RingGeometry(7.3, 8.15, 64),
       coveMat,
     );
-    cove.position.y = 3.72;
+    cove.position.y = 2.44;
     cove.rotation.x = Math.PI / 2;
     envScene.add(cove);
 
-    const floorMat = new THREE.MeshBasicMaterial({ color: 0xd9d2c4 });
+    // 5. 中央全息实验台台面 (位于探针下方 0.36m 处，半径 1.92m 的浅色石材台面，向上呈现自然明亮桌面反射)
+    const tableDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(1.92, 48),
+      tableMat,
+    );
+    tableDisc.position.y = -0.36;
+    tableDisc.rotation.x = -Math.PI / 2;
+    envScene.add(tableDisc);
+
+    // 6. 实验室地坪 (位于探针下方 1.35m 处，大范围延展半径 12.0m，彻底杜绝向下反射黑洞)
     const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(8.0, 48),
+      new THREE.CircleGeometry(12.0, 48),
       floorMat,
     );
+    floor.position.y = -1.35;
     floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0.02;
     envScene.add(floor);
 
     const envHemi = new THREE.HemisphereLight(0xfff8f1, 0xd5cec2, 0.55);
@@ -364,15 +399,17 @@ export class Engine {
 
     this.envScene = envScene;
     this.envShellMat = shellMat;
+    this.envCeilingMat = ceilingMat;
     this.envOculusMat = oculusMat;
     this.envCoveMat = coveMat;
+    this.envTableMat = tableMat;
     this.envFloorMat = floorMat;
     this.envHemi = envHemi;
     this.envKey = downKey;
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(envScene, 0.04).texture;
-    this.scene.environmentIntensity = 0.58;
+    this.scene.environmentIntensity = initialPalette.envIntensity;
     pmrem.dispose();
   }
 
@@ -390,9 +427,14 @@ export class Engine {
 
   private applyEnvironmentPalette(id: GalleryPaletteId): void {
     const palette = galleryPalette(id);
+    if (this.envScene) {
+      this.envScene.background = new THREE.Color(palette.envFloor);
+    }
     this.envShellMat?.color.set(palette.envShell);
+    this.envCeilingMat?.color.set(palette.envShell);
     this.envOculusMat?.color.set(palette.envOculus);
     this.envCoveMat?.color.set(palette.envCove);
+    this.envTableMat?.color.set(palette.tableStone);
     this.envFloorMat?.color.set(palette.envFloor);
     if (this.envHemi) {
       this.envHemi.color.set(palette.envHemiSky);

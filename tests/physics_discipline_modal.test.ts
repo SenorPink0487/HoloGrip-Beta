@@ -178,20 +178,19 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   assert(html.includes('physics-level-2'), 'Must render Level 2 container');
   assert(html.includes('optics-exp-deck'), 'Must render optics experiments deck');
 
-  // 光的反射与折射, 光的衍射, 杨氏双缝干涉, 光的色散 & 光的偏振 in optics plate
-  assert.strictEqual(PhysicsDisciplineModal.OPTICS_EXPERIMENTS.length, 5, '5 experiments in optics section');
+  // 光的反射与折射, 光的衍射, 杨氏双缝干涉 & 光的偏振 in optics plate
+  assert.strictEqual(PhysicsDisciplineModal.OPTICS_EXPERIMENTS.length, 4, '4 experiments in optics section');
   assert(html.includes('光的反射与折射'), 'Must contain 光的反射与折射');
   assert(html.includes('n₁ sinθ₁ = n₂ sinθ₂ · θᵣ = θ₁'), 'Must contain reflection & refraction formula');
   assert(html.includes('光的衍射'), 'Must contain 光的衍射');
   assert(html.includes('a sinθ = kλ · I = I₀ sinc²β'), 'Must contain diffraction formula');
   assert(html.includes('杨氏双缝干涉'), 'Must contain 杨氏双缝干涉');
   assert(html.includes('Δy = λL / d · d sinθ = kλ'), 'Must contain Young double-slit interference formula');
-  assert(html.includes('光的色散'), 'Must contain 光的色散');
-  assert(html.includes('n(λ) = A + B/λ² · δ = θ₁ + θ₄ - α'), 'Must contain Cauchy prism dispersion formula');
   assert(html.includes('光的偏振'), 'Must contain 光的偏振');
   assert(html.includes('I = I₀ cos²θ · Δφ = 2π d Δn / λ'), 'Must contain Malus & birefringence polarization formula');
 
   // Other obsolete experiments removed
+  assert(!html.includes('光的色散'), 'Must not contain 光的色散');
   assert(!html.includes('光的传播与折射色散'), 'Must not contain 光的传播与折射色散');
   assert(!html.includes('单缝与光栅衍射'), 'Must not contain 单缝与光栅衍射');
   assert(!html.includes('光的偏振与马吕斯定律'), 'Must not contain 光的偏振与马吕斯定律');

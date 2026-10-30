@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OpticalPhysics } from './OpticalPhysics.ts';
+import { buildPrecisionOpticalRail } from './OpticalBenchRail.ts';
 
 export type LightSourceMode = 'monochromatic' | 'white';
 
@@ -341,174 +342,17 @@ export class OpticalDoubleSlitBenchMesh {
     return { saddleGroup: group, collar, rod };
   }
 
-  // ==================== A. 航天级阳极氧化喷砂银铝双槽导轨与深海蓝激光标尺 ====================
+  // ==================== A. 缎面银铝精密光具座底座 ====================
   private buildOpticalRail(): void {
-    this.railGroup = new THREE.Group();
-    this.railGroup.name = 'RailGroup';
-
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.34,
-      roughness: 0.28,
+    const built = buildPrecisionOpticalRail({
+      length: this.railLength,
+      width: this.railWidth,
+      height: this.railHeight,
+      name: 'RailGroup',
     });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x2c3e50,
-      metalness: 0.24,
-      roughness: 0.42,
-    });
-    const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.72,
-      roughness: 0.14,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.42,
-      roughness: 0.26,
-    });
-
-    // 1. 导轨床身主体 (航天级阳极氧化喷砂银铝挤压铝型材)
-    const railBodyGeo = createChamferedBlockGeometry(this.railLength, this.railHeight, this.railWidth, 0.0022);
-    const railBody = new THREE.Mesh(railBodyGeo, satinSilverMat);
-    railBody.position.set(0, this.railHeight * 0.5, 0);
-    railBody.castShadow = true;
-    railBody.receiveShadow = true;
-    this.railGroup.add(railBody);
-
-    // 导轨顶面深空钛灰中央消光凹槽 (防止轴向杂散反射光干扰)
-    const topGrooveGeo = new THREE.BoxGeometry(this.railLength - 0.01, 0.003, this.railWidth * 0.42);
-    const topGroove = new THREE.Mesh(topGrooveGeo, titaniumSlateMat);
-    topGroove.position.set(0, this.railHeight + 0.0005, 0);
-    this.railGroup.add(topGroove);
-
-    // 2. 导轨顶部双镜面液态铬导向滑杆 (贯通全长)
-    const rodRadius = 0.0044;
-    const rodGeo = new THREE.CylinderGeometry(rodRadius, rodRadius, this.railLength + 0.016, 32);
-    rodGeo.rotateZ(Math.PI / 2);
-    const rodFront = new THREE.Mesh(rodGeo, chromeRodMat);
-    rodFront.position.set(0, this.railHeight + rodRadius * 0.7, this.railWidth * 0.30);
-    const rodBack = new THREE.Mesh(rodGeo, chromeRodMat);
-    rodBack.position.set(0, this.railHeight + rodRadius * 0.7, -this.railWidth * 0.30);
-    this.railGroup.add(rodFront);
-    this.railGroup.add(rodBack);
-
-    // 3. 两端深空钛晶灰蓝精工端盖与香槟金调平减震支脚系统
-    const endCapW = 0.026;
-    const endCapH = this.railHeight + 0.008;
-    const endCapD = this.railWidth + 0.008;
-    const endCapGeo = createChamferedBlockGeometry(endCapW, endCapH, endCapD, 0.0018);
-
-    const xEnds = [-this.railLength * 0.5 - endCapW * 0.5, this.railLength * 0.5 + endCapW * 0.5];
-
-    xEnds.forEach((xPos) => {
-      const endCap = new THREE.Mesh(endCapGeo, titaniumSlateMat);
-      endCap.position.set(xPos, this.railHeight * 0.5, 0);
-      endCap.castShadow = true;
-      this.railGroup.add(endCap);
-
-      // 顶部香槟金限位止动滚花螺钉
-      const stopScrewGeo = new THREE.CylinderGeometry(0.0068, 0.0068, 0.018, 24);
-      const stopScrew = new THREE.Mesh(stopScrewGeo, brassMat);
-      stopScrew.position.set(xPos, this.railHeight + 0.013, 0);
-      this.railGroup.add(stopScrew);
-
-      // 下部横向防倾覆配重支脚横梁
-      const crossFootW = 0.028;
-      const crossFootH = 0.014;
-      const crossFootD = 0.152;
-      const crossFootGeo = createChamferedBlockGeometry(crossFootW, crossFootH, crossFootD, 0.0015);
-      const crossFoot = new THREE.Mesh(crossFootGeo, titaniumSlateMat);
-      crossFoot.position.set(xPos, 0.002, 0);
-      crossFoot.castShadow = true;
-      this.railGroup.add(crossFoot);
-
-      // 前后 2 组高精密防震水平调平旋钮底脚
-      const zFootOffsets = [-crossFootD * 0.40, crossFootD * 0.40];
-      zFootOffsets.forEach((zPos) => {
-        const studGeo = new THREE.CylinderGeometry(0.0042, 0.0042, 0.024, 16);
-        const stud = new THREE.Mesh(studGeo, chromeRodMat);
-        stud.position.set(xPos, -0.008, zPos);
-        this.railGroup.add(stud);
-
-        const lockNutGeo = new THREE.CylinderGeometry(0.0082, 0.0082, 0.006, 6);
-        const lockNut = new THREE.Mesh(lockNutGeo, brassMat);
-        lockNut.position.set(xPos, -0.002, zPos);
-        this.railGroup.add(lockNut);
-
-        const footPadGeo = new THREE.CylinderGeometry(0.0145, 0.0145, 0.009, 28);
-        const footPad = new THREE.Mesh(footPadGeo, brassMat);
-        footPad.position.set(xPos, -0.018, zPos);
-        this.railGroup.add(footPad);
-      });
-    });
-
-    // 4. 正面深海蓝底白字高对比激光蚀刻毫米/厘米标尺 (0 ~ 100 cm，与银铝床身形成鲜明科研级对比)
-    this.railScaleCanvas = safeCanvas(2048, 128);
-    if (this.railScaleCanvas) {
-      const ctx = this.railScaleCanvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(0, 0, 2048, 128);
-
-        ctx.fillStyle = '#f59e0b';
-        ctx.fillRect(0, 0, 2048, 4);
-        ctx.fillRect(0, 124, 2048, 4);
-
-        ctx.strokeStyle = '#f8fafc';
-        ctx.fillStyle = '#f8fafc';
-        ctx.font = 'bold 32px -apple-system, "SF Mono", "PingFang SC", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-
-        const scaleStartX = 60;
-        const scaleEndX = 1920;
-        const scaleSpan = scaleEndX - scaleStartX;
-
-        for (let cm = 0; cm <= 100; cm++) {
-          const pxCm = scaleStartX + (cm / 100) * scaleSpan;
-
-          ctx.lineWidth = 3.2;
-          ctx.beginPath();
-          ctx.moveTo(pxCm, 4);
-          ctx.lineTo(pxCm, 48);
-          ctx.stroke();
-
-          if (cm % 10 === 0) {
-            ctx.fillText(`${cm}`, pxCm, 58);
-          }
-
-          if (cm < 100) {
-            for (let mm = 1; mm < 10; mm++) {
-              const pxMm = pxCm + (mm / 10) * (scaleSpan / 100);
-              const is5 = mm === 5;
-              ctx.lineWidth = is5 ? 2.0 : 1.2;
-              ctx.beginPath();
-              ctx.moveTo(pxMm, 4);
-              ctx.lineTo(pxMm, is5 ? 32 : 18);
-              ctx.stroke();
-            }
-          }
-        }
-
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 30px "SF Mono", sans-serif';
-        ctx.fillText('cm', scaleEndX + 56, 58);
-      }
-
-      this.railScaleTexture = new THREE.CanvasTexture(this.railScaleCanvas);
-      this.railScaleTexture.anisotropy = 8;
-
-      const scalePlateGeo = new THREE.PlaneGeometry(this.railLength * 0.96, this.railHeight * 0.64);
-      const scalePlateMat = new THREE.MeshStandardMaterial({
-        map: this.railScaleTexture,
-        roughness: 0.30,
-        metalness: 0.15,
-      });
-      const scalePlateFront = new THREE.Mesh(scalePlateGeo, scalePlateMat);
-      scalePlateFront.position.set(0, this.railHeight * 0.5, this.railWidth * 0.502);
-      this.railGroup.add(scalePlateFront);
-    }
-
+    this.railGroup = built.group;
+    this.railScaleCanvas = built.scaleCanvas;
+    this.railScaleTexture = built.scaleTexture;
     this.group.add(this.railGroup);
   }
 

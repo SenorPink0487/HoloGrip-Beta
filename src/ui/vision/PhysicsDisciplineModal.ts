@@ -446,33 +446,6 @@ export class PhysicsDisciplineModal {
       `,
     },
     {
-      id: 'optics-dispersion',
-      name: '光的色散',
-      category: '棱镜光谱与柯西色散定律',
-      formula: 'n(λ) = A + B/λ² · δ = θ₁ + θ₄ - α',
-      iconSvg: `
-        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-          <!-- Equilateral Optical Prism Outline & Subtle Crystal Fill -->
-          <polygon points="16,6 7,28 25,28" fill="currentColor" fill-opacity="0.10" stroke-width="2.0"/>
-          <!-- Incident Collimated White Beam -->
-          <line x1="3" y1="21" x2="11.5" y2="17" stroke-width="2.2"/>
-          <!-- Internal Dispersion Wedge inside Prism -->
-          <line x1="11.5" y1="17" x2="20" y2="15.8" stroke-width="1.4" stroke-opacity="0.85"/>
-          <line x1="11.5" y1="17" x2="21.2" y2="18.8" stroke-width="1.4" stroke-opacity="0.65"/>
-          <!-- Emergent Diverging Rainbow Spectral Fan (Red to Violet) -->
-          <line x1="20" y1="15.8" x2="33" y2="13" stroke-width="1.7"/>
-          <line x1="20.4" y1="16.8" x2="33" y2="17.5" stroke-width="1.6" stroke-opacity="0.85"/>
-          <line x1="20.8" y1="17.8" x2="33" y2="22" stroke-width="1.6" stroke-opacity="0.70"/>
-          <line x1="21.2" y1="18.8" x2="33" y2="26.5" stroke-width="1.7" stroke-opacity="0.55"/>
-          <!-- Spectral Nodes on Screen -->
-          <circle cx="33" cy="13" r="1.4" fill="currentColor"/>
-          <circle cx="33" cy="17.5" r="1.3" fill="currentColor" fill-opacity="0.85"/>
-          <circle cx="33" cy="22" r="1.3" fill="currentColor" fill-opacity="0.70"/>
-          <circle cx="33" cy="26.5" r="1.4" fill="currentColor" fill-opacity="0.55"/>
-        </svg>
-      `,
-    },
-    {
       id: 'optics-polarization',
       name: '光的偏振',
       category: '马吕斯定律与三维螺旋双折射',

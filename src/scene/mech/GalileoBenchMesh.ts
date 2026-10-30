@@ -1,18 +1,114 @@
 /**
- * 3D 实验台模型：伽利略理想斜面实验仪 (未来主义极简主义空间科技设计)
+ * 3D 实验台模型：伽利略理想斜面实验仪 (Galileo Ideal Incline Dynamics Apparatus)
  *
- * 核心设计：
- * 1. 极简未来感：纯净悬浮式深空钛/微磨砂黑曜石晶体底座，去除一切繁杂、多余的刻度线与纸质分度盘。
- * 2. 对称双向自由可调斜面：左右两侧对称配备极简磁吸交互端头，均可自由拖拽调节倾角与高度。
- * 3. 极简流动导轨：双路镜面液态铬导向滑轨，嵌入极简微透半磨砂导轨床身。
- * 4. 纯净镜面镀铬小球与纯净等高基准光线，完美契合 HoloGrip 科技空间站氛围。
+ * 视觉美学与材质工业规范 (遵循 AGENTS.md / GEMINI.md 高度科研级标准)：
+ * 1. 彻底告别粗糙单调死白与脏黑塑料：
+ *    - 基座底盘：航天级深空钛精密阳极氧化合金 (Aerospace Slate Titanium: 0x1e293b)。
+ *    - 导轨床身：精铣枪灰色高强度铝合金 (Precision Slate Gunmetal: 0x253245)，带激光蚀刻高对比度厘米刻度标尺。
+ *    - 导向滑轨：镜面抛光 316L 不锈钢 / 液态铬双精密导杆 (Mirror Polished Liquid Chrome: 0xffffff, metalness 0.98)。
+ *    - 经典实心小球：经典抛光香槟黄铜/青铜实心球 (Solid Champagne Brass Bearing: 0xf59e0b)，严格契合伽利略原版实验历史考证。
+ *    - 五金调校件：香槟金黄铜滚花调平旋钮、锁紧套环、铰链转轴与刻度指针 (Champagne Brass: 0xf59e0b)。
+ * 2. 纯三维物理实体交互：
+ *    - 零 DOM 悬浮弹窗/横幅，端正正对操作者视线 (+Z)。
+ *    - 左右双侧铰链配备物理量角分度盘 (0°~60°) 与联动旋转指示指针。
+ *    - 伸缩支撑柱具有真实机械套筒与香槟金防滑锁套。
  */
 
 import * as THREE from 'three';
 import {
-  mechMetal,
   disposeObjectTree,
 } from './mechKit.ts';
+
+function safeCanvas(width: number, height: number): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const c = document.createElement('canvas');
+    if (!c || !c.getContext) return null;
+    c.width = width;
+    c.height = height;
+    return c;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 创建高对比度激光刻蚀厘米标尺纹理
+ */
+function createRailScaleTexture(): THREE.CanvasTexture | null {
+  const canvas = safeCanvas(512, 64);
+  if (!canvas) return null;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  // 导轨床身枪灰色底色 (Slate Gunmetal)
+  ctx.fillStyle = '#253245';
+  ctx.fillRect(0, 0, 512, 64);
+
+  // 导轨中央避空导向深槽
+  ctx.fillStyle = '#161f2e';
+  ctx.fillRect(0, 24, 512, 16);
+
+  // 激光蚀刻毫米与厘米刻度线 (50cm 一个物理周期)
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'center';
+
+  const cmPx = 512 / 50;
+  for (let cm = 0; cm <= 50; cm++) {
+    const x = cm * cmPx;
+    let tickLen = 4;
+    if (cm % 10 === 0) {
+      tickLen = 9;
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText(`${cm}`, x, 20);
+      ctx.fillText(`${cm}`, x, 48);
+      ctx.fillStyle = '#94a3b8';
+    } else if (cm % 5 === 0) {
+      tickLen = 6;
+    }
+
+    ctx.fillRect(x - 0.75, 0, 1.5, tickLen);
+    ctx.fillRect(x - 0.75, 64 - tickLen, 1.5, tickLen);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/**
+ * 创建正对操作者视线的金属铭牌纹理
+ */
+function createNameplateTexture(): THREE.CanvasTexture | null {
+  const canvas = safeCanvas(512, 64);
+  if (!canvas) return null;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, 512, 64);
+
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(3, 3, 506, 58);
+
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(6, 6, 500, 52);
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 18px "SF Pro Display", -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('GALILEO DYNAMICS APPARATUS · h₁ = h₂', 256, 32);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
 
 export class GalileoBenchMesh {
   public readonly group = new THREE.Group();
@@ -30,6 +126,7 @@ export class GalileoBenchMesh {
   private leftHandleHitBox: THREE.Mesh;
   private leftSupportStrut: THREE.Group = new THREE.Group();
   private leftStrutOuter: THREE.Mesh;
+  private leftStrutCollar: THREE.Mesh;
   private leftStrutInner: THREE.Mesh;
 
   // 右侧可调斜面
@@ -41,18 +138,29 @@ export class GalileoBenchMesh {
   private rightHandleHitBox: THREE.Mesh;
   private rightSupportStrut: THREE.Group = new THREE.Group();
   private rightStrutOuter: THREE.Mesh;
+  private rightStrutCollar: THREE.Mesh;
   private rightStrutInner: THREE.Mesh;
 
   // 小球与物理基准
   private ballMesh: THREE.Mesh;
-  private ballRadius = 0.022; // 22mm 纯净纯色金属小球
+  private ballRadius = 0.022; // 22mm 纯正抛光黄铜实心球
   private apexFlashRing: THREE.Mesh;
   private heightReferenceGroup = new THREE.Group();
   private leftReleaseGateMesh: THREE.Mesh;
 
-  // 材质引用
+  // 材质引用 (航天深空钛、枪灰色合金、香槟金与镜面液态铬)
+  private chassisMat: THREE.MeshStandardMaterial;
+  private chassisStepMat: THREE.MeshStandardMaterial;
+  private chassisGrooveMat: THREE.MeshStandardMaterial;
   private railBedMat: THREE.MeshStandardMaterial;
+  private leftRailBedMat: THREE.MeshStandardMaterial;
+  private rightRailBedMat: THREE.MeshStandardMaterial;
+  private flatRailBedMat: THREE.MeshStandardMaterial;
   private rodMetalMat: THREE.MeshStandardMaterial;
+  private brassMat: THREE.MeshStandardMaterial;
+  private footMat: THREE.MeshStandardMaterial;
+  private strutOuterMat: THREE.MeshStandardMaterial;
+  private ballMat: THREE.MeshStandardMaterial;
   private handleGlowMatL: THREE.MeshStandardMaterial;
   private handleGlowMatR: THREE.MeshStandardMaterial;
 
@@ -70,7 +178,7 @@ export class GalileoBenchMesh {
     this.group.name = 'GalileoBenchMesh';
 
     this.initMaterials();
-    this.createMinimalBase();
+    this.createPrecisionBase();
     this.createFlatRail();
     this.createLeftIncline();
     this.createRightIncline();
@@ -95,25 +203,91 @@ export class GalileoBenchMesh {
   }
 
   private initMaterials(): void {
-    // 极简微透珍珠白/航天轻量化晶体床身材质
-    this.railBedMat = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc,
-      metalness: 0.08,
-      roughness: 0.12,
-      transparent: true,
-      opacity: 0.92,
+    // 航天级深空钛底座主材质 (Slate Titanium: 0x1e293b, 沉稳高贵)
+    this.chassisMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      metalness: 0.65,
+      roughness: 0.35,
     });
 
-    // 抛光镜面液态铬导向滑轨
+    // 承载平台台阶材质
+    this.chassisStepMat = new THREE.MeshStandardMaterial({
+      color: 0x243242,
+      metalness: 0.70,
+      roughness: 0.30,
+    });
+
+    // 沉槽与安装凹口深海黑材质
+    this.chassisGrooveMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      metalness: 0.80,
+      roughness: 0.45,
+    });
+
+    // 导轨床身枪灰色合金材质 (带激光刻度纹理)
+    const scaleTex = createRailScaleTexture();
+    this.railBedMat = new THREE.MeshStandardMaterial({
+      color: 0x253245,
+      map: scaleTex,
+      metalness: 0.72,
+      roughness: 0.28,
+    });
+
+    this.flatRailBedMat = this.railBedMat.clone();
+    if (this.flatRailBedMat.map) {
+      this.flatRailBedMat.map = this.flatRailBedMat.map.clone();
+      this.flatRailBedMat.map.repeat.set(this.flatLengthM / 0.50, 1);
+    }
+
+    this.leftRailBedMat = this.railBedMat.clone();
+    if (this.leftRailBedMat.map) {
+      this.leftRailBedMat.map = this.leftRailBedMat.map.clone();
+      this.leftRailBedMat.map.repeat.set(this.leftLengthM / 0.50, 1);
+    }
+
+    this.rightRailBedMat = this.railBedMat.clone();
+    if (this.rightRailBedMat.map) {
+      this.rightRailBedMat.map = this.rightRailBedMat.map.clone();
+      this.rightRailBedMat.map.repeat.set(this.rightLengthM / 0.50, 1);
+    }
+
+    // 抛光镜面液态铬精密滑轨 (Liquid Chrome 316L)
     this.rodMetalMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       metalness: 0.98,
-      roughness: 0.03,
+      roughness: 0.04,
     });
 
-    // 左右磁吸交互环高亮材质 (清澈冰蓝/全息未来光泽)
+    // 香槟金黄铜精密调节构件材质 (Champagne Brass: 0xf59e0b)
+    this.brassMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      metalness: 0.88,
+      roughness: 0.20,
+    });
+
+    // 防震脚垫橡胶材质
+    this.footMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.85,
+    });
+
+    // 伸缩立柱外筒深空钛
+    this.strutOuterMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      metalness: 0.75,
+      roughness: 0.28,
+    });
+
+    // 伽利略实心黄铜小球材质
+    this.ballMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      metalness: 0.92,
+      roughness: 0.14,
+    });
+
+    // 左右磁吸交互环高亮材质 (极光冰蓝/科技发光，内核为实心黄铜)
     this.handleGlowMatL = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
+      color: 0x0284c7,
       emissive: 0x0ea5e9,
       emissiveIntensity: 0.45,
       metalness: 0.8,
@@ -121,7 +295,7 @@ export class GalileoBenchMesh {
     });
 
     this.handleGlowMatR = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
+      color: 0x0284c7,
       emissive: 0x0ea5e9,
       emissiveIntensity: 0.45,
       metalness: 0.8,
@@ -130,59 +304,174 @@ export class GalileoBenchMesh {
   }
 
   /**
-   * 1. 悬浮式极简太空银白晶体底座
+   * 1. 航天级深空钛精密机加工底座与量角器刻度总成
    */
-  private createMinimalBase(): void {
-    // 悬浮主底座板 (陶瓷白/航天银铝质感，彻底告别沉重黑板)
-    const baseGeom = new THREE.BoxGeometry(1.65, 0.02, 0.24);
-    const baseMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f5f9,
-      metalness: 0.12,
-      roughness: 0.2,
-    });
-    const basePlate = new THREE.Mesh(baseGeom, baseMat);
-    basePlate.position.set(0, -0.01, 0);
+  private createPrecisionBase(): void {
+    // 主底座主板 (深空钛合金，厚实防倾覆)
+    const baseGeom = new THREE.BoxGeometry(1.66, 0.018, 0.22);
+    const basePlate = new THREE.Mesh(baseGeom, this.chassisMat);
+    basePlate.position.set(0, -0.009, 0);
     basePlate.receiveShadow = true;
     this.baseGroup.add(basePlate);
 
-    // 底部微光悬浮冰蓝光槽
-    const glowLineGeom = new THREE.BoxGeometry(1.63, 0.003, 0.22);
+    // 上层台阶承载平台 (阶梯精密构造)
+    const stepGeom = new THREE.BoxGeometry(1.62, 0.006, 0.18);
+    const stepPlate = new THREE.Mesh(stepGeom, this.chassisStepMat);
+    stepPlate.position.set(0, 0.003, 0);
+    stepPlate.receiveShadow = true;
+    this.baseGroup.add(stepPlate);
+
+    // 中央导轨安装沉槽
+    const grooveGeom = new THREE.BoxGeometry(1.58, 0.003, 0.10);
+    const grooveMesh = new THREE.Mesh(grooveGeom, this.chassisGrooveMat);
+    grooveMesh.position.set(0, 0.0065, 0);
+    this.baseGroup.add(grooveMesh);
+
+    // 双侧精密工业 T 型嵌件 (香槟金点缀)
+    for (const zOff of [-0.065, 0.065]) {
+      const slotGeom = new THREE.BoxGeometry(1.56, 0.002, 0.005);
+      const slotMesh = new THREE.Mesh(slotGeom, this.brassMat);
+      slotMesh.position.set(0, 0.0065, zOff);
+      this.baseGroup.add(slotMesh);
+    }
+
+    // 底部微光悬浮深海蔚蓝光带
+    const glowLineGeom = new THREE.BoxGeometry(1.64, 0.003, 0.20);
     const glowLineMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
+      color: 0x0284c7,
       transparent: true,
-      opacity: 0.65,
+      opacity: 0.55,
     });
     const glowLine = new THREE.Mesh(glowLineGeom, glowLineMat);
-    glowLine.position.set(0, -0.019, 0);
+    glowLine.position.set(0, -0.018, 0);
     this.baseGroup.add(glowLine);
 
-    // 极简圆柱悬浮支撑柱（抛光不锈钢/银色）
-    const footGeom = new THREE.CylinderGeometry(0.015, 0.015, 0.012, 24);
-    const footMat = mechMetal(0xe2e8f0, 0.95, 0.1);
+    // 四角精密调平支脚 (香槟金滚花手轮 + 橡胶防震底垫)
     const footPositions = [
-      [-0.75, -0.022, -0.09],
-      [-0.75, -0.022, 0.09],
-      [0.75, -0.022, -0.09],
-      [0.75, -0.022, 0.09],
+      [-0.75, -0.075],
+      [-0.75, 0.075],
+      [0.75, -0.075],
+      [0.75, 0.075],
     ];
-    for (const [fx, fy, fz] of footPositions) {
-      const foot = new THREE.Mesh(footGeom, footMat);
-      foot.position.set(fx, fy, fz);
-      this.baseGroup.add(foot);
+    for (const [fx, fz] of footPositions) {
+      const wheelGeom = new THREE.CylinderGeometry(0.016, 0.016, 0.008, 24);
+      const wheel = new THREE.Mesh(wheelGeom, this.brassMat);
+      wheel.position.set(fx, -0.012, fz);
+      this.baseGroup.add(wheel);
+
+      const padGeom = new THREE.CylinderGeometry(0.012, 0.014, 0.006, 24);
+      const pad = new THREE.Mesh(padGeom, this.footMat);
+      pad.position.set(fx, -0.019, fz);
+      this.baseGroup.add(pad);
+    }
+
+    // 正对操作者视线 (+Z) 的前置金属铭牌
+    this.createNameplate();
+
+    // 双侧铰链量角扇面
+    this.createProtractors();
+  }
+
+  /**
+   * 前置操作者视线 (+Z) 激光刻蚀金属铭牌
+   */
+  private createNameplate(): void {
+    const plateTex = createNameplateTexture();
+    const plateMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      map: plateTex,
+      metalness: 0.8,
+      roughness: 0.25,
+    });
+
+    const bezelGeom = new THREE.BoxGeometry(0.244, 0.014, 0.002);
+    const bezelMesh = new THREE.Mesh(bezelGeom, this.brassMat);
+    bezelMesh.position.set(0, 0.007, 0.091);
+    this.baseGroup.add(bezelMesh);
+
+    const plateGeom = new THREE.BoxGeometry(0.238, 0.012, 0.002);
+    const plateMesh = new THREE.Mesh(plateGeom, plateMat);
+    plateMesh.position.set(0, 0.007, 0.0925);
+    this.baseGroup.add(plateMesh);
+  }
+
+  /**
+   * 铰链下方物理量角分度标盘 (0° ~ 60°)
+   */
+  private createProtractors(): void {
+    const protractorMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      metalness: 0.85,
+      roughness: 0.3,
+    });
+
+    const configs = [
+      { xPos: -this.flatLengthM * 0.5, isRight: false },
+      { xPos: this.flatLengthM * 0.5, isRight: true },
+    ];
+
+    for (const { xPos, isRight } of configs) {
+      const dialGroup = new THREE.Group();
+      dialGroup.position.set(xPos, 0.008, 0.056);
+
+      // 扇面底板
+      const sectorGeom = new THREE.CylinderGeometry(
+        0.046,
+        0.046,
+        0.002,
+        32,
+        1,
+        false,
+        isRight ? 0 : Math.PI - Math.PI / 3,
+        Math.PI / 3
+      );
+      sectorGeom.rotateX(Math.PI / 2);
+      const sectorMesh = new THREE.Mesh(sectorGeom, protractorMat);
+      dialGroup.add(sectorMesh);
+
+      // 香槟金圆弧包边
+      const rimGeom = new THREE.TorusGeometry(0.046, 0.0012, 8, 24, Math.PI / 3);
+      if (!isRight) rimGeom.rotateZ((Math.PI * 2) / 3);
+      const rimMesh = new THREE.Mesh(rimGeom, this.brassMat);
+      dialGroup.add(rimMesh);
+
+      // 刻度线 (0°, 15°, 30°, 45°, 60°)
+      const tickAngles = [0, 15, 30, 45, 60];
+      for (const deg of tickAngles) {
+        const rad = (deg * Math.PI) / 180.0;
+        const tickLen = deg % 30 === 0 ? 0.009 : 0.005;
+        const tickGeom = new THREE.CylinderGeometry(0.0006, 0.0006, tickLen, 8);
+        const tickMesh = new THREE.Mesh(tickGeom, this.brassMat);
+        const dir = isRight ? 1 : -1;
+        const cosA = Math.cos(rad);
+        const sinA = Math.sin(rad);
+        const midR = 0.046 - tickLen * 0.5;
+        tickMesh.position.set(dir * midR * cosA, midR * sinA, 0.0015);
+        tickMesh.rotation.z = isRight ? rad - Math.PI / 2 : Math.PI / 2 - rad;
+        dialGroup.add(tickMesh);
+      }
+
+      this.baseGroup.add(dialGroup);
     }
   }
 
   /**
-   * 2. 中间水平无缝导轨
+   * 2. 中间水平无缝导轨 (深灰枪色床身 + 双镜面铬滑轨 + 香槟金铰链衬套)
    */
   private createFlatRail(): void {
     const flatGeom = new THREE.BoxGeometry(this.flatLengthM, this.RAIL_THICKNESS, this.RAIL_WIDTH);
-    const flatBed = new THREE.Mesh(flatGeom, this.railBedMat);
+    const flatBed = new THREE.Mesh(flatGeom, this.flatRailBedMat);
     flatBed.position.set(0, this.RAIL_THICKNESS * 0.5, 0);
     flatBed.receiveShadow = true;
     this.flatRailGroup.add(flatBed);
 
-    // 双路镜面滑轨
+    // 中央导向凹槽
+    const troughGeom = new THREE.BoxGeometry(this.flatLengthM, 0.004, 0.016);
+    const troughMesh = new THREE.Mesh(troughGeom, this.chassisGrooveMat);
+    troughMesh.position.set(0, this.RAIL_THICKNESS - 0.001, 0);
+    this.flatRailGroup.add(troughMesh);
+
+    // 双路镜面液态铬精密滑轨
     const rodGeom = new THREE.CylinderGeometry(0.003, 0.003, this.flatLengthM, 16);
     rodGeom.rotateZ(Math.PI / 2);
 
@@ -192,16 +481,34 @@ export class GalileoBenchMesh {
     r2.position.set(0, this.RAIL_THICKNESS + 0.003, 0.011);
     this.flatRailGroup.add(r1, r2);
 
-    // 中间微型极简转轴衬套
-    const hingeGeom = new THREE.CylinderGeometry(0.01, 0.01, this.RAIL_WIDTH + 0.01, 24);
-    hingeGeom.rotateX(Math.PI / 2);
-    const hingeMat = mechMetal(0xe2e8f0, 0.95, 0.1);
+    // 导轨两端香槟金安装固定座
+    for (const xSign of [-1, 1]) {
+      const blockGeom = new THREE.BoxGeometry(0.012, 0.008, this.RAIL_WIDTH + 0.004);
+      const block = new THREE.Mesh(blockGeom, this.brassMat);
+      block.position.set(xSign * (this.flatLengthM * 0.5 - 0.01), this.RAIL_THICKNESS * 0.5, 0);
+      this.flatRailGroup.add(block);
+    }
 
-    const hL = new THREE.Mesh(hingeGeom, hingeMat);
+    // 中间香槟金转轴衬套与六角锁母
+    const hingeGeom = new THREE.CylinderGeometry(0.01, 0.01, this.RAIL_WIDTH + 0.012, 24);
+    hingeGeom.rotateX(Math.PI / 2);
+
+    const hL = new THREE.Mesh(hingeGeom, this.brassMat);
     hL.position.set(-this.flatLengthM * 0.5, 0.008, 0);
-    const hR = new THREE.Mesh(hingeGeom, hingeMat);
+    const hR = new THREE.Mesh(hingeGeom, this.brassMat);
     hR.position.set(this.flatLengthM * 0.5, 0.008, 0);
     this.flatRailGroup.add(hL, hR);
+
+    // 外侧六角紧固螺母
+    const hexGeom = new THREE.CylinderGeometry(0.006, 0.006, 0.004, 6);
+    hexGeom.rotateX(Math.PI / 2);
+    for (const hPos of [-this.flatLengthM * 0.5, this.flatLengthM * 0.5]) {
+      for (const zSign of [-1, 1]) {
+        const nut = new THREE.Mesh(hexGeom, this.brassMat);
+        nut.position.set(hPos, 0.008, zSign * (this.RAIL_WIDTH * 0.5 + 0.008));
+        this.flatRailGroup.add(nut);
+      }
+    }
   }
 
   /**
@@ -211,10 +518,10 @@ export class GalileoBenchMesh {
     const halfFlat = this.flatLengthM * 0.5;
     this.leftInclinePivot.position.set(-halfFlat, 0, 0);
 
-    // 左侧床身（长度随拖拽动态缩放）
+    // 左侧床身 (动态缩放)
     const railGeom = new THREE.BoxGeometry(1.0, this.RAIL_THICKNESS, this.RAIL_WIDTH);
     railGeom.translate(0.5, this.RAIL_THICKNESS * 0.5, 0);
-    this.leftInclineRail = new THREE.Mesh(railGeom, this.railBedMat);
+    this.leftInclineRail = new THREE.Mesh(railGeom, this.leftRailBedMat);
     this.leftInclinePivot.add(this.leftInclineRail);
 
     // 双侧滑轨
@@ -229,16 +536,35 @@ export class GalileoBenchMesh {
     this.leftSideRails.add(r1, r2);
     this.leftInclinePivot.add(this.leftSideRails);
 
-    // 左侧极简端头交互环与释放挡块
+    // 左侧倾角指示指针 (香槟金细针，随斜面实时旋转指示基座分度)
+    const leftPointerGeom = new THREE.CylinderGeometry(0.0008, 0.0008, 0.038, 8);
+    leftPointerGeom.rotateZ(-Math.PI / 2);
+    leftPointerGeom.translate(0.019, 0, 0);
+    const leftPointer = new THREE.Mesh(leftPointerGeom, this.brassMat);
+    leftPointer.position.set(0, 0.008, 0.056);
+    this.leftInclinePivot.add(leftPointer);
+
+    // 左侧端头总成
     this.leftTipHandleGroup.name = 'leftInclineTipHandleGroup';
 
-    // 极简微型端盖 (航天铝银)
+    // 精密机加工深空钛端盖
     const capGeom = new THREE.BoxGeometry(0.014, 0.024, this.RAIL_WIDTH + 0.006);
-    const capMat = mechMetal(0xe2e8f0, 0.95, 0.1);
-    const endCap = new THREE.Mesh(capGeom, capMat);
+    const endCap = new THREE.Mesh(capGeom, this.chassisMat);
     this.leftTipHandleGroup.add(endCap);
 
-    // 极简磁吸环把手
+    // 香槟金防撞止动面
+    const bumperGeom = new THREE.BoxGeometry(0.003, 0.020, this.RAIL_WIDTH);
+    const bumper = new THREE.Mesh(bumperGeom, this.brassMat);
+    bumper.position.set(-0.007, 0, 0);
+    this.leftTipHandleGroup.add(bumper);
+
+    // 香槟金内环 + 极光发光环
+    const ringCoreGeom = new THREE.TorusGeometry(0.018, 0.002, 16, 32);
+    ringCoreGeom.rotateY(Math.PI / 2);
+    const ringCore = new THREE.Mesh(ringCoreGeom, this.brassMat);
+    ringCore.position.set(0.014, 0.016, 0);
+    this.leftTipHandleGroup.add(ringCore);
+
     const ringGeom = new THREE.TorusGeometry(0.018, 0.004, 16, 32);
     ringGeom.rotateY(Math.PI / 2);
     this.leftTipHandleMesh = new THREE.Mesh(ringGeom, this.handleGlowMatL);
@@ -247,7 +573,6 @@ export class GalileoBenchMesh {
     this.leftTipHandleMesh.userData = { isLeftHandle: true, isLeftGate: true };
     this.leftTipHandleGroup.add(this.leftTipHandleMesh);
 
-    // 释放挡块几何体引用
     this.leftReleaseGateMesh = this.leftTipHandleMesh;
 
     // 灵敏射线碰撞体
@@ -260,16 +585,27 @@ export class GalileoBenchMesh {
 
     this.leftInclinePivot.add(this.leftTipHandleGroup);
 
-    // 左侧自适应极简伸缩柱 (纯净银铬)
-    const outerGeom = new THREE.CylinderGeometry(0.008, 0.009, 1.0, 16);
+    // 左侧自适应伸缩柱 (深空钛外筒 + 香槟金锁套 + 液态铬活塞杆)
+    const outerGeom = new THREE.CylinderGeometry(0.009, 0.010, 1.0, 20);
     outerGeom.translate(0, 0.5, 0);
-    this.leftStrutOuter = new THREE.Mesh(outerGeom, mechMetal(0xe2e8f0, 0.92, 0.12));
+    this.leftStrutOuter = new THREE.Mesh(outerGeom, this.strutOuterMat);
 
-    const innerGeom = new THREE.CylinderGeometry(0.005, 0.005, 1.0, 16);
+    const collarGeom = new THREE.CylinderGeometry(0.012, 0.012, 0.012, 20);
+    this.leftStrutCollar = new THREE.Mesh(collarGeom, this.brassMat);
+
+    const innerGeom = new THREE.CylinderGeometry(0.0055, 0.0055, 1.0, 20);
     innerGeom.translate(0, 0.5, 0);
     this.leftStrutInner = new THREE.Mesh(innerGeom, this.rodMetalMat);
 
-    this.leftSupportStrut.add(this.leftStrutOuter, this.leftStrutInner);
+    // 底部万向转轴支座
+    const baseClevis = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.011, 0.013, 0.008, 16),
+      this.brassMat
+    );
+    baseClevis.position.set(0, 0.004, 0);
+    this.leftSupportStrut.add(baseClevis);
+
+    this.leftSupportStrut.add(this.leftStrutOuter, this.leftStrutCollar, this.leftStrutInner);
   }
 
   /**
@@ -282,7 +618,7 @@ export class GalileoBenchMesh {
     // 右侧床身
     const railGeom = new THREE.BoxGeometry(1.0, this.RAIL_THICKNESS, this.RAIL_WIDTH);
     railGeom.translate(0.5, this.RAIL_THICKNESS * 0.5, 0);
-    this.rightInclineRail = new THREE.Mesh(railGeom, this.railBedMat);
+    this.rightInclineRail = new THREE.Mesh(railGeom, this.rightRailBedMat);
     this.rightInclinePivot.add(this.rightInclineRail);
 
     // 双侧滑轨
@@ -297,16 +633,35 @@ export class GalileoBenchMesh {
     this.rightSideRails.add(r1, r2);
     this.rightInclinePivot.add(this.rightSideRails);
 
-    // 右侧极简端头交互环
+    // 右侧倾角指示指针 (香槟金细针，随斜面实时旋转指示基座分度)
+    const rightPointerGeom = new THREE.CylinderGeometry(0.0008, 0.0008, 0.038, 8);
+    rightPointerGeom.rotateZ(-Math.PI / 2);
+    rightPointerGeom.translate(0.019, 0, 0);
+    const rightPointer = new THREE.Mesh(rightPointerGeom, this.brassMat);
+    rightPointer.position.set(0, 0.008, 0.056);
+    this.rightInclinePivot.add(rightPointer);
+
+    // 右侧端头总成
     this.rightTipHandleGroup.name = 'rightInclineTipHandleGroup';
 
-    // 极简微型端盖 (航天铝银)
+    // 精密机加工深空钛端盖
     const capGeom = new THREE.BoxGeometry(0.014, 0.024, this.RAIL_WIDTH + 0.006);
-    const capMat = mechMetal(0xe2e8f0, 0.95, 0.1);
-    const endCap = new THREE.Mesh(capGeom, capMat);
+    const endCap = new THREE.Mesh(capGeom, this.chassisMat);
     this.rightTipHandleGroup.add(endCap);
 
-    // 极简磁吸环把手
+    // 香槟金防撞止动面
+    const bumperGeom = new THREE.BoxGeometry(0.003, 0.020, this.RAIL_WIDTH);
+    const bumper = new THREE.Mesh(bumperGeom, this.brassMat);
+    bumper.position.set(-0.007, 0, 0);
+    this.rightTipHandleGroup.add(bumper);
+
+    // 香槟金内环 + 极光发光环
+    const ringCoreGeom = new THREE.TorusGeometry(0.018, 0.002, 16, 32);
+    ringCoreGeom.rotateY(Math.PI / 2);
+    const ringCore = new THREE.Mesh(ringCoreGeom, this.brassMat);
+    ringCore.position.set(0.014, 0.016, 0);
+    this.rightTipHandleGroup.add(ringCore);
+
     const ringGeom = new THREE.TorusGeometry(0.018, 0.004, 16, 32);
     ringGeom.rotateY(Math.PI / 2);
     this.rightTipHandleMesh = new THREE.Mesh(ringGeom, this.handleGlowMatR);
@@ -325,31 +680,40 @@ export class GalileoBenchMesh {
 
     this.rightInclinePivot.add(this.rightTipHandleGroup);
 
-    // 右侧自适应极简伸缩柱 (纯净银铬)
-    const outerGeom = new THREE.CylinderGeometry(0.008, 0.009, 1.0, 16);
+    // 右侧自适应伸缩柱 (深空钛外筒 + 香槟金锁套 + 液态铬活塞杆)
+    const outerGeom = new THREE.CylinderGeometry(0.009, 0.010, 1.0, 20);
     outerGeom.translate(0, 0.5, 0);
-    this.rightStrutOuter = new THREE.Mesh(outerGeom, mechMetal(0xe2e8f0, 0.92, 0.12));
+    this.rightStrutOuter = new THREE.Mesh(outerGeom, this.strutOuterMat);
 
-    const innerGeom = new THREE.CylinderGeometry(0.005, 0.005, 1.0, 16);
+    const collarGeom = new THREE.CylinderGeometry(0.012, 0.012, 0.012, 20);
+    this.rightStrutCollar = new THREE.Mesh(collarGeom, this.brassMat);
+
+    const innerGeom = new THREE.CylinderGeometry(0.0055, 0.0055, 1.0, 20);
     innerGeom.translate(0, 0.5, 0);
     this.rightStrutInner = new THREE.Mesh(innerGeom, this.rodMetalMat);
 
-    this.rightSupportStrut.add(this.rightStrutOuter, this.rightStrutInner);
+    const baseClevis = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.011, 0.013, 0.008, 16),
+      this.brassMat
+    );
+    baseClevis.position.set(0, 0.004, 0);
+    this.rightSupportStrut.add(baseClevis);
+
+    this.rightSupportStrut.add(this.rightStrutOuter, this.rightStrutCollar, this.rightStrutInner);
   }
 
   /**
-   * 5. 经典极简等高虚线辅助线 (精细黑色点划线段，清晰醒目指示初始释放高度)
+   * 5. 经典极简等高虚线辅助线 (深色物理基准线，指示初始释放高度)
    */
   private createHeightReferenceLine(): void {
     const dashCount = 23;
     const dashLength = 0.045;
     const dashGap = 0.055;
-    // 微细圆柱截面，确保抗锯齿渲染清晰，但保持纤细（直径 1.8mm）
     const dashGeom = new THREE.CylinderGeometry(0.0009, 0.0009, dashLength, 8);
     dashGeom.rotateZ(Math.PI / 2);
 
     const dashMat = new THREE.MeshBasicMaterial({
-      color: 0x000000, // 黑色经典物理辅助线
+      color: 0x0f172a, // 深海黑墨色，纯净醒目
       transparent: true,
       opacity: 0.85,
     });
@@ -369,21 +733,30 @@ export class GalileoBenchMesh {
   }
 
   /**
-   * 6. 纯色极简物理小球
+   * 6. 经典抛光香槟黄铜实心球 (Solid Champagne Brass Precision Sphere)
+   * 历史考证：伽利略在《关于两门新科学的对话》中原版实验即采用精密实心青铜/黄铜球
    */
   private createBall(): void {
     const ballGeom = new THREE.SphereGeometry(this.ballRadius, 32, 32);
-    // 纯色哑光漫反射材质，彻底避免强镜面反光导致的上下两截色视觉误差
-    const ballMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f5f9,
-      metalness: 0.1,
-      roughness: 0.32,
-    });
-    this.ballMesh = new THREE.Mesh(ballGeom, ballMat);
+    this.ballMesh = new THREE.Mesh(ballGeom, this.ballMat);
     this.ballMesh.castShadow = true;
     this.ballMesh.name = 'galileo-ball';
     this.ballMesh.userData = { isBall: true };
     this.ballMesh.position.set(0, this.ballRadius, 0);
+
+    // 精细赤道与经度微雕刻线 (增强小球在双轨上滚转时的物理自转视觉感知)
+    const ringGeom = new THREE.TorusGeometry(this.ballRadius * 0.998, 0.0006, 12, 32);
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      metalness: 0.95,
+      roughness: 0.2,
+    });
+    const equatorRing = new THREE.Mesh(ringGeom, ringMat);
+    equatorRing.rotation.x = Math.PI / 2;
+    this.ballMesh.add(equatorRing);
+
+    const meridianRing = new THREE.Mesh(ringGeom, ringMat);
+    this.ballMesh.add(meridianRing);
   }
 
   /**
@@ -410,16 +783,19 @@ export class GalileoBenchMesh {
     this.leftLengthM = lengthM;
 
     const angleRad = (angleDeg * Math.PI) / 180.0;
-    // 严格基底变换：沿斜面向上切向 vX = (-cosθ, sinθ)，法向向上 vY = (sinθ, cosθ)
     const vX = new THREE.Vector3(-Math.cos(angleRad), Math.sin(angleRad), 0);
     const vY = new THREE.Vector3(Math.sin(angleRad), Math.cos(angleRad), 0);
     const vZ = new THREE.Vector3(0, 0, -1);
     const m = new THREE.Matrix4().makeBasis(vX, vY, vZ);
     this.leftInclinePivot.quaternion.setFromRotationMatrix(m);
 
-    // 导轨长度缩放
+    // 导轨长度缩放与标尺纹理自适应
     this.leftInclineRail.scale.set(lengthM, 1, 1);
     this.leftSideRails.scale.set(lengthM, 1, 1);
+    if (this.leftRailBedMat.map) {
+      this.leftRailBedMat.map.repeat.set(lengthM / 0.50, 1);
+      this.leftRailBedMat.map.needsUpdate = true;
+    }
 
     // 交互手柄位置
     this.leftTipHandleGroup.position.set(lengthM, this.RAIL_THICKNESS + 0.012, 0);
@@ -432,10 +808,12 @@ export class GalileoBenchMesh {
 
     this.leftSupportStrut.position.set(midX, 0, 0);
     const strutH = Math.max(0.001, midY);
+    const outerH = Math.min(0.25, strutH * 0.6);
 
-    this.leftStrutOuter.scale.set(1, Math.min(0.25, strutH * 0.6), 1);
-    this.leftStrutInner.position.y = Math.min(0.25, strutH * 0.6);
-    this.leftStrutInner.scale.set(1, Math.max(0.001, strutH - Math.min(0.25, strutH * 0.6)), 1);
+    this.leftStrutOuter.scale.set(1, outerH, 1);
+    this.leftStrutCollar.position.y = outerH;
+    this.leftStrutInner.position.y = outerH;
+    this.leftStrutInner.scale.set(1, Math.max(0.001, strutH - outerH), 1);
     this.leftSupportStrut.visible = angleDeg > 1.2;
 
     // 联动同步等高参考光束
@@ -452,9 +830,13 @@ export class GalileoBenchMesh {
     const angleRad = (angleDeg * Math.PI) / 180.0;
     this.rightInclinePivot.rotation.z = angleRad;
 
-    // 导轨长度缩放
+    // 导轨长度缩放与标尺纹理自适应
     this.rightInclineRail.scale.set(lengthM, 1, 1);
     this.rightSideRails.scale.set(lengthM, 1, 1);
+    if (this.rightRailBedMat.map) {
+      this.rightRailBedMat.map.repeat.set(lengthM / 0.50, 1);
+      this.rightRailBedMat.map.needsUpdate = true;
+    }
 
     // 交互手柄位置
     this.rightTipHandleGroup.position.set(lengthM, this.RAIL_THICKNESS + 0.012, 0);
@@ -467,10 +849,12 @@ export class GalileoBenchMesh {
 
     this.rightSupportStrut.position.set(midX, 0, 0);
     const strutH = Math.max(0.001, midY);
+    const outerH = Math.min(0.25, strutH * 0.6);
 
-    this.rightStrutOuter.scale.set(1, Math.min(0.25, strutH * 0.6), 1);
-    this.rightStrutInner.position.y = Math.min(0.25, strutH * 0.6);
-    this.rightStrutInner.scale.set(1, Math.max(0.001, strutH - Math.min(0.25, strutH * 0.6)), 1);
+    this.rightStrutOuter.scale.set(1, outerH, 1);
+    this.rightStrutCollar.position.y = outerH;
+    this.rightStrutInner.position.y = outerH;
+    this.rightStrutInner.scale.set(1, Math.max(0.001, strutH - outerH), 1);
     this.rightSupportStrut.visible = angleDeg > 1.2;
   }
 
@@ -486,7 +870,7 @@ export class GalileoBenchMesh {
   }
 
   /**
-   * 更新小球的 3D 位置与滚转动画 (无悬浮、无杂乱箭头、严密贴轨)
+   * 更新小球的 3D 位置与滚转动画
    */
   public setBallState(
     x: number,
@@ -496,7 +880,6 @@ export class GalileoBenchMesh {
     _showVelocity = false
   ): void {
     // 严格贴合双轨物理接触：中心到轨道基线的法向高度
-    // RAIL_THICKNESS (0.016) + 导轨圆柱半径 (0.003) + 球心在双轨凹槽上的几何下沉高度 sqrt(R^2 - d^2)
     const H_NORMAL = 0.04145;
     const halfFlat = this.flatLengthM * 0.5;
     const w = 0.025; // 铰链过渡平滑带宽度
@@ -505,7 +888,7 @@ export class GalileoBenchMesh {
     let posY = H_NORMAL;
 
     if (x < -halfFlat - w) {
-      // 左侧斜面：法向为 (sin(leftRad), cos(leftRad))
+      // 左侧斜面
       const leftRad = (this.leftAngleDeg * Math.PI) / 180.0;
       posX = x + H_NORMAL * Math.sin(leftRad);
       posY = y + H_NORMAL * Math.cos(leftRad);
@@ -534,7 +917,7 @@ export class GalileoBenchMesh {
       posX = x + H_NORMAL * (nx / len);
       posY = y + H_NORMAL * (ny / len);
     } else {
-      // 右侧斜面：法向为 (-sin(rightRad), cos(rightRad))
+      // 右侧斜面
       const rightRad = (this.rightAngleDeg * Math.PI) / 180.0;
       posX = x - H_NORMAL * Math.sin(rightRad);
       posY = y + H_NORMAL * Math.cos(rightRad);
@@ -561,10 +944,10 @@ export class GalileoBenchMesh {
 
   public setHandleHovered(target: 'left' | 'right' | null): void {
     if (this.handleGlowMatL) {
-      this.handleGlowMatL.emissiveIntensity = target === 'left' ? 0.9 : 0.2;
+      this.handleGlowMatL.emissiveIntensity = target === 'left' ? 0.9 : 0.45;
     }
     if (this.handleGlowMatR) {
-      this.handleGlowMatR.emissiveIntensity = target === 'right' ? 0.9 : 0.2;
+      this.handleGlowMatR.emissiveIntensity = target === 'right' ? 0.9 : 0.45;
     }
   }
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OpticalPhysics } from './OpticalPhysics.ts';
+import { buildPrecisionOpticalRail } from './OpticalBenchRail.ts';
 
 export type DiffractionType = 'single' | 'double' | 'circular' | 'grating';
 
@@ -44,9 +45,9 @@ function safeCanvas(width: number, height: number): HTMLCanvasElement | null {
 }
 
 /**
- * 工业科研级光具座光的衍射与干涉实验台 (德系科研级深空钛晶灰蓝·标准三滑座架构)
+ * 工业科研级光具座光的衍射与干涉实验台 (缎面银铝精密导轨·标准三滑座架构)
  * 架构规范 (方案 A):
- * 1. 德系科研级阳极氧化深空钛晶灰蓝双槽精密导轨 (0~100cm 激光蚀刻毫米双边刻度、两端香槟金调平旋钮与限位销)
+ * 1. 航天级阳极氧化缎面银铝双槽精密导轨 (亮底蚀刻 0~100cm 标尺、液态铬滑杆、香槟金滚花调平脚)
  * 2. 精准三滑座架构 (无冗余器件，符合真实物理光路)：
  *    - 滑座 1: 准直聚光灯箱 (钛晶灰蓝哑光机箱、侧边散热百叶槽、实验室高品质柔性电缆、香槟金镜圈、翘板开关与波长轻触键，X=-0.36)
  *    - 滑座 2: 通用精密衍射变换台 (钛晶灰蓝八角倒角承载板、微米精密对置钛合金刀口、香槟金测微鼓轮、旋转转换轮与光栅夹片，X=-0.08)
@@ -254,179 +255,17 @@ export class OpticalDiffractionBenchMesh {
     return { saddleGroup: group, collar, rod };
   }
 
-  // ==================== A. 德系科研级阳极氧化深空钛晶灰蓝双槽导轨与调平底座 ====================
+  // ==================== A. 缎面银铝精密光具座底座 ====================
   private buildOpticalRail(): void {
-    this.railGroup = new THREE.Group();
-    this.railGroup.name = 'RailGroup';
-
-    // 导轨床身与端盖材质：德系科研级深空钛晶灰蓝与精工切削修边
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x2c3e50,
-      metalness: 0.20,
-      roughness: 0.45,
+    const built = buildPrecisionOpticalRail({
+      length: this.railLength,
+      width: this.railWidth,
+      height: this.railHeight,
+      name: 'RailGroup',
     });
-    const trimSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x3d546b,
-      metalness: 0.24,
-      roughness: 0.40,
-    });
-    const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc,
-      metalness: 0.60,
-      roughness: 0.18,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.38,
-      roughness: 0.30,
-    });
-
-    // 1. 导轨床身主体：工业级阳极氧化深空钛晶灰蓝型材 (高级沉稳，清晰区别于浅白背景)
-    const railBodyGeo = new THREE.BoxGeometry(this.railLength, this.railHeight, this.railWidth);
-    const railBody = new THREE.Mesh(railBodyGeo, titaniumSlateMat);
-    railBody.position.set(0, this.railHeight * 0.5, 0);
-    railBody.castShadow = true;
-    railBody.receiveShadow = true;
-    this.railGroup.add(railBody);
-
-    // 2. 导轨顶部双镜面液态铬导向凹槽滑杆 (完全贯通全长)
-    const rodRadius = 0.0042;
-    const rodGeo = new THREE.CylinderGeometry(rodRadius, rodRadius, this.railLength + 0.016, 32);
-    rodGeo.rotateZ(Math.PI / 2);
-    const rodFront = new THREE.Mesh(rodGeo, chromeRodMat);
-    rodFront.position.set(0, this.railHeight + rodRadius * 0.7, this.railWidth * 0.28);
-    const rodBack = new THREE.Mesh(rodGeo, chromeRodMat);
-    rodBack.position.set(0, this.railHeight + rodRadius * 0.7, -this.railWidth * 0.28);
-    this.railGroup.add(rodFront);
-    this.railGroup.add(rodBack);
-
-    // 3. 两端精工端盖与香槟金调平螺栓系统 (左右各一组)
-    const endCapW = 0.024;
-    const endCapH = this.railHeight + 0.008;
-    const endCapD = this.railWidth + 0.006;
-    const endCapGeo = new THREE.BoxGeometry(endCapW, endCapH, endCapD);
-
-    const xEnds = [-this.railLength * 0.5 - endCapW * 0.5, this.railLength * 0.5 + endCapW * 0.5];
-
-    xEnds.forEach((xPos) => {
-      // 钛晶端盖封头
-      const endCap = new THREE.Mesh(endCapGeo, trimSlateMat);
-      endCap.position.set(xPos, this.railHeight * 0.5, 0);
-      endCap.castShadow = true;
-      this.railGroup.add(endCap);
-
-      // 顶部香槟金限位防滑脱止动螺钉 (垂直滚花螺钉)
-      const stopScrewGeo = new THREE.CylinderGeometry(0.0065, 0.0065, 0.018, 24);
-      const stopScrew = new THREE.Mesh(stopScrewGeo, brassMat);
-      stopScrew.position.set(xPos, this.railHeight + 0.013, 0);
-      this.railGroup.add(stopScrew);
-
-      // 下部横向防倾覆支脚横梁 (深空钛晶灰蓝，沿 Z 轴横向舒展)
-      const crossFootW = 0.026;
-      const crossFootH = 0.014;
-      const crossFootD = 0.144;
-      const crossFootGeo = new THREE.BoxGeometry(crossFootW, crossFootH, crossFootD);
-      const crossFoot = new THREE.Mesh(crossFootGeo, titaniumSlateMat);
-      crossFoot.position.set(xPos, 0.002, 0);
-      crossFoot.castShadow = true;
-      this.railGroup.add(crossFoot);
-
-      // 左右两侧前后 2 个高精密防震水平调平旋钮 (镜面铬立轴、香槟金锁紧套与滚花底脚)
-      const zFootOffsets = [-crossFootD * 0.40, crossFootD * 0.40];
-      zFootOffsets.forEach((zPos) => {
-        // 螺纹不锈钢立轴
-        const studGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.024, 16);
-        const stud = new THREE.Mesh(studGeo, chromeRodMat);
-        stud.position.set(xPos, -0.008, zPos);
-        this.railGroup.add(stud);
-
-        // 香槟金锁紧压套
-        const lockNutGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.006, 24);
-        const lockNut = new THREE.Mesh(lockNutGeo, brassMat);
-        lockNut.position.set(xPos, -0.002, zPos);
-        this.railGroup.add(lockNut);
-
-        // 底部香槟金精密防滑滚花底脚
-        const footPadGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.009, 28);
-        const footPad = new THREE.Mesh(footPadGeo, brassMat);
-        footPad.position.set(xPos, -0.018, zPos);
-        this.railGroup.add(footPad);
-      });
-    });
-
-    // 4. 正面高精激光蚀刻毫米与厘米双重标尺 (0 ~ 100 cm，完全对应参考图实物)
-    this.railScaleCanvas = safeCanvas(2048, 128);
-    if (this.railScaleCanvas) {
-      const ctx = this.railScaleCanvas.getContext('2d');
-      if (ctx) {
-        // 银亮细腻氧化铝标尺底带
-        ctx.fillStyle = '#f3f4f6';
-        ctx.fillRect(0, 0, 2048, 128);
-
-        // 顶边与底边清晰工业基准黑线
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(0, 0, 2048, 3);
-        ctx.fillRect(0, 125, 2048, 3);
-
-        ctx.strokeStyle = '#0f172a';
-        ctx.fillStyle = '#0f172a';
-        ctx.font = 'bold 32px -apple-system, "SF Mono", "PingFang SC", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-
-        // 绘制 0 到 100 cm 的精密刻度线 (包含 1mm 细线、5mm 中长线、10mm/1cm 主刻度与数字)
-        const scaleStartX = 60;
-        const scaleEndX = 1920;
-        const scaleSpan = scaleEndX - scaleStartX;
-
-        for (let cm = 0; cm <= 100; cm++) {
-          const pxCm = scaleStartX + (cm / 100) * scaleSpan;
-
-          // 1cm 主刻度线
-          ctx.lineWidth = 3.2;
-          ctx.beginPath();
-          ctx.moveTo(pxCm, 3);
-          ctx.lineTo(pxCm, 48);
-          ctx.stroke();
-
-          // 数字标号：0, 10, 20, ..., 100
-          if (cm % 10 === 0) {
-            ctx.fillText(`${cm}`, pxCm, 58);
-          }
-
-          // 毫米分度线 (每 1mm 细线，5mm 中长线)
-          if (cm < 100) {
-            for (let mm = 1; mm < 10; mm++) {
-              const pxMm = pxCm + (mm / 10) * (scaleSpan / 100);
-              const is5 = mm === 5;
-              ctx.lineWidth = is5 ? 2.0 : 1.2;
-              ctx.beginPath();
-              ctx.moveTo(pxMm, 3);
-              ctx.lineTo(pxMm, is5 ? 30 : 18);
-              ctx.stroke();
-            }
-          }
-        }
-
-        // 最右侧单位 "cm" 标识
-        ctx.font = 'bold 30px "SF Mono", sans-serif';
-        ctx.fillText('cm', scaleEndX + 56, 58);
-      }
-
-      this.railScaleTexture = new THREE.CanvasTexture(this.railScaleCanvas);
-      this.railScaleTexture.anisotropy = 8;
-
-      const scalePlateGeo = new THREE.PlaneGeometry(this.railLength * 0.96, this.railHeight * 0.62);
-      const scalePlateMat = new THREE.MeshStandardMaterial({
-        map: this.railScaleTexture,
-        roughness: 0.35,
-        metalness: 0.12,
-      });
-      const scalePlateFront = new THREE.Mesh(scalePlateGeo, scalePlateMat);
-      scalePlateFront.position.set(0, this.railHeight * 0.5, this.railWidth * 0.502);
-      this.railGroup.add(scalePlateFront);
-    }
-
+    this.railGroup = built.group;
+    this.railScaleCanvas = built.scaleCanvas;
+    this.railScaleTexture = built.scaleTexture;
     this.group.add(this.railGroup);
   }
 

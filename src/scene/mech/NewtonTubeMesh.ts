@@ -138,7 +138,7 @@ export class NewtonTubeMesh {
     });
 
     // 镜面液态铬金属 (316L 不锈钢镜面抛光，细腻高光反射)
-    this.chromeMaterial = mechMetal(0xe2e8f0, 0.96, 0.10);
+    this.chromeMaterial = mechMetal(0xe2e8f0, 0.94, 0.12);
 
     // 航天级深空钛阳极氧化精密合金构件 (彻底告别单调死白与廉价黑塑料)
     this.precisionSlateMaterial = new THREE.MeshStandardMaterial({
