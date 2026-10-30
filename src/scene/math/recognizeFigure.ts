@@ -233,7 +233,7 @@ export async function compressProblemImage(dataUrl: string): Promise<string> {
   if (!width || !height) throw new Error('这张图片打不开');
 
   const crop = detectPaperContentCrop(img, width, height);
-  const maxEdge = 1800;
+  const maxEdge = 1440;
   const scale = Math.min(1, maxEdge / Math.max(crop.sw, crop.sh));
   const w = Math.max(1, Math.round(crop.sw * scale));
   const h = Math.max(1, Math.round(crop.sh * scale));
@@ -244,8 +244,20 @@ export async function compressProblemImage(dataUrl: string): Promise<string> {
   if (!ctx) return dataUrl;
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, w, h);
+  try {
+    if ('filter' in ctx) {
+      ctx.filter = 'contrast(1.26) brightness(1.05) saturate(0.25)';
+    }
+  } catch {
+    // 兼容无 Canvas filter 的精简运行环境
+  }
   ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, w, h);
-  return canvas.toDataURL('image/jpeg', 0.88);
+  try {
+    if ('filter' in ctx) ctx.filter = 'none';
+  } catch {
+    // ignore
+  }
+  return canvas.toDataURL('image/jpeg', 0.82);
 }
 
 export async function recognizeStereometryImage(dataUrl: string): Promise<RecognizedFigure> {
@@ -259,7 +271,7 @@ export async function recognizeStereometryImage(dataUrl: string): Promise<Recogn
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image }),
       credentials: 'omit',
-      signal: AbortSignal.timeout(48_000),
+      signal: AbortSignal.timeout(26_000),
     });
   } catch (error) {
     if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {

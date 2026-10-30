@@ -401,12 +401,10 @@ assert.ok(popover.classList.contains('hidden'), 'Album popover must be hidden in
 const libraryItem = popover.querySelector('#math-ar-popover-library');
 const cameraItem = popover.querySelector('#math-ar-popover-camera');
 const fileItem = popover.querySelector('#math-ar-popover-file');
-const notch = popover.querySelector('.math-ar-popover-notch');
 
 assert.ok(libraryItem, 'Library item must exist');
 assert.ok(cameraItem, 'Camera item must exist');
 assert.ok(fileItem, 'File item must exist');
-assert.ok(notch, 'Popover notch indicator must exist pointing down toward album button');
 
 // 验证展开与状态联动
 popoverScanner.toggleAlbumPopover(true);

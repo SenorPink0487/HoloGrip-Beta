@@ -2104,8 +2104,121 @@ assert(autoCrop.sw < 2800 && autoCrop.sh < 2100, `Auto-crop must zoom tightly in
 
 console.log('✓ Test 33 passed: 上传与实拍识图一致性、拓扑自修复、斜二测消隐与智能卷面裁切全部验证通过\n');
 
+// ========================================================
+// Test 34: 极速单阶段视觉约束提取 + 毫秒级确定性三维几何约束求解器 (LM Solver)
+// ========================================================
+console.log('Test 34: 极速单阶段视觉约束提取 + 毫秒级确定性三维几何约束求解器 (LM Solver)');
+
+// 1. 模拟单阶段极速视觉模型 (~1.8s) 返回粗糙近似顶点初值 + 误猜未给定数值的边长 len:[CB=2,CE=2]，
+//    验证本地确定性求解器在数毫秒内根据 text 与 constraints 净化冲突并精确收敛至 1e-5 真实解析坐标
+const tFastSolve0 = performance.now();
+const fastRawFlashOutput = {
+  rot: 0,
+  text: '如图，在四棱锥E-ABCD中，EC⊥平面ABCD，AB∥DC，△ACD为等边三角形，DC=2AB=2，CB=CE，点F为棱BE上的动点',
+  name: '四棱锥 E-ABCD',
+  subtitle: 'EC⊥平面ABCD，AB∥DC',
+  faces: [
+    ['A', 'B', 'C', 'D'],
+    ['E', 'A', 'B'],
+    ['E', 'B', 'C'],
+    ['E', 'C', 'D'],
+    ['E', 'D', 'A'],
+  ],
+  points: [{ id: 'F', from: 'B', to: 'E', t: 0.4, conn: ['C'] }],
+  aux: [['A', 'C', 'dashed']],
+  constraints: {
+    base: ['A', 'B', 'C', 'D'],
+    up: [['C', 'E']],
+    // 故意混入未在题干赋值的错误数字 ['C','B',2], ['C','E',2] 且漏写等边三角形边长 ['A','C',2], ['A','D',2]
+    len: [['D', 'C', 2], ['A', 'B', 1], ['C', 'B', 2], ['C', 'E', 2]],
+    eq: [['C', 'B', 'C', 'E', 1]],
+    par: [['A', 'B', 'D', 'C']],
+    perp: [['E', 'C', 'C', 'D'], ['E', 'C', 'C', 'B']],
+    lr: [['D', 'C'], ['A', 'B']],
+    front: ['A', 'B'],
+    back: ['D', 'C'],
+  },
+  // 故意提供粗糙、比例失真甚至方向偏斜的紧凑元组顶点初值
+  vertices: [
+    ['A', -0.4, 0.1, 0.7],
+    ['B', 0.6, -0.1, 0.9],
+    ['C', 1.2, 0, -0.2],
+    ['D', -0.9, 0, 0.1],
+    ['E', 1.1, 1.0, 0.3],
+  ],
+};
+
+const fastSolvedFigure = parseRecognizedFigure(fastRawFlashOutput);
+const fastSolvedModel = buildRecognizedModel(fastSolvedFigure);
+const fastSolveElapsedMs = performance.now() - tFastSolve0;
+
+assert(fastSolveElapsedMs < 60, `Local deterministic 3D constraint solver must complete in <60ms, took ${fastSolveElapsedMs.toFixed(2)}ms`);
+
+const fkp = (label: string) => fastSolvedModel.keyPoints.find((k) => k.label === label)!.position;
+const fA = fkp('A');
+const fB = fkp('B');
+const fC = fkp('C');
+const fD = fkp('D');
+const fE = fkp('E');
+const fDC = fC.clone().sub(fD);
+const fAB = fB.clone().sub(fA);
+const fCE = fE.clone().sub(fC);
+const fCB = fB.clone().sub(fC);
+
+assert(Math.abs(fDC.length() / fAB.length() - 2) < 1e-4, `Expected |DC|/|AB|=2, got ${fDC.length() / fAB.length()}`);
+assert(Math.abs(fAB.clone().normalize().dot(fDC.clone().normalize()) - 1) < 1e-4, 'AB must be parallel and codirectional with DC');
+assert(Math.abs(fCE.dot(fDC)) < 1e-5 && Math.abs(fCE.dot(fCB)) < 1e-5, 'EC must be strictly perpendicular to base ABCD');
+assert(Math.abs(fCE.clone().normalize().y - 1) < 1e-4, 'Vertical height EC must point strictly along +Y');
+assert(Math.abs(fC.distanceTo(fA) / fDC.length() - 1) < 1e-4, 'Equilateral △ACD must satisfy |AC|=|DC|');
+assert(Math.abs(fD.distanceTo(fA) / fDC.length() - 1) < 1e-4, 'Equilateral △ACD must satisfy |AD|=|DC|');
+assert(Math.abs(fCB.length() / fCE.length() - 1) < 1e-4, 'CB=CE must hold after stripping hallucinated len');
+assert(Math.abs(fCE.length() / fDC.length() - Math.sqrt(3) / 2) < 1e-4, '|CE|/|DC| must equal √3/2');
+
+const fastAuxSorted = (fastSolvedModel.auxEdges ?? [])
+  .map((e) => {
+    const la = fastSolvedModel.keyPoints.find((k) => k.id === e.a)!.label;
+    const lb = fastSolvedModel.keyPoints.find((k) => k.id === e.b)!.label;
+    return [la, lb].sort().join('');
+  })
+  .sort();
+assert.deepStrictEqual(fastAuxSorted, ['AC', 'CF'], 'points.conn and aux must merge into exact [AC, CF]');
+
+// 2. 验证命名规则几何体（如 正四棱锥 P-ABCD，AB=2，PA=2）无需 up 垂直侧棱也可精确解出中心对称高度 √2
+const regPyrModel = buildRecognizedModel(
+  parseRecognizedFigure({
+    rot: 0,
+    text: '在正四棱锥P-ABCD中，AB=2，PA=2',
+    name: '正四棱锥 P-ABCD',
+    subtitle: 'AB=2，PA=2',
+    faces: [
+      ['A', 'B', 'C', 'D'],
+      ['P', 'A', 'B'],
+      ['P', 'B', 'C'],
+      ['P', 'C', 'D'],
+      ['P', 'D', 'A'],
+    ],
+    constraints: { base: ['A', 'B', 'C', 'D'], lr: [['D', 'C']], front: ['A', 'B'], back: ['D', 'C'] },
+    vertices: [
+      ['A', -1, 0, 1],
+      ['B', 1, 0, 1],
+      ['C', 1, 0, -1],
+      ['D', -1, 0, -1],
+      ['P', 0.2, 1.9, -0.3],
+    ],
+  })
+);
+const rkp = (label: string) => regPyrModel.keyPoints.find((k) => k.label === label)!.position;
+const rSide = rkp('A').distanceTo(rkp('B'));
+const rLat = rkp('P').distanceTo(rkp('A'));
+const rBaseCenter = rkp('A').clone().add(rkp('B')).add(rkp('C')).add(rkp('D')).multiplyScalar(0.25);
+const rHeight = rkp('P').distanceTo(rBaseCenter);
+assert(Math.abs(rLat / rSide - 1) < 1e-4, 'Regular square pyramid must satisfy |PA|=|AB|');
+assert(Math.abs(rHeight / rSide - Math.SQRT1_2) < 1e-4, 'Regular square pyramid height/side must equal √2/2');
+
+console.log(`✓ Test 34 passed: 极速单阶段视觉约束提取 + 毫秒级确定性三维求解器 (${fastSolveElapsedMs.toFixed(2)}ms) 验证通过\n`);
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (33/33)!');
+console.log('All High School Stereometry Tests Passed Successfully (34/34)!');
 console.log('========================================================');
 
 

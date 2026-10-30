@@ -194,7 +194,7 @@ private class HoloGripPhotoPickerDelegate: NSObject, UIImagePickerControllerDele
         super.init()
     }
 
-    private static func normalizedPickerImage(_ image: UIImage, maxEdge: CGFloat = 1800) -> UIImage {
+    private static func normalizedPickerImage(_ image: UIImage, maxEdge: CGFloat = 1500) -> UIImage {
         let srcW = max(1, image.size.width)
         let srcH = max(1, image.size.height)
         let scale = min(1.0, maxEdge / max(srcW, srcH))
@@ -214,8 +214,8 @@ private class HoloGripPhotoPickerDelegate: NSObject, UIImagePickerControllerDele
         picker.dismiss(animated: true, completion: nil)
         self.onComplete()
         if let rawImage = (info[.editedImage] ?? info[.originalImage]) as? UIImage {
-            let normalized = Self.normalizedPickerImage(rawImage, maxEdge: 1800)
-            if let data = normalized.jpegData(compressionQuality: 0.88) {
+            let normalized = Self.normalizedPickerImage(rawImage, maxEdge: 1500)
+            if let data = normalized.jpegData(compressionQuality: 0.84) {
                 let base64 = data.base64EncodedString()
                 let dataUrl = "data:image/jpeg;base64,\(base64)"
                 self.invoke.resolve(["dataUrl": dataUrl])

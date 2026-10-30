@@ -142,56 +142,40 @@ export class MathARScannerModal {
       <footer class="math-ar-bottom-bar">
         <!-- 左侧：相册与题目导入插槽 -->
         <div class="math-ar-action-slot left" id="math-ar-album-slot">
-          <!-- Apple 极简悬浮气泡菜单 (位于相册图标正上方，绝不遮挡相册图标与标签) -->
-          <div class="math-ar-album-popover hidden" id="math-ar-album-popover" role="dialog" aria-label="选取题目来源">
+          <!-- Apple 原生 UIMenu 极简浮动菜单 (位于相册图标正上方，绝不遮挡相册图标) -->
+          <div class="math-ar-album-popover hidden" id="math-ar-album-popover" role="menu" aria-label="选取题目来源">
             <div class="math-ar-popover-menu">
               <!-- 选项 1: 照片图库 -->
-              <button type="button" class="math-ar-popover-item" id="math-ar-popover-library" data-action="library">
-                <div class="math-ar-popover-icon-box library">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="3" ry="3"/>
-                    <circle cx="8.5" cy="8.5" r="1.5"/>
-                    <polyline points="21 15 16 10 5 21"/>
-                  </svg>
-                </div>
-                <div class="math-ar-popover-text">
-                  <span class="math-ar-popover-title">照片图库</span>
-                  <span class="math-ar-popover-desc">从相册选取试卷题目</span>
-                </div>
+              <button type="button" class="math-ar-popover-item" id="math-ar-popover-library" role="menuitem">
+                <span class="math-ar-popover-label">照片图库</span>
+                <svg class="math-ar-popover-glyph" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3" ry="3"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
               </button>
 
               <div class="math-ar-popover-divider"></div>
 
-              <!-- 选项 2: 拍摄试卷 -->
-              <button type="button" class="math-ar-popover-item" id="math-ar-popover-camera" data-action="camera">
-                <div class="math-ar-popover-icon-box camera">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
-                  </svg>
-                </div>
-                <div class="math-ar-popover-text">
-                  <span class="math-ar-popover-title">拍摄试卷</span>
-                  <span class="math-ar-popover-desc">使用系统相机重新取景</span>
-                </div>
+              <!-- 选项 2: 拍照 -->
+              <button type="button" class="math-ar-popover-item" id="math-ar-popover-camera" role="menuitem">
+                <span class="math-ar-popover-label">拍照</span>
+                <svg class="math-ar-popover-glyph" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
               </button>
 
               <div class="math-ar-popover-divider"></div>
 
-              <!-- 选项 3: 浏览文件 -->
-              <button type="button" class="math-ar-popover-item" id="math-ar-popover-file" data-action="file">
-                <div class="math-ar-popover-icon-box file">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                  </svg>
-                </div>
-                <div class="math-ar-popover-text">
-                  <span class="math-ar-popover-title">选取文件</span>
-                  <span class="math-ar-popover-desc">从 iCloud 或本地文件夹导入</span>
-                </div>
+              <!-- 选项 3: 文件 -->
+              <button type="button" class="math-ar-popover-item" id="math-ar-popover-file" role="menuitem">
+                <span class="math-ar-popover-label">文件</span>
+                <svg class="math-ar-popover-glyph" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
               </button>
             </div>
-            <div class="math-ar-popover-notch"></div>
           </div>
 
           <!-- 相册主触发按钮 -->
@@ -702,8 +686,8 @@ export class MathARScannerModal {
     srcWidth = srcWidth || 1280;
     srcHeight = srcHeight || 720;
 
-    // 3. 产出高清展示与识别底图 (最长边 1800px，质量 0.88，与上传识图管线规格严格对齐)
-    const maxEdge = 1800;
+    // 3. 产出高清展示与极速识别底图 (最长边 1500px，质量 0.84，兼顾小字号高清晰度与极速网络传输)
+    const maxEdge = 1500;
     const dispScale = Math.min(1, maxEdge / Math.max(srcWidth, srcHeight, 1));
     const dispW = Math.max(1, Math.round(srcWidth * dispScale));
     const dispH = Math.max(1, Math.round(srcHeight * dispScale));
@@ -717,7 +701,7 @@ export class MathARScannerModal {
       dispCtx.fillRect(0, 0, dispW, dispH);
       dispCtx.drawImage(imgSource, 0, 0, dispW, dispH);
     }
-    const displayDataUrl = dispCanvas.toDataURL ? dispCanvas.toDataURL('image/jpeg', 0.88) : 'data:image/jpeg;base64,mock';
+    const displayDataUrl = dispCanvas.toDataURL ? dispCanvas.toDataURL('image/jpeg', 0.84) : 'data:image/jpeg;base64,mock';
 
     // 4. 产出底部托盘专用轻量微缩图 (128x128，仅 ~4KB，杜绝底栏频繁重绘卡顿)
     const thumbSize = 128;
@@ -810,7 +794,7 @@ export class MathARScannerModal {
         }
       }
 
-      const maxEdge = 1800;
+      const maxEdge = 1440;
       const outScale = Math.min(1, maxEdge / Math.max(sw, sh, 1));
       const captureCanvas = document.createElement('canvas');
       captureCanvas.width = Math.max(1, Math.round(sw * outScale));
@@ -820,10 +804,10 @@ export class MathARScannerModal {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, captureCanvas.width, captureCanvas.height);
         ctx.drawImage(this.videoEl, sx, sy, sw, sh, 0, 0, captureCanvas.width, captureCanvas.height);
-        dataUrl = captureCanvas.toDataURL('image/jpeg', 0.88);
+        dataUrl = captureCanvas.toDataURL('image/jpeg', 0.84);
       }
     } else if (this.canvasLayerEl) {
-      dataUrl = this.canvasLayerEl.toDataURL('image/jpeg', 0.88);
+      dataUrl = this.canvasLayerEl.toDataURL('image/jpeg', 0.84);
     }
 
     if (!dataUrl) {
