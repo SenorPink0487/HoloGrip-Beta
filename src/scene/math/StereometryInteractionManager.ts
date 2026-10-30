@@ -139,6 +139,18 @@ export class StereometryInteractionManager {
   }
 
   /**
+   * 判断目标 Object3D 是否归属于 3D 立体几何模型容器。
+   */
+  private isObjectOnModel(obj: THREE.Object3D | null): boolean {
+    let cur = obj;
+    while (cur) {
+      if (cur === this.mesh.modelContainer) return true;
+      cur = cur.parent;
+    }
+    return false;
+  }
+
+  /**
    * 引擎调用的指针按下事件钩子。
    */
   public onPointerDown(
@@ -230,26 +242,41 @@ export class StereometryInteractionManager {
     }
 
     // 3. 检测是否触碰了 3D 模型实体或模型周围的操作包络区
-    let isHittingModel = Boolean(hit);
+    let isHittingModel = false;
+    if (hit?.object) {
+      isHittingModel = this.isObjectOnModel(hit.object);
+    }
     if (!isHittingModel && context?.camera) {
       isHittingModel = typeof this.mesh.isRayHittingModel === 'function'
         ? this.mesh.isRayHittingModel(this.internalRaycaster.ray)
-        : true;
-    } else if (!context?.camera) {
+        : false;
+    } else if (!hit && !context?.camera) {
       // 单元测试无相机环境默认保留交互响应
       isHittingModel = true;
     }
 
-    // 无论触碰点是在模型实体表面还是在模型外部空白区域，均接管单指交互：
-    // - 滑动拖拽（位移 >= 14px）：顺畅旋转 3D 模型视角（空旷区域拖拽视角极佳，不遮挡模型）
-    // - 顶点/棱线拖拽：直接拉出辅助线（drag-to-connect）
-    // - 轻触空白（位移 <= 22px）：取消已选起点，且模型绝对不转动
+    if (!isHittingModel) {
+      // 触碰点在 3D 模型外：
+      // 若此前有待接线的起点或选点，轻触外部时取消待连状态
+      if (this.pendingStartPoint || this.selectedCutPoints.length > 0) {
+        this.resetSelection();
+      }
+      this.isPointerDown = false;
+      this.isPointerDownOnModel = false;
+      this.isOrbitDragging = false;
+      this.isConnectingDrag = false;
+      this.dragStartKp = null;
+      // 触碰模型外部空白区域不接管指针，允许触摸屏转动场景视角 (TouchController)
+      return false;
+    }
+
+    // 触碰点在 3D 模型实体或操作包络区上：接管单指交互以旋转立体几何模型
     this.isPointerDown = true;
     this.isConnectingDrag = false;
     this.dragStartKp = null;
     this.isOrbitDragging = false;
     this.hasMovedPastDragThreshold = false;
-    this.isPointerDownOnModel = isHittingModel;
+    this.isPointerDownOnModel = true;
 
     this.pointerDownX = event.clientX;
     this.pointerDownY = event.clientY;
@@ -452,7 +479,7 @@ export class StereometryInteractionManager {
         const snapColor = this.getKeyPointColor(hoveredKp);
         this.callbacks.onGuidanceChange?.(`已吸附 ${hoveredLabel || hoveredKp.label} · 轻触或拖拽接线`, 'info', snapColor);
       } else {
-        this.callbacks.onGuidanceChange?.('滑动模型旋转视角 · 轻触或拖拽棱线上端点/中点/三等分点接线', 'info');
+        this.callbacks.onGuidanceChange?.('滑动模型旋转立体几何 · 触碰外部转动视角 · 轻触或拖拽棱线上端点/中点/三等分点接线', 'info');
       }
 
       this.currentHoveredKp = hoveredKp;
@@ -489,7 +516,7 @@ export class StereometryInteractionManager {
     this.mesh?.setHoveredKeyPoint(null);
     this.mesh?.clearPreviewWire();
     this.callbacks.onKeyPointHover?.(null);
-    this.callbacks.onGuidanceChange?.('滑动模型旋转视角 · 轻触或拖拽棱线上端点/中点/三等分点接线', 'info');
+    this.callbacks.onGuidanceChange?.('滑动模型旋转立体几何 · 触碰外部转动视角 · 轻触或拖拽棱线上端点/中点/三等分点接线', 'info');
     if (typeof document !== 'undefined') {
       document.body.style.cursor = 'default';
     }

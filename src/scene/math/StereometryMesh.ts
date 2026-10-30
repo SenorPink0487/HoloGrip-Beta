@@ -881,7 +881,7 @@ export class StereometryMesh {
 
   private updateHitEnvelope(): void {
     if (this.hitEnvelopeMesh && this.currentModelDef) {
-      const r = Math.max(0.75, (this.currentModelDef.boundingRadius || 0.8) * 1.35);
+      const r = Math.max(0.78, (this.currentModelDef.boundingRadius || 0.8) * 1.25);
       this.hitEnvelopeMesh.scale.set(r, r, r);
     }
   }
@@ -1995,7 +1995,16 @@ export class StereometryMesh {
     if (!this.modelContainer) return false;
     const center = new THREE.Vector3();
     this.modelContainer.getWorldPosition(center);
-    const r = Math.max(0.75, (this.currentModelDef?.boundingRadius ?? 0.8) * this.modelScale * 1.35);
+    let scaleFactor = this.modelScale;
+    if (this.modelContainer.parent) {
+      const worldScale = new THREE.Vector3();
+      this.modelContainer.getWorldScale(worldScale);
+      if (worldScale.x > 0.01) {
+        scaleFactor = worldScale.x;
+      }
+    }
+    const baseR = this.currentModelDef?.boundingRadius ?? 0.8;
+    const r = Math.max(0.78, baseR * scaleFactor * 1.25);
     const sphere = new THREE.Sphere(center, r);
     return ray.intersectsSphere(sphere);
   }

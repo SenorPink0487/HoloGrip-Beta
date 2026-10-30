@@ -87,9 +87,9 @@ const createMockHand = (
   console.log('✓ Test 2 passed: One Euro filter eliminates tremor while tracking rapid movements\n');
 }
 
-// Test 3: Scale-Invariant Pinch Recognition & Midpoint Computation
+// Test 3: Scale-Invariant Pinch Recognition & Thumb-Above Cursor Anchor Stability
 {
-  console.log('Test 3: Scale-Invariant Pinch Recognition & Midpoint Computation');
+  console.log('Test 3: Scale-Invariant Pinch Recognition & Thumb-Above Cursor Anchor Stability');
   const service = new HandGestureService({
     mirrorX: true,
     activeMarginX: 0.1,
@@ -98,14 +98,17 @@ const createMockHand = (
     pinchThresholdExit: 0.27,
   });
 
-  // Open hand
+  // Open hand: thumb at x=0.35, index raised at x=0.55
   const openHand = createMockHand([0.35, 0.4, 0], [0.55, 0.4, 0], 0.25);
   const frameOpen = service.computeGestureAnalytics(openHand, 100);
   assert.strictEqual(frameOpen.hasHand, true);
   assert.strictEqual(frameOpen.isPinching, false, 'Open hand must not trigger pinch');
   assert(frameOpen.pinchRatio > 0.55, `Open hand pinchRatio should be > 0.55, got ${frameOpen.pinchRatio}`);
   assert.strictEqual(frameOpen.pinchStrength, 0, 'Open hand pinch strength should be 0');
-  assert.strictEqual(frameOpen.midpointNorm?.x, (0.35 + 0.55) / 2);
+
+  // 光标锚点必须位于大拇指上方接触面（x=0.35，y<0.4），而不是在两指尖中点（0.45）
+  assert.strictEqual(frameOpen.midpointNorm?.x, 0.35, 'Cursor anchor X must be anchored to thumb tip, not midpoint');
+  assert(frameOpen.midpointNorm!.y < 0.4, `Cursor anchor Y (${frameOpen.midpointNorm?.y}) must be above thumb tip (y=0.4)`);
 
   // User Photo Regression Pose: Fingers with gap of ~38% of palm scale (clearly separated)
   const userPhotoHand = createMockHand([0.45 - (0.38 * 0.25) / 2, 0.4, 0], [0.45 + (0.38 * 0.25) / 2, 0.4, 0], 0.25);
@@ -113,15 +116,19 @@ const createMockHand = (
   assert.strictEqual(frameUserPhoto.isPinching, false, 'User photo pose (~38% gap) must NEVER be judged as pinching');
   assert.strictEqual(frameUserPhoto.pinchStrength, 0, 'Pinch strength must be 0 for open hand with 38% gap');
 
-  // Pinched hand (fingers actually touching)
-  const pinchHand = createMockHand([0.45, 0.4, 0], [0.46, 0.4, 0], 0.25);
+  // Pinched hand (fingers actually touching at thumb)
+  const pinchHand = createMockHand([0.35, 0.4, 0], [0.36, 0.4, 0], 0.25);
   const framePinch = service.computeGestureAnalytics(pinchHand, 116);
   assert.strictEqual(framePinch.isPinching, true, 'Touching fingers must trigger pinch');
   assert.strictEqual(framePinch.justPinchStarted, true, 'Should flag justPinchStarted on first pinch frame');
   assert(framePinch.pinchRatio < 0.2, `Pinched ratio should be < 0.2, got ${framePinch.pinchRatio}`);
   assert.strictEqual(framePinch.pinchStrength, 1.0, 'Pinch strength should be 1.0 when pinching');
 
-  console.log('✓ Test 3 passed: Scale-invariant pinch detection & user photo regression verified\n');
+  // 核心稳定性验证：当食指从张开（x=0.55）闭合向大拇指（x=0.36）捏合时，光标锚点保持完全静止，漂移为 0
+  assert.strictEqual(framePinch.midpointNorm?.x, frameOpen.midpointNorm?.x, 'Cursor anchor must remain rock-solid without drifting during pinch');
+  assert.strictEqual(framePinch.midpointNorm?.y, frameOpen.midpointNorm?.y, 'Cursor anchor Y must not jump when index finger pinches down');
+
+  console.log('✓ Test 3 passed: Scale-invariant pinch detection & thumb-above cursor stability verified\n');
 }
 
 // Test 4: Pinch Hysteresis Stability (Anti-Flicker Protection)

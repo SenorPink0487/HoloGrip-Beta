@@ -114,14 +114,42 @@ export class SingleHandTracker {
     const wrist = landmarks[0];
     const middleMcp = landmarks[9];
 
-    // 拇指指尖与食指指尖连线的中点坐标
-    const midX = (thumbTip.x + indexTip.x) * 0.5;
-    const midY = (thumbTip.y + indexTip.y) * 0.5;
-    const midZ = (thumbTip.z + indexTip.z) * 0.5;
+    // 手掌尺度归一化基准（采用手掌横宽与手腕至中指掌指关节的最大值，保证尺度无关）
+    const palmWidth = (landmarks[5] && landmarks[17])
+      ? Math.hypot(landmarks[5].x - landmarks[17].x, landmarks[5].y - landmarks[17].y)
+      : 0;
+    const wristToMiddle = Math.hypot(middleMcp.x - wrist.x, middleMcp.y - wrist.y);
+    const handScale = Math.max(palmWidth, wristToMiddle) || 0.22;
+
+    // 手部主轴物理向上向量（从手腕指向中指掌指关节）
+    const upVx = middleMcp.x - wrist.x;
+    const upVy = middleMcp.y - wrist.y;
+    const upLen = Math.hypot(upVx, upVy);
+    const handUpX = upLen > 1e-4 ? upVx / upLen : 0;
+    const handUpY = upLen > 1e-4 ? upVy / upLen : -1;
+
+    // 综合手部生理方向与屏幕视口向上方向（视口向上为 -Y 轴）
+    // 保证无论手掌轻微偏转还是倾斜，光标始终稳健地定位于大拇指上方接触面
+    const blendHandWeight = 0.6;
+    const blendScreenWeight = 0.4;
+    const dirX = handUpX * blendHandWeight;
+    const dirY = handUpY * blendHandWeight - blendScreenWeight;
+    const dirLen = Math.hypot(dirX, dirY);
+    const normDirX = dirLen > 1e-4 ? dirX / dirLen : 0;
+    const normDirY = dirLen > 1e-4 ? dirY / dirLen : -1;
+
+    // 光标锚点置于拇指指尖上方接触面：
+    // 用户执行捏合交互（click/pinch）时，食指向拇指主动闭合运动，而拇指保持相对静止。
+    // 以拇指上方为光标基准，彻底消除以往两指中点在捏合时跟随食指下移导致的光标跳变与漂移。
+    const offsetRatio = config.cursorOffsetAboveThumbRatio ?? 0.08;
+    const offsetDist = handScale * offsetRatio;
+    const anchorX = thumbTip.x + normDirX * offsetDist;
+    const anchorY = thumbTip.y + normDirY * offsetDist;
+    const anchorZ = thumbTip.z;
 
     // 前置摄像头画面水平镜像翻转
-    const normCameraX = config.mirrorX ? 1.0 - midX : midX;
-    const normCameraY = midY;
+    const normCameraX = config.mirrorX ? 1.0 - anchorX : anchorX;
+    const normCameraY = anchorY;
 
     // 有效活动边距映射校准
     const mX = config.activeMarginX;
@@ -140,13 +168,6 @@ export class SingleHandTracker {
 
     // 二维平面欧氏距离（排除单目深度 Z 轴的噪声干扰）
     const rawDistance = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-
-    // 手掌尺度归一化基准（采用手掌横宽与手腕至中指掌指关节的最大值，保证尺度无关）
-    const palmWidth = (landmarks[5] && landmarks[17])
-      ? Math.hypot(landmarks[5].x - landmarks[17].x, landmarks[5].y - landmarks[17].y)
-      : 0;
-    const wristToMiddle = Math.hypot(middleMcp.x - wrist.x, middleMcp.y - wrist.y);
-    const handScale = Math.max(palmWidth, wristToMiddle) || 0.22;
     const pinchRatio = rawDistance / handScale;
 
     // 双阈值迟滞捏合判定
@@ -204,13 +225,16 @@ export class SingleHandTracker {
     this.lastWrist = { x: wrist.x, y: wrist.y };
     this.lastSeenAt = timestamp;
 
+    const anchorPoint = { x: anchorX, y: anchorY, z: anchorZ };
+
     return {
       handedness: this.handedness,
       confidence,
       landmarks,
       thumbTip,
       indexTip,
-      midpointNorm: { x: midX, y: midY, z: midZ },
+      midpointNorm: anchorPoint,
+      interactionPointNorm: anchorPoint,
       screenX: smoothed.x,
       screenY: smoothed.y,
       rawDistance,
@@ -315,6 +339,7 @@ export class HandGestureService {
       useWorker: config.useWorker ?? true,
       filterMinCutoff: config.filterMinCutoff ?? 1.6,
       filterBeta: config.filterBeta ?? 0.008,
+      cursorOffsetAboveThumbRatio: config.cursorOffsetAboveThumbRatio ?? 0.08,
     };
 
     this.leftTracker = new SingleHandTracker(
@@ -1109,6 +1134,7 @@ export class HandGestureService {
       thumbTip: null,
       indexTip: null,
       midpointNorm: null,
+      interactionPointNorm: null,
       screenX: 0,
       screenY: 0,
       rawDistance: 0,
@@ -1313,6 +1339,7 @@ export class HandGestureService {
       thumbTip: primary?.thumbTip ?? null,
       indexTip: primary?.indexTip ?? null,
       midpointNorm: primary?.midpointNorm ?? null,
+      interactionPointNorm: primary?.interactionPointNorm ?? null,
       screenX: primary?.screenX ?? 0,
       screenY: primary?.screenY ?? 0,
       rawDistance: primary?.rawDistance ?? 0,

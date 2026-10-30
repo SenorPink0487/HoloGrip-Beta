@@ -11,7 +11,14 @@ export interface SingleHandData {
   landmarks: NormalizedLandmark[];
   thumbTip: NormalizedLandmark;
   indexTip: NormalizedLandmark;
+  /**
+   * 交互光标归一化坐标基准点。
+   * 以大拇指指尖上方接触面为锚点，彻底消除捏合动作中因食指位移带来的光标跳变与漂移。
+   * 保留字段名以实现向后兼容。
+   */
   midpointNorm: { x: number; y: number; z: number };
+  /** 交互光标锚点（与 midpointNorm 一致，语义更明确） */
+  interactionPointNorm?: { x: number; y: number; z: number };
   screenX: number;
   screenY: number;
   rawDistance: number;
@@ -46,7 +53,10 @@ export interface HandGestureFrame {
   landmarks: NormalizedLandmark[] | null;
   thumbTip: NormalizedLandmark | null;
   indexTip: NormalizedLandmark | null;
+  /** 交互光标归一化坐标基准点（兼容旧字段） */
   midpointNorm: { x: number; y: number; z: number } | null;
+  /** 交互光标锚点（置于拇指上方，语义明确） */
+  interactionPointNorm?: { x: number; y: number; z: number } | null;
   screenX: number;
   screenY: number;
   rawDistance: number;
@@ -74,6 +84,11 @@ export interface HandGestureServiceConfig {
   useWorker?: boolean;
   filterMinCutoff?: number;
   filterBeta?: number;
+  /**
+   * 光标相对于大拇指指尖向上偏移的比例（相对于 handScale）。
+   * 默认 0.08，将交互锚点置于大拇指上方接触面，彻底消除捏合动作中因食指位移带来的光标跳变与漂移。
+   */
+  cursorOffsetAboveThumbRatio?: number;
 }
 
 export interface DualHandPinchEvent {

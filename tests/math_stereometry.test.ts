@@ -1899,7 +1899,7 @@ assert.strictEqual((optManager as any).pendingStartPoint, null, 'Tapping blank m
 assert.strictEqual(optMesh.modelContainer.rotation.y, initialModelRotY, 'Tapping blank to cancel must NOT rotate model');
 
 // 4. 在模型外部空白区域交互测试：
-// 4.1 在外部空白区域滑动拖拽（移动 70px > 14px）-> 必须顺畅旋转 3D 视角（转动模型视角）
+// 4.1 在外部空白区域滑动（触屏端在模型外部）：不劫持指针，模型不旋转，把视角旋转权让渡给场景相机（TouchController）
 const rotBeforeOutsideDrag = optMesh.modelContainer.rotation.y;
 const outsideDownHandled = optManager.onPointerDown({
   button: 0,
@@ -1908,7 +1908,7 @@ const outsideDownHandled = optManager.onPointerDown({
   pointerId: 13,
   pointerType: 'touch',
 } as PointerEvent, null, optContext);
-assert.strictEqual(outsideDownHandled, true, 'PointerDown in outside blank space must claim pointer for orbiting');
+assert.strictEqual(outsideDownHandled, false, 'PointerDown in outside blank space must return false to allow touch screen camera look');
 
 optManager.onPointerMove({
   button: 0,
@@ -1917,8 +1917,8 @@ optManager.onPointerMove({
   pointerId: 13,
   pointerType: 'touch',
 } as PointerEvent, null, optContext);
-assert.strictEqual((optManager as any).isOrbitDragging, true, 'Swiping in outside blank area must enter orbit dragging');
-assert.notStrictEqual(optMesh.modelContainer.rotation.y, rotBeforeOutsideDrag, 'Swiping in outside blank area must rotate the 3D view');
+assert.strictEqual((optManager as any).isOrbitDragging, false, 'Swiping in outside blank area must not enter orbit dragging');
+assert.strictEqual(optMesh.modelContainer.rotation.y, rotBeforeOutsideDrag, 'Swiping in outside blank area must NOT rotate the 3D model itself');
 
 optManager.onPointerUp({
   button: 0,
@@ -1929,15 +1929,52 @@ optManager.onPointerUp({
 } as PointerEvent, optContext);
 assert.strictEqual((optManager as any).isOrbitDragging, false, 'PointerUp must end orbit dragging');
 
-// 4.2 在外部空白区域短按轻触 (Tap 且位移 <= 22px，无待选起点) -> 绝不发生误旋转
+// 4.2 在 3D 模型表面区域单指滑动拖拽 -> 顺畅旋转 3D 立体几何模型
+const modelCenterWorld = new THREE.Vector3();
+optMesh.modelContainer.getWorldPosition(modelCenterWorld);
+const ndcCenter = modelCenterWorld.clone().project(optCam);
+const screenXCenter = ((ndcCenter.x + 1) / 2) * 1920;
+const screenYCenter = ((-ndcCenter.y + 1) / 2) * 1080;
+
+const rotBeforeModelDrag = optMesh.modelContainer.rotation.y;
+const modelDownHandled = optManager.onPointerDown({
+  button: 0,
+  clientX: screenXCenter,
+  clientY: screenYCenter,
+  pointerId: 15,
+  pointerType: 'touch',
+} as PointerEvent, null, optContext);
+assert.strictEqual(modelDownHandled, true, 'PointerDown on 3D model must claim pointer to rotate model');
+
+optManager.onPointerMove({
+  button: 0,
+  clientX: screenXCenter + 50,
+  clientY: screenYCenter,
+  pointerId: 15,
+  pointerType: 'touch',
+} as PointerEvent, null, optContext);
+assert.strictEqual((optManager as any).isOrbitDragging, true, 'Swiping on model must enter orbit dragging');
+assert.notStrictEqual(optMesh.modelContainer.rotation.y, rotBeforeModelDrag, 'Swiping on model must rotate the 3D model');
+
+optManager.onPointerUp({
+  button: 0,
+  clientX: screenXCenter + 50,
+  clientY: screenYCenter,
+  pointerId: 15,
+  pointerType: 'touch',
+} as PointerEvent, optContext);
+assert.strictEqual((optManager as any).isOrbitDragging, false, 'PointerUp must end orbit dragging');
+
+// 4.3 在外部空白区域短按轻触 (Tap 且位移 <= 22px，无待选起点) -> 绝不发生误旋转
 const rotBeforeOutsideTap = optMesh.modelContainer.rotation.y;
-optManager.onPointerDown({
+const tapDownHandled = optManager.onPointerDown({
   button: 0,
   clientX: 30,
   clientY: 30,
   pointerId: 14,
   pointerType: 'touch',
 } as PointerEvent, null, optContext);
+assert.strictEqual(tapDownHandled, false, 'Tap down in outside area must return false');
 optManager.onPointerUp({
   button: 0,
   clientX: 34,

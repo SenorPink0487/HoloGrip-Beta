@@ -102,21 +102,40 @@ win.emit('touchmove', event([finger(1, 700)]));
 assert.equal(player.yaw, releasedYaw, 'Instrument ownership must not resume a stale camera drag');
 end();
 
-for (const blocked of ['instrument', 'modal', 'drawer', 'entry', 'whiteboard', 'handTracking', 'stereometry']) {
+for (const blocked of ['instrument', 'modal', 'drawer', 'entry', 'whiteboard', 'handTracking']) {
   engine.isExperimentInteracting = blocked === 'instrument';
   engine.visionModal.visible = blocked === 'modal';
   engine.hud.drawer.open = blocked === 'drawer';
   engine.labEntryActive = blocked === 'entry';
   engine.isWhiteboardMode = blocked === 'whiteboard';
   controller.isHandTrackingActive = blocked === 'handTracking';
-  engine.currentExperimentId = blocked === 'stereometry' ? 'math-stereometry' : 'optics-reflection-refraction';
+  engine.currentExperimentId = 'optics-reflection-refraction';
   start();
   win.emit('touchmove', event([finger(1, 650)]));
   assert.equal(player.yaw, releasedYaw, `${blocked} owns input instead of the camera`);
   end();
 }
 controller.isHandTrackingActive = false;
+
+// Stereometry: touching outside interactive 3D model rotates camera perspective;
+// touching on model (instrument interacting) blocks camera drag.
+engine.currentExperimentId = 'math-stereometry';
+engine.isExperimentInteracting = false;
+const mathYawBefore = player.yaw;
+start();
+win.emit('touchmove', event([finger(1, 650)]));
+assert.notEqual(player.yaw, mathYawBefore, 'Swiping outside stereometry model must rotate camera perspective');
+end();
+
+const mathYawReleased = player.yaw;
+engine.isExperimentInteracting = true;
+start();
+win.emit('touchmove', event([finger(1, 680)]));
+assert.equal(player.yaw, mathYawReleased, 'Interacting with stereometry model must block camera drag');
+end();
+engine.isExperimentInteracting = false;
 engine.currentExperimentId = 'optics-reflection-refraction';
+player.yaw = releasedYaw;
 
 // Menus and two-finger model gestures cannot initiate camera rotation.
 const button = new MockElement('button');

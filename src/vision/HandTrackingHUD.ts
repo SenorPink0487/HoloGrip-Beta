@@ -1855,9 +1855,10 @@ export class HandTrackingHUD {
       ctx.arc(ipx, ipy, rTip, 0, 2 * Math.PI);
       ctx.fill();
 
-      // 5. 绘制中点标记与状态文本标签（捏合圆环半径同样以 60 FPS 阻尼插值过渡）
-      const mx = (1.0 - (thumb.x + index.x) * 0.5) * w;
-      const my = (thumb.y + index.y) * 0.5 * h;
+      // 5. 绘制大拇指上方交互锚点标记与状态反馈圆环（捏合圆环半径以 60 FPS 阻尼插值过渡）
+      const anchorNorm = hand.data.interactionPointNorm ?? hand.data.midpointNorm;
+      const mx = (1.0 - anchorNorm.x) * w;
+      const my = anchorNorm.y * h;
       const targetRadius = (hand.data.isPinching ? 6 : 9) * scale;
       const prevRadius = this.smoothedPinchRadius.get(hand.handKey) ?? targetRadius;
       const radiusLerp = dtSec > 0 ? 1 - Math.exp(-24 * dtSec) : 1.0;

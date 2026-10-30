@@ -98,8 +98,7 @@ export class TouchController {
   private isSceneLookBlocked(): boolean {
     const engine = typeof window !== 'undefined' ? (window as any).__ENGINE__ : null;
     return Boolean(engine?.isExperimentInteracting || engine?.labEntryActive ||
-      engine?.isWhiteboardMode || engine?.visionModal?.visible || engine?.hud?.drawer?.open ||
-      engine?.currentExperimentId === 'math-stereometry');
+      engine?.isWhiteboardMode || engine?.visionModal?.visible || engine?.hud?.drawer?.open);
   }
 
   public setHandTrackingActive(active: boolean): void {
@@ -776,7 +775,7 @@ export class TouchController {
         // 允许各类 UI 控件、启动按钮、升降按钮、模态框及文本框接收点击，而不触发相机拖拽
         if (
           target.closest(
-            '#touch-controls-layer, #vision-pro-tracking-hud, #css3d-container, .vision-spatial-window, .hud-panel, .hud-interactive, button, a, input, textarea, select, [role="button"], [contenteditable="true"], .discipline-card, .experiment-card, .element-cell, .apple-pill-btn, .vision-window-btn'
+            '#touch-controls-layer, #vision-pro-tracking-hud, #css3d-container, .vision-spatial-window, .hud-panel, .hud-interactive, button, a, input, textarea, select, [role="button"], [contenteditable="true"], .discipline-card, .experiment-card, .element-cell, .apple-pill-btn, .vision-window-btn, #stereometry-touch-zoom, .stereometry-touch-zoom-pill'
           )
         ) {
           return;
