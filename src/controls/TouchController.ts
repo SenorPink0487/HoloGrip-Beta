@@ -104,8 +104,7 @@ export class TouchController {
       engine?.isExperimentInteracting ||
       mathInteracting ||
       engine?.labEntryActive ||
-      engine?.isWhiteboardMode ||
-      engine?.visionModal?.visible
+      engine?.isWhiteboardMode
     );
   }
 
@@ -676,11 +675,18 @@ export class TouchController {
         if (!target) return;
 
         // 允许各类 UI 控件、启动按钮、升降按钮、模态框及文本框接收点击，而不触发相机拖拽
-        if (
+        // 若触摸在悬浮视窗标题栏空白处（带拖拽条的区域）且未点击按钮，允许作为视角旋转拖拽把手
+        const isHeaderDrag =
+          Boolean(target.closest('.vision-window-header')) &&
+          !target.closest('button, a, .vision-window-btn, [role="button"]');
+
+        const isBlockedUI = Boolean(
           target.closest(
-            '#touch-controls-layer, #vision-pro-tracking-hud, #css3d-container, .vision-spatial-window, .hud-panel, .hud-interactive, button, a, input, textarea, select, [role="button"], [contenteditable="true"], .discipline-card, .experiment-card, .element-cell, .apple-pill-btn, .vision-window-btn, #stereometry-touch-zoom, .stereometry-touch-zoom-pill'
+            '#touch-controls-layer, #vision-pro-tracking-hud, .hud-panel, .hud-interactive, button, a, input, textarea, select, [role="button"], [contenteditable="true"], .discipline-card, .experiment-card, .element-cell, .apple-pill-btn, .vision-window-btn, #stereometry-touch-zoom, .stereometry-touch-zoom-pill, .vision-window-body, #vision-window-mover-bar'
           )
-        ) {
+        );
+
+        if (!isHeaderDrag && (isBlockedUI || Boolean(target.closest('#css3d-container, .vision-spatial-window')))) {
           return;
         }
 

@@ -187,6 +187,10 @@ export default class MathStereometryExperiment extends BaseExperiment {
     this.interactionManager?.clearHover();
   }
 
+  public onHandGestureFrame(frame: any, context?: ExperimentContext): void {
+    this.interactionManager?.onHandGestureFrame(frame, context);
+  }
+
   public override onParameterChange(id: string, value: any, _context: ExperimentContext): void {
     if (!this.mesh) return;
 

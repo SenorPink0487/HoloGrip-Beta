@@ -1762,6 +1762,10 @@ export class Engine {
         exp?.onHandGestureFrame?.(frame);
       } else {
         this.visionProCursor?.update(frame);
+        const exp = this.holoStage?.activeExperiment as any;
+        if (typeof exp?.onHandGestureFrame === 'function') {
+          exp.onHandGestureFrame(frame, this.currentContext);
+        }
       }
 
       if (frame.hasHand) {

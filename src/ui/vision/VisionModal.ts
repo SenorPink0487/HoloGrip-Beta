@@ -199,18 +199,32 @@ export class VisionModal {
     this.btnBack = this.element.querySelector('#btn-window-back');
     this.scaleIndicatorEl = this.element.querySelector('#vision-scale-indicator');
 
-    // 阻止指针、鼠标与滚轮事件向外冒泡，防止悬浮视窗交互干扰 3D 场景控制
-    this.element.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.element.addEventListener('mousedown', (e) => e.stopPropagation());
-    this.element.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
-
     // iPad 与触控设备的多指双指捏合缩放视窗交互
     let touchInitialDist = 0;
     let touchInitialScale = 1.0;
     const activeTouches = new Map<number, { x: number; y: number }>();
 
+    const isHeaderDragTarget = (el: Element | null): boolean => {
+      return Boolean(el?.closest('.vision-window-header')) &&
+        !el?.closest('button, a, .vision-window-btn, [role="button"]');
+    };
+
+    // 阻止指针、鼠标与滚轮事件向外冒泡，防止悬浮视窗交互干扰 3D 场景控制
+    // 但允许在标题栏空白处/拖拽指示器处滑动转动 3D 视角
+    this.element.addEventListener('pointerdown', (e) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (!isHeaderDragTarget(target)) {
+        e.stopPropagation();
+      }
+    });
+    this.element.addEventListener('mousedown', (e) => e.stopPropagation());
+    this.element.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+
     this.element.addEventListener('touchstart', (e: TouchEvent) => {
-      e.stopPropagation();
+      const target = e.target instanceof Element ? e.target : null;
+      if (!isHeaderDragTarget(target)) {
+        e.stopPropagation();
+      }
       if (!e.changedTouches) return;
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
@@ -224,7 +238,10 @@ export class VisionModal {
     }, { passive: false });
 
     this.element.addEventListener('touchmove', (e: TouchEvent) => {
-      e.stopPropagation();
+      const target = e.target instanceof Element ? e.target : null;
+      if (!isHeaderDragTarget(target) && activeTouches.size !== 2) {
+        e.stopPropagation();
+      }
       if (!e.changedTouches) return;
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
@@ -242,7 +259,10 @@ export class VisionModal {
     }, { passive: false });
 
     const handleTouchEnd = (e: TouchEvent) => {
-      e.stopPropagation();
+      const target = e.target instanceof Element ? e.target : null;
+      if (!isHeaderDragTarget(target)) {
+        e.stopPropagation();
+      }
       if (e.changedTouches) {
         for (let i = 0; i < e.changedTouches.length; i++) {
           activeTouches.delete(e.changedTouches[i].identifier);

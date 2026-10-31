@@ -33,6 +33,7 @@ export class StereometryInteractionManager {
 
   // 交互状态机
   private pendingStartPoint: KeyPoint | null = null;
+  private chainStartPoint: KeyPoint | null = null;
   private currentHoveredKp: KeyPoint | null = null;
   private currentSnapLabel = '';
   private selectedCutPoints: KeyPoint[] = [];
@@ -97,15 +98,16 @@ export class StereometryInteractionManager {
     return [...this.selectedCutPoints];
   }
 
-  public resetSelection(): void {
+  public resetSelection(suppressGuidance = false): void {
     const wasPending = Boolean(this.pendingStartPoint) || Boolean(this.dragStartKp);
+    this.chainStartPoint = null;
     this.pendingStartPoint = null;
     this.dragStartKp = null;
     this.isConnectingDrag = false;
     this.selectedCutPoints = [];
     this.mesh.setSelectedKeyPoints([]);
     this.mesh.clearPreviewWire();
-    if (wasPending) {
+    if (wasPending && !suppressGuidance) {
       this.callbacks.onGuidanceChange?.('已取消连线选择', 'info');
     }
   }
@@ -345,7 +347,18 @@ export class StereometryInteractionManager {
 
     if (!isHittingModel) {
       // 触碰点在 3D 模型外部空白区域：
-      // 接管指针，使在模型外滑动能够顺畅旋转 3D 立体几何模型；若仅在空白处轻触且存在待选起点，则在抬手时取消选点
+      // 规则：右手在立体几何模型外的区域捏合（或在模型外点击）则接线停止
+      const wasConnecting = Boolean(this.pendingStartPoint) || this.isConnectingDrag;
+      if (wasConnecting) {
+        this.resetSelection(true);
+        const isVision = this.isVisionGestureEvent(event);
+        const cancelMsg = isVision
+          ? '右手在模型外捏合，接线已停止'
+          : '在模型外点击，接线已停止';
+        this.callbacks.onGuidanceChange?.(cancelMsg, 'info');
+      }
+
+      // 接管指针，使在模型外滑动能够顺畅旋转 3D 立体几何模型
       this.isPointerDown = true;
       this.isCancellingOutside = false;
       this.isConnectingDrag = false;
@@ -744,8 +757,18 @@ export class StereometryInteractionManager {
 
         if (snapRes && snapRes.keyPoint.id !== startKp.id) {
           // 从起点直接拖拽至目标点释放 -> 成功连线！
-          this.connectTwoPoints(startKp, snapRes.keyPoint);
-          this.resetSelection();
+          if (!this.chainStartPoint) {
+            this.chainStartPoint = startKp;
+          }
+          const { segment, faceCreated } = this.connectTwoPoints(startKp, snapRes.keyPoint);
+          if (segment && !faceCreated && snapRes.keyPoint.id !== this.chainStartPoint?.id) {
+            // 完成一根线的接线后不要断开，以上一段的终点作为起点继续接，直到完成一个平面
+            this.pendingStartPoint = snapRes.keyPoint;
+            this.mesh.setSelectedKeyPoints([snapRes.keyPoint.id]);
+            this.mesh.clearPreviewWire();
+          } else {
+            this.resetSelection(true);
+          }
           return;
         }
 
@@ -869,43 +892,60 @@ export class StereometryInteractionManager {
     // 默认及两点连线模式：两点连线
     if (!this.pendingStartPoint) {
       // 第一次点击：选择连线起点
+      this.chainStartPoint = kp;
       this.pendingStartPoint = kp;
       this.mesh.setSelectedKeyPoints([kp.id]);
-      this.callbacks.onGuidanceChange?.(`已选起点 ${kp.label} · 移动至目标点完成接线 (按 Esc 取消)`, 'info');
+      this.callbacks.onGuidanceChange?.(`已选起点 ${kp.label} · 移动至目标点完成接线 (在模型外捏合或轻触可停止)`, 'info');
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
     } else if (this.pendingStartPoint.id === kp.id) {
       // 再次点击相同点：取消选择
       this.resetSelection();
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
     } else {
-      // 第二次点击：完成连线
+      // 完成连线
       const start = this.pendingStartPoint;
-      this.connectTwoPoints(start, kp);
-      this.resetSelection();
+      if (!this.chainStartPoint) {
+        this.chainStartPoint = start;
+      }
+      const { segment, faceCreated } = this.connectTwoPoints(start, kp);
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
+      if (segment && !faceCreated && kp.id !== this.chainStartPoint?.id) {
+        // 完成一根线的接线后不要断开，以上一段的终点作为起点继续接，直到完成一个平面
+        this.pendingStartPoint = kp;
+        this.mesh.setSelectedKeyPoints([kp.id]);
+        this.mesh.clearPreviewWire();
+      } else {
+        this.resetSelection(true);
+      }
     }
   }
 
   /**
    * 在两个关键点之间创建空间线段。
    */
-  private connectTwoPoints(p1: KeyPoint, p2: KeyPoint): void {
+  private connectTwoPoints(p1: KeyPoint, p2: KeyPoint): { segment: any; faceCreated: boolean } {
     const prevFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
     const seg = this.mesh.addSegment(p1.id, p2.id);
-    if (seg) {
-      this.callbacks.onSegmentCreated?.(seg.label, seg.length);
-      const newFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
-      if (newFaces.length > prevFaces.length) {
-        const latestFace = newFaces[newFaces.length - 1];
-        this.callbacks.onAuxiliaryFaceCreated?.(latestFace);
-        this.callbacks.onGuidanceChange?.(
-          `已闭合生成辅助面: ${latestFace.faceLabel} (${latestFace.polygonType}, 面积: ${latestFace.area.toFixed(3)}m²)`,
-          'success'
-        );
-      } else {
-        this.callbacks.onGuidanceChange?.(`成功生成辅助线 ${seg.label} (长 ${this.mesh.formatNormalizedDistance(seg.length)})`, 'success');
-      }
+    if (!seg) {
+      return { segment: null, faceCreated: false };
     }
+    this.callbacks.onSegmentCreated?.(seg.label, seg.length);
+    const newFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
+    const faceCreated = newFaces.length > prevFaces.length;
+    if (faceCreated) {
+      const latestFace = newFaces[newFaces.length - 1];
+      this.callbacks.onAuxiliaryFaceCreated?.(latestFace);
+      this.callbacks.onGuidanceChange?.(
+        `已闭合生成辅助面: ${latestFace.faceLabel} (${latestFace.polygonType}, 面积: ${latestFace.area.toFixed(3)}m²) · 平面构建完成`,
+        'success'
+      );
+    } else {
+      this.callbacks.onGuidanceChange?.(
+        `成功生成辅助线 ${seg.label} (长 ${this.mesh.formatNormalizedDistance(seg.length)}) · 以 ${p2.label} 为新起点继续接线`,
+        'success'
+      );
+    }
+    return { segment: seg, faceCreated };
   }
 
   private getKeyPointColor(kp: KeyPoint): number {
@@ -1008,7 +1048,7 @@ export class StereometryInteractionManager {
         const len = this.pendingStartPoint.position.distanceTo(this.currentHoveredKp.position);
         return `已选起点 ${this.pendingStartPoint.label} → 目标: ${this.currentSnapLabel} (距离: ${this.mesh.formatNormalizedDistance(len)}) · 轻触完成接线`;
       }
-      return `已选起点 ${this.pendingStartPoint.label} · 轻触目标点完成接线 (轻触空白取消)`;
+      return `已选起点 ${this.pendingStartPoint.label} · 轻触目标点继续接线 (在模型外捏合或轻触可停止)`;
     }
 
     if (this.currentHoveredKp) {
@@ -1266,5 +1306,34 @@ export class StereometryInteractionManager {
 
   public isPinchingActive(): boolean {
     return this.isPinching;
+  }
+
+  /**
+   * 隔空手势帧响应：检测右手在立体几何模型外部区域捏合以终止接线
+   */
+  public onHandGestureFrame(frame: any, context?: ExperimentContext): void {
+    if (!frame) return;
+    const right = frame.rightHand || (frame.hasHand && !frame.leftHand ? frame : null);
+    if (!right) return;
+
+    // 当右手触发捏合且当前正处于接线状态（已有起点或正在拖拽接线）时响应
+    if (right.justPinchStarted && (this.pendingStartPoint !== null || this.isConnectingDrag)) {
+      if (context?.camera && typeof this.mesh.isRayHittingModel === 'function') {
+        const mouseNDC = labPointerNDC(
+          { clientX: right.screenX, clientY: right.screenY },
+          context?.renderer?.domElement
+        );
+        this.internalRaycaster.setFromCamera(mouseNDC, context.camera);
+        const hitting = this.mesh.isRayHittingModel(this.internalRaycaster.ray);
+        if (!hitting) {
+          this.resetSelection(true);
+          this.callbacks.onGuidanceChange?.('右手在模型外捏合，接线已停止', 'info');
+        }
+      } else if (!context?.camera) {
+        // 无相机上下文测试环境
+        this.resetSelection(true);
+        this.callbacks.onGuidanceChange?.('右手在模型外捏合，接线已停止', 'info');
+      }
+    }
   }
 }

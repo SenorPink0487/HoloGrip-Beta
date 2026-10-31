@@ -1577,6 +1577,10 @@ touchManager.onPointerUp({ button: 0, clientX: t27Cx + 50, clientY: t27Cy, point
 assert.strictEqual((touchManager as any).pendingStartPoint?.id, 'v_0', 'Pending start point A must be preserved');
 
 (touchManager as any).handleClickOnPoint(kpVertexB);
+// 连续接线规则：以目标点 B 为新起点继续接线；在外部点击或显式复位时终止接线
+if ((touchManager as any).pendingStartPoint) {
+  touchManager.resetSelection();
+}
 assert.strictEqual((touchManager as any).pendingStartPoint, null, 'Connecting target B must clear pending start point');
 assert.strictEqual(touchMesh.getSegments().length, 1, 'Auxiliary line between A and B must be successfully created');
 
@@ -2377,8 +2381,122 @@ console.log('Test 35: 放大模型下世界尺度磁吸、字母标号吸附与 
 }
 console.log('✓ Test 35 passed: 放大模型下世界尺度磁吸、字母标号吸附与 Vision 隔空手势连线零旋转验证通过\n');
 
+// -------------------------------------------------------------
+// Test 36: 连续接线逻辑（以上段终点为新起点直到闭合为面）与模型外右手捏合停止接线
+// -------------------------------------------------------------
+console.log('Test 36: 连续接线逻辑（以上段终点为新起点直到闭合为面）与模型外右手捏合停止接线');
+{
+  const mesh36 = new StereometryMesh();
+  mesh36.setOptions({ modelType: 'cube' });
+  let currentGuidance = '';
+  let auxFaceCreated: any = null;
+
+  const mgr36 = new StereometryInteractionManager(mesh36, {
+    onGuidanceChange: (hint) => {
+      currentGuidance = hint;
+    },
+    onAuxiliaryFaceCreated: (face) => {
+      auxFaceCreated = face;
+    },
+  });
+
+  const cam36 = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  cam36.position.set(0, 0, 2);
+  cam36.lookAt(0, 0, 0);
+  cam36.updateMatrixWorld(true);
+  mesh36.modelContainer.updateMatrixWorld(true);
+
+  const ctx36 = {
+    ...mockContext,
+    camera: cam36,
+    renderer: {
+      ...mockContext.renderer,
+      domElement: {
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+      },
+    },
+  };
+
+  const modelDef = mesh36.getModelDef();
+  const kpA = modelDef.keyPoints.find((k) => k.id === 'v_0')!; // A
+  const kpB = modelDef.keyPoints.find((k) => k.id === 'v_1')!; // B
+  const kpC = modelDef.keyPoints.find((k) => k.id === 'v_2')!; // C
+  const kpD = modelDef.keyPoints.find((k) => k.id === 'v_3')!; // D
+
+  // --- 测试环节 1: 轻触点击连线连续接线（A -> B -> C -> A） ---
+  // 1.1 点击顶点 A 选为起点
+  (mgr36 as any).handleClickOnPoint(kpA);
+  assert.strictEqual((mgr36 as any).pendingStartPoint?.id, 'v_0', 'Pending start point must be A');
+
+  // 1.2 点击顶点 B，完成线段 AB
+  (mgr36 as any).handleClickOnPoint(kpB);
+  assert.strictEqual(mesh36.getSegments().length, 1, 'Segment AB must be created');
+  assert.strictEqual(mesh36.getAuxiliaryFaces().length, 0, 'No plane formed yet');
+  // 关键验证：完成一根线后不要断开，以上一段终点 B 作为起点继续接！
+  assert.strictEqual((mgr36 as any).pendingStartPoint?.id, 'v_1', 'End point B must become the new pending start point');
+  assert(currentGuidance.includes('以 B 为新起点继续接线'), `Guidance must announce continuation from B, got: ${currentGuidance}`);
+
+  // 1.3 点击顶点 C，完成线段 BC
+  (mgr36 as any).handleClickOnPoint(kpC);
+  assert.strictEqual(mesh36.getSegments().length, 2, 'Segment BC must be created');
+  assert.strictEqual(mesh36.getAuxiliaryFaces().length, 0, 'No plane formed yet');
+  // 关键验证：终点 C 成为新起点继续接！
+  assert.strictEqual((mgr36 as any).pendingStartPoint?.id, 'v_2', 'End point C must become the new pending start point');
+  assert(currentGuidance.includes('以 C 为新起点继续接线'), `Guidance must announce continuation from C, got: ${currentGuidance}`);
+
+  // 1.4 点击顶点 A，闭合连接 CA -> 形成三角形平面 ABC！
+  (mgr36 as any).handleClickOnPoint(kpA);
+  assert.strictEqual(mesh36.getSegments().length, 3, 'Segment CA must be created');
+  assert.strictEqual(mesh36.getAuxiliaryFaces().length, 1, 'Auxiliary face ABC must be created');
+  assert.notStrictEqual(auxFaceCreated, null, 'onAuxiliaryFaceCreated callback must be triggered');
+  // 关键验证：直到完成一个平面后接线结束断开！
+  assert.strictEqual((mgr36 as any).pendingStartPoint, null, 'Pending start point must be cleared after plane completion');
+  assert(currentGuidance.includes('平面构建完成'), `Guidance must announce plane completion, got: ${currentGuidance}`);
+
+  // --- 测试环节 2: 模型外右手捏合（或点击）立即终止接线 ---
+  // 2.1 重新点击 D 选为新起点
+  (mgr36 as any).handleClickOnPoint(kpD);
+  assert.strictEqual((mgr36 as any).pendingStartPoint?.id, 'v_3', 'Pending start point must be D');
+
+  // 2.2 模拟右手在立体几何模型外部区域（屏幕边缘空白处 40, 40）捏合按下
+  const visionPinchOutside = {
+    button: 0,
+    clientX: 40,
+    clientY: 40,
+    pointerId: 1,
+    pointerType: 'mouse',
+    __visionGesture: true,
+  } as unknown as PointerEvent;
+
+  mgr36.onPointerDown(visionPinchOutside, null, ctx36);
+
+  // 关键验证：在模型外部捏合立即终止接线！
+  assert.strictEqual((mgr36 as any).pendingStartPoint, null, 'Pending start point must be cleared immediately when pinching outside model');
+  assert.strictEqual(currentGuidance, '右手在模型外捏合，接线已停止', `Guidance must report right hand pinch stop, got: ${currentGuidance}`);
+
+  // 2.3 测试通过 onHandGestureFrame 右手捏合外部区域终止接线
+  (mgr36 as any).handleClickOnPoint(kpD);
+  assert.strictEqual((mgr36 as any).pendingStartPoint?.id, 'v_3', 'Pending start point must be D again');
+
+  const rightHandPinchFrame = {
+    hasHand: true,
+    rightHand: {
+      screenX: 40,
+      screenY: 40,
+      isPinching: true,
+      justPinchStarted: true,
+    },
+  };
+  mgr36.onHandGestureFrame(rightHandPinchFrame, ctx36);
+  assert.strictEqual((mgr36 as any).pendingStartPoint, null, 'onHandGestureFrame pinch outside model must stop line connection');
+  assert.strictEqual(currentGuidance, '右手在模型外捏合，接线已停止', `Guidance must report right hand pinch stop, got: ${currentGuidance}`);
+
+  mesh36.dispose();
+}
+console.log('✓ Test 36 passed: 连续接线逻辑（终点作为新起点直到闭合为面）与模型外右手捏合停止接线验证通过\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (35/35)!');
+console.log('All High School Stereometry Tests Passed Successfully (36/36)!');
 console.log('========================================================');
 
 

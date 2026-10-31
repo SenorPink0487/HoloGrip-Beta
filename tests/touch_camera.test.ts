@@ -41,8 +41,12 @@ class MockElement extends EventSurface {
   }
   closest(selector: string): MockElement | null {
     for (let node: MockElement | null = this; node; node = node.parentElement) {
-      if (selector.split(',').some(s => s.trim() === node!.tagName.toLowerCase() ||
-        (node!.id && s.trim() === `#${node!.id}`))) return node;
+      if (selector.split(',').some(s => {
+        const item = s.trim();
+        return item === node!.tagName.toLowerCase() ||
+          (node!.id && item === `#${node!.id}`) ||
+          (item.startsWith('.') && node!.classes.has(item.slice(1)));
+      })) return node;
     }
     return null;
   }
@@ -102,9 +106,8 @@ win.emit('touchmove', event([finger(1, 700)]));
 assert.equal(player.yaw, releasedYaw, 'Instrument ownership must not resume a stale camera drag');
 end();
 
-for (const blocked of ['instrument', 'modal', 'entry', 'whiteboard', 'handTracking']) {
+for (const blocked of ['instrument', 'entry', 'whiteboard', 'handTracking']) {
   engine.isExperimentInteracting = blocked === 'instrument';
-  engine.visionModal.visible = blocked === 'modal';
   engine.labEntryActive = blocked === 'entry';
   engine.isWhiteboardMode = blocked === 'whiteboard';
   controller.isHandTrackingActive = blocked === 'handTracking';
@@ -115,6 +118,44 @@ for (const blocked of ['instrument', 'modal', 'entry', 'whiteboard', 'handTracki
   end();
 }
 controller.isHandTrackingActive = false;
+
+// 触摸屏操作中：悬浮视窗（VisionModal）打开的状态下也要能够转动视角
+engine.visionModal.visible = true;
+const modalYawBefore = player.yaw;
+start();
+win.emit('touchmove', event([finger(1, 650)]));
+assert.notEqual(player.yaw, modalYawBefore, 'Swiping on canvas while visionModal is open must rotate camera');
+end();
+
+// 悬浮视窗标题栏（带拖拽条区域）允许作为视角转动把手
+const header = new MockElement('div');
+header.classList.add('vision-window-header');
+const headerYawBefore = player.yaw;
+win.emit('touchstart', event([finger(1)], undefined, header));
+win.emit('touchmove', event([finger(1, 650)], undefined, header));
+assert.notEqual(player.yaw, headerYawBefore, 'Dragging on vision window header must rotate camera');
+win.emit('touchend', event([finger(1)], [], header));
+
+// 悬浮视窗内部主体内容（卡片与滚动列表）绝不误触发相机旋转
+const bodyContent = new MockElement('div');
+bodyContent.classList.add('vision-window-body');
+const bodyYawBefore = player.yaw;
+win.emit('touchstart', event([finger(1)], undefined, bodyContent));
+win.emit('touchmove', event([finger(1, 650)], undefined, bodyContent));
+assert.equal(player.yaw, bodyYawBefore, 'Touching inside vision window body must not drag camera');
+win.emit('touchend', event([finger(1)], [], bodyContent));
+
+// 悬浮视窗内部按钮交互绝不误触发相机旋转
+const modalBtn = new MockElement('button');
+modalBtn.classList.add('vision-window-btn');
+const btnYawBefore = player.yaw;
+win.emit('touchstart', event([finger(1)], undefined, modalBtn));
+win.emit('touchmove', event([finger(1, 650)], undefined, modalBtn));
+assert.equal(player.yaw, btnYawBefore, 'Clicking button inside modal must not drag camera');
+win.emit('touchend', event([finger(1)], [], modalBtn));
+
+engine.visionModal.visible = false;
+player.yaw = releasedYaw;
 
 // Stereometry: touching outside interactive 3D model rotates camera perspective;
 // touching on model (instrument interacting) blocks camera drag.
