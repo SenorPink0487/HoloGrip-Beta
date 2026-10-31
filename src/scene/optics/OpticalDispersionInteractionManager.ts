@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import type { PrismMaterialType } from './OpticalPhysics.ts';
 import {
-  DISPERSION_BENCH,
   OpticalDispersionBenchMesh,
   type OpticalDispersionTelemetry,
 } from './OpticalDispersionBenchMesh.ts';
@@ -18,13 +17,13 @@ export class OpticalDispersionInteractionManager {
   private bench: OpticalDispersionBenchMesh;
   private rootGroup: THREE.Group;
   private callbacks: OpticalDispersionInteractionCallbacks;
-  private dragMode: 'none' | 'prism' | 'slit' | 'screen' = 'none';
+  private dragMode: 'none' | 'prism' | 'screen' = 'none';
   private dragPlane = new THREE.Plane();
   private dragStartPointer = new THREE.Vector3();
-  private dragStartScreenX = 0;
+  private dragStartDistance = 0;
+  private dragDirection = new THREE.Vector3();
   private dragStartClientX = 0;
   private dragStartAngle = 0;
-  private dragStartSlit = 0;
 
   constructor(
     bench: OpticalDispersionBenchMesh,
@@ -47,9 +46,6 @@ export class OpticalDispersionInteractionManager {
     if (this.dragMode === 'prism') {
       return { id: 'prism_turntable', label: `转动三棱镜 · 入射角 ${this.bench.incidentAngleDeg.toFixed(1)}°`, cursor: 'ew-resize' };
     }
-    if (this.dragMode === 'slit') {
-      return { id: 'slit_micrometer', label: `狭缝宽度 ${this.bench.slitWidthMm.toFixed(2)} mm`, cursor: 'ew-resize' };
-    }
 
     const hits = raycaster.intersectObjects(this.bench.getInteractiveObjects(), false);
     if (hits.length === 0) return null;
@@ -65,9 +61,6 @@ export class OpticalDispersionInteractionManager {
       }
       if (id === 'prism_turntable') {
         return { id, label: `拖动三棱镜改变入射角 · ${this.bench.incidentAngleDeg.toFixed(1)}°`, cursor: 'ew-resize' };
-      }
-      if (id === 'slit_micrometer') {
-        return { id, label: `拖动测微手轮 · 缝宽 ${this.bench.slitWidthMm.toFixed(2)} mm`, cursor: 'ew-resize' };
       }
       if (id === 'screen_carrier') {
         return { id, label: `拖动白屏 · ${(this.bench.screenDistanceM * 1000).toFixed(0)} mm`, cursor: 'grab' };
@@ -106,18 +99,12 @@ export class OpticalDispersionInteractionManager {
       this.dragStartAngle = this.bench.incidentAngleDeg;
       return true;
     }
-    if (targetId === 'slit_micrometer') {
-      this.dragMode = 'slit';
-      this.dragStartClientX = event.clientX ?? 0;
-      this.dragStartSlit = this.bench.slitWidthMm;
-      return true;
-    }
     if (targetId === 'screen_carrier') {
       this.dragMode = 'screen';
-      this.dragStartScreenX = this.bench.getScreenX();
-      const normal = new THREE.Vector3(0, 0, 1).transformDirection(this.rootGroup.matrixWorld);
-      const center = new THREE.Vector3(this.dragStartScreenX, DISPERSION_BENCH.beamY, 0).applyMatrix4(this.rootGroup.matrixWorld);
-      this.dragPlane.setFromNormalAndCoplanarPoint(normal, center);
+      this.dragStartDistance = this.bench.screenDistanceM;
+      this.dragDirection.copy(this.bench.getProjection().screenNormal);
+      const normal = new THREE.Vector3(0, 1, 0).transformDirection(this.rootGroup.matrixWorld);
+      this.dragPlane.setFromNormalAndCoplanarPoint(normal, hit.point);
       this.dragStartPointer.copy(hit.point);
       return true;
     }
@@ -131,7 +118,7 @@ export class OpticalDispersionInteractionManager {
       const inverse = new THREE.Matrix4().copy(this.rootGroup.matrixWorld).invert();
       const current = point.clone().applyMatrix4(inverse);
       const start = this.dragStartPointer.clone().applyMatrix4(inverse);
-      this.bench.setScreenX(this.dragStartScreenX + current.x - start.x);
+      this.bench.setScreenDistance(this.dragStartDistance + current.sub(start).dot(this.dragDirection));
       this.callbacks.onScreenDistanceChange?.(this.bench.screenDistanceM, this.bench.getTelemetry());
       return;
     }
@@ -144,12 +131,6 @@ export class OpticalDispersionInteractionManager {
       this.bench.setIncidentAngle(base + delta);
       this.callbacks.onIncidentAngleChange?.(this.bench.incidentAngleDeg);
       return;
-    }
-    if (this.dragMode === 'slit') {
-      const delta = locked ? (event.movementX ?? 0) * 0.01 : (clientX - this.dragStartClientX) * 0.01;
-      const base = locked ? this.bench.slitWidthMm : this.dragStartSlit;
-      this.bench.setSlitWidth(base + delta);
-      this.callbacks.onSlitWidthChange?.(this.bench.slitWidthMm);
     }
   }
 

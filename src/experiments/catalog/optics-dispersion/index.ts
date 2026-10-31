@@ -22,8 +22,8 @@ export default class OpticsDispersionExperiment extends BaseExperiment {
   private internalRaycaster = new THREE.Raycaster();
 
   public init(context: ExperimentContext): void {
-    // 将光学导轨水平横放于全息实验台工作区，四角调平底脚平贴桌面 (Y=0.114)，沿 Z 轴向操作者前方排布 (Z=1.05)，使整套光具座与白屏完全落在圆桌台面与黄铜饰圈之内
-    this.rootGroup.position.set(0, 0.114, 1.05);
+    // 器材靠近操作者一侧桌沿，回转接光臂在全调角范围内保持位于桌面上。
+    this.rootGroup.position.set(-0.12, 0.114, 0.72);
     this.rootGroup.rotation.set(0, 0, 0);
 
     this.bench = this.track(new OpticalDispersionBenchMesh());
@@ -41,10 +41,6 @@ export default class OpticsDispersionExperiment extends BaseExperiment {
       },
       onMaterialChange: (material) => {
         context.setParameter('prismMaterial', material);
-        this.latestTelemetry = this.bench.getTelemetry();
-      },
-      onSlitWidthChange: (mm) => {
-        context.setParameter('slitWidth', Number(mm.toFixed(2)));
         this.latestTelemetry = this.bench.getTelemetry();
       },
       onScreenDistanceChange: (meters, telemetry) => {

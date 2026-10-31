@@ -741,22 +741,6 @@ export class Engine {
       await this.switchExperiment(id);
     });
 
-    this.hud.drawer.onToggle = (isOpen: boolean) => {
-      if (isOpen) {
-        this.cancelLabInteraction();
-        this.inputManager.player.exitLock();
-        this.inputManager.player.allowPointerLock = false;
-        this.crosshair.setVisible(false);
-      } else {
-        if (!this.visionModal || !this.visionModal.visible) {
-          this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
-          if (!this.labEntryActive && !this.isWhiteboardMode && !this.isFreeCursorExperiment(this.currentExperimentId)) {
-            this.crosshair.setVisible(true);
-          }
-        }
-      }
-    };
-
     this.crosshair = new Crosshair(document.body, Boolean(this.inputManager.touch));
   }
 
@@ -892,7 +876,7 @@ export class Engine {
         this.spatialWindowObject.visible = false;
         this.inputManager?.touch?.setVisionModalOpen(false);
         this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
-        if (!this.labEntryActive && !this.isWhiteboardMode && (!this.hud?.drawer || !this.hud.drawer.open) && !this.isFreeCursorExperiment(this.currentExperimentId)) {
+        if (!this.labEntryActive && !this.isWhiteboardMode && !this.isFreeCursorExperiment(this.currentExperimentId)) {
           this.crosshair.setVisible(true);
         }
         this.isExperimentInteracting = false;
@@ -1438,9 +1422,8 @@ export class Engine {
     }
 
     this.inputManager.player.onLockChange = (isLocked: boolean) => {
-      const isDrawerOpen = this.hud?.drawer?.open ?? false;
       const isModalOpen = this.visionModal?.visible ?? false;
-      if (!this.labEntryActive && !this.isWhiteboardMode && !isModalOpen && !isDrawerOpen && !this.isFreeCursorExperiment(this.currentExperimentId)) {
+      if (!this.labEntryActive && !this.isWhiteboardMode && !isModalOpen && !this.isFreeCursorExperiment(this.currentExperimentId)) {
         this.crosshair.setVisible(true);
       } else {
         this.crosshair.setVisible(false);
@@ -1530,8 +1513,7 @@ export class Engine {
           this.crosshair &&
           !this.labEntryActive &&
           !this.isWhiteboardMode &&
-          (!this.visionModal || !this.visionModal.visible) &&
-          (!this.hud?.drawer || !this.hud.drawer.open)
+          (!this.visionModal || !this.visionModal.visible)
         ) {
           this.crosshair.setVisible(true);
         }
@@ -1794,7 +1776,6 @@ export class Engine {
           !this.labEntryActive &&
           (!this.visionModal || !this.visionModal.visible) &&
           !this.isWhiteboardMode &&
-          (!this.hud?.drawer || !this.hud.drawer.open) &&
           this.currentExperimentId !== 'math-stereometry' &&
           this.currentExperimentId !== 'em-hand-rules'
         ) {
@@ -1823,6 +1804,16 @@ export class Engine {
       // 在电磁定则手势板块中，左右手需自由做出螺旋与定则姿势，不触发相机视角旋转
       if (this.currentExperimentId === 'em-hand-rules') {
         return;
+      }
+      // 实验交互互斥：当用户正在直接操作 3D 实验器材或数学 3D 模型连线/选点时，严禁触发视角旋转！
+      if (this.isExperimentInteracting) {
+        return;
+      }
+      if (this.currentExperimentId === 'math-stereometry') {
+        const mathExp = this.holoStage?.activeExperiment as any;
+        if (mathExp?.isVisionModelInteracting?.() || mathExp?.isModelInteracting?.()) {
+          return;
+        }
       }
       // 触控互斥：当移动设备上的虚拟摇杆正在被按压操作时，抑制手势视角旋转
       if (this.inputManager?.touch?.isJoystickActive()) {
@@ -1939,10 +1930,10 @@ export class Engine {
     if (this.labPointers.active) return;
     this.inputManager.player.enabled = !this.labEntryActive;
     this.inputManager.player.allowPointerLock = !this.labEntryActive &&
-      !this.visionModal?.visible && !this.hud?.drawer?.open &&
+      !this.visionModal?.visible &&
       this.handGestureService?.getStatus() !== 'running' && !this.isFreeCursorExperiment(this.currentExperimentId);
     this.crosshair?.setVisible(!this.labEntryActive && !this.visionModal?.visible &&
-      !this.hud?.drawer?.open && !this.isWhiteboardMode &&
+      !this.isWhiteboardMode &&
       !this.isFreeCursorExperiment(this.currentExperimentId));
   }
 
@@ -2399,7 +2390,7 @@ export class Engine {
       !this.crosshair ||
       (!freeCursor && !this.crosshair.getVisible()) ||
       (this.visionModal && this.visionModal.visible) ||
-      this.labEntryActive || this.isWhiteboardMode || this.hud?.drawer?.open
+      this.labEntryActive || this.isWhiteboardMode
     ) {
       return;
     }
@@ -2626,7 +2617,7 @@ export class Engine {
       if (this.renderer?.shadowMap?.enabled) {
         this.renderer.shadowMap.needsUpdate = true;
       }
-      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && (!this.hud?.drawer || !this.hud.drawer.open) && !this.isFreeCursorExperiment(this.currentExperimentId)) {
+      if (!this.labEntryActive && this.crosshair && (!this.visionModal || !this.visionModal.visible) && !this.isFreeCursorExperiment(this.currentExperimentId)) {
         this.crosshair.setVisible(true);
       }
     } else if (this.isWhiteboardMode) {

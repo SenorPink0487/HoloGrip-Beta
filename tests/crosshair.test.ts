@@ -133,13 +133,11 @@ console.log('✓ Test 3 passed: Hover state and label updates verified\n');
 // Test 4: View Mode & Multi-State Interaction Matrix
 console.log('Test 4: State Machine Crosshair Visibility Invariants');
 let isWhiteboardMode = true;
-let isDrawerOpen = false;
 let isModalOpen = false;
 let isDragging = false;
 
 const computeExpectedCrosshairVisibility = () => {
   if (isWhiteboardMode) return false;
-  if (isDrawerOpen) return false;
   if (isModalOpen) return false;
   if (isDragging) return false;
   return true;
@@ -152,20 +150,13 @@ assert.strictEqual(computeExpectedCrosshairVisibility(), false, 'Hidden in white
 isWhiteboardMode = false;
 assert.strictEqual(computeExpectedCrosshairVisibility(), true, 'Visible in lab mode');
 
-// Drawer opened: must be hidden
-isDrawerOpen = true;
-assert.strictEqual(computeExpectedCrosshairVisibility(), false, 'Hidden when drawer is open');
-
-// Drawer closed: must be restored
-isDrawerOpen = false;
-assert.strictEqual(computeExpectedCrosshairVisibility(), true, 'Visible when drawer closes');
-
 // Modal opened: must be hidden
 isModalOpen = true;
 assert.strictEqual(computeExpectedCrosshairVisibility(), false, 'Hidden when modal is open');
 
 // Modal closed: must be restored
 isModalOpen = false;
+assert.strictEqual(computeExpectedCrosshairVisibility(), true, 'Visible when modal closes');
 assert.strictEqual(computeExpectedCrosshairVisibility(), true, 'Visible when modal closes');
 
 // Beaker dragging started: must be hidden

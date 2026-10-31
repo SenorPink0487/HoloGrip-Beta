@@ -97,8 +97,16 @@ export class TouchController {
 
   private isSceneLookBlocked(): boolean {
     const engine = typeof window !== 'undefined' ? (window as any).__ENGINE__ : null;
-    return Boolean(engine?.isExperimentInteracting || engine?.labEntryActive ||
-      engine?.isWhiteboardMode || engine?.visionModal?.visible || engine?.hud?.drawer?.open);
+    const mathInteracting =
+      engine?.currentExperimentId === 'math-stereometry' &&
+      Boolean(engine?.holoStage?.activeExperiment?.isModelInteracting?.());
+    return Boolean(
+      engine?.isExperimentInteracting ||
+      mathInteracting ||
+      engine?.labEntryActive ||
+      engine?.isWhiteboardMode ||
+      engine?.visionModal?.visible
+    );
   }
 
   public setHandTrackingActive(active: boolean): void {
@@ -119,7 +127,7 @@ export class TouchController {
       if (this.isDraggingJoystick) {
         this.isDraggingJoystick = false;
         this.joystickTouchId = null;
-        this.joystickBase?.classList?.remove?.('is-active', 'dir-up', 'dir-down', 'dir-left', 'dir-right');
+        this.joystickBase?.classList?.remove?.('is-active');
         this.joystickKnob?.classList?.remove?.('dragging', 'sprinting');
         this.player.keys.forward = false;
         this.player.keys.backward = false;
@@ -151,23 +159,13 @@ export class TouchController {
 
     document.body.classList.add('has-touch-controls');
 
-    // 创建虚拟摇杆与全息视窗启动器 DOM 元素
+    // 创建虚拟摇杆与悬浮窗口启动器 DOM 元素
     const wrapper = document.createElement('div');
     wrapper.id = 'touch-controls-layer';
     wrapper.innerHTML = `
       <!-- Bottom-Left: Minimalist Glassmorphic Movement Joystick -->
       <div id="virtual-joystick-base" class="hud-interactive" aria-label="移动摇杆">
-        <div class="vj-compass-pip vj-pip-n" title="前"></div>
-        <div class="vj-compass-pip vj-pip-s" title="后"></div>
-        <div class="vj-compass-pip vj-pip-w" title="左"></div>
-        <div class="vj-compass-pip vj-pip-e" title="右"></div>
-        <div class="vj-axis-cross vj-axis-x"></div>
-        <div class="vj-axis-cross vj-axis-y"></div>
-        <div class="vj-guide-ring"></div>
-        <div id="virtual-joystick-knob">
-          <div class="vj-knob-ridge"></div>
-          <div class="vj-knob-core"></div>
-        </div>
+        <div id="virtual-joystick-knob" aria-hidden="true"></div>
       </div>
 
       <!-- Bottom-Right (Above Launcher): Minimalist Elevation Controls -->
@@ -186,7 +184,7 @@ export class TouchController {
       </div>
 
       <!-- Bottom-Right: Minimalist Spatial Window Capsule Button -->
-      <button id="touch-vision-launcher" class="hud-interactive" type="button" aria-label="全息实验视窗" title="打开全息实验视窗">
+      <button id="touch-vision-launcher" class="hud-interactive" type="button" aria-label="悬浮窗口" title="打开悬浮窗口">
         <div class="touch-launcher-content">
           <svg class="touch-launcher-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="14" rx="3.5"/>
@@ -194,16 +192,21 @@ export class TouchController {
             <circle cx="6" cy="6.25" r="0.7" fill="currentColor"/>
             <circle cx="8.5" cy="6.25" r="0.7" fill="currentColor"/>
           </svg>
-          <span class="touch-launcher-label">全息视窗</span>
+          <span class="touch-launcher-label">悬浮窗口</span>
         </div>
       </button>
     `;
 
-    // 虚拟摇杆与悬浮视窗启动器的空间流体玻璃风格样式
+    // 底部控件与顶部手势胶囊统一使用浅色磨砂玻璃材质。
     const style = document.createElement('style');
     style.id = 'touch-controls-style';
     style.textContent = `
       #touch-controls-layer {
+        --touch-glass-bg: rgba(255, 255, 255, 0.72);
+        --touch-glass-border: rgba(0, 0, 0, 0.12);
+        --touch-glass-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
+                              inset 0 1px 1px rgba(255, 255, 255, 0.85);
+        --touch-control-ink: #000000;
         position: fixed;
         inset: 0;
         width: 100%;
@@ -222,18 +225,17 @@ export class TouchController {
         width: 118px;
         height: 118px;
         border-radius: 50%;
-        background: rgba(15, 23, 42, 0.45);
-        border: 0.5px solid rgba(255, 255, 255, 0.22);
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32),
-                    inset 0 1px 1px rgba(255, 255, 255, 0.25);
-        backdrop-filter: blur(28px) saturate(190%);
-        -webkit-backdrop-filter: blur(28px) saturate(190%);
+        background: var(--touch-glass-bg);
+        border: 0.5px solid var(--touch-glass-border);
+        box-shadow: var(--touch-glass-shadow);
+        backdrop-filter: blur(28px) saturate(180%);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
         display: flex;
         align-items: center;
         justify-content: center;
         pointer-events: auto;
         touch-action: none;
-        opacity: 0.90;
+        opacity: 0.94;
         transform: translate3d(0, 0, 0) scale(1);
         filter: blur(0px);
         transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
@@ -248,56 +250,10 @@ export class TouchController {
       #virtual-joystick-base:active,
       #virtual-joystick-base.is-active {
         opacity: 0.98;
-        background: rgba(15, 23, 42, 0.60);
-        border-color: rgba(255, 255, 255, 0.38);
-        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.38),
-                    inset 0 1px 1.5px rgba(255, 255, 255, 0.35);
-      }
-
-      .vj-guide-ring {
-        position: absolute;
-        width: 88px;
-        height: 88px;
-        border-radius: 50%;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        pointer-events: none;
-      }
-
-      .vj-axis-cross {
-        position: absolute;
-        pointer-events: none;
-        background: rgba(255, 255, 255, 0.08);
-      }
-      .vj-axis-x {
-        width: 80px;
-        height: 1px;
-      }
-      .vj-axis-y {
-        width: 1px;
-        height: 80px;
-      }
-
-      .vj-compass-pip {
-        position: absolute;
-        width: 3.5px;
-        height: 3.5px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.30);
-        pointer-events: none;
-        transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
-      }
-      .vj-pip-n { top: 9px; }
-      .vj-pip-s { bottom: 9px; }
-      .vj-pip-w { left: 9px; }
-      .vj-pip-e { right: 9px; }
-
-      #virtual-joystick-base.dir-up .vj-pip-n,
-      #virtual-joystick-base.dir-down .vj-pip-s,
-      #virtual-joystick-base.dir-left .vj-pip-w,
-      #virtual-joystick-base.dir-right .vj-pip-e {
-        background: #ffffff;
-        box-shadow: 0 0 8px rgba(255, 255, 255, 0.75);
-        transform: scale(1.3);
+        background: rgba(255, 255, 255, 0.85);
+        border-color: rgba(0, 0, 0, 0.18);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16),
+                    inset 0 1px 1px rgba(255, 255, 255, 0.95);
       }
 
       #virtual-joystick-knob {
@@ -308,12 +264,9 @@ export class TouchController {
         display: flex;
         align-items: center;
         justify-content: center;
-        background: radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.35) 0%, rgba(30, 41, 59, 0.65) 60%, rgba(15, 23, 42, 0.85) 100%);
-        border: 0.5px solid rgba(255, 255, 255, 0.50);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.38),
-                    inset 0 1.5px 2px rgba(255, 255, 255, 0.70);
-        backdrop-filter: blur(20px) saturate(190%);
-        -webkit-backdrop-filter: blur(20px) saturate(190%);
+        background: rgba(255, 255, 255, 0.90);
+        border: 0.5px solid var(--touch-glass-border);
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.10);
         pointer-events: none;
         transform: translate(0px, 0px);
         transition: transform 0.24s cubic-bezier(0.18, 0.9, 0.3, 1), box-shadow 0.2s ease;
@@ -321,44 +274,14 @@ export class TouchController {
 
       #virtual-joystick-knob.dragging {
         transition: none;
-        background: radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.48) 0%, rgba(30, 41, 59, 0.75) 60%, rgba(15, 23, 42, 0.90) 100%);
-        border-color: rgba(255, 255, 255, 0.75);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45),
-                    inset 0 1.5px 2.5px #ffffff,
-                    0 0 12px rgba(255, 255, 255, 0.25);
+        background: #ffffff;
+        border-color: rgba(0, 0, 0, 0.20);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
       }
 
       #virtual-joystick-knob.sprinting {
-        transform: scale(1.04);
-        border-color: rgba(255, 255, 255, 0.85);
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.48),
-                    inset 0 1px 2px #ffffff,
-                    0 0 16px rgba(255, 255, 255, 0.35);
-      }
-
-      .vj-knob-ridge {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        border: 0.5px solid rgba(255, 255, 255, 0.25);
-        background: rgba(255, 255, 255, 0.06);
-        pointer-events: none;
-      }
-
-      .vj-knob-core {
-        position: absolute;
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        background: #ffffff;
-        box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
-        pointer-events: none;
-        transition: background 0.15s ease, transform 0.15s ease;
-      }
-
-      #virtual-joystick-knob.dragging .vj-knob-core {
-        background: #ffffff;
-        box-shadow: 0 0 8px rgba(255, 255, 255, 0.95);
+        border-color: rgba(0, 0, 0, 0.25);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
       }
 
       /* ==================== 2. 升降上下控制胶囊（右下角） ==================== */
@@ -370,18 +293,17 @@ export class TouchController {
         display: flex;
         flex-direction: column;
         align-items: center;
-        background: rgba(15, 23, 42, 0.45);
-        border: 0.5px solid rgba(255, 255, 255, 0.22);
+        background: var(--touch-glass-bg);
+        border: 0.5px solid var(--touch-glass-border);
         border-radius: 22px;
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32),
-                    inset 0 1px 1px rgba(255, 255, 255, 0.25);
-        backdrop-filter: blur(28px) saturate(190%);
-        -webkit-backdrop-filter: blur(28px) saturate(190%);
+        box-shadow: var(--touch-glass-shadow);
+        backdrop-filter: blur(28px) saturate(180%);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
         pointer-events: auto;
         user-select: none;
         -webkit-user-select: none;
         overflow: hidden;
-        opacity: 0.90;
+        opacity: 0.94;
         transform: translate3d(0, 0, 0) scale(1);
         filter: blur(0px);
         transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
@@ -398,7 +320,7 @@ export class TouchController {
         height: 42px;
         border: none;
         background: transparent;
-        color: rgba(255, 255, 255, 0.90);
+        color: var(--touch-control-ink);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -413,21 +335,21 @@ export class TouchController {
       }
 
       .touch-elevate-btn:hover {
-        background: rgba(255, 255, 255, 0.16);
-        color: #ffffff;
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--touch-control-ink);
       }
 
       .touch-elevate-btn:active,
       .touch-elevate-btn.is-pressed {
-        background: rgba(255, 255, 255, 0.26);
-        color: #ffffff;
+        background: rgba(0, 0, 0, 0.09);
+        color: var(--touch-control-ink);
         transform: scale(0.92);
       }
 
       .touch-elevate-divider {
         width: 24px;
         height: 0.5px;
-        background: rgba(255, 255, 255, 0.18);
+        background: rgba(0, 0, 0, 0.15);
         pointer-events: none;
       }
 
@@ -451,13 +373,12 @@ export class TouchController {
         padding: 0 16px 0 13px;
         height: 44px;
         border-radius: 22px;
-        border: 0.5px solid rgba(255, 255, 255, 0.22);
-        background: rgba(15, 23, 42, 0.45);
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32),
-                    inset 0 1px 1px rgba(255, 255, 255, 0.25);
-        backdrop-filter: blur(28px) saturate(190%);
-        -webkit-backdrop-filter: blur(28px) saturate(190%);
-        color: rgba(255, 255, 255, 0.90);
+        border: 0.5px solid var(--touch-glass-border);
+        background: var(--touch-glass-bg);
+        box-shadow: var(--touch-glass-shadow);
+        backdrop-filter: blur(28px) saturate(180%);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+        color: var(--touch-control-ink);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -468,7 +389,7 @@ export class TouchController {
         user-select: none;
         -webkit-user-select: none;
         -webkit-tap-highlight-color: transparent;
-        opacity: 0.90;
+        opacity: 0.94;
         transform: translate3d(0, 0, 0) scale(1);
         filter: blur(0px);
         transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
@@ -482,24 +403,24 @@ export class TouchController {
       }
 
       #touch-vision-launcher:hover {
-        background: rgba(15, 23, 42, 0.58);
-        border-color: rgba(255, 255, 255, 0.35);
-        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.38), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+        background: rgba(255, 255, 255, 0.85);
+        border-color: rgba(0, 0, 0, 0.18);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16), inset 0 1px 1px rgba(255, 255, 255, 0.95);
       }
 
       #touch-vision-launcher:active,
       #touch-vision-launcher.is-pressed {
         transform: scale(0.94);
-        background: rgba(255, 255, 255, 0.22);
-        border-color: rgba(255, 255, 255, 0.42);
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.30), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+        background: rgba(241, 245, 249, 0.90);
+        border-color: rgba(0, 0, 0, 0.20);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.95);
       }
 
       #touch-vision-launcher.is-open {
-        background: rgba(255, 255, 255, 0.24);
-        border-color: rgba(255, 255, 255, 0.50);
-        color: #ffffff;
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32), inset 0 1px 1.5px rgba(255, 255, 255, 0.55);
+        background: rgba(255, 255, 255, 0.90);
+        border-color: rgba(0, 0, 0, 0.22);
+        color: var(--touch-control-ink);
+        box-shadow: var(--touch-glass-shadow);
       }
 
       .touch-launcher-content {
@@ -522,7 +443,7 @@ export class TouchController {
       }
 
       .touch-launcher-label {
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", -apple-system-subheadline, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
         font-size: 13.5px;
         font-weight: 500;
         letter-spacing: -0.2px;
@@ -537,27 +458,9 @@ export class TouchController {
           width: 138px;
           height: 138px;
         }
-        .vj-guide-ring {
-          width: 104px;
-          height: 104px;
-        }
-        .vj-axis-cross.vj-axis-x {
-          width: 96px;
-        }
-        .vj-axis-cross.vj-axis-y {
-          height: 96px;
-        }
         #virtual-joystick-knob {
           width: 54px;
           height: 54px;
-        }
-        .vj-knob-ridge {
-          width: 36px;
-          height: 36px;
-        }
-        .vj-knob-core {
-          width: 4.5px;
-          height: 4.5px;
         }
         #touch-elevation-controls {
           bottom: calc(96px + env(safe-area-inset-bottom, 0px));
@@ -721,7 +624,7 @@ export class TouchController {
         if (touch.identifier === this.joystickTouchId) {
           this.isDraggingJoystick = false;
           this.joystickTouchId = null;
-          this.joystickBase?.classList.remove('is-active', 'dir-up', 'dir-down', 'dir-left', 'dir-right');
+          this.joystickBase?.classList.remove('is-active');
           this.joystickKnob?.classList.remove('dragging', 'sprinting');
           this.player.keys.forward = false;
           this.player.keys.backward = false;
@@ -982,13 +885,5 @@ export class TouchController {
     this.player.keys.left = isLeft;
     this.player.keys.right = isRight;
     this.player.keys.sprint = dist > this.maxRadius * 0.85;
-
-    // 四向方位视觉反馈
-    if (this.joystickBase) {
-      this.joystickBase.classList.toggle('dir-up', isForward);
-      this.joystickBase.classList.toggle('dir-down', isBackward);
-      this.joystickBase.classList.toggle('dir-left', isLeft);
-      this.joystickBase.classList.toggle('dir-right', isRight);
-    }
   }
 }

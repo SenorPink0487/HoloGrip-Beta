@@ -73,13 +73,13 @@ export const PRISM_MATERIALS: Record<PrismMaterialType, PrismMaterialSpec> = {
   },
   diamond: {
     id: 'diamond',
-    name: '高色散光学金刚石晶棱镜 (极强色散)',
-    nameEn: 'High-Dispersion Diamond Crystal',
-    nd: 1.7780,
-    cauchyA: 1.7250,
-    cauchyB: 0.01780,
-    cauchyC: 0.00014,
-    abbeNumber: 21.40,
+    name: '光学金刚石晶棱镜',
+    nameEn: 'Diamond Crystal',
+    nd: 2.4175,
+    cauchyA: 2.3780,
+    cauchyB: 0.0134,
+    cauchyC: 0.0,
+    abbeNumber: 55.3,
     tintHex: 0xd4d0e2,
     emissiveHex: 0x6366f1,
   },
@@ -655,6 +655,11 @@ export class OpticalPhysics {
     const lambdaUm = Math.max(0.35, Math.min(0.85, wavelengthNm / 1000.0));
     const l2 = lambdaUm * lambdaUm;
     const l4 = l2 * l2;
+    if (material === 'diamond') {
+      // Peter Sellmeier fit, visible spectrum; Diamond Materials, CVD Diamond Booklet, p.7:
+      // https://www.diamond-materials.com/downloads/cvd_diamond_booklet.pdf
+      return Math.sqrt(1 + 0.3306 * l2 / (l2 - 0.175 ** 2) + 4.3356 * l2 / (l2 - 0.106 ** 2));
+    }
     return spec.cauchyA + spec.cauchyB / l2 + spec.cauchyC / l4;
   }
 
@@ -723,7 +728,7 @@ export class OpticalPhysics {
 
     // 3. 第二光学界面出射折射或内部全反射 (Prism Glass -> Air)
     const sinTheta4 = n * Math.sin(theta3Rad);
-    if (sinTheta4 >= 0.99995) {
+    if (sinTheta4 > 1.0) {
       // 发生第二界面全反射 (TIR)：紫端或全光谱截止
       const emergenceDeg = Math.abs(theta3Deg);
       const internalDevDeg = theta1Deg + (180.0 - 2.0 * theta3Deg) - alphaDeg;
@@ -745,7 +750,7 @@ export class OpticalPhysics {
       };
     }
 
-    const theta4Rad = Math.asin(Math.max(-0.99995, sinTheta4));
+    const theta4Rad = Math.asin(Math.max(-1.0, Math.min(1.0, sinTheta4)));
     const theta4Deg = THREE.MathUtils.radToDeg(theta4Rad);
     const deviationDeg = theta1Deg + theta4Deg - alphaDeg;
     const R2 = this.calculateFresnelReflectance(Math.abs(theta3Rad), Math.abs(theta4Rad), n, 1.0);

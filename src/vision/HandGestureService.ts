@@ -71,6 +71,9 @@ export class SingleHandTracker {
 
   public lastWrist: { x: number; y: number } | null = null;
   public lastSeenAt = -Infinity;
+  public lastOutput: SingleHandData | null = null;
+  private smoothedHandScale = 0;
+  private exitHoldFrames = 0;
 
   // 捏合与手势状态
   public isPinching = false;
@@ -99,6 +102,9 @@ export class SingleHandTracker {
     this.isLongPinch = false;
     this.lastWrist = null;
     this.lastSeenAt = -Infinity;
+    this.lastOutput = null;
+    this.smoothedHandScale = 0;
+    this.exitHoldFrames = 0;
     this.filter.reset();
     this.pinchMachine.reset();
   }
@@ -107,23 +113,65 @@ export class SingleHandTracker {
     landmarks: NormalizedLandmark[],
     timestamp: number,
     confidence: number,
-    config: Required<HandGestureServiceConfig>
+    config: Required<HandGestureServiceConfig>,
+    isAppleVision = false
   ): SingleHandData {
+    const isValidPt = (p: NormalizedLandmark | undefined): boolean =>
+      Boolean(
+        p &&
+          Number.isFinite(p.x) &&
+          Number.isFinite(p.y) &&
+          p.x >= 0 &&
+          p.x <= 1 &&
+          p.y >= 0 &&
+          p.y <= 1
+      );
+
     const thumbTip = landmarks[4];
     const indexTip = landmarks[8];
-    const wrist = landmarks[0];
+    const rawWrist = landmarks[0];
     const middleMcp = landmarks[9];
 
-    // 手掌尺度归一化基准（采用手掌横宽与手腕至中指掌指关节的最大值，保证尺度无关）
-    const palmWidth = (landmarks[5] && landmarks[17])
-      ? Math.hypot(landmarks[5].x - landmarks[17].x, landmarks[5].y - landmarks[17].y)
-      : 0;
-    const wristToMiddle = Math.hypot(middleMcp.x - wrist.x, middleMcp.y - wrist.y);
-    const handScale = Math.max(palmWidth, wristToMiddle) || 0.22;
+    // 手掌尺度归一化基准（采用手掌横宽与手腕至中指掌指关节的生理约束最大值，严防手腕缺失导致尺度暴涨）
+    const palmWidth =
+      isValidPt(landmarks[5]) && isValidPt(landmarks[17])
+        ? Math.hypot(landmarks[5].x - landmarks[17].x, landmarks[5].y - landmarks[17].y)
+        : 0;
 
-    // 手部主轴物理向上向量（从手腕指向中指掌指关节）
-    const upVx = middleMcp.x - wrist.x;
-    const upVy = middleMcp.y - wrist.y;
+    let safeWristX = isValidPt(rawWrist) ? rawWrist.x : middleMcp.x;
+    let safeWristY = isValidPt(rawWrist)
+      ? rawWrist.y
+      : Math.min(0.98, middleMcp.y + (palmWidth > 0.02 ? palmWidth * 1.25 : 0.14));
+
+    if (!isValidPt(rawWrist) && isValidPt(middleMcp) && isValidPt(landmarks[10])) {
+      const vx = middleMcp.x - landmarks[10].x;
+      const vy = middleMcp.y - landmarks[10].y;
+      const vLen = Math.hypot(vx, vy);
+      if (vLen > 1e-4) {
+        const span = Math.min(0.18, Math.max(0.06, vLen * 1.45));
+        safeWristX = Math.min(0.98, Math.max(0.02, middleMcp.x + (vx / vLen) * span));
+        safeWristY = Math.min(0.98, Math.max(0.02, middleMcp.y + (vy / vLen) * span));
+      }
+    }
+
+    const rawWristToMiddle = isValidPt(middleMcp)
+      ? Math.hypot(middleMcp.x - safeWristX, middleMcp.y - safeWristY)
+      : 0;
+    const wristToMiddle =
+      palmWidth >= 0.025
+        ? Math.min(rawWristToMiddle, palmWidth * 2.2, 0.45)
+        : Math.min(rawWristToMiddle, 0.45);
+    const rawHandScale = Math.min(0.45, Math.max(0.06, Math.max(palmWidth, wristToMiddle) || 0.22));
+    const handScale = isAppleVision
+      ? (this.smoothedHandScale > 0
+          ? this.smoothedHandScale * 0.75 + rawHandScale * 0.25
+          : rawHandScale)
+      : rawHandScale;
+    this.smoothedHandScale = handScale;
+
+    // 手部主轴物理向上向量（从安全手腕指向中指掌指关节）
+    const upVx = middleMcp.x - safeWristX;
+    const upVy = middleMcp.y - safeWristY;
     const upLen = Math.hypot(upVx, upVy);
     const handUpX = upLen > 1e-4 ? upVx / upLen : 0;
     const handUpY = upLen > 1e-4 ? upVy / upLen : -1;
@@ -170,8 +218,25 @@ export class SingleHandTracker {
     const rawDistance = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
     const pinchRatio = rawDistance / handScale;
 
+    // Apple Vision 60FPS 捏合指尖自遮挡防闪烁保护：抑制 1~2 帧瞬态微跳导致的 33ms 断触
+    let effectiveRatio = pinchRatio;
+    if (isAppleVision && this.pinchMachine.isPinchActive()) {
+      if (
+        pinchRatio >= config.pinchThresholdExit &&
+        pinchRatio < config.pinchThresholdExit + 0.08 &&
+        this.exitHoldFrames < 2
+      ) {
+        this.exitHoldFrames += 1;
+        effectiveRatio = config.pinchThresholdExit - 0.005;
+      } else {
+        this.exitHoldFrames = 0;
+      }
+    } else {
+      this.exitHoldFrames = 0;
+    }
+
     // 双阈值迟滞捏合判定
-    const { isPinching, justStarted, justEnded } = this.pinchMachine.update(pinchRatio);
+    const { isPinching, justStarted, justEnded } = this.pinchMachine.update(effectiveRatio);
     this.isPinching = isPinching;
 
     // 线性比例捏合强度 [0, 1]
@@ -222,12 +287,12 @@ export class SingleHandTracker {
       }
     }
 
-    this.lastWrist = { x: wrist.x, y: wrist.y };
+    this.lastWrist = { x: safeWristX, y: safeWristY };
     this.lastSeenAt = timestamp;
 
     const anchorPoint = { x: anchorX, y: anchorY, z: anchorZ };
 
-    return {
+    const result: SingleHandData = {
       handedness: this.handedness,
       confidence,
       landmarks,
@@ -247,6 +312,8 @@ export class SingleHandTracker {
       pinchDuration,
       isLongPinch: this.isLongPinch,
     };
+    this.lastOutput = result;
+    return result;
   }
 }
 
@@ -1147,6 +1214,21 @@ export class HandGestureService {
     };
   }
 
+  private holdAppleVisionGrace(tracker: SingleHandTracker, timestamp: number): SingleHandData | null {
+    if (!this.isAppleVisionMode || !tracker.lastOutput || !Number.isFinite(tracker.lastSeenAt)) {
+      return null;
+    }
+    const gap = timestamp - tracker.lastSeenAt;
+    if (gap >= 0 && gap <= 80) {
+      return {
+        ...tracker.lastOutput,
+        justPinchStarted: false,
+        justPinchEnded: false,
+      };
+    }
+    return null;
+  }
+
   /**
    * 处理至多两只手的骨骼数据，稳健分离左右手，并分别计算手势状态机。
    */
@@ -1156,6 +1238,45 @@ export class HandGestureService {
     timestamp: number
   ): HandGestureFrame {
     if (!detectedLandmarks || detectedLandmarks.length === 0) {
+      const heldLeft = this.holdAppleVisionGrace(this.leftTracker, timestamp);
+      const heldRight = this.holdAppleVisionGrace(this.rightTracker, timestamp);
+
+      if (heldLeft || heldRight) {
+        if (!heldLeft) this.leftTracker.reset();
+        if (!heldRight) this.rightTracker.reset();
+        const primaryHeld = heldRight || heldLeft;
+        this.lastHasHand = true;
+        this.lastLeftHandDetected = Boolean(heldLeft);
+        this.lastRightHandDetected = Boolean(heldRight);
+        this.lastRightPinchRatio = heldRight?.pinchRatio ?? 0;
+        this.lastRightPinchStrength = heldRight?.pinchStrength ?? 0;
+        return {
+          hasHand: true,
+          timestamp,
+          leftHand: heldLeft,
+          rightHand: heldRight,
+          leftHandQuickPinch: false,
+          leftHandCameraDelta: null,
+          isDualPinching: Boolean(heldLeft?.isPinching && heldRight?.isPinching),
+          dualPinchDistance: 0,
+          dualPinchScaleFactor: 1.0,
+          landmarks: primaryHeld?.landmarks ?? null,
+          thumbTip: primaryHeld?.thumbTip ?? null,
+          indexTip: primaryHeld?.indexTip ?? null,
+          midpointNorm: primaryHeld?.midpointNorm ?? null,
+          interactionPointNorm: primaryHeld?.interactionPointNorm ?? null,
+          screenX: primaryHeld?.screenX ?? 0,
+          screenY: primaryHeld?.screenY ?? 0,
+          rawDistance: primaryHeld?.rawDistance ?? 0,
+          handScale: primaryHeld?.handScale ?? 0,
+          pinchRatio: primaryHeld?.pinchRatio ?? 0,
+          pinchStrength: primaryHeld?.pinchStrength ?? 0,
+          isPinching: heldRight?.isPinching ?? false,
+          justPinchStarted: false,
+          justPinchEnded: false,
+        };
+      }
+
       const rightJustEnded = this.rightTracker.isPinching;
       this.leftTracker.reset();
       this.rightTracker.reset();
@@ -1206,14 +1327,17 @@ export class HandGestureService {
         ? [detections[0], detections[1]]
         : [detections[1], detections[0]];
 
-      leftHandData = this.leftTracker.process(leftDet.landmarks, timestamp, leftDet.score, this.config);
-      rightHandData = this.rightTracker.process(rightDet.landmarks, timestamp, rightDet.score, this.config);
+      leftHandData = this.leftTracker.process(leftDet.landmarks, timestamp, leftDet.score, this.config, this.isAppleVisionMode);
+      rightHandData = this.rightTracker.process(rightDet.landmarks, timestamp, rightDet.score, this.config, this.isAppleVisionMode);
     } else {
       // 仅检测到单手：结合空间屏幕区域与神经网络置信度综合判定左右手
       const det = detections[0];
       let isLeft: boolean;
 
-      if (det.screenX >= 0.55) {
+      if (this.isAppleVisionMode) {
+        // Apple Vision 原生管线具备硬件级解剖学手性识别，支持右手光标自由跨越屏幕左半区操作而绝不反转为左手
+        isLeft = det.label === 'left';
+      } else if (det.screenX >= 0.55) {
         // 显著位于屏幕右半区
         isLeft = false;
       } else if (det.screenX <= 0.45) {
@@ -1231,11 +1355,21 @@ export class HandGestureService {
       }
 
       if (isLeft) {
-        leftHandData = this.leftTracker.process(det.landmarks, timestamp, det.score, this.config);
-        this.rightTracker.reset();
+        leftHandData = this.leftTracker.process(det.landmarks, timestamp, det.score, this.config, this.isAppleVisionMode);
+        const heldRight = this.holdAppleVisionGrace(this.rightTracker, timestamp);
+        if (heldRight) {
+          rightHandData = heldRight;
+        } else {
+          this.rightTracker.reset();
+        }
       } else {
-        rightHandData = this.rightTracker.process(det.landmarks, timestamp, det.score, this.config);
-        this.leftTracker.reset();
+        rightHandData = this.rightTracker.process(det.landmarks, timestamp, det.score, this.config, this.isAppleVisionMode);
+        const heldLeft = this.holdAppleVisionGrace(this.leftTracker, timestamp);
+        if (heldLeft) {
+          leftHandData = heldLeft;
+        } else {
+          this.leftTracker.reset();
+        }
       }
     }
 

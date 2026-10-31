@@ -89,9 +89,6 @@ class MockElement {
       if (selector.startsWith('#') && curr.tagName.toLowerCase() === selector.slice(1).toLowerCase()) {
         return curr;
       }
-      if (selector === '#experiment-drawer' && curr.className.includes('experiment-drawer')) {
-        return curr;
-      }
       if (selector === '#vision-spatial-window' && curr.className.includes('vision-spatial-window')) {
         return curr;
       }
@@ -162,28 +159,28 @@ console.log('=== Starting Input Focus & Typing Elimination Verification ===\n');
 // Test 2: Inactive/closed container detection
 {
   console.log('Test 2: Inputs inside closed containers are marked inactive and auto-blurred');
-  const drawer = new MockElement('DIV');
-  drawer.className = 'experiment-drawer';
-  const drawerSearch = new MockElement('INPUT', 'text');
-  drawer.appendChild(drawerSearch);
+  const accountModal = new MockElement('DIV');
+  accountModal.className = 'apple-modal-backdrop';
+  const modalInput = new MockElement('INPUT', 'text');
+  accountModal.appendChild(modalInput);
 
-  // Drawer closed (lacks 'open' class)
-  assert.strictEqual(isElementVisibleAndActive(drawerSearch), false, 'Input in closed drawer must be inactive');
+  // Modal closed (lacks 'open' class)
+  assert.strictEqual(isElementVisibleAndActive(modalInput), false, 'Input in closed modal must be inactive');
 
-  // Focus the search input while drawer is closed
-  drawerSearch.focus();
-  assert.strictEqual(globalThis.document.activeElement, drawerSearch);
+  // Focus the input while modal is closed
+  modalInput.focus();
+  assert.strictEqual(globalThis.document.activeElement, modalInput);
 
   // isTextInputActive should detect stale focus, auto-blur it, and return false
   const active = isTextInputActive();
-  assert.strictEqual(active, false, 'isTextInputActive must return false for closed drawer search');
+  assert.strictEqual(active, false, 'isTextInputActive must return false for closed modal input');
   assert.strictEqual(globalThis.document.activeElement, mockBody, 'Stale focus must be auto-blurred to body');
 
-  // Open drawer -> now active
-  drawer.classList.add('open');
-  assert.strictEqual(isElementVisibleAndActive(drawerSearch), true, 'Input in open drawer must be active');
-  drawerSearch.focus();
-  assert.strictEqual(isTextInputActive(), true, 'isTextInputActive must return true when drawer is open and focused');
+  // Open modal -> now active
+  accountModal.classList.add('open');
+  assert.strictEqual(isElementVisibleAndActive(modalInput), true, 'Input in open modal must be active');
+  modalInput.focus();
+  assert.strictEqual(isTextInputActive(), true, 'isTextInputActive must return true when modal is open and focused');
   console.log('✓ Test 2 passed\n');
 }
 
@@ -232,12 +229,12 @@ console.log('=== Starting Input Focus & Typing Elimination Verification ===\n');
   const dummyDom = new MockElement('CANVAS');
   const player = new PlayerController(cam, dummyDom as any);
 
-  // Open drawer with search input
-  const drawer = new MockElement('DIV');
-  drawer.className = 'experiment-drawer open';
-  drawer.classList.add('open');
+  // Open modal with text input
+  const modal = new MockElement('DIV');
+  modal.className = 'apple-modal-backdrop open';
+  modal.classList.add('open');
   const activeInput = new MockElement('INPUT', 'text');
-  drawer.appendChild(activeInput);
+  modal.appendChild(activeInput);
   activeInput.focus();
 
   let preventDefaultCalled = false;

@@ -103,6 +103,9 @@ function paintSteelRule(
   width: number,
   height: number,
   finish: OpticalRailFinish,
+  u0 = 0.035,
+  u100 = 0.965,
+  maxCm = 100,
 ): void {
   ctx.fillStyle = finish.scaleBackground;
   ctx.fillRect(0, 0, width, height);
@@ -112,28 +115,28 @@ function paintSteelRule(
   ctx.fillRect(0, 0, width, edge);
   ctx.fillRect(0, height - edge, width, edge);
 
-  const scaleStartX = Math.round(width * 0.04);
-  const scaleEndX = Math.round(width * 0.9);
+  const scaleStartX = Math.round(width * u0);
+  const scaleEndX = Math.round(width * u100);
   const scaleSpan = scaleEndX - scaleStartX;
-  const tickTop = Math.round(height * 0.05);
-  const majorBottom = Math.round(height * 0.4);
-  const cmBottom = Math.round(height * 0.28);
-  const fiveBottom = Math.round(height * 0.18);
-  const mmBottom = Math.round(height * 0.11);
-  const labelY = Math.round(height * 0.7);
+  const tickTop = Math.round(height * 0.06);
+  const majorBottom = Math.round(height * 0.42);
+  const cmBottom = Math.round(height * 0.30);
+  const fiveBottom = Math.round(height * 0.20);
+  const mmBottom = Math.round(height * 0.12);
+  const labelY = Math.round(height * 0.68);
   const ink = numeralInk(finish);
 
   ctx.strokeStyle = finish.scaleTick;
   ctx.fillStyle = ink;
-  ctx.font = `600 ${Math.round(height * 0.38)}px "SF Mono", "PingFang SC", sans-serif`;
+  ctx.font = `600 ${Math.round(height * 0.28)}px "SF Mono", "PingFang SC", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineCap = 'butt';
 
-  for (let cm = 0; cm <= 100; cm++) {
-    const pxCm = scaleStartX + (cm / 100) * scaleSpan;
+  for (let cm = 0; cm <= maxCm; cm++) {
+    const pxCm = scaleStartX + (cm / maxCm) * scaleSpan;
     ctx.strokeStyle = finish.scaleTick;
-    ctx.lineWidth = cm % 10 === 0 ? Math.max(3, height * 0.02) : Math.max(2, height * 0.012);
+    ctx.lineWidth = cm % 10 === 0 ? Math.max(3, height * 0.018) : Math.max(2, height * 0.010);
     ctx.beginPath();
     ctx.moveTo(pxCm, tickTop);
     ctx.lineTo(pxCm, cm % 10 === 0 ? majorBottom : cmBottom);
@@ -144,12 +147,12 @@ function paintSteelRule(
       ctx.fillText(String(cm), pxCm, labelY);
     }
 
-    if (cm < 100) {
-      const millimetre = scaleSpan / 1000;
+    if (cm < maxCm) {
+      const millimetre = scaleSpan / (maxCm * 10);
       for (let mm = 1; mm < 10; mm++) {
         const pxMm = pxCm + mm * millimetre;
         const is5 = mm === 5;
-        ctx.lineWidth = is5 ? Math.max(2, height * 0.01) : Math.max(1, height * 0.005);
+        ctx.lineWidth = is5 ? Math.max(2, height * 0.009) : Math.max(1, height * 0.005);
         ctx.beginPath();
         ctx.moveTo(pxMm, tickTop);
         ctx.lineTo(pxMm, is5 ? fiveBottom : mmBottom);
@@ -159,9 +162,9 @@ function paintSteelRule(
   }
 
   ctx.fillStyle = ink;
-  ctx.font = `600 ${Math.round(height * 0.2)}px "SF Mono", "PingFang SC", sans-serif`;
+  ctx.font = `600 ${Math.round(height * 0.18)}px "SF Mono", "PingFang SC", sans-serif`;
   ctx.textAlign = 'left';
-  ctx.fillText('cm', scaleEndX + Math.round(width * 0.012), labelY);
+  ctx.fillText('cm', scaleEndX + Math.round(width * 0.008), labelY);
 }
 
 function addMesh(
@@ -188,6 +191,9 @@ export function buildPrecisionOpticalRail(options: {
   height: number;
   name?: string;
   finish?: OpticalRailFinish;
+  attachedStart?: boolean;
+  attachedEnd?: boolean;
+  scaleLengthM?: number;
 }): PrecisionOpticalRail {
   const { length, width, height } = options;
   const tuned = options.finish != null;
@@ -225,7 +231,7 @@ export function buildPrecisionOpticalRail(options: {
   const bodyH = height - skirtH;
   addMesh(
     group,
-    createChamferedBlockGeometry(length, skirtH, width * 1.08, 0.002),
+    createChamferedBlockGeometry(length, skirtH, width, 0.002),
     satinSkirt,
     0,
     skirtH * 0.5,
@@ -272,6 +278,7 @@ export function buildPrecisionOpticalRail(options: {
   const xEnds = [-length * 0.5 - cheekW * 0.45, length * 0.5 + cheekW * 0.45];
 
   for (const xPos of xEnds) {
+    if ((xPos < 0 && options.attachedStart) || (xPos > 0 && options.attachedEnd)) continue;
     const side = Math.sign(xPos) || 1;
     addMesh(
       group,
@@ -346,15 +353,20 @@ export function buildPrecisionOpticalRail(options: {
 
   let scaleCanvas: HTMLCanvasElement | null = null;
   let scaleTexture: THREE.CanvasTexture | null = null;
-  // 贴图宽高比跟尺面一致，数字才不会被拉成一条扁线。
-  const plateW = length * 0.93;
-  const plateH = height * 0.82;
-  const canvasH = 192;
+  // 刻度长度使用实际米制量程；未指定时沿用一米标尺，可由短导轨窗口裁切显示。
+  const scaleLenM = options.scaleLengthM ?? 1.00;
+  const marginM = Math.max(0.02, (length - scaleLenM) * 0.25);
+  const plateW = Math.min(length * 0.96, scaleLenM + marginM * 2);
+  const plateH = height * 0.76;
+  const u0 = (plateW - scaleLenM) * 0.5 / plateW;
+  const u100 = 1.0 - u0;
+
+  const canvasH = 256;
   const canvasW = Math.min(8192, Math.max(2048, Math.round(canvasH * (plateW / Math.max(plateH, 0.001)))));
   scaleCanvas = safeCanvas(canvasW, canvasH);
   if (scaleCanvas) {
     const ctx = scaleCanvas.getContext('2d');
-    if (ctx) paintSteelRule(ctx, canvasW, canvasH, finish);
+    if (ctx) paintSteelRule(ctx, canvasW, canvasH, finish, u0, u100, Math.round(scaleLenM * 100));
     scaleTexture = new THREE.CanvasTexture(scaleCanvas);
     scaleTexture.anisotropy = 16;
     scaleTexture.colorSpace = THREE.SRGBColorSpace;
@@ -372,7 +384,7 @@ export function buildPrecisionOpticalRail(options: {
       }),
       0,
       height * 0.48,
-      width * 0.5 + 0.0014,
+      width * 0.5 + 0.0016,
       'RailScale'
     );
     plate.castShadow = false;

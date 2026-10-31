@@ -57,7 +57,6 @@ import { BaseExperiment } from '../src/experiments/base/BaseExperiment.ts';
 import { ExperimentRegistry } from '../src/experiments/ExperimentRegistry.ts';
 import { HologramStage } from '../src/core/HologramStage.ts';
 import { PlayerController } from '../src/controls/PlayerController.ts';
-import { ExperimentDrawer } from '../src/ui/ExperimentDrawer.ts';
 import type { ExperimentContext, ExperimentMetadata } from '../src/core/types.ts';
 
 console.log('=== Starting Architecture Hardening Deep Verification ===\n');
@@ -306,10 +305,10 @@ class MockShaderExperiment extends BaseExperiment {
 }
 
 // --------------------------------------------------------------------------
-// Test 4: PlayerController & ExperimentDrawer Pointer Lock Safety
+// Test 4: PlayerController Pointer Lock Safety
 // --------------------------------------------------------------------------
 {
-  console.log('Test 4: PlayerController & ExperimentDrawer Pointer Lock Trap Prevention');
+  console.log('Test 4: PlayerController Pointer Lock Trap Prevention');
 
   const dummyDom = {
     addEventListener: () => {},
@@ -322,37 +321,26 @@ class MockShaderExperiment extends BaseExperiment {
 
   assert.strictEqual(player.allowPointerLock, true, 'Pointer lock should be allowed by default');
 
-  // Integration with ExperimentDrawer
+  // Verify allowPointerLock guards
   lastPointerLockExited = false;
-  const drawer = new ExperimentDrawer(document.body, async () => {});
-
-  drawer.onToggle = (isOpen: boolean) => {
-    if (isOpen) {
-      player.exitLock();
-      player.allowPointerLock = false;
-    } else {
-      player.allowPointerLock = true;
-    }
-  };
-
-  // Simulate player locked before opening drawer
   player.isLocked = true;
   (globalThis as any).document.pointerLockElement = dummyDom;
 
-  // Open drawer
-  drawer.toggle(true);
+  // When UI modals/windows open, allowPointerLock is disabled and lock is exited
+  player.exitLock();
+  player.allowPointerLock = false;
 
-  assert.strictEqual(lastPointerLockExited, true, 'Opening drawer must invoke document.exitPointerLock');
-  assert.strictEqual(player.isLocked, false, 'PlayerController must be unlocked when drawer opens');
-  assert.strictEqual(player.allowPointerLock, false, 'allowPointerLock must be false when drawer is open');
+  assert.strictEqual(lastPointerLockExited, true, 'exitLock must invoke document.exitPointerLock');
+  assert.strictEqual(player.isLocked, false, 'PlayerController must be unlocked when exiting lock');
+  assert.strictEqual(player.allowPointerLock, false, 'allowPointerLock must be false');
 
-  // Attempting requestLock when drawer is open must be a no-op
+  // Attempting requestLock when allowPointerLock is false must be a no-op
   player.requestLock();
-  assert.strictEqual(player.isLocked, false, 'requestLock must not lock pointer when drawer is open');
+  assert.strictEqual(player.isLocked, false, 'requestLock must not lock pointer when allowPointerLock is false');
 
-  // Close drawer
-  drawer.toggle(false);
-  assert.strictEqual(player.allowPointerLock, true, 'Closing drawer must re-enable pointer lock permission');
+  // Re-enable pointer lock
+  player.allowPointerLock = true;
+  assert.strictEqual(player.allowPointerLock, true, 'Re-enabling must restore pointer lock permission');
 
   console.log('✓ Test 4 passed: Pointer lock safety guards prevent mouse trap\n');
 }
@@ -497,8 +485,8 @@ class MockShaderExperiment extends BaseExperiment {
 
   const hudPath = path.resolve(process.cwd(), 'src/ui/HUD.ts');
   const hudCode = fs.readFileSync(hudPath, 'utf-8');
-  assert(hudCode.includes('this.perfOverlay.toggle(true);'), 'HUD must show perfOverlay on startup per user request');
-  assert(!hudCode.includes('this.perfOverlay.toggle(false);'), 'HUD must not hide perfOverlay by default');
+  assert(hudCode.includes('this.perfOverlay.toggle(false);'), 'HUD must hide perfOverlay on startup per user request');
+  assert(!hudCode.includes('this.perfOverlay.toggle(true);'), 'HUD must not show perfOverlay by default');
 
   const wbPath = path.resolve(process.cwd(), 'src/whiteboard/WhiteboardApp.ts');
   const wbCode = fs.readFileSync(wbPath, 'utf-8');

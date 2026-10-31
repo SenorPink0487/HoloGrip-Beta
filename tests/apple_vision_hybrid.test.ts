@@ -364,6 +364,146 @@ await (async () => {
   console.log('✓ Test 8 passed: iPad system status bar suppression invariants verified\n');
 }
 
+// Test 9: Missing Wrist (-1, -1) & Corner Outliers Must NEVER Shoot to Top-Right (0, 0) or Cause False Pinching
+await (async () => {
+  console.log('Test 9: Missing Wrist (-1, -1) & Corner Outlier Sanitization + Anti-False-Pinch Invariant');
+  (globalThis as any).__hologrip_mock_apple_vision = true;
+
+  const service = new HandGestureService({ mirrorX: true });
+  await service.init();
+  let latestFrame: HandGestureFrame | null = null;
+  service.onFrame((f) => {
+    latestFrame = f;
+  });
+  await service.start();
+
+  // 复现用户截图中的真实极端场景：
+  // 1) 手腕被 iPad 下边缘裁切，置信度 < 0.20，旧版原生发送 (-1.0, -1.0, visibility: 0)
+  // 2) 大拇指与食指明明自然张开 (间距 0.14)，但此前因 wrist=(-1,-1) 导致 handScale 暴涨至 ~2.47，引发假阳性持续捏合！
+  // 3) 混入一个 (0.0, 0.0, visibility: 0.18) 右上角低置信度噪点
+  const openRightHandWithMissingWrist: NormalizedLandmark[] = [
+    { x: -1.0, y: -1.0, z: 0, visibility: 0.0 }, // 0: wrist 缺失！
+    { x: -1.0, y: -1.0, z: 0, visibility: 0.0 }, // 1: thumbCMC 也缺失！
+    { x: 0.34, y: 0.72, z: 0, visibility: 0.85 }, // 2: thumbMP
+    { x: 0.36, y: 0.65, z: 0, visibility: 0.88 }, // 3: thumbIP
+    { x: 0.38, y: 0.58, z: 0, visibility: 0.92 }, // 4: thumbTip (张开!)
+    { x: 0.28, y: 0.68, z: 0, visibility: 0.90 }, // 5: indexMCP
+    { x: 0.29, y: 0.56, z: 0, visibility: 0.91 }, // 6: indexPIP
+    { x: 0.28, y: 0.49, z: 0, visibility: 0.90 }, // 7: indexDIP
+    { x: 0.27, y: 0.44, z: 0, visibility: 0.93 }, // 8: indexTip (与拇指间距 ~0.177，完全张开!)
+    { x: 0.23, y: 0.67, z: 0, visibility: 0.91 }, // 9: middleMCP
+    { x: 0.22, y: 0.55, z: 0, visibility: 0.89 }, // 10: middlePIP
+    { x: 0.22, y: 0.48, z: 0, visibility: 0.86 }, // 11: middleDIP
+    { x: 0.0, y: 0.0, z: 0, visibility: 0.15 },   // 12: middleTip 角落噪点 (0, 0)！
+    { x: 0.19, y: 0.70, z: 0, visibility: 0.88 }, // 13: ringMCP
+    { x: 0.18, y: 0.59, z: 0, visibility: 0.85 }, // 14: ringPIP
+    { x: 0.18, y: 0.53, z: 0, visibility: 0.84 }, // 15: ringDIP
+    { x: 0.18, y: 0.49, z: 0, visibility: 0.82 }, // 16: ringTip
+    { x: 0.15, y: 0.74, z: 0, visibility: 0.86 }, // 17: littleMCP
+    { x: 0.14, y: 0.65, z: 0, visibility: 0.83 }, // 18: littlePIP
+    { x: 0.14, y: 0.60, z: 0, visibility: 0.80 }, // 19: littleDIP
+    { x: 0.14, y: 0.56, z: 0, visibility: 0.79 }, // 20: littleTip
+  ];
+
+  service.getAppleVisionTracker().handleNativePayload({
+    hasHand: true,
+    timestamp: 1000,
+    latencyMs: 4.5,
+    hands: [{ landmarks: openRightHandWithMissingWrist, handedness: 'right', confidence: 0.95 }],
+  });
+
+  assert(latestFrame !== null && latestFrame.rightHand !== null, 'Sanitized right hand must be delivered');
+  const rh = latestFrame!.rightHand!;
+
+  // 1. 验证所有 21 个关节点均已合法修复，绝无 (-1, -1) 或 (0, 0) 右上角飞线点！
+  for (let i = 0; i < 21; i++) {
+    const pt = rh.landmarks[i];
+    assert(pt.x >= 0.01 && pt.x <= 0.99, `Joint ${i} x=${pt.x} must be strictly inside [0.01, 0.99]`);
+    assert(pt.y >= 0.01 && pt.y <= 0.99, `Joint ${i} y=${pt.y} must be strictly inside [0.01, 0.99]`);
+    assert(!(pt.x === 0 && pt.y === 0), `Joint ${i} must NEVER collapse to (0, 0) top-right corner`);
+  }
+
+  // 2. 验证重建的手腕位于掌指关节下方生理位置（y > middleMCP.y = 0.67）
+  assert(rh.landmarks[0].y > 0.67, `Reconstructed wrist y=${rh.landmarks[0].y} must sit below MCPs`);
+
+  // 3. 验证 handScale 保持真实手掌生理尺寸 (< 0.45)，绝不暴涨到 2.4，且五指张开时 isPinching 严格为 false！
+  assert(rh.handScale > 0.08 && rh.handScale <= 0.45, `handScale=${rh.handScale} must remain physiological`);
+  assert.strictEqual(rh.isPinching, false, 'Open fingers with cropped wrist must NEVER falsely trigger isPinching!');
+
+  service.destroy();
+  delete (globalThis as any).__hologrip_mock_apple_vision;
+  console.log('✓ Test 9 passed: Missing wrist & corner outlier sanitization + zero false pinching verified\n');
+})();
+
+// Test 10: Right Hand Crossing into Left Half of Screen + Short Frame Dropout Stability
+await (async () => {
+  console.log('Test 10: Right Hand Full-Screen Anatomical Continuity & Short Dropout Anti-Flicker');
+  (globalThis as any).__hologrip_mock_apple_vision = true;
+
+  const service = new HandGestureService({ mirrorX: true });
+  await service.init();
+  let latestFrame: HandGestureFrame | null = null;
+  service.onFrame((f) => {
+    latestFrame = f;
+  });
+  await service.start();
+
+  // 模拟用户右手伸向屏幕左侧区域操作：前置未镜像相机 x = 0.68 -> 镜像后 screenX = 0.32 <= 0.45！
+  // 此前 screenX <= 0.45 会强制把右手反转为左手，导致右手拖拽瞬间中断！
+  const makePinchingRightHandAt = (camX: number): NormalizedLandmark[] => {
+    const pts: NormalizedLandmark[] = Array.from({ length: 21 }, () => ({
+      x: camX,
+      y: 0.55,
+      z: 0,
+      visibility: 0.95,
+    }));
+    pts[0] = { x: camX, y: 0.72, z: 0, visibility: 0.95 };
+    pts[5] = { x: camX + 0.04, y: 0.56, z: 0, visibility: 0.95 };
+    pts[9] = { x: camX, y: 0.55, z: 0, visibility: 0.95 };
+    pts[17] = { x: camX - 0.06, y: 0.58, z: 0, visibility: 0.95 };
+    pts[4] = { x: camX + 0.02, y: 0.46, z: 0, visibility: 0.95 };
+    pts[8] = { x: camX + 0.025, y: 0.465, z: 0, visibility: 0.95 }; // 紧密捏合
+    return pts;
+  };
+
+  const tracker = service.getAppleVisionTracker();
+  tracker.handleNativePayload({
+    hasHand: true,
+    timestamp: 2000,
+    latencyMs: 4.0,
+    hands: [{ landmarks: makePinchingRightHandAt(0.68), handedness: 'right', confidence: 0.96 }],
+  });
+
+  assert(latestFrame !== null);
+  assert(latestFrame!.rightHand !== null, 'Right hand on left half of screen (screenX=0.32) MUST remain rightHand!');
+  assert.strictEqual(latestFrame!.leftHand, null, 'Must NOT flip anatomical right hand into leftHand');
+  assert.strictEqual(latestFrame!.rightHand!.isPinching, true, 'Right hand pinch must be active');
+
+  // 模拟 ANE 单帧 16ms 瞬时丢帧：必须在 80ms 宽限窗内维持捏合不释放！
+  tracker.handleNativePayload({
+    hasHand: false,
+    timestamp: 2016,
+    latencyMs: 3.5,
+    hands: [],
+  });
+  assert.strictEqual(latestFrame!.isPinching, true, '16ms single-frame ANE dropout must NOT break active pinch');
+  assert.strictEqual(latestFrame!.justPinchEnded, false, 'Must NOT fire premature justPinchEnded on 16ms dropout');
+
+  // 超过 80ms 真正离开画面 (timestamp = 2120) -> 正常释放重置
+  tracker.handleNativePayload({
+    hasHand: false,
+    timestamp: 2120,
+    latencyMs: 3.5,
+    hands: [],
+  });
+  assert.strictEqual(latestFrame!.hasHand, false, 'Hand leaving camera >80ms must cleanly end tracking');
+  assert.strictEqual(latestFrame!.justPinchEnded, true, 'Must emit clean justPinchEnded once hand genuinely leaves');
+
+  service.destroy();
+  delete (globalThis as any).__hologrip_mock_apple_vision;
+  console.log('✓ Test 10 passed: Full-screen right-hand continuity & dropout anti-flicker verified\n');
+})();
+
 console.log('========================================================');
-console.log('All Apple Vision Hybrid Architecture Tests Passed Successfully (8/8)!');
+console.log('All Apple Vision Hybrid Architecture Tests Passed Successfully (10/10)!');
 console.log('========================================================\n');

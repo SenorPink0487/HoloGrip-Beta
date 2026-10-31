@@ -413,28 +413,15 @@ console.log('=== Starting Free Fall & Newton Tube Experiment Analytical & Integr
   const handled = exp.onPointerDown(mockEvent, hit, mockContext);
   assert.strictEqual(handled, true, 'PointerDown on rotate button must be handled');
 
-  // Ray pointing directly at speed button (3D Slow-Mo Toggle)
-  const speedBtnPivot = exp['mesh']['speedButtonPivot'];
-  const speedPos = new THREE.Vector3();
-  speedBtnPivot.getWorldPosition(speedPos);
-
-  raycaster.ray.origin.set(speedPos.x, speedPos.y, speedPos.z + 1.0);
-  raycaster.ray.direction.set(0, 0, -1);
-
-  const speedHoverInfo = exp.getHoverTarget(raycaster);
-  assert(speedHoverInfo !== null, 'Should detect hover on speed button');
-  assert.strictEqual(speedHoverInfo?.id, 'freefall-speed-button');
-  assert(speedHoverInfo?.label.includes('慢放对比按钮'), 'Tooltip must indicate 3D speed button');
-
-  // Verify pointer click on speed button
-  const speedHit = { object: exp['mesh']['speedButtonHitBox'] } as any;
+  // The stand exposes one inversion control; removed speed controls have no hit target.
+  assert.strictEqual(exp['mesh'].group.getObjectByName('freefall-speed-button'), undefined);
+  assert(!exp['mesh'].getInteractiveObjects().some(object => object.userData.isSpeedButton));
   const initialScale = exp['timeScale'];
-  const speedHandled = exp.onPointerDown(mockEvent, speedHit, mockContext);
-  assert.strictEqual(speedHandled, true, 'PointerDown on speed button must be handled');
-  assert.notStrictEqual(exp['timeScale'], initialScale, 'TimeScale should toggle on speed button click');
+  exp.toggleTimeScale(mockContext);
+  assert.notStrictEqual(exp['timeScale'], initialScale, 'Keyboard/API slow motion remains available without a second button');
 
   exp.dispose(mockContext);
-  console.log('✓ Test 7 passed: 3D raycast hover target detected and pointer click handles inversion & slow-mo speed toggle\n');
+  console.log('✓ Test 7 passed: 3D raycast hover target detected and pointer click inverts with only one stand button\n');
 }
 
 // Test 8: Modal & Catalog Registration
@@ -511,36 +498,83 @@ console.log('=== Starting Free Fall & Newton Tube Experiment Analytical & Integr
   console.log('✓ Test 10 passed: Newton tube uses crystal-clear optical glass material with sharp interior resolution\n');
 }
 
-// Test 11: Experimental Apparatus Material & Anti-White Invariant (实验器材严禁使用白色)
+// Test 11: Light laboratory materials and manufactured geometry.
 {
-  console.log('Test 11: Experimental Apparatus Material & Anti-White Invariant');
+  console.log('Test 11: Precision Apparatus Materials & Machined Geometry');
   const mesh = new NewtonTubeMesh();
-  const precisionSlate = mesh['precisionSlateMaterial'];
-  const pumpMotor = mesh['pumpMotorMaterial'];
-  const sapphireDisplay = mesh['sapphireDisplayMaterial'];
-  const switchBox = mesh['switchBoxMaterial'];
-
-  // 1. Verify no white materials are used for equipment housings & structural bases
-  assert.notStrictEqual(precisionSlate.color.getHex(), 0xffffff, 'Chassis slate must not be white');
-  assert.notStrictEqual(precisionSlate.color.getHex(), 0xf8fafc, 'Chassis slate must not be white');
-  assert.strictEqual(precisionSlate.color.getHex(), 0x1e293b, 'Chassis slate should be precision deep space titanium (0x1e293b)');
-
-  // 2. Verify vacuum pump motor uses precision industrial laboratory blue
-  assert.notStrictEqual(pumpMotor.color.getHex(), 0xffffff, 'Pump motor must not be white');
-  assert.strictEqual(pumpMotor.color.getHex(), 0x1e40af, 'Pump motor should be precision industrial lab blue (0x1e40af)');
-
-  // 3. Verify vacuum gauge dial face uses deep oceanic sapphire rather than plain white
-  assert.notStrictEqual(sapphireDisplay.color.getHex(), 0xffffff, 'Gauge display must not be white');
-  assert.strictEqual(sapphireDisplay.color.getHex(), 0x0a192f, 'Gauge display should be deep oceanic sapphire (0x0a192f)');
-
-  // 4. Verify switch box enclosure is dark instrument polymer
-  assert.notStrictEqual(switchBox.color.getHex(), 0xffffff, 'Switch box must not be white');
-  assert.strictEqual(switchBox.color.getHex(), 0x0f172a, 'Switch box should be dark instrument polymer (0x0f172a)');
-
+  const hsl = { h: 0, s: 0, l: 0 };
+  for (const material of [mesh['precisionSlateMaterial'], mesh['switchBoxMaterial'], mesh['pumpMotorMaterial']]) {
+    material.color.getHSL(hsl);
+    assert(hsl.l > 0.3, 'Structural housings must remain readable in the warm gallery lighting');
+    assert(material.roughness > 0.15, 'Machined housings need broad satin highlights');
+  }
+  const clamp = mesh.group.getObjectByName('freefall-open-bore-clamp') as THREE.Mesh;
+  const positions = clamp.geometry.getAttribute('position');
+  for (let i = 0; i < positions.count; i++) {
+    const radius = Math.hypot(positions.getX(i), positions.getZ(i));
+    assert(radius > mesh.TUBE_RADIUS_M, 'The clamp must have a real bore, leaving fall lanes unobstructed');
+  }
+  const rods = mesh.group.getObjectByName('freefall-dual-guide-rods') as THREE.InstancedMesh;
+  assert.strictEqual(rods.count, 2, 'Support must use a pair of guide rods');
+  const ticks = mesh.group.getObjectByName('freefall-centimeter-graduations') as THREE.InstancedMesh;
+  assert(ticks.count >= 100, 'The observation scale must resolve centimeters across the full fall distance');
+  let triangles = 0;
+  mesh.group.traverse(obj => {
+    const geo = (obj as THREE.Mesh).geometry;
+    if (geo) triangles += ((geo.index?.count ?? geo.getAttribute('position').count) / 3) * ((obj as THREE.InstancedMesh).isInstancedMesh ? (obj as THREE.InstancedMesh).count : 1);
+  });
+  assert(triangles < 150000, `Keep detailed geometry bounded for live rendering: ${triangles} triangles`);
   mesh.dispose();
-  console.log('✓ Test 11 passed: Experimental apparatus uses precision titanium slate, industrial blue, and sapphire display with zero white equipment parts\n');
+  console.log(`✓ Test 11 passed: Light satin housings, open clamp, twin guides and batched graduations (${Math.round(triangles)} triangles)\n`);
+}
+
+// Test 12: The fixed rotary union must prevent hose occlusion or frame-time allocations.
+{
+  console.log('Test 12: Rotary Union Hose Clearance & Stable Geometry');
+  const mesh = new NewtonTubeMesh();
+  const hose = mesh.group.getObjectByName('freefall-hose') as THREE.Mesh;
+  const geometry = hose.geometry;
+  const points = mesh['hoseCurve']!.getPoints(100);
+  for (const point of points) {
+    assert(point.x > mesh.TUBE_RADIUS_M + 0.035, 'Hose must stay outside the central observation aperture');
+    assert(point.y > 0.05, 'Hose must clear the table surface');
+  }
+  for (let i = 0; i <= 40; i++) mesh.setTubeRotation(i * Math.PI / 20);
+  assert.strictEqual(hose.geometry, geometry, 'A stationary rotary union should not rebuild the hose during inversion');
+  mesh.setPumpState(true, 0);
+  assert(Math.abs(mesh['pumpGaugeNeedlePivot'].rotation.z - Math.PI * 0.75) < 1e-6, 'Vacuum gauge must indicate the printed zero endpoint');
+  mesh.setPumpState(false, STANDARD_ATMOSPHERE_KPA);
+  assert(Math.abs(mesh['pumpGaugeNeedlePivot'].rotation.z + Math.PI * 0.75) < 1e-6, 'Atmospheric pressure must indicate the high endpoint');
+  let disposed = false;
+  geometry.addEventListener('dispose', () => { disposed = true; });
+  mesh.dispose();
+  assert(disposed, 'Stationary hose resources must be disposed with the instrument');
+  console.log('✓ Test 12 passed: Hose clearance, full inversions, calibrated gauge and resource cleanup\n');
+}
+
+// Test 13: Endcap surfaces must face outwards and the inset lid must not share a plane.
+{
+  console.log('Test 13: Endcap Surface Orientation & Lid Clearance');
+  const mesh = new NewtonTubeMesh();
+  for (const cap of [mesh['topCapGroup'], mesh['bottomCapGroup']]) {
+    const shell = cap.getObjectByName('freefall-endcap-shell') as THREE.Mesh;
+    const lid = cap.getObjectByName('freefall-endcap-lid') as THREE.Mesh;
+    const surface = new THREE.Mesh(shell.geometry, shell.material);
+    surface.updateMatrixWorld(true);
+    const sideRay = new THREE.Raycaster(new THREE.Vector3(0.2, -0.04, 0), new THREE.Vector3(-1, 0, 0));
+    const sideHit = sideRay.intersectObject(surface)[0];
+    assert(sideHit && sideHit.point.x > 0.07, 'Endcap must expose its outer wall and support the landing cushion');
+    assert(sideHit.face!.normal.x > 0, 'The visible cap wall must face outwards');
+    const faceRay = new THREE.Raycaster(new THREE.Vector3(0.04, 0.15, 0.005), new THREE.Vector3(0, -1, 0));
+    const faceHit = faceRay.intersectObject(surface)[0];
+    assert(faceHit && Math.abs(faceHit.point.y - 0.011) < 1e-6, 'The exterior cap face must be visible from above');
+    lid.geometry.computeBoundingBox();
+    assert(lid.geometry.boundingBox!.min.y - faceHit.point.y > 0.0004, 'Inset lid must clear the shell face to prevent depth fighting');
+  }
+  mesh.dispose();
+  console.log('✓ Test 13 passed: Correct exterior faces, continuous cushion support and separated lid surfaces\n');
 }
 
 console.log('========================================================');
-console.log('All Free Fall & Newton Tube Experiment Tests Passed (11/11)!');
+console.log('All Free Fall & Newton Tube Experiment Tests Passed (13/13)!');
 console.log('========================================================\n');

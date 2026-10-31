@@ -11,8 +11,10 @@ import { metadata } from './meta.ts';
 
 export default class MechFreeFallExperiment extends BaseExperiment {
   public readonly metadata = metadata;
-  public override targetScale = 1.75;
+  public override targetScale = 1.55;
   public override hideCenterEmitter = true;
+  // Frame the full tall instrument and its base from the operator's side.
+  public readonly initialCameraPose = { x: 0.10, y: 2.5, z: 4.65, yaw: 0, pitch: -0.14 };
 
   private mesh!: NewtonTubeMesh;
   private solver!: FreeFallDynamicsSolver;
@@ -22,8 +24,8 @@ export default class MechFreeFallExperiment extends BaseExperiment {
   private keydownListener: ((e: KeyboardEvent) => void) | null = null;
 
   public init(context: ExperimentContext): void {
-    // 将实验设备平稳置于实验台上表面正前方 (Y=0.08, Z=1.35)，大尺寸正面朝向用户
-    this.rootGroup.position.set(0, 0.08, 1.35);
+    // Center the complete tube-and-pump assembly on the usable tabletop.
+    this.rootGroup.position.set(-0.20, 0.08, 1.20);
 
     // 读取初始参数或应用默认 0.35x 慢动作
     const paramTimeScale = typeof context.getParameter === 'function'
@@ -38,7 +40,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
 
     // 实例化 3D 设备总成
     this.mesh = new NewtonTubeMesh();
-    this.mesh.setSpeedState(this.timeScale < 0.7);
     this.rootGroup.add(this.mesh.group);
     this.addDisposable(() => this.mesh.dispose());
 
@@ -107,7 +108,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
     if (hits.length === 0) {
       if (this.lastHoveredTarget) {
         this.mesh.setRotateButtonHovered(false);
-        this.mesh.setSpeedButtonHovered(false);
         this.lastHoveredTarget = null;
       }
       return null;
@@ -119,7 +119,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
         // 1. 旋转倒转按钮
         if (cur.name === 'freefall-rotate-button' || cur.userData?.isRotateButton) {
           this.mesh.setRotateButtonHovered(true);
-          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-rotate-button';
           const isRotating = this.solver.isTubeRotating;
           return {
@@ -131,23 +130,9 @@ export default class MechFreeFallExperiment extends BaseExperiment {
           };
         }
 
-        // 2. 慢动作倍率切换按钮 (0.35x 慢放 / 1.0x 原速)
-        if (cur.name === 'freefall-speed-button' || cur.userData?.isSpeedButton) {
-          this.mesh.setRotateButtonHovered(false);
-          this.mesh.setSpeedButtonHovered(true);
-          this.lastHoveredTarget = 'freefall-speed-button';
-          const isSlow = this.timeScale < 0.7;
-          return {
-            id: 'freefall-speed-button',
-            label: `3D 慢放对比按钮 [当前: ${isSlow ? '0.35x 慢动作 (清晰推荐)' : '1.0x 真实原速'}] · 单击切换 (快捷键: T 键)`,
-            cursor: 'pointer',
-          };
-        }
-
         // 3. 抽气机电源按键或机体
         if (cur.name === 'freefall-pump-switch' || cur.userData?.isPumpSwitch) {
           this.mesh.setRotateButtonHovered(false);
-          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-pump-switch';
           const isRunning = this.solver.isPumpRunning;
           const p = this.solver.airPressureKPa.toFixed(1);
@@ -163,7 +148,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
         // 4. 抽气与排气阀门
         if (cur.name === 'freefall-valve' || cur.userData?.isValve) {
           this.mesh.setRotateButtonHovered(false);
-          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-valve';
           const isVacuum = this.solver.airPressureKPa < 1.0;
           return {
@@ -178,7 +162,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
         // 5. 管内对比物体 (羽毛、硬币、软木塞)
         if (cur.name === 'freefall-feather') {
           this.mesh.setRotateButtonHovered(false);
-          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-feather';
           const isVacuum = this.solver.airPressureKPa < 1.0;
           const featherState = this.solver.getObjectState('feather');
@@ -194,20 +177,18 @@ export default class MechFreeFallExperiment extends BaseExperiment {
 
         if (cur.name === 'freefall-coin') {
           this.mesh.setRotateButtonHovered(false);
-          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-coin';
           const coinState = this.solver.getObjectState('coin');
           const timeInfo = coinState.hasLanded ? ` · 耗时: ${coinState.landTimeS.toFixed(2)}s` : '';
           return {
             id: 'freefall-coin',
-            label: `硬币 (24K纯金) [6.2g 金属] · 密度极高且阻力微弱，以最大重力加速度直冲管底${timeInfo}`,
+            label: `人民币 1 元硬币 [金属] · 密度极高且阻力微弱，以最大重力加速度直冲管底${timeInfo}`,
             cursor: 'default',
           };
         }
 
         if (cur.name === 'freefall-cork') {
           this.mesh.setRotateButtonHovered(false);
-          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-cork';
           const isVacuum = this.solver.airPressureKPa < 1.0;
           const corkState = this.solver.getObjectState('cork');
@@ -231,7 +212,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
       while (cur && cur !== this.mesh.group) {
         if (cur.name === 'freefall-tube' || cur.userData?.isNewtonTube) {
           this.mesh.setRotateButtonHovered(false);
-          this.mesh.setSpeedButtonHovered(false);
           this.lastHoveredTarget = 'freefall-tube';
           const p = this.solver.airPressureKPa.toFixed(1);
           const envDesc = this.solver.airPressureKPa < 1.0 ? '高真空环境 (无空气阻力)' : '常压空气环境 (存在空气阻力)';
@@ -247,7 +227,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
 
     if (this.lastHoveredTarget) {
       this.mesh.setRotateButtonHovered(false);
-      this.mesh.setSpeedButtonHovered(false);
       this.lastHoveredTarget = null;
     }
     return null;
@@ -263,16 +242,12 @@ export default class MechFreeFallExperiment extends BaseExperiment {
   ): boolean | void {
     if (!hit) return false;
 
-    let targetType: 'rotate_button' | 'speed_button' | 'pump' | 'valve' | 'tube' | 'none' = 'none';
+    let targetType: 'rotate_button' | 'pump' | 'valve' | 'tube' | 'none' = 'none';
     let obj: THREE.Object3D | null = hit.object;
 
     while (obj && obj !== this.mesh.group) {
       if (obj.name === 'freefall-rotate-button' || obj.userData?.isRotateButton) {
         targetType = 'rotate_button';
-        break;
-      }
-      if (obj.name === 'freefall-speed-button' || obj.userData?.isSpeedButton) {
-        targetType = 'speed_button';
         break;
       }
       if (obj.name === 'freefall-pump-switch' || obj.userData?.isPumpSwitch) {
@@ -292,12 +267,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
 
     if (targetType === 'rotate_button' || targetType === 'tube') {
       this.invertTube();
-      this.mesh.pulseRotateButton();
-      return true;
-    }
-
-    if (targetType === 'speed_button') {
-      this.toggleTimeScale(context);
       return true;
     }
 
@@ -328,8 +297,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
    */
   public toggleTimeScale(context?: ExperimentContext): number {
     this.timeScale = this.timeScale < 0.7 ? 1.0 : 0.35;
-    this.mesh.setSpeedState(this.timeScale < 0.7);
-    this.mesh.pulseSpeedButton();
     context?.setParameter?.('timeScale', this.timeScale);
     return this.timeScale;
   }
@@ -377,7 +344,6 @@ export default class MechFreeFallExperiment extends BaseExperiment {
       this.mesh.setPumpState(this.solver.isPumpRunning, this.solver.airPressureKPa);
     } else if (id === 'timeScale') {
       this.timeScale = Math.max(0.1, Math.min(2.0, Number(value)));
-      this.mesh.setSpeedState(this.timeScale < 0.7);
     } else if (id === 'gravity') {
       this.solver.gravity = Math.max(0.5, Number(value));
     }

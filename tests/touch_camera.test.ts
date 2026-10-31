@@ -61,7 +61,7 @@ const canvas = new MockElement('canvas');
 const player = new PlayerController(new THREE.PerspectiveCamera(), canvas as any);
 const controller: any = new TouchController(player);
 const engine: any = { currentExperimentId: 'optics-reflection-refraction', isExperimentInteracting: false,
-  visionModal: { visible: false }, hud: { drawer: { open: false } },
+  visionModal: { visible: false }, hud: {},
   isFreeCursorExperiment: (id: string | null) => Boolean(id) };
 win.__ENGINE__ = engine;
 const finger = (identifier: number, clientX = 600, clientY = 250) => ({ identifier, clientX, clientY });
@@ -102,10 +102,9 @@ win.emit('touchmove', event([finger(1, 700)]));
 assert.equal(player.yaw, releasedYaw, 'Instrument ownership must not resume a stale camera drag');
 end();
 
-for (const blocked of ['instrument', 'modal', 'drawer', 'entry', 'whiteboard', 'handTracking']) {
+for (const blocked of ['instrument', 'modal', 'entry', 'whiteboard', 'handTracking']) {
   engine.isExperimentInteracting = blocked === 'instrument';
   engine.visionModal.visible = blocked === 'modal';
-  engine.hud.drawer.open = blocked === 'drawer';
   engine.labEntryActive = blocked === 'entry';
   engine.isWhiteboardMode = blocked === 'whiteboard';
   controller.isHandTrackingActive = blocked === 'handTracking';

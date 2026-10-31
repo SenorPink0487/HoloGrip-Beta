@@ -199,13 +199,15 @@ export class GeometrySolver {
       drawnSegments?: Array<{ pointIdA: string; pointIdB: string; label?: string }>;
     }
   ): { keyPoint: KeyPoint; snapType: 'vertex' | 'midpoint' | 'third' | 'center' | 'apex'; distance: number; snapLabel: string } | null {
-    let bestKp: KeyPoint | null = null;
-    let minDistance = threshold;
-    const worldPos = new THREE.Vector3();
-    const onlyOnEdgeOrLine = options?.onlyOnEdgeOrLine ?? true;
-
     // 1. 棱向引导磁吸（天然保证候选点严格位于几何体的棱线上）
     const edgeThreshold = threshold * 1.15;
+    let bestKp: KeyPoint | null = null;
+    let minDistance = edgeThreshold;
+    const worldPos = new THREE.Vector3();
+    const labelWorldPos = new THREE.Vector3();
+    const labelOffsetDir = new THREE.Vector3();
+    const onlyOnEdgeOrLine = options?.onlyOnEdgeOrLine ?? true;
+
     const vA = new THREE.Vector3();
     const vB = new THREE.Vector3();
     const edgeDir = new THREE.Vector3();
@@ -304,14 +306,33 @@ export class GeometrySolver {
       }
     }
 
-    // 3. 关键点直接距离判定
+    // 3. 关键点与顶点标号直接距离判定
     // 若 onlyOnEdgeOrLine 为 true，严格排除非线上的点 (kp.type === 'center' 如面心、体心)
     for (const kp of model.keyPoints) {
       if (onlyOnEdgeOrLine && kp.type === 'center') {
         continue; // 严禁面心与体心作为连线起点
       }
       worldPos.copy(kp.position).applyMatrix4(modelMatrixWorld);
-      const dist = ray.distanceToPoint(worldPos);
+      let dist = ray.distanceToPoint(worldPos);
+
+      // 兼容直接点击/捏合外偏 0.042 的顶点字母标号 (A, B, C, A1...)
+      if (kp.type === 'vertex' || kp.type === 'custom') {
+        labelOffsetDir.copy(kp.position);
+        if (labelOffsetDir.lengthSq() < 1e-4) {
+          labelOffsetDir.set(0, 1, 0);
+        } else {
+          labelOffsetDir.normalize();
+        }
+        labelWorldPos
+          .copy(kp.position)
+          .addScaledVector(labelOffsetDir, 0.042)
+          .applyMatrix4(modelMatrixWorld);
+        const labelDist = ray.distanceToPoint(labelWorldPos) * 0.95;
+        if (labelDist < dist) {
+          dist = labelDist;
+        }
+      }
+
       let effectiveDist = dist;
       if (kp.type === 'vertex') effectiveDist *= 0.85;
       else if (kp.type === 'midpoint' || kp.type === 'third') effectiveDist *= 0.90;

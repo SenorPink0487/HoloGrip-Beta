@@ -1,1023 +1,483 @@
-/**
- * 3D 实验器材模型：牛顿管与旋片式真空抽气机 (Newton's Tube & Laboratory Vacuum Pump)
- *
- * 视觉美学与材质工业规范：
- * - 严禁粗糙脏黑与单调死白，器材必须正对操作者视线。
- * - 航天级深空钛/微曜石阳极氧化合金机身构件 (Precision Slate Titanium / Obsidian Anodized Alloy: 0x1e293b)。
- * - 经典精密科研真空泵工业湛蓝电机机壳 (Precision Industrial Lab Blue: 0x1e40af)。
- * - 深邃海洋蓝黑高精度真空压力表与按键核心 (Deep Oceanic Sapphire: 0x0a192f)。
- * - 镜面抛光 316L 不锈钢 / 液态铬支撑总成与散热鳍片 (Polished Liquid Chrome / 316L Stainless Steel: 0xe2e8f0)。
- * - 精密切削香槟金黄铜阀门、进气嘴、锁紧套筒与紧固螺母 (Champagne Brass: 0xf59e0b)。
- * - 晶莹微透高韧性天蓝医用硅胶透明导管与缓冲垫 (Translucent Crystal Silicone)。
- * - 闪耀 24K 纯金硬币、天然温暖软木塞与高拟真自然轻羽。
- */
-
+/** Precision Newton tube: machined aluminum, optical glass and a rotary vacuum union. */
 import * as THREE from 'three';
 import { mechMetal, disposeObjectTree } from './mechKit.ts';
 
+/** Closed, chamfered cross section of a turned component. */
+function turned(profile: number[][], segments = 48): THREE.LatheGeometry {
+  return new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), segments);
+}
+
+/** Front-facing rounded casting, with an actual beveled perimeter. */
+function casting(w: number, h: number, d: number, r = 0.008): THREE.ExtrudeGeometry {
+  r = Math.min(r, w / 3, h / 3);
+  const x = w / 2, y = h / 2, shape = new THREE.Shape();
+  shape.moveTo(-x + r, -y);
+  shape.lineTo(x - r, -y); shape.quadraticCurveTo(x, -y, x, -y + r);
+  shape.lineTo(x, y - r); shape.quadraticCurveTo(x, y, x - r, y);
+  shape.lineTo(-x + r, y); shape.quadraticCurveTo(-x, y, -x, y - r);
+  shape.lineTo(-x, -y + r); shape.quadraticCurveTo(-x, -y, -x + r, -y);
+  const bevel = Math.min(0.0015, d * 0.18, r * 0.3);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: d - 2 * bevel, steps: 1, curveSegments: 5,
+    bevelEnabled: true, bevelSegments: 3, bevelSize: bevel, bevelThickness: bevel,
+  });
+  geo.center();
+  return geo;
+}
+
 export class NewtonTubeMesh {
   public readonly group = new THREE.Group();
-
-  // 1. 支架总成
   private standGroup = new THREE.Group();
   private rotateButtonPivot = new THREE.Group();
   private rotateButtonRing!: THREE.Mesh;
   private rotateButtonIcon!: THREE.Mesh;
   private rotateButtonHitBox!: THREE.Mesh;
   private rotateButtonHovered = false;
-
-  private speedButtonPivot = new THREE.Group();
-  private speedButtonRing!: THREE.Mesh;
-  private speedButtonIcon = new THREE.Group();
-  private speedButtonHitBox!: THREE.Mesh;
-  private speedButtonHovered = false;
-  private speedButtonGlowMaterial!: THREE.MeshStandardMaterial;
-
-  // 2. 牛顿管旋转总成 (围绕中央水平轴旋转)
   public tubePivot = new THREE.Group();
-  private glassOuterMesh: THREE.Mesh;
-  private glassInnerMesh: THREE.Mesh;
+  private glassOuterMesh!: THREE.Mesh;
+  private glassInnerMesh!: THREE.Mesh;
   private topCapGroup = new THREE.Group();
   private bottomCapGroup = new THREE.Group();
   private graduationGroup = new THREE.Group();
-  private valveKnobMesh: THREE.Mesh;
-  private valveHitBox: THREE.Mesh;
-
-  // 3. 管内物体
+  private valveKnobMesh!: THREE.Mesh;
+  private valveHitBox!: THREE.Mesh;
   private objectsGroup = new THREE.Group();
   private featherGroup = new THREE.Group();
-  private featherVaneMesh: THREE.Mesh;
-  private featherQuillMesh: THREE.Mesh;
-
+  private featherVaneMesh!: THREE.Mesh;
+  private featherQuillMesh!: THREE.Mesh;
   private coinGroup = new THREE.Group();
-  private coinMesh: THREE.Mesh;
-
+  private coinMesh!: THREE.Mesh;
   private corkGroup = new THREE.Group();
-  private corkMesh: THREE.Mesh;
-
-  // 4. 抽气机总成
+  private corkMesh!: THREE.Mesh;
   private pumpGroup = new THREE.Group();
-  private pumpPowerSwitchMesh: THREE.Mesh;
-  private pumpSwitchHitBox: THREE.Mesh;
-  private pumpLedMesh: THREE.Mesh;
+  private pumpPowerSwitchMesh!: THREE.Mesh;
+  private pumpSwitchHitBox!: THREE.Mesh;
+  private pumpLedMesh!: THREE.Mesh;
   private pumpGaugeNeedlePivot = new THREE.Group();
-  private pumpIntakeNozzle = new THREE.Vector3();
-
-  // 5. 导管
+  private pumpIntakeNozzle = new THREE.Vector3(0.4, 0.192, -0.025);
   private hoseMesh: THREE.Mesh | null = null;
   private hoseCurve: THREE.CatmullRomCurve3 | null = null;
-  private hoseMaterial: THREE.MeshStandardMaterial;
+  private hoseMaterial!: THREE.MeshStandardMaterial;
+  private glassMaterial!: THREE.MeshPhysicalMaterial;
+  private innerGlassMaterial!: THREE.MeshStandardMaterial;
+  private chromeMaterial!: THREE.MeshStandardMaterial;
+  private precisionSlateMaterial!: THREE.MeshStandardMaterial;
+  private sapphireDisplayMaterial!: THREE.MeshStandardMaterial;
+  private pumpMotorMaterial!: THREE.MeshStandardMaterial;
+  private switchBoxMaterial!: THREE.MeshStandardMaterial;
+  private darkSiliconeMaterial!: THREE.MeshStandardMaterial;
+  private brassMaterial!: THREE.MeshStandardMaterial;
+  private siliconeMaterial!: THREE.MeshStandardMaterial;
+  private featherMaterial!: THREE.MeshStandardMaterial;
+  private featherQuillMaterial!: THREE.MeshStandardMaterial;
+  private coinMaterial!: THREE.MeshStandardMaterial;
+  private corkMaterial!: THREE.MeshStandardMaterial;
+  private buttonGlowMaterial!: THREE.MeshStandardMaterial;
+  private ledMaterial!: THREE.MeshStandardMaterial;
+  private needleMaterial!: THREE.MeshBasicMaterial;
+  private inkMaterial = new THREE.MeshBasicMaterial({ color: 0x435765 });
+  private pressureCanvas: HTMLCanvasElement | null = null;
+  private pressureTexture: THREE.CanvasTexture | null = null;
+  private lastPressureText = '';
+  private pulseTimers = new Set<ReturnType<typeof setTimeout>>();
 
-  // 材质引用 (高级科研仪器材质体系：深空钛、精工蓝、海洋蓝黑、液态铬与香槟金)
-  private glassMaterial: THREE.MeshPhysicalMaterial;
-  private innerGlassMaterial: THREE.MeshStandardMaterial;
-  private chromeMaterial: THREE.MeshStandardMaterial;
-  private precisionSlateMaterial: THREE.MeshStandardMaterial;
-  private sapphireDisplayMaterial: THREE.MeshStandardMaterial;
-  private pumpMotorMaterial: THREE.MeshStandardMaterial;
-  private switchBoxMaterial: THREE.MeshStandardMaterial;
-  private darkSiliconeMaterial: THREE.MeshStandardMaterial;
-  private brassMaterial: THREE.MeshStandardMaterial;
-  private siliconeMaterial: THREE.MeshStandardMaterial;
-  private featherMaterial: THREE.MeshStandardMaterial;
-  private featherQuillMaterial: THREE.MeshStandardMaterial;
-  private coinMaterial: THREE.MeshStandardMaterial;
-  private corkMaterial: THREE.MeshStandardMaterial;
-  private corkBandMaterial: THREE.MeshStandardMaterial;
-  private buttonGlowMaterial: THREE.MeshStandardMaterial;
-  private ledMaterial: THREE.MeshStandardMaterial;
-  private needleMaterial: THREE.MeshBasicMaterial;
-
-  // 尺寸常量
   public readonly TUBE_LENGTH_M = 1.25;
-  public readonly FALL_DISTANCE_M = 1.05; // 扣除两端端盖与缓冲垫的净下落距离
-  public readonly TUBE_RADIUS_M = 0.072; // 大直径光学牛顿管 (直径 14.4cm，气势恢宏、清晰透亮)
-  public readonly PIVOT_HEIGHT_Y = 0.72; // 牛顿管旋转中心离台面高度
+  public readonly FALL_DISTANCE_M = 1.05;
+  public readonly TUBE_RADIUS_M = 0.082;
+  public readonly PIVOT_HEIGHT_Y = 0.74;
 
   constructor() {
     this.group.name = 'NewtonTubeMesh';
-
     this.initMaterials();
     this.createStand();
     this.createNewtonTube();
     this.createObjects();
     this.createVacuumPump();
-    this.createHose();
-
-    this.group.add(this.standGroup);
-    this.group.add(this.tubePivot);
-    this.group.add(this.pumpGroup);
-    this.group.add(this.objectsGroup);
-
-    // 初始位置设定
-    this.tubePivot.position.set(0, this.PIVOT_HEIGHT_Y, 0);
-    this.objectsGroup.position.set(0, this.PIVOT_HEIGHT_Y, 0);
+    this.group.add(this.standGroup, this.tubePivot, this.pumpGroup, this.objectsGroup);
+    this.tubePivot.position.y = this.PIVOT_HEIGHT_Y;
+    this.objectsGroup.position.y = this.PIVOT_HEIGHT_Y;
     this.updateHose();
   }
 
   private initMaterials(): void {
-    // 高透光光学物理玻璃外管 (晶莹透亮，全分辨率前向清漆层，彻底告别降采样模糊，管内物体高清晰锐利呈现)
     this.glassMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xf0f9ff,
-      roughness: 0.015,
-      metalness: 0.02,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.015,
-      reflectivity: 0.95,
-      transparent: true,
-      opacity: 0.16,
-      depthWrite: false,
-      side: THREE.FrontSide,
+      color: 0xe8f7fa, roughness: 0.065, metalness: 0, clearcoat: 1,
+      clearcoatRoughness: 0.04, reflectivity: 0.7,
+      transparent: true, opacity: 0.09, depthWrite: false, side: THREE.FrontSide,
     });
-
-    // 内部微发光玻璃腔体 (设为透明免除遮挡和发雾，杜绝遮挡管内物体深度)
-    this.innerGlassMaterial = new THREE.MeshStandardMaterial({
-      transparent: true,
-      opacity: 0.0,
-      visible: false,
-    });
-
-    // 镜面液态铬金属 (316L 不锈钢镜面抛光，细腻高光反射)
-    this.chromeMaterial = mechMetal(0xe2e8f0, 0.94, 0.12);
-
-    // 航天级深空钛阳极氧化精密合金构件 (彻底告别单调死白与廉价黑塑料)
-    this.precisionSlateMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      roughness: 0.28,
-      metalness: 0.82,
-    });
-
-    // 深邃海洋蓝黑高对比度视窗与按键核心材质 (Deep Oceanic Sapphire)
-    this.sapphireDisplayMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0a192f,
-      roughness: 0.22,
-      metalness: 0.70,
-    });
-
-    // 经典科研仪器工业湛蓝电机机壳材质 (Classic Precision Industrial Lab Blue)
-    this.pumpMotorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1e40af,
-      roughness: 0.26,
-      metalness: 0.76,
-    });
-
-    // 深色精密仪器工程外壳
-    this.switchBoxMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.32,
-      metalness: 0.65,
-    });
-
-    // 高阻尼防震暗色硅胶垫 (Dark Silicone Footpads)
-    this.darkSiliconeMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.80,
-      metalness: 0.05,
-    });
-
-    // 精密切削香槟金黄铜气嘴与调节旋钮
-    this.brassMaterial = mechMetal(0xf59e0b, 0.92, 0.18);
-
-    // 晶莹微透高分子硅胶减震垫 (清澈冰蓝微透)
-    this.siliconeMaterial = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      roughness: 0.25,
-      metalness: 0.05,
-      transparent: true,
-      opacity: 0.75,
-    });
-
-    // 羽毛羽片材质 (天然轻羽象牙暖白/柔和羽丝质感，杜绝刺眼过曝死白)
-    this.featherMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfef3c7,
-      roughness: 0.42,
-      metalness: 0.02,
-      side: THREE.DoubleSide,
-    });
-
-    // 羽毛羽轴材质 (温润细金羽茎)
-    this.featherQuillMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.85,
-      roughness: 0.20,
-    });
-
-    // 硬币材质 (真实纯金质感，高金属度与真实镜面高光，杜绝自发光糊成一团)
-    this.coinMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.92,
-      roughness: 0.18,
-    });
-
-    // 软木塞材质 (天然温暖软木橡树质感，哑光漫反射，真实实验器材外观)
-    this.corkMaterial = new THREE.MeshStandardMaterial({
-      color: 0xc89d66,
-      roughness: 0.85,
-      metalness: 0.0,
-    });
-
-    // 软木塞年轮深色条纹材质
-    this.corkBandMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8b5a2b,
-      roughness: 0.85,
-      metalness: 0.0,
-    });
-
-    // 旋转按钮发光材质 (纯净全息青蓝)
-    this.buttonGlowMaterial = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.45,
-      metalness: 0.7,
-      roughness: 0.15,
-    });
-
-    // 慢动作切换按钮发光材质 (翠绿全息光 / 琥珀金)
-    this.speedButtonGlowMaterial = new THREE.MeshStandardMaterial({
-      color: 0x34d399,
-      emissive: 0x10b981,
-      emissiveIntensity: 0.70,
-      metalness: 0.65,
-      roughness: 0.20,
-    });
-
-    // 抽气机 LED 指示灯材质
-    this.ledMaterial = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      emissive: 0x10b981,
-      emissiveIntensity: 0.9,
-      roughness: 0.15,
-      metalness: 0.1,
-    });
-
-    // 压力表指针材质 (警示红)
-    this.needleMaterial = new THREE.MeshBasicMaterial({
-      color: 0xef4444,
-    });
-
-    // 晶透微光天蓝高分子硅胶导管 (具有柔和微透光泽，清晰分明)
-    this.hoseMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0284c7,
-      roughness: 0.22,
-      metalness: 0.08,
-      transparent: true,
-      opacity: 0.88,
-    });
+    this.innerGlassMaterial = new THREE.MeshStandardMaterial({ visible: false });
+    this.chromeMaterial = mechMetal(0xf1f5f9, 0.88, 0.16);
+    this.precisionSlateMaterial = mechMetal(0xe2e8f0, 0.52, 0.32);
+    this.sapphireDisplayMaterial = mechMetal(0x0a192f, 0.15, 0.34);
+    this.pumpMotorMaterial = mechMetal(0x8bafbc, 0.48, 0.36);
+    this.switchBoxMaterial = mechMetal(0xbac8d1, 0.45, 0.34);
+    this.darkSiliconeMaterial = mechMetal(0x70808b, 0.02, 0.85);
+    this.brassMaterial = mechMetal(0xc6a46a, 0.72, 0.3);
+    this.siliconeMaterial = new THREE.MeshStandardMaterial({ color: 0xc5d9dc, roughness: 0.65 });
+    this.featherMaterial = new THREE.MeshStandardMaterial({ color: 0xf5eee0, roughness: 0.8, side: THREE.DoubleSide });
+    this.featherQuillMaterial = mechMetal(0xcbbd9d, 0.04, 0.7);
+    this.coinMaterial = mechMetal(0xc8d2dc, 0.76, 0.3);
+    this.corkMaterial = mechMetal(0xb38b5b, 0, 0.95);
+    this.buttonGlowMaterial = new THREE.MeshStandardMaterial({ color: 0x72b6c4, emissive: 0x407f94, emissiveIntensity: 0.16, roughness: 0.4 });
+    this.ledMaterial = new THREE.MeshStandardMaterial({ color: 0x85c4af, emissive: 0x55b991, emissiveIntensity: 0.4 });
+    this.needleMaterial = new THREE.MeshBasicMaterial({ color: 0xd0a672 });
+    this.hoseMaterial = new THREE.MeshStandardMaterial({ color: 0x9db3bd, roughness: 0.42, metalness: 0.05 });
   }
 
-  /**
-   * 创建实验台支架系统与旋转按钮 (航天深空钛与液态铬高精科技风格)
-   * 正前方零遮挡设计：支撑立柱位于左后方 (-X, -Z)，正面对准用户，视线 100% 全通透
-   */
-  private createStand(): void {
-    // 1. 加重稳固底座 (航天级深空钛阳极氧化精密底盘，搭配沉金倒角与防滑减震脚垫)
-    const baseGeo = new THREE.CylinderGeometry(0.20, 0.22, 0.026, 48);
-    const baseMesh = new THREE.Mesh(baseGeo, this.precisionSlateMaterial);
-    baseMesh.position.set(0, 0.013, 0);
-    baseMesh.castShadow = true;
-    baseMesh.receiveShadow = true;
-    this.standGroup.add(baseMesh);
-
-    // 防滑减震脚垫 (8 个暗色硅胶脚垫分布在底座下部，避免底座悬浮或单薄)
-    const footGeo = new THREE.CylinderGeometry(0.014, 0.016, 0.005, 24);
-    const footPositions = [
-      [0.17, 0.0025, 0],
-      [-0.17, 0.0025, 0],
-      [0, 0.0025, 0.17],
-      [0, 0.0025, -0.17],
-      [0.12, 0.0025, 0.12],
-      [-0.12, 0.0025, 0.12],
-      [0.12, 0.0025, -0.12],
-      [-0.12, 0.0025, -0.12],
-    ];
-    for (const [fx, fy, fz] of footPositions) {
-      const foot = new THREE.Mesh(footGeo, this.darkSiliconeMaterial);
-      foot.position.set(fx, fy, fz);
-      this.standGroup.add(foot);
-    }
-
-    // 亮铬光圈装饰环
-    const ringGeo = new THREE.TorusGeometry(0.185, 0.0035, 16, 48);
-    const ringMesh = new THREE.Mesh(ringGeo, this.chromeMaterial);
-    ringMesh.rotation.x = Math.PI / 2;
-    ringMesh.position.y = 0.027;
-    this.standGroup.add(ringMesh);
-
-    // 香槟金激光精雕同心环
-    const innerRingGeo = new THREE.TorusGeometry(0.12, 0.002, 16, 48);
-    const innerRingMesh = new THREE.Mesh(innerRingGeo, this.brassMaterial);
-    innerRingMesh.rotation.x = Math.PI / 2;
-    innerRingMesh.position.y = 0.027;
-    this.standGroup.add(innerRingMesh);
-
-    // 2. 左后侧主承重立柱 (位于 X = -0.16, Z = -0.08，彻底移出牛顿管正后方视野，直视管身 100% 纯净通透)
-    const columnHeight = this.PIVOT_HEIGHT_Y;
-    const colRadius = 0.016;
-    const colGeo = new THREE.CylinderGeometry(colRadius, colRadius, columnHeight, 32);
-
-    const xStandOffset = -0.16;
-    const zStandOffset = -0.08;
-
-    const colBack = new THREE.Mesh(colGeo, this.chromeMaterial);
-    colBack.position.set(xStandOffset, columnHeight / 2, zStandOffset);
-    colBack.castShadow = true;
-    this.standGroup.add(colBack);
-
-    // 柱底固定法兰 (深空钛合金法兰底座)
-    const flangeGeo = new THREE.CylinderGeometry(0.032, 0.038, 0.018, 24);
-    const flangeB = new THREE.Mesh(flangeGeo, this.precisionSlateMaterial);
-    flangeB.position.set(xStandOffset, 0.03, zStandOffset);
-    this.standGroup.add(flangeB);
-
-    // 4 颗香槟金六角紧固螺栓 (精密机械装配细节)
-    const boltGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.006, 6);
-    for (let i = 0; i < 4; i++) {
-      const angle = (i * Math.PI) / 2;
-      const bx = xStandOffset + Math.cos(angle) * 0.025;
-      const bz = zStandOffset + Math.sin(angle) * 0.025;
-      const bolt = new THREE.Mesh(boltGeo, this.brassMaterial);
-      bolt.position.set(bx, 0.040, bz);
-      this.standGroup.add(bolt);
-    }
-
-    // 水平悬臂托架 (从左后方立柱优雅延伸至中央转轴，后面完全不遮挡管内物体)
-    const bracketCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(xStandOffset, this.PIVOT_HEIGHT_Y, zStandOffset),
-      new THREE.Vector3(xStandOffset * 0.4, this.PIVOT_HEIGHT_Y, zStandOffset * 0.4),
-      new THREE.Vector3(0, this.PIVOT_HEIGHT_Y, -0.015),
-    ]);
-    const bracketArmGeo = new THREE.TubeGeometry(bracketCurve, 20, 0.016, 16, false);
-    const bracketArm = new THREE.Mesh(bracketArmGeo, this.chromeMaterial);
-    this.standGroup.add(bracketArm);
-
-    // 3. 轴承抱箍与水平转轴套筒 (液态铬，位于 Y = PIVOT_HEIGHT_Y)
-    const bearingHousingGeo = new THREE.CylinderGeometry(0.036, 0.036, 0.065, 32);
-    const bearingHousing = new THREE.Mesh(bearingHousingGeo, this.chromeMaterial);
-    bearingHousing.rotation.x = Math.PI / 2;
-    bearingHousing.position.set(0, this.PIVOT_HEIGHT_Y, -0.015);
-    this.standGroup.add(bearingHousing);
-
-    // 轴承侧边香槟金锁紧手轮 (真实机械调节旋钮)
-    const lockKnobGeo = new THREE.CylinderGeometry(0.018, 0.020, 0.016, 24);
-    const lockKnob = new THREE.Mesh(lockKnobGeo, this.brassMaterial);
-    lockKnob.rotation.x = Math.PI / 2;
-    lockKnob.position.set(0, this.PIVOT_HEIGHT_Y, -0.052);
-    this.standGroup.add(lockKnob);
-
-    // 4. 正前方 3D 双功能交互控制台 (在底座前部斜向上 45° 完美迎向用户视线，绝不遮挡管内物体)
-    // 左键：↻ 180° 旋转倒转按钮 (快捷键 R)
-    // 右键：⏱ 0.35x 慢动作对比切换按钮 (快捷键 T)
-    const consoleZ = 0.165;
-    const consoleY = 0.055;
-    const btnOffset = 0.052;
-
-    // 倾斜双位控制台基座 (深空钛阳极氧化机身，中间带黄铜激光铭牌连接桥)
-    const pedestalLeftGeo = new THREE.CylinderGeometry(0.044, 0.048, 0.032, 32);
-    const pedestalLeft = new THREE.Mesh(pedestalLeftGeo, this.precisionSlateMaterial);
-    pedestalLeft.position.set(-btnOffset, 0.026, consoleZ);
-    pedestalLeft.castShadow = true;
-    this.standGroup.add(pedestalLeft);
-
-    const pedestalRight = new THREE.Mesh(pedestalLeftGeo, this.precisionSlateMaterial);
-    pedestalRight.position.set(btnOffset, 0.026, consoleZ);
-    pedestalRight.castShadow = true;
-    this.standGroup.add(pedestalRight);
-
-    // 中间稳固连接桥与香槟金铭牌条
-    const bridgeGeo = new THREE.BoxGeometry(btnOffset * 2, 0.024, 0.065);
-    const bridgeMesh = new THREE.Mesh(bridgeGeo, this.precisionSlateMaterial);
-    bridgeMesh.position.set(0, 0.022, consoleZ);
-    this.standGroup.add(bridgeMesh);
-
-    const bridgePlateGeo = new THREE.PlaneGeometry(0.065, 0.012);
-    const bridgePlate = new THREE.Mesh(bridgePlateGeo, this.brassMaterial);
-    bridgePlate.position.set(0, 0.035, consoleZ + 0.033);
-    this.standGroup.add(bridgePlate);
-
-    const pedestalTrimGeo = new THREE.TorusGeometry(0.046, 0.0025, 16, 32);
-    const trimLeft = new THREE.Mesh(pedestalTrimGeo, this.chromeMaterial);
-    trimLeft.rotation.x = Math.PI / 2;
-    trimLeft.position.set(-btnOffset, 0.042, consoleZ);
-    this.standGroup.add(trimLeft);
-
-    const trimRight = new THREE.Mesh(pedestalTrimGeo, this.chromeMaterial);
-    trimRight.rotation.x = Math.PI / 2;
-    trimRight.position.set(btnOffset, 0.042, consoleZ);
-    this.standGroup.add(trimRight);
-
-    // --- 左侧按钮：旋转倒转 (180° Inversion) ---
-    this.rotateButtonPivot.position.set(-btnOffset, consoleY, consoleZ);
-    this.rotateButtonPivot.rotation.x = -Math.PI / 4; // 倾角 45° 迎向用户
-    this.rotateButtonPivot.name = 'freefall-rotate-button';
-
-    const btnRingGeo = new THREE.TorusGeometry(0.036, 0.005, 16, 48);
-    this.rotateButtonRing = new THREE.Mesh(btnRingGeo, this.buttonGlowMaterial);
-    this.rotateButtonPivot.add(this.rotateButtonRing);
-
-    const btnCenterGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.008, 32);
-    const btnCenter = new THREE.Mesh(btnCenterGeo, this.sapphireDisplayMaterial);
-    btnCenter.rotation.x = Math.PI / 2;
-    this.rotateButtonPivot.add(btnCenter);
-
-    const arrowCurveGeo = new THREE.TorusGeometry(0.018, 0.0028, 12, 32, Math.PI * 1.3);
-    this.rotateButtonIcon = new THREE.Mesh(arrowCurveGeo, this.chromeMaterial);
-    this.rotateButtonIcon.position.z = 0.006;
-    this.rotateButtonPivot.add(this.rotateButtonIcon);
-
-    const arrowTipGeo = new THREE.ConeGeometry(0.0055, 0.010, 16);
-    const arrowTip = new THREE.Mesh(arrowTipGeo, this.chromeMaterial);
-    arrowTip.position.set(0.017, 0.004, 0.006);
-    arrowTip.rotation.z = -Math.PI / 4;
-    this.rotateButtonPivot.add(arrowTip);
-
-    const hitGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.05, 24);
-    const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
-    this.rotateButtonHitBox = new THREE.Mesh(hitGeo, hitMat);
-    this.rotateButtonHitBox.rotation.x = Math.PI / 2;
-    this.rotateButtonHitBox.name = 'freefall-rotate-button';
-    this.rotateButtonHitBox.userData = { isRotateButton: true };
-    this.rotateButtonPivot.add(this.rotateButtonHitBox);
-    this.standGroup.add(this.rotateButtonPivot);
-
-    // --- 右侧按钮：慢动作时间倍率切换 (Slow-Mo / 1.0x Real-time) ---
-    this.speedButtonPivot.position.set(btnOffset, consoleY, consoleZ);
-    this.speedButtonPivot.rotation.x = -Math.PI / 4; // 倾角 45° 迎向用户
-    this.speedButtonPivot.name = 'freefall-speed-button';
-
-    this.speedButtonRing = new THREE.Mesh(btnRingGeo, this.speedButtonGlowMaterial);
-    this.speedButtonPivot.add(this.speedButtonRing);
-
-    const speedBtnCenter = new THREE.Mesh(btnCenterGeo, this.sapphireDisplayMaterial);
-    speedBtnCenter.rotation.x = Math.PI / 2;
-    this.speedButtonPivot.add(speedBtnCenter);
-
-    // 3D 秒表 / 慢放仪表图标
-    const timerRingGeo = new THREE.TorusGeometry(0.014, 0.0022, 12, 32);
-    const timerRing = new THREE.Mesh(timerRingGeo, this.chromeMaterial);
-    timerRing.position.z = 0.006;
-    this.speedButtonIcon.add(timerRing);
-
-    // 秒表顶部按把
-    const timerStemGeo = new THREE.CylinderGeometry(0.002, 0.002, 0.005, 12);
-    const timerStem = new THREE.Mesh(timerStemGeo, this.brassMaterial);
-    timerStem.position.set(0, 0.016, 0.006);
-    this.speedButtonIcon.add(timerStem);
-
-    // 秒表指针 (指示在 10 点钟方向)
-    const handGeo = new THREE.BoxGeometry(0.002, 0.009, 0.002);
-    const hand = new THREE.Mesh(handGeo, this.chromeMaterial);
-    hand.position.set(-0.003, 0.004, 0.007);
-    hand.rotation.z = Math.PI / 6;
-    this.speedButtonIcon.add(hand);
-
-    // 中心微轴
-    const axisGeo = new THREE.CylinderGeometry(0.0025, 0.0025, 0.003, 12);
-    const axis = new THREE.Mesh(axisGeo, this.brassMaterial);
-    axis.rotation.x = Math.PI / 2;
-    axis.position.z = 0.0075;
-    this.speedButtonIcon.add(axis);
-
-    this.speedButtonPivot.add(this.speedButtonIcon);
-
-    this.speedButtonHitBox = new THREE.Mesh(hitGeo, hitMat);
-    this.speedButtonHitBox.rotation.x = Math.PI / 2;
-    this.speedButtonHitBox.name = 'freefall-speed-button';
-    this.speedButtonHitBox.userData = { isSpeedButton: true };
-    this.speedButtonPivot.add(this.speedButtonHitBox);
-    this.standGroup.add(this.speedButtonPivot);
+  private part(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material,
+    x = 0, y = 0, z = 0): THREE.Mesh {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    parent.add(mesh);
+    return mesh;
   }
 
-  /**
-   * 创建牛顿管主体及密封端盖、激光刻度线 (深空钛合金阳极氧化端盖与亮铬装配)
-   */
-  private createNewtonTube(): void {
-    const halfL = this.TUBE_LENGTH_M / 2;
-
-    // 1. 中部抱箍 (深空钛阳极氧化双对半抱箍，带亮铬倒角与香槟金紧固螺栓)
-    const collarGeo = new THREE.CylinderGeometry(this.TUBE_RADIUS_M + 0.008, this.TUBE_RADIUS_M + 0.008, 0.05, 32);
-    const collarMesh = new THREE.Mesh(collarGeo, this.precisionSlateMaterial);
-    this.tubePivot.add(collarMesh);
-
-    // 抱箍上下亮铬精磨边缘环
-    const collarTrimGeo = new THREE.TorusGeometry(this.TUBE_RADIUS_M + 0.008, 0.002, 16, 48);
-    const collarTrimTop = new THREE.Mesh(collarTrimGeo, this.chromeMaterial);
-    collarTrimTop.rotation.x = Math.PI / 2;
-    collarTrimTop.position.y = 0.025;
-    this.tubePivot.add(collarTrimTop);
-
-    const collarTrimBot = new THREE.Mesh(collarTrimGeo, this.chromeMaterial);
-    collarTrimBot.rotation.x = Math.PI / 2;
-    collarTrimBot.position.y = -0.025;
-    this.tubePivot.add(collarTrimBot);
-
-    // 抱箍侧面香槟金六角紧固螺母 (左后与左前)
-    const collarBoltGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.012, 6);
-    const collarBolt1 = new THREE.Mesh(collarBoltGeo, this.brassMaterial);
-    collarBolt1.rotation.z = Math.PI / 2;
-    collarBolt1.position.set(-this.TUBE_RADIUS_M - 0.009, 0.012, 0.035);
-    this.tubePivot.add(collarBolt1);
-
-    const collarBolt2 = new THREE.Mesh(collarBoltGeo, this.brassMaterial);
-    collarBolt2.rotation.z = Math.PI / 2;
-    collarBolt2.position.set(-this.TUBE_RADIUS_M - 0.009, -0.012, 0.035);
-    this.tubePivot.add(collarBolt2);
-
-    // 2. 玻璃外管 (大直径光学高透玻璃，不阻挡阴影，通透明净)
-    const outerGeo = new THREE.CylinderGeometry(
-      this.TUBE_RADIUS_M,
-      this.TUBE_RADIUS_M,
-      this.TUBE_LENGTH_M,
-      48,
-      1,
-      true
-    );
-    this.glassOuterMesh = new THREE.Mesh(outerGeo, this.glassMaterial);
-    this.glassOuterMesh.name = 'freefall-tube';
-    this.glassOuterMesh.userData = { isNewtonTube: true };
-    this.glassOuterMesh.castShadow = false;
-    this.glassOuterMesh.renderOrder = 10;
-    this.tubePivot.add(this.glassOuterMesh);
-
-    // 3. 内部微发光玻璃腔壁
-    const innerGeo = new THREE.CylinderGeometry(
-      this.TUBE_RADIUS_M - 0.004,
-      this.TUBE_RADIUS_M - 0.004,
-      this.TUBE_LENGTH_M - 0.02,
-      48,
-      1,
-      true
-    );
-    this.glassInnerMesh = new THREE.Mesh(innerGeo, this.innerGlassMaterial);
-    this.glassInnerMesh.visible = false;
-    this.glassInnerMesh.castShadow = false;
-    this.tubePivot.add(this.glassInnerMesh);
-
-    // 专属管内柔和通透补光灯 (随管身同步转动，确保内部硬币、羽毛、软木塞立体分明，杜绝过曝与反白)
-    const frontFillLight = new THREE.PointLight(0xffffff, 0.65, 2.5);
-    frontFillLight.position.set(0, 0, 0.26);
-    this.tubePivot.add(frontFillLight);
-
-    const backFillLight = new THREE.PointLight(0xdbeafe, 0.35, 2.5);
-    backFillLight.position.set(0, 0, -0.26);
-    this.tubePivot.add(backFillLight);
-
-    // 4. 上密封盖 (Top End Cap - 深空钛合金基体 + 香槟金密封压圈 + 液态铬顶盖)
-    this.topCapGroup.position.set(0, halfL, 0);
-    const capGeo = new THREE.CylinderGeometry(this.TUBE_RADIUS_M + 0.005, this.TUBE_RADIUS_M + 0.005, 0.038, 32);
-    const topCapMesh = new THREE.Mesh(capGeo, this.precisionSlateMaterial);
-    this.topCapGroup.add(topCapMesh);
-
-    // 顶端香槟金精密滚花密封锁紧环
-    const sealRingGeo = new THREE.TorusGeometry(this.TUBE_RADIUS_M + 0.005, 0.0025, 16, 48);
-    const sealRingTop = new THREE.Mesh(sealRingGeo, this.brassMaterial);
-    sealRingTop.rotation.x = Math.PI / 2;
-    sealRingTop.position.y = -0.012;
-    this.topCapGroup.add(sealRingTop);
-
-    // 上端晶透硅胶缓冲垫 (厚度加实，与下落起点无缝衔接)
-    const padGeo = new THREE.CylinderGeometry(this.TUBE_RADIUS_M - 0.006, this.TUBE_RADIUS_M - 0.006, 0.05, 32);
-    const topPad = new THREE.Mesh(padGeo, this.siliconeMaterial);
-    topPad.position.y = -0.045;
-    this.topCapGroup.add(topPad);
-
-    // 顶部金属圆顶螺帽 (液态铬 / 316L 不锈钢)
-    const domeGeo = new THREE.SphereGeometry(this.TUBE_RADIUS_M - 0.008, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-    const topDome = new THREE.Mesh(domeGeo, this.chromeMaterial);
-    topDome.position.y = 0.019;
-    this.topCapGroup.add(topDome);
-    this.tubePivot.add(this.topCapGroup);
-
-    // 5. 下密封盖 (Bottom End Cap，深空钛合金基体 + 带有抽气阀门接口)
-    this.bottomCapGroup.position.set(0, -halfL, 0);
-    const botCapMesh = new THREE.Mesh(capGeo, this.precisionSlateMaterial);
-    this.bottomCapGroup.add(botCapMesh);
-
-    // 底端香槟金精密滚花密封锁紧环
-    const sealRingBot = new THREE.Mesh(sealRingGeo, this.brassMaterial);
-    sealRingBot.rotation.x = Math.PI / 2;
-    sealRingBot.position.y = 0.012;
-    this.bottomCapGroup.add(sealRingBot);
-
-    // 下端晶透硅胶缓冲垫 (坚实承托着陆物体，杜绝虚空悬浮)
-    const botPad = new THREE.Mesh(padGeo, this.siliconeMaterial);
-    botPad.position.y = 0.045;
-    this.bottomCapGroup.add(botPad);
-
-    // 抽气阀门底座与旋塞 (Stopcock Valve - 金黄铜)
-    const valveBaseGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.045, 24);
-    const valveBase = new THREE.Mesh(valveBaseGeo, this.brassMaterial);
-    valveBase.position.y = -0.038;
-    this.bottomCapGroup.add(valveBase);
-
-    // 阀门出气嘴 (Nozzle，导管连接处，朝向右前方抽气机)
-    const nozzleGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.036, 16);
-    const nozzleMesh = new THREE.Mesh(nozzleGeo, this.brassMaterial);
-    nozzleMesh.rotation.z = Math.PI / 2;
-    nozzleMesh.position.set(this.TUBE_RADIUS_M + 0.015, -0.038, 0.018);
-    this.bottomCapGroup.add(nozzleMesh);
-
-    // 旋转旋塞手柄 (亮铬液态金属)
-    const knobGeo = new THREE.BoxGeometry(0.012, 0.016, 0.045);
-    this.valveKnobMesh = new THREE.Mesh(knobGeo, this.chromeMaterial);
-    this.valveKnobMesh.position.set(0, -0.062, 0);
-    this.valveKnobMesh.name = 'freefall-valve';
-    this.bottomCapGroup.add(this.valveKnobMesh);
-
-    // 阀门点击包围盒
-    const valveHitGeo = new THREE.SphereGeometry(0.055, 16, 16);
-    const valveHitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
-    this.valveHitBox = new THREE.Mesh(valveHitGeo, valveHitMat);
-    this.valveHitBox.position.set(0, -0.048, 0);
-    this.valveHitBox.name = 'freefall-valve';
-    this.valveHitBox.userData = { isValve: true };
-    this.bottomCapGroup.add(this.valveHitBox);
-
-    this.tubePivot.add(this.bottomCapGroup);
-
-    // 6. 激光蚀刻刻度标线 (从 0cm 到 100cm，正面直对用户)
-    this.createGraduationMarks();
-    this.tubePivot.add(this.graduationGroup);
-  }
-
-  /**
-   * 激光蚀刻刻度线 (正面朝向用户，刻度清晰立现)
-   */
-  private createGraduationMarks(): void {
-    const markMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.85,
+  /** Repeated machining details share geometry and a single draw call. */
+  private instances(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material,
+    poses: { p: number[]; r?: number[]; s?: number[] }[], name: string): void {
+    const mesh = new THREE.InstancedMesh(geo, mat, poses.length);
+    const dummy = new THREE.Object3D();
+    poses.forEach(({ p, r, s }, i) => {
+      dummy.position.set(p[0], p[1], p[2]);
+      dummy.rotation.set(r?.[0] ?? 0, r?.[1] ?? 0, r?.[2] ?? 0);
+      dummy.scale.set(s?.[0] ?? 1, s?.[1] ?? 1, s?.[2] ?? 1);
+      dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
     });
-
-    const startY = this.FALL_DISTANCE_M / 2;
-    const totalTicks = 11; // 0cm, 10cm, ..., 100cm
-
-    for (let i = 0; i < totalTicks; i++) {
-      const y = startY - (i / 10) * this.FALL_DISTANCE_M;
-      const isMajor = i % 2 === 0;
-      const width = isMajor ? 0.024 : 0.014;
-
-      const tickGeo = new THREE.PlaneGeometry(width, 0.0025);
-      const tickMesh = new THREE.Mesh(tickGeo, markMat);
-      tickMesh.position.set(0, y, this.TUBE_RADIUS_M - 0.002);
-      this.graduationGroup.add(tickMesh);
-    }
+    mesh.name = name; mesh.castShadow = true; mesh.receiveShadow = true;
+    parent.add(mesh);
   }
 
-  /**
-   * 创建管内的三件对比自由落体对象 (羽毛、硬币、软木塞)
-   * 采用高拟真科研实验室级 3D 几何建模，天然轻羽、抛光 24K 金币与天然暖木塞
-   */
-  private createObjects(): void {
-    // 1. 羽毛 (Feather) - 位于右侧，天然温润轻羽 + 细金羽茎
-    this.createFeatherMesh();
-    this.featherGroup.name = 'freefall-feather';
-    this.featherGroup.renderOrder = 2;
-    this.objectsGroup.add(this.featherGroup);
-
-    // 2. 软木塞 (Cork) - 位于中央，经典实验室圆台软木塞
-    const corkGeo = new THREE.CylinderGeometry(0.017, 0.023, 0.042, 32);
-    this.corkMesh = new THREE.Mesh(corkGeo, this.corkMaterial);
-    this.corkMesh.castShadow = false;
-    this.corkGroup.add(this.corkMesh);
-
-    // 软木塞深色年轮环带 (强化木塞分层纹理与立体辨识度)
-    const bandGeo = new THREE.CylinderGeometry(0.0185, 0.0215, 0.005, 32);
-    const band1 = new THREE.Mesh(bandGeo, this.corkBandMaterial);
-    band1.position.y = 0.007;
-    this.corkGroup.add(band1);
-
-    const band2 = new THREE.Mesh(bandGeo, this.corkBandMaterial);
-    band2.position.y = -0.009;
-    this.corkGroup.add(band2);
-
-    this.corkGroup.name = 'freefall-cork';
-    this.corkGroup.renderOrder = 2;
-    this.objectsGroup.add(this.corkGroup);
-
-    // 3. 硬币 (Coin) - 位于左侧，闪耀 24K 纯金，双面立体边框与浮雕徽记
-    const coinOuterGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.0035, 32);
-    this.coinMesh = new THREE.Mesh(coinOuterGeo, this.coinMaterial);
-    this.coinMesh.rotation.x = Math.PI / 2;
-    this.coinMesh.castShadow = false;
-    this.coinGroup.add(this.coinMesh);
-
-    // 硬币凸起边框环 (增强 3D 浮雕与金币高光反差)
-    const coinRimGeo = new THREE.TorusGeometry(0.021, 0.0016, 12, 32);
-    const coinRimFront = new THREE.Mesh(coinRimGeo, this.coinMaterial);
-    coinRimFront.position.z = 0.002;
-    this.coinGroup.add(coinRimFront);
-
-    const coinRimBack = new THREE.Mesh(coinRimGeo, this.coinMaterial);
-    coinRimBack.position.z = -0.002;
-    this.coinGroup.add(coinRimBack);
-
-    // 硬币中央浮雕五角星徽记
-    const starGeo = new THREE.CylinderGeometry(0.0075, 0.0075, 0.0042, 5);
-    const starMesh = new THREE.Mesh(starGeo, this.coinMaterial);
-    starMesh.rotation.x = Math.PI / 2;
-    this.coinGroup.add(starMesh);
-
-    this.coinGroup.name = 'freefall-coin';
-    this.coinGroup.renderOrder = 2;
-    this.objectsGroup.add(this.coinGroup);
-
-    // 初始静止落在管底硅胶缓冲垫上
-    this.setObjectsState(this.FALL_DISTANCE_M, this.FALL_DISTANCE_M, this.FALL_DISTANCE_M);
-  }
-
-  /**
-   * 构造逼真的天然羽毛网格 (温润细金羽茎 + 柔美自然象牙微弧羽片 + 琥珀金微羽支肌理)
-   */
-  private createFeatherMesh(): void {
-    // 羽轴 (Quill) - 金色/暖象牙羽茎，优美微弯
-    const quillCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, -0.065, 0),
-      new THREE.Vector3(0.001, -0.025, 0.001),
-      new THREE.Vector3(0.0025, 0.025, -0.001),
-      new THREE.Vector3(0.0005, 0.065, 0),
-    ]);
-    const quillGeo = new THREE.TubeGeometry(quillCurve, 24, 0.0015, 8, false);
-    this.featherQuillMesh = new THREE.Mesh(quillGeo, this.featherQuillMaterial);
-    this.featherGroup.add(this.featherQuillMesh);
-
-    // 羽片 (Vane) - 天然象牙暖色轻羽，优雅的羽毛外轮廓
-    const shape = new THREE.Shape();
-    shape.moveTo(0, -0.055);
-    shape.bezierCurveTo(0.020, -0.035, 0.026, 0.030, 0.002, 0.065);
-    shape.bezierCurveTo(-0.018, 0.030, -0.016, -0.035, 0, -0.055);
-
-    const vaneGeo = new THREE.ShapeGeometry(shape, 32);
-    this.featherVaneMesh = new THREE.Mesh(vaneGeo, this.featherMaterial);
-    this.featherVaneMesh.castShadow = false;
-    this.featherGroup.add(this.featherVaneMesh);
-
-    // 添加羽片琥珀暖金微羽支斑纹线，增强自然立体质感
-    const barbMat = new THREE.MeshBasicMaterial({
-      color: 0xb45309,
-      transparent: true,
-      opacity: 0.70,
-      depthWrite: false,
-    });
-    for (let i = -4; i <= 4; i++) {
-      const y = i * 0.011;
-      const w = 0.032 * (1 - Math.abs(i) / 6);
-      const barbGeo = new THREE.PlaneGeometry(w, 0.0012);
-      const barb = new THREE.Mesh(barbGeo, barbMat);
-      barb.position.set(0, y, 0.0008);
-      barb.rotation.z = i > 0 ? 0.25 : -0.25;
-      this.featherGroup.add(barb);
-    }
-  }
-
-  /**
-   * 创建旋片式真空抽气机 (真空泵 - 经典精密实验室蓝与深空钛阳极氧化机体)
-   * 布局：泵腔与进气嘴位于左侧 (面向牛顿管)，电机与散热片位于右侧，中间空域开阔杜绝穿模
-   */
-  private createVacuumPump(): void {
-    this.pumpGroup.position.set(0.48, 0, 0.02);
-    this.pumpGroup.name = 'freefall-pump';
-
-    // 1. 抽气机底座与四角防震脚 (深空钛阳极氧化重型铸造底座 + 暗色高阻尼硅胶脚垫)
-    const basePlateGeo = new THREE.BoxGeometry(0.26, 0.022, 0.16);
-    const basePlate = new THREE.Mesh(basePlateGeo, this.precisionSlateMaterial);
-    basePlate.position.y = 0.021;
-    basePlate.castShadow = true;
-    basePlate.receiveShadow = true;
-    this.pumpGroup.add(basePlate);
-
-    // 底座前面板沉金激光铭牌
-    const badgeGeo = new THREE.PlaneGeometry(0.12, 0.012);
-    const badgeMat = mechMetal(0xf59e0b, 0.90, 0.20);
-    const badgeMesh = new THREE.Mesh(badgeGeo, badgeMat);
-    badgeMesh.position.set(0, 0.021, 0.081);
-    this.pumpGroup.add(badgeMesh);
-
-    // 4 角暗色高阻尼硅胶防震脚垫
-    const footGeo = new THREE.CylinderGeometry(0.012, 0.014, 0.01, 16);
-    const footPositions = [
-      [-0.11, 0.005, -0.06],
-      [0.11, 0.005, -0.06],
-      [-0.11, 0.005, 0.06],
-      [0.11, 0.005, 0.06],
-    ];
-    for (const [fx, fy, fz] of footPositions) {
-      const foot = new THREE.Mesh(footGeo, this.darkSiliconeMaterial);
-      foot.position.set(fx, fy, fz);
-      this.pumpGroup.add(foot);
-    }
-
-    // 2. 旋片式泵腔室 (位于左侧 X = -0.065，正对牛顿管方向，亮铬/316L 不锈钢)
-    const chamberGeo = new THREE.BoxGeometry(0.10, 0.105, 0.12);
-    const chamberMesh = new THREE.Mesh(chamberGeo, this.chromeMaterial);
-    chamberMesh.position.set(-0.065, 0.08, 0);
-    chamberMesh.castShadow = true;
-    this.pumpGroup.add(chamberMesh);
-
-    // 泵腔黄铜机油观察窗外框
-    const sightGlassRingGeo = new THREE.TorusGeometry(0.018, 0.003, 16, 24);
-    const sightGlassRing = new THREE.Mesh(sightGlassRingGeo, this.brassMaterial);
-    sightGlassRing.position.set(-0.065, 0.05, -0.061);
-    this.pumpGroup.add(sightGlassRing);
-
-    // 3. 抽气进气嘴 (金黄铜，位于腔室左前上方，畅通无阻迎接导管)
-    const pumpNozzleGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.035, 16);
-    const pumpNozzle = new THREE.Mesh(pumpNozzleGeo, this.brassMaterial);
-    pumpNozzle.position.set(-0.075, 0.150, 0.032);
-    this.pumpGroup.add(pumpNozzle);
-    this.pumpIntakeNozzle.set(0.48 - 0.075, 0.1675, 0.02 + 0.032);
-
-    // 4. 排气消音滤嘴 (亮铬，位于腔室后侧)
-    const exhaustGeo = new THREE.CylinderGeometry(0.014, 0.016, 0.045, 20);
-    const exhaust = new THREE.Mesh(exhaustGeo, this.chromeMaterial);
-    exhaust.position.set(-0.075, 0.150, -0.032);
-    this.pumpGroup.add(exhaust);
-
-    // 5. 电机机壳 (经典实验室工业湛蓝机壳，位于右侧 X = +0.055，背离牛顿管方向)
-    const motorRadius = 0.052;
-    const motorLength = 0.12;
-    const motorGeo = new THREE.CylinderGeometry(motorRadius, motorRadius, motorLength, 32);
-    const motorMesh = new THREE.Mesh(motorGeo, this.pumpMotorMaterial);
-    motorMesh.rotation.z = Math.PI / 2;
-    motorMesh.position.set(0.055, 0.08, 0);
-    motorMesh.castShadow = true;
-    this.pumpGroup.add(motorMesh);
-
-    // 电机后轴承端盖与风罩 (深空钛合金)
-    const motorCapGeo = new THREE.CylinderGeometry(motorRadius - 0.002, motorRadius, 0.016, 32);
-    const motorCap = new THREE.Mesh(motorCapGeo, this.precisionSlateMaterial);
-    motorCap.rotation.z = Math.PI / 2;
-    motorCap.position.set(0.118, 0.08, 0);
-    this.pumpGroup.add(motorCap);
-
-    // 散热鳍片 (4 环亮铬金属片，分布在右侧电机上)
-    const finGeo = new THREE.CylinderGeometry(motorRadius + 0.006, motorRadius + 0.006, 0.004, 32);
-    for (let i = 0; i < 4; i++) {
-      const fin = new THREE.Mesh(finGeo, this.chromeMaterial);
-      fin.rotation.z = Math.PI / 2;
-      fin.position.set(0.025 + i * 0.02, 0.08, 0);
-      this.pumpGroup.add(fin);
-    }
-
-    // 6. 镀铬顶部提手 (居中横跨)
-    const handleCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.05, 0.13, 0),
-      new THREE.Vector3(-0.05, 0.175, 0),
-      new THREE.Vector3(0.05, 0.175, 0),
-      new THREE.Vector3(0.05, 0.13, 0),
-    ]);
-    const handleGeo = new THREE.TubeGeometry(handleCurve, 20, 0.005, 12, false);
-    const handleMesh = new THREE.Mesh(handleGeo, this.chromeMaterial);
-    this.pumpGroup.add(handleMesh);
-
-    // 7. 高精度真空压力表 (装在左侧泵腔正面，直观正对用户视线)
-    const gaugeDialGroup = new THREE.Group();
-    gaugeDialGroup.position.set(-0.065, 0.08, 0.061);
-
-    // 亮铬表圈外壳
-    const bezelGeo = new THREE.CylinderGeometry(0.036, 0.036, 0.012, 32);
-    const bezel = new THREE.Mesh(bezelGeo, this.chromeMaterial);
-    bezel.rotation.x = Math.PI / 2;
-    gaugeDialGroup.add(bezel);
-
-    // 表盘底盘 (深邃海洋蓝黑显示面板，高对比度专业科研面板，彻底告别白色)
-    const dialFaceGeo = new THREE.CircleGeometry(0.032, 32);
-    const dialFace = new THREE.Mesh(dialFaceGeo, this.sapphireDisplayMaterial);
-    dialFace.position.z = 0.007;
-    gaugeDialGroup.add(dialFace);
-
-    // 表盘刻度环与标记 (荧光青/蓝全息刻度)
-    const dialMarkGeo = new THREE.RingGeometry(0.024, 0.029, 32, 1, 0, Math.PI * 1.5);
-    const dialMarkMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const dialMark = new THREE.Mesh(dialMarkGeo, dialMarkMat);
-    dialMark.position.z = 0.008;
-    dialMark.rotation.z = Math.PI * 0.75;
-    gaugeDialGroup.add(dialMark);
-
-    // 动态红色指针
-    this.pumpGaugeNeedlePivot.position.set(0, 0, 0.009);
-    const needleGeo = new THREE.ConeGeometry(0.002, 0.024, 8);
-    const needle = new THREE.Mesh(needleGeo, this.needleMaterial);
-    needle.position.y = 0.012;
-    this.pumpGaugeNeedlePivot.add(needle);
-    gaugeDialGroup.add(this.pumpGaugeNeedlePivot);
-
-    // 指针中央香槟金固定帽
-    const needleCapGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.003, 16);
-    const needleCap = new THREE.Mesh(needleCapGeo, this.brassMaterial);
-    needleCap.rotation.x = Math.PI / 2;
-    needleCap.position.z = 0.010;
-    gaugeDialGroup.add(needleCap);
-
-    this.pumpGroup.add(gaugeDialGroup);
-
-    // 8. 电源开关按钮与指示灯 (安装在右侧电机底座前部)
-    const switchBoxGeo = new THREE.BoxGeometry(0.038, 0.024, 0.018);
-    const switchBox = new THREE.Mesh(switchBoxGeo, this.switchBoxMaterial);
-    switchBox.position.set(0.055, 0.035, 0.085);
-    this.pumpGroup.add(switchBox);
-
-    const switchBtnGeo = new THREE.BoxGeometry(0.016, 0.012, 0.008);
-    this.pumpPowerSwitchMesh = new THREE.Mesh(switchBtnGeo, this.chromeMaterial);
-    this.pumpPowerSwitchMesh.position.set(0.045, 0.035, 0.096);
-    this.pumpPowerSwitchMesh.name = 'freefall-pump-switch';
-    this.pumpGroup.add(this.pumpPowerSwitchMesh);
-
-    // LED 工作状态指示灯
-    const ledGeo = new THREE.SphereGeometry(0.005, 16, 16);
-    this.pumpLedMesh = new THREE.Mesh(ledGeo, this.ledMaterial);
-    this.pumpLedMesh.position.set(0.070, 0.035, 0.096);
-    this.pumpGroup.add(this.pumpLedMesh);
-
-    // 抽气机交互点击包围盒
-    const pumpHitGeo = new THREE.BoxGeometry(0.28, 0.20, 0.20);
-    const pumpHitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
-    this.pumpSwitchHitBox = new THREE.Mesh(pumpHitGeo, pumpHitMat);
-    this.pumpSwitchHitBox.position.set(0, 0.09, 0);
-    this.pumpSwitchHitBox.name = 'freefall-pump-switch';
-    this.pumpSwitchHitBox.userData = { isPumpSwitch: true };
-    this.pumpGroup.add(this.pumpSwitchHitBox);
-  }
-
-  /**
-   * 构造连接抽气机与牛顿管的柔性硅胶导管
-   */
-  private createHose(): void {
-    this.updateHose();
-  }
-
-  /**
-   * 动态更新导管三维曲度 (完全在 this.group 局部坐标系内计算，杜绝世界坐标漂移与几何穿模)
-   */
-  public updateHose(): void {
-    const halfL = this.TUBE_LENGTH_M / 2;
-
-    // 1. 牛顿管阀门出气嘴在 this.group 局部坐标系下的准确位置
-    const nozzleTipLocal = new THREE.Vector3(this.TUBE_RADIUS_M + 0.033, -halfL - 0.038, 0.018);
-    const valveLocalPos = nozzleTipLocal.clone().applyEuler(this.tubePivot.rotation).add(this.tubePivot.position);
-    const nozzleDir = new THREE.Vector3(0.9, 0, 0.35).normalize().applyEuler(this.tubePivot.rotation);
-
-    // 2. 抽气机进气嘴在 this.group 局部坐标系下的准确位置
-    // pumpGroup 位于 (0.48, 0, 0.02)，进气嘴顶端位于 (-0.075, 0.1675, 0.032)
-    const pumpLocalPos = new THREE.Vector3(0.48 - 0.075, 0.1675, 0.02 + 0.032);
-
-    // 3. 构建柔性导管的自然垂坠三维样条曲线
-    const p1 = new THREE.Vector3().copy(valveLocalPos).addScaledVector(nozzleDir, 0.06);
-    const p4 = new THREE.Vector3().copy(pumpLocalPos).add(new THREE.Vector3(0, 0.06, 0.01));
-
-    // 中间控制点：插值自适应垂坠
-    const uprightY = this.PIVOT_HEIGHT_Y - halfL - 0.038; // ≈ 0.057
-    const invertedY = this.PIVOT_HEIGHT_Y + halfL + 0.038; // ≈ 1.383
-    const alpha = Math.max(0, Math.min(1, (valveLocalPos.y - uprightY) / (invertedY - uprightY)));
-
-    // p2 与 p3 保持在 Z=0.14~0.18 的开阔前方空域，离台面 Y>=0.075，杜绝与任何电机、立柱或台面穿模
-    const p2 = new THREE.Vector3(
-      THREE.MathUtils.lerp(valveLocalPos.x + 0.10, valveLocalPos.x + 0.12, alpha),
-      THREE.MathUtils.lerp(0.075, 0.78, alpha),
-      THREE.MathUtils.lerp(0.14, 0.18, alpha)
-    );
-    const p3 = new THREE.Vector3(
-      THREE.MathUtils.lerp(pumpLocalPos.x - 0.08, pumpLocalPos.x - 0.06, alpha),
-      THREE.MathUtils.lerp(0.105, 0.36, alpha),
-      THREE.MathUtils.lerp(0.12, 0.14, alpha)
-    );
-
-    this.hoseCurve = new THREE.CatmullRomCurve3([
-      valveLocalPos,
-      p1,
-      p2,
-      p3,
-      p4,
-      pumpLocalPos,
-    ]);
-
-    if (this.hoseMesh) {
-      const newGeo = new THREE.TubeGeometry(this.hoseCurve, 48, 0.0075, 16, false);
-      const curGeo = this.hoseMesh.geometry;
-      const curPos = curGeo.getAttribute('position') as THREE.BufferAttribute;
-      const curNorm = curGeo.getAttribute('normal') as THREE.BufferAttribute;
-      const newPos = newGeo.getAttribute('position') as THREE.BufferAttribute;
-      const newNorm = newGeo.getAttribute('normal') as THREE.BufferAttribute;
-      if (curPos && newPos && curPos.count === newPos.count) {
-        (curPos.array as Float32Array).set(newPos.array as Float32Array);
-        curPos.needsUpdate = true;
-        if (curNorm && newNorm && curNorm.count === newNorm.count) {
-          (curNorm.array as Float32Array).set(newNorm.array as Float32Array);
-          curNorm.needsUpdate = true;
-        }
-      } else {
-        curGeo.dispose();
-        this.hoseMesh.geometry = newGeo;
+  /** Text is printed on actual instrument surfaces, never added as floating DOM. */
+  private label(parent: THREE.Object3D, text: string, w: number, h: number,
+    x: number, y: number, z: number, color = '#435765'): THREE.Mesh {
+    let map: THREE.CanvasTexture | null = null;
+    if (typeof document !== 'undefined') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 768; canvas.height = 128;
+      const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
+      if (ctx) {
+        ctx.fillStyle = color; ctx.font = '500 68px Arial, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(text, 384, 65, 744);
+        map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace;
+        map.anisotropy = 4;
       }
-      newGeo.dispose();
-    } else {
-      const hoseGeo = new THREE.TubeGeometry(this.hoseCurve, 48, 0.0075, 16, false);
-      const posAttr = hoseGeo.getAttribute('position') as THREE.BufferAttribute;
-      if (posAttr) posAttr.setUsage(THREE.DynamicDrawUsage);
-      this.hoseMesh = new THREE.Mesh(hoseGeo, this.hoseMaterial);
-      this.hoseMesh.name = 'freefall-hose';
-      this.group.add(this.hoseMesh);
     }
+    const mat = new THREE.MeshBasicMaterial({ map, color: map ? 0xffffff : 0x435765,
+      transparent: true, opacity: map ? 1 : 0, depthWrite: false, polygonOffset: true,
+      polygonOffsetFactor: -1, side: THREE.DoubleSide });
+    const mesh = this.part(parent, new THREE.PlaneGeometry(w, h), mat, x, y, z);
+    mesh.castShadow = false; mesh.receiveShadow = false;
+    return mesh;
+  }
+
+  private createStand(): void {
+    // A broad rounded casting, recessed top deck and four adjustable isolators.
+    const base = this.part(this.standGroup, casting(0.46, 0.30, 0.032, 0.045), this.precisionSlateMaterial, 0, 0.034, 0.012);
+    base.rotation.x = -Math.PI / 2;
+    const deck = this.part(this.standGroup, casting(0.425, 0.26, 0.005, 0.037), this.switchBoxMaterial, 0, 0.053, 0.012);
+    deck.rotation.x = -Math.PI / 2;
+    const footGeo = turned([[0,0],[0.021,0],[0.024,0.004],[0.024,0.009],[0.021,0.012],[0.015,0.012],[0.015,0.02],[0,0.02]]);
+    this.instances(this.standGroup, footGeo, this.darkSiliconeMaterial,
+      [-0.17,0.17].flatMap(x => [-0.09,0.105].map(z => ({p:[x,0,z]}))), 'freefall-isolation-feet');
+    this.instances(this.standGroup, turned([[0,0],[0.017,0],[0.019,0.003],[0.019,0.009],[0.017,0.012],[0,0.012]]), this.brassMaterial,
+      [-0.17,0.17].flatMap(x => [-0.09,0.105].map(z => ({p:[x,0.012,z]}))), 'freefall-leveling-collars');
+
+    // Twin polished rods and a dovetail carriage stay behind the transparent tube.
+    const rods = [-0.184, -0.135];
+    const shaft = turned([[0,0],[0.009,0],[0.011,0.003],[0.011,0.67],[0.009,0.674],[0,0.674]], 32);
+    this.instances(this.standGroup, shaft, this.chromeMaterial, rods.map(x => ({p:[x,0.061,-0.105]})), 'freefall-dual-guide-rods');
+    const socket = turned([[0.011,0],[0.023,0],[0.026,0.004],[0.026,0.016],[0.022,0.02],[0.011,0.02],[0.011,0]]);
+    this.instances(this.standGroup, socket, this.precisionSlateMaterial, rods.map(x => ({p:[x,0.055,-0.105]})), 'freefall-rod-sockets');
+    this.part(this.standGroup, casting(0.081,0.09,0.034), this.precisionSlateMaterial,-0.16,0.706,-0.105);
+    this.part(this.standGroup, casting(0.162,0.031,0.032), this.chromeMaterial,-0.08,0.74,-0.108);
+    const bearing = this.part(this.standGroup, turned([[0,0],[0.028,0],[0.032,0.004],[0.032,0.03],[0.025,0.036],[0,0.036]]), this.switchBoxMaterial,0,0.74,-0.13);
+    bearing.rotation.x = Math.PI / 2;
+    const lock = this.part(this.standGroup, turned([[0,0],[0.017,0],[0.020,0.003],[0.020,0.014],[0.016,0.017],[0,0.017]]),this.brassMaterial,-0.207,0.71,-0.102);
+    lock.rotation.z = Math.PI / 2;
+    this.instances(this.standGroup, new THREE.CapsuleGeometry(0.001,0.01,3,6),this.chromeMaterial,
+      Array.from({length:24},(_,i)=>({p:[-0.214,0.71+0.02*Math.sin(i*Math.PI/12),-0.102+0.02*Math.cos(i*Math.PI/12)],r:[0,0,Math.PI/2]})), 'freefall-knurled-lock');
+    this.instances(this.standGroup, new THREE.CylinderGeometry(0.0035,0.0035,0.002,6),this.chromeMaterial,
+      [-0.195,-0.125].flatMap(x=>[0.68,0.73].map(y=>({p:[x,y,-0.086],r:[Math.PI/2,0,0]}))), 'freefall-carriage-fasteners');
+
+    // One centered inversion button on a compact sloped control fascia.
+    const console = new THREE.Group();
+    console.position.set(0.025,0.082,0.116); console.rotation.x = -Math.PI/5;
+    this.standGroup.add(console);
+    this.part(console,casting(0.17,0.085,0.022,0.014),this.precisionSlateMaterial);
+    this.rotateButtonPivot.position.set(0,-0.003,0.015);
+    this.rotateButtonPivot.name='freefall-rotate-button';
+    console.add(this.rotateButtonPivot);
+    const btnGeo=turned([[0,0],[0.021,0],[0.024,0.002],[0.024,0.006],[0.021,0.008],[0,0.008]],40);
+    const face=this.part(this.rotateButtonPivot,btnGeo,this.switchBoxMaterial);
+    face.rotation.x=-Math.PI/2;
+    this.rotateButtonRing=this.part(this.rotateButtonPivot,new THREE.TorusGeometry(0.020,0.0011,8,40),this.buttonGlowMaterial,0,0,0.002);
+    this.rotateButtonHitBox=this.part(this.rotateButtonPivot,new THREE.CylinderGeometry(0.036,0.036,0.018,24),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),0,0,0.005);
+    this.rotateButtonHitBox.rotation.x=Math.PI/2;
+    this.rotateButtonHitBox.name='freefall-rotate-button';
+    this.rotateButtonHitBox.userData.isRotateButton=true;
+    this.rotateButtonIcon=this.part(this.rotateButtonPivot,new THREE.TorusGeometry(0.011,0.0012,6,28,Math.PI*1.55),this.inkMaterial,0,0,0.003);
+    const tip=this.part(this.rotateButtonPivot,new THREE.ConeGeometry(0.003,0.005,3),this.inkMaterial,0.011,0,0.003);
+    tip.rotation.z=-0.6;
+    this.label(console,'旋转 180° / R',0.125,0.016,0,-0.032,0.012);
+  }
+
+  private createNewtonTube(): void {
+    const r=this.TUBE_RADIUS_M, half=this.TUBE_LENGTH_M/2;
+    // A split annular clamp with a genuine bore, open at the viewing face.
+    const profile=[[r+0.001,-0.014],[r+0.009,-0.014],[r+0.012,-0.01],[r+0.012,0.01],[r+0.009,0.014],[r+0.001,0.014],[r+0.001,-0.014]];
+    const clampGeo=new THREE.LatheGeometry(profile.map(([a,b])=>new THREE.Vector2(a,b)),48,Math.PI*0.32,Math.PI*1.36);
+    const clamp=this.part(this.tubePivot,clampGeo,this.precisionSlateMaterial); clamp.name='freefall-open-bore-clamp';
+    this.glassOuterMesh=this.part(this.tubePivot,new THREE.CylinderGeometry(r,r,this.TUBE_LENGTH_M,96,1,true),this.glassMaterial);
+    this.glassOuterMesh.name='freefall-tube'; this.glassOuterMesh.userData.isNewtonTube=true;
+    this.glassOuterMesh.castShadow=false; this.glassOuterMesh.receiveShadow=false; this.glassOuterMesh.renderOrder=10;
+    this.glassInnerMesh=this.part(this.tubePivot,new THREE.CylinderGeometry(r-0.003,r-0.003,this.TUBE_LENGTH_M,64,1,true),this.innerGlassMaterial);
+    this.glassInnerMesh.visible=false;
+    // Thin Fresnel edge ribbons establish the cylinder without clouding its contents.
+    const edgeMat=new THREE.MeshBasicMaterial({color:0x82acba,transparent:true,opacity:0.32,depthWrite:false,side:THREE.DoubleSide});
+    for(const phi of [Math.PI*0.46,Math.PI*1.46]) {
+      const edge=this.part(this.tubePivot,new THREE.CylinderGeometry(r+0.0002,r+0.0002,this.TUBE_LENGTH_M-0.03,3,1,true,phi,0.045),edgeMat);
+      edge.castShadow=false; edge.renderOrder=11;
+    }
+    const glintMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.32,depthWrite:false,side:THREE.DoubleSide});
+    const glint=this.part(this.tubePivot,new THREE.CylinderGeometry(r+0.0003,r+0.0003,1.13,3,1,true,0.55,0.065),glintMat);
+    glint.castShadow=false; glint.renderOrder=11;
+
+    // Trace the section from the inner face outwards and upwards: the previous
+    // reversed winding exposed the back of the lid and produced radial artifacts.
+    // Extend the shell to the cushion so the landing cup is physically supported.
+    const capGeo=turned([[0,-0.066],[0.072,-0.066],[0.078,-0.062],[0.078,-0.022],[0.087,-0.020],[0.091,-0.014],[0.091,0.010],[0.083,0.015],[0.071,0.015],[0.068,0.011],[0,0.011]],64);
+    const lidGeo=turned([[0,0.0115],[0.058,0.0115],[0.062,0.014],[0.062,0.016],[0.058,0.018],[0,0.018]],64);
+    const lidMaterial=mechMetal(0xd8e2e9,0.64,0.36);
+    const gasketGeo=turned([[0.075,-0.023],[0.083,-0.023],[0.085,-0.021],[0.085,-0.018],[0.075,-0.018],[0.075,-0.023]]);
+    const capBolts=Array.from({length:8},(_,i)=>({p:[0.077*Math.sin(i*Math.PI/4),0.017,0.077*Math.cos(i*Math.PI/4)]}));
+    for(const [cap,sign] of [[this.topCapGroup,1],[this.bottomCapGroup,-1]] as const) {
+      cap.position.y=half*sign; cap.rotation.z=sign===1?0:Math.PI;
+      const shell=this.part(cap,capGeo,this.precisionSlateMaterial);
+      shell.name='freefall-endcap-shell';
+      this.part(cap,gasketGeo,this.darkSiliconeMaterial);
+      // Keep the lid underside off the shell face to avoid coplanar depth flicker.
+      const lid=this.part(cap,lidGeo,lidMaterial);
+      lid.name='freefall-endcap-lid';
+      this.instances(cap,new THREE.CylinderGeometry(0.0033,0.0033,0.003,6),this.chromeMaterial,capBolts,'freefall-cap-fasteners');
+      this.instances(cap,new THREE.CapsuleGeometry(0.0008,0.014,2,5),this.switchBoxMaterial,
+        Array.from({length:48},(_,i)=>({p:[0.091*Math.sin(i*Math.PI/24),-0.002,0.091*Math.cos(i*Math.PI/24)]})), 'freefall-cap-knurling');
+      // Thin recessed landing cup; its upper face is at the solver's landing plane.
+      this.part(cap,turned([[0,-0.073],[0.071,-0.073],[0.075,-0.069],[0.075,-0.064],[0.070,-0.061],[0,-0.061]]),this.siliconeMaterial);
+      this.tubePivot.add(cap);
+    }
+    const valve=this.part(this.bottomCapGroup,turned([[0,0],[0.009,0],[0.013,0.004],[0.013,0.025],[0.009,0.029],[0,0.029]]),this.brassMaterial,0,0.018,0);
+    valve.name='freefall-vent-body';
+    this.valveKnobMesh=this.part(this.bottomCapGroup,casting(0.033,0.008,0.014,0.003),this.switchBoxMaterial,0,0.05,0);
+    this.valveKnobMesh.name='freefall-valve';
+    this.valveHitBox=this.part(this.bottomCapGroup,new THREE.SphereGeometry(0.04,12,8),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),0,0.047,0);
+    this.valveHitBox.name='freefall-valve';this.valveHitBox.userData.isValve=true;
+
+    // Stationary hose connection and rotary union, coaxial with the inversion bearing.
+    const union=this.part(this.standGroup,turned([[0,0],[0.012,0],[0.017,0.004],[0.017,0.028],[0.012,0.033],[0,0.033]]),this.brassMaterial,0.105,this.PIVOT_HEIGHT_Y,-0.10);
+    union.rotation.z=-Math.PI/2; union.name='freefall-rotary-vacuum-union';
+    this.part(this.standGroup,casting(0.105,0.022,0.022,0.007),this.precisionSlateMaterial,0.058,this.PIVOT_HEIGHT_Y,-0.10);
+    this.createGraduationMarks(); this.tubePivot.add(this.graduationGroup);
+  }
+
+  private createGraduationMarks(): void {
+    // 10 mm graduations; a narrow front-left scale leaves the central fall lanes clear.
+    const poses=[];
+    for(let i=0;i<=105;i++) {
+      const w=i%10===0?0.018:i%5===0?0.012:0.006;
+      poses.push({p:[-0.057+w/2,this.FALL_DISTANCE_M/2-i*0.01,0.061],s:[w,0.0008,0.0006]});
+      if(i%10===0) this.label(this.graduationGroup,String(i),0.018,0.009,-0.067,this.FALL_DISTANCE_M/2-i*0.01,0.05);
+    }
+    this.instances(this.graduationGroup,new THREE.BoxGeometry(1,1,1),this.inkMaterial,poses,'freefall-centimeter-graduations');
+    this.label(this.graduationGroup,'cm',0.019,0.009,-0.067,0.555,0.05);
+  }
+
+  private createObjects(): void {
+    this.createFeatherMesh(); this.featherGroup.name='freefall-feather';
+    this.corkMesh=this.part(this.corkGroup,turned([[0,-0.021],[0.019,-0.021],[0.022,-0.018],[0.018,0.018],[0.016,0.021],[0,0.021]]),this.corkMaterial);
+    // Deterministic pores, rather than wooden barrel bands.
+    const pores=Array.from({length:85},(_,i)=>{
+      const a=i*2.39996,y=((i*17)%83)/83*0.035-0.0175;
+      const radius=0.020-y*0.11;
+      return {p:[radius*Math.sin(a),y,radius*Math.cos(a)],s:[0.5+(i%3)*0.25,0.4+(i%4)*0.3,0.3]};
+    });
+    this.instances(this.corkGroup,new THREE.SphereGeometry(0.001,4,3),mechMetal(0x805f3c,0,1),pores,'freefall-cork-pores');
+    this.corkGroup.name='freefall-cork';
+    this.coinMesh=this.part(this.coinGroup,turned([[0,-0.0018],[0.021,-0.0018],[0.024,-0.001],[0.024,0.001],[0.021,0.0018],[0,0.0018]],64),this.coinMaterial);
+    this.coinMesh.rotation.x=Math.PI/2;
+    for(const z of [-0.0019,0.0019]) this.part(this.coinGroup,new THREE.TorusGeometry(0.021,0.0008,6,48),this.coinMaterial,0,0,z);
+    this.createRenminbiFace(false);
+    this.createRenminbiFace(true);
+    // The one-yuan coin has a smooth edge with repeated RMB lettering.
+    for(let i=0;i<3;i++) {
+      const angle=i*Math.PI*2/3;
+      const edge=this.label(this.coinGroup,'RMB',0.009,0.0018,0.0241*Math.cos(angle),0.0241*Math.sin(angle),0,'#667582');
+      edge.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(-Math.sin(angle),Math.cos(angle),0),
+        new THREE.Vector3(0,0,1),new THREE.Vector3(Math.cos(angle),Math.sin(angle),0)));
+      edge.name='freefall-renminbi-edge';
+    }
+    this.coinGroup.name='freefall-coin';
+    this.objectsGroup.add(this.featherGroup,this.corkGroup,this.coinGroup);
+    this.setObjectsState(this.FALL_DISTANCE_M,this.FALL_DISTANCE_M,this.FALL_DISTANCE_M);
+  }
+
+  /** Stylized fifth-series RMB one-yuan relief, based on the PBOC design reference:
+   * https://www.pbc.gov.cn/rmyh/2019rmb/index.html
+   * Obverse denomination, bank name and year; reverse chrysanthemum and pinyin.
+   */
+  private createRenminbiFace(reverse: boolean): void {
+    const material=this.coinMaterial.clone();
+    if(typeof document!=='undefined') {
+      const canvas=document.createElement('canvas'); canvas.width=1024; canvas.height=1024;
+      const ctx=typeof canvas.getContext==='function'?canvas.getContext('2d'):null;
+      if(ctx) {
+        ctx.fillStyle='#d6dde2'; ctx.fillRect(0,0,1024,1024);
+        ctx.strokeStyle='#83909b'; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(512,512,472,0,Math.PI*2); ctx.stroke();
+        ctx.fillStyle='#536471'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.shadowColor='#ffffff'; ctx.shadowBlur=1; ctx.shadowOffsetX=2; ctx.shadowOffsetY=2;
+        const arcText=(text: string,radius: number,font: string,span: number) => {
+          ctx.font=font;
+          Array.from(text).forEach((char,i)=>{
+            const angle=-span/2+span*i/Math.max(1,text.length-1);
+            ctx.save(); ctx.translate(512+radius*Math.sin(angle),512-radius*Math.cos(angle));
+            ctx.rotate(angle); ctx.fillText(char,0,0); ctx.restore();
+          });
+        };
+        if(!reverse) {
+          arcText('中国人民银行',354,'500 78px "Songti SC", "SimSun", serif',1.9);
+          ctx.font='italic 600 460px Arial, sans-serif'; ctx.fillText('1',460,492);
+          ctx.font='500 115px "Songti SC", "SimSun", serif'; ctx.fillText('元',684,576);
+          ctx.font='500 57px Arial, sans-serif'; ctx.fillText('YI YUAN',512,744);
+          ctx.font='500 55px Arial, sans-serif'; ctx.fillText('2019',512,849);
+        } else {
+          arcText('ZHONGGUO RENMIN YINHANG',385,'500 39px Arial, sans-serif',3.45);
+          // Layered narrow curved petals form a chrysanthemum engraving.
+          ctx.save(); ctx.translate(480,475); ctx.lineWidth=4;
+          for(let ring=0;ring<3;ring++) {
+            const count=18+ring*7,inner=22+ring*35,outer=115+ring*66;
+            for(let i=0;i<count;i++) {
+              const a=i*Math.PI*2/count+ring*0.13;
+              ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(0,-inner);
+              ctx.bezierCurveTo(-24,-outer*0.7,-20,-outer,0,-outer);
+              ctx.bezierCurveTo(20,-outer,24,-outer*0.7,0,-inner);
+              ctx.stroke(); ctx.restore();
+            }
+          }
+          ctx.beginPath();ctx.arc(0,0,25,0,Math.PI*2);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(12,150);ctx.bezierCurveTo(60,230,120,280,90,368);ctx.stroke();
+          for(const side of [-1,1]) {
+            ctx.beginPath();ctx.moveTo(83,283);
+            ctx.bezierCurveTo(83+side*65,205,83+side*130,210,83+side*113,285);
+            ctx.bezierCurveTo(83+side*67,316,83+side*27,298,83,283);ctx.stroke();
+          }
+          ctx.restore();
+        }
+        const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace;
+        texture.anisotropy=4; material.map=texture; material.bumpMap=texture;
+        material.bumpScale=-0.00012;
+      }
+    }
+    const face=this.part(this.coinGroup,new THREE.CircleGeometry(0.0201,64),material,0,0,reverse?-0.00185:0.00185);
+    face.rotation.y=reverse?Math.PI:0;
+    face.name=reverse?'freefall-renminbi-reverse':'freefall-renminbi-obverse';
+    this.coinGroup.userData.currency='CNY'; this.coinGroup.userData.denomination=1;
+  }
+
+  private createFeatherMesh(): void {
+    const quill=new THREE.CatmullRomCurve3([new THREE.Vector3(0,-0.06,0),new THREE.Vector3(0,-0.01,0.002),new THREE.Vector3(0.003,0.06,0)]);
+    this.featherQuillMesh=this.part(this.featherGroup,new THREE.TubeGeometry(quill,20,0.0007,6,false),this.featherQuillMaterial);
+    const shape=new THREE.Shape();shape.moveTo(0,-0.044);
+    shape.bezierCurveTo(0.021,-0.025,0.022,0.033,0.003,0.061);
+    shape.bezierCurveTo(-0.015,0.034,-0.018,-0.026,0,-0.044);
+    const geo=new THREE.ShapeGeometry(shape,24);
+    const pos=geo.getAttribute('position');
+    for(let i=0;i<pos.count;i++) pos.setZ(i,0.002*Math.sin(pos.getY(i)*35)+Math.abs(pos.getX(i))*0.14);
+    geo.computeVertexNormals();
+    this.featherVaneMesh=this.part(this.featherGroup,geo,this.featherMaterial);
+    const vertices:number[]=[];
+    for(let i=0;i<36;i++) {
+      const y=-0.04+i*0.00265;
+      const w=0.018*Math.pow(Math.max(0,Math.sin((y+0.044)/0.105*Math.PI)),0.8);
+      for(const sign of [-1,1]) vertices.push(0.001,y,0.003,sign*w,y+0.009,0.004);
+    }
+    const barbs=new THREE.BufferGeometry();barbs.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+    this.featherGroup.add(new THREE.LineSegments(barbs,new THREE.LineBasicMaterial({color:0xbdb39d,transparent:true,opacity:0.5})));
+  }
+
+  private createVacuumPump(): void {
+    this.pumpGroup.name='freefall-pump';this.pumpGroup.position.set(0.49,0,-0.03);
+    const base=this.part(this.pumpGroup,casting(0.29,0.20,0.025,0.022),this.precisionSlateMaterial,0,0.032,0);
+    base.rotation.x=-Math.PI/2;
+    this.instances(this.pumpGroup,turned([[0,0],[0.016,0],[0.018,0.003],[0.018,0.015],[0.014,0.019],[0,0.019]]),this.darkSiliconeMaterial,
+      [-0.115,0.115].flatMap(x=>[-0.07,0.07].map(z=>({p:[x,0,z]}))),'freefall-pump-isolators');
+    this.part(this.pumpGroup,casting(0.115,0.123,0.14,0.014),this.precisionSlateMaterial,-0.075,0.103,0);
+    const motor=this.part(this.pumpGroup,turned([[0,0],[0.047,0],[0.053,0.005],[0.053,0.12],[0.048,0.128],[0,0.128]]),this.pumpMotorMaterial,-0.01,0.102,0);
+    motor.rotation.z=-Math.PI/2;
+    const finGeo=turned([[0.051,-0.0015],[0.058,-0.0015],[0.060,0],[0.058,0.0015],[0.051,0.0015],[0.051,-0.0015]],40);
+    this.instances(this.pumpGroup,finGeo,this.pumpMotorMaterial,Array.from({length:11},(_,i)=>({p:[0.004+i*0.01,0.102,0],r:[0,0,-Math.PI/2]})),'freefall-motor-cooling-fins');
+    const fan=this.part(this.pumpGroup,turned([[0,0],[0.048,0],[0.052,0.003],[0.052,0.009],[0.048,0.013],[0,0.013]]),this.switchBoxMaterial,0.118,0.102,0);fan.rotation.z=-Math.PI/2;
+    const nozzleGeo=turned([[0,0],[0.014,0],[0.016,0.004],[0.016,0.009],[0.009,0.012],[0.009,0.028],[0.011,0.03],[0.009,0.034],[0,0.034]],32);
+    this.part(this.pumpGroup,nozzleGeo,this.brassMaterial,-0.09,0.158,0.005);
+    // Compression ring and relief sleeve hold the hose at the inlet.
+    this.part(this.pumpGroup,turned([[0.007,0],[0.012,0],[0.014,0.003],[0.014,0.008],[0.012,0.01],[0.007,0.01],[0.007,0]]),this.chromeMaterial,-0.09,0.182,0.005);
+    this.part(this.pumpGroup,turned([[0,0],[0.014,0],[0.017,0.004],[0.017,0.038],[0.014,0.043],[0,0.043]]),this.switchBoxMaterial,-0.06,0.163,-0.04);
+    const handleCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(-0.045,0.15,-0.02),new THREE.Vector3(-0.035,0.207,-0.02),new THREE.Vector3(0.065,0.207,-0.02),new THREE.Vector3(0.078,0.15,-0.02)]);
+    this.part(this.pumpGroup,new THREE.TubeGeometry(handleCurve,28,0.005,10,false),this.chromeMaterial);
+    this.part(this.pumpGroup,casting(0.065,0.012,0.014,0.005),this.siliconeMaterial,0.015,0.208,-0.02);
+
+    const gauge=new THREE.Group();gauge.position.set(-0.075,0.111,0.075);this.pumpGroup.add(gauge);
+    const bezel=this.part(gauge,turned([[0.033,0],[0.037,0],[0.040,0.003],[0.040,0.009],[0.037,0.012],[0.033,0.012],[0.033,0]]),this.chromeMaterial);bezel.rotation.x=Math.PI/2;
+    this.part(gauge,new THREE.CircleGeometry(0.033,48),this.sapphireDisplayMaterial,0,0,0.004);
+    const gaugeInk=new THREE.MeshBasicMaterial({color:0xd5e5e9});
+    this.instances(gauge,new THREE.BoxGeometry(1,1,1),gaugeInk,Array.from({length:41},(_,i)=>{
+      const a=(-135+i*6.75)*Math.PI/180;
+      return {p:[Math.sin(a)*0.027,Math.cos(a)*0.027,0.005],r:[0,0,-a],s:[0.0006,i%5===0?0.004:0.002,0.0005]};
+    }),'freefall-pressure-gauge-ticks');
+    this.label(gauge,'kPa',0.018,0.005,0,-0.015,0.006,'#d5e5e9');
+    this.label(gauge,'0',0.006,0.005,-0.016,-0.018,0.006,'#d5e5e9');
+    this.label(gauge,'100',0.012,0.005,0.017,-0.018,0.006,'#d5e5e9');
+    this.pumpGaugeNeedlePivot.position.z=0.007;gauge.add(this.pumpGaugeNeedlePivot);
+    this.part(this.pumpGaugeNeedlePivot,casting(0.0013,0.023,0.0006,0.0004),this.needleMaterial,0,0.009,0);
+    this.part(gauge,new THREE.SphereGeometry(0.003,12,6),this.brassMaterial,0,0,0.008);
+    const lens=this.part(gauge,new THREE.CircleGeometry(0.033,48),this.glassMaterial,0,0,0.01);lens.castShadow=false;
+
+    const fascia=new THREE.Group();fascia.position.set(0.045,0.073,0.076);this.pumpGroup.add(fascia);
+    this.part(fascia,casting(0.102,0.061,0.008,0.008),this.switchBoxMaterial);
+    this.part(fascia,casting(0.086,0.022,0.002,0.003),this.sapphireDisplayMaterial,0,0.014,0.005);
+    const display=this.label(fascia,'101.3',0.064,0.014,-0.006,0.014,0.006,'#b8e5e0');
+    const displayMap=(display.material as THREE.MeshBasicMaterial).map;
+    if(displayMap instanceof THREE.CanvasTexture){this.pressureTexture=displayMap;this.pressureCanvas=displayMap.image as HTMLCanvasElement;}
+    this.label(fascia,'kPa',0.015,0.007,0.032,0.013,0.006,'#b8e5e0');
+    this.pumpPowerSwitchMesh=this.part(fascia,casting(0.033,0.017,0.007,0.004),this.chromeMaterial,-0.021,-0.014,0.007);
+    this.pumpPowerSwitchMesh.name='freefall-pump-switch';
+    this.label(fascia,'I / O',0.020,0.009,-0.021,-0.014,0.011);
+    this.pumpLedMesh=this.part(fascia,new THREE.SphereGeometry(0.0025,12,8),this.ledMaterial,0.026,-0.013,0.007);
+    this.label(this.pumpGroup,'V A C U U M   /   VP–01',0.13,0.010,-0.04,0.031,0.102);
+    this.instances(this.pumpGroup,new THREE.CylinderGeometry(0.003,0.003,0.002,6),this.chromeMaterial,
+      [-0.121,-0.029].flatMap(x=>[0.054,0.149].map(y=>({p:[x,y,0.072],r:[Math.PI/2,0,0]}))),'freefall-pump-fasteners');
+    this.pumpSwitchHitBox=this.part(this.pumpGroup,new THREE.BoxGeometry(0.29,0.22,0.22),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),0,0.11,0);
+    this.pumpSwitchHitBox.name='freefall-pump-switch';this.pumpSwitchHitBox.userData.isPumpSwitch=true;
+  }
+
+  /** The hose terminates at a stationary rotary union, outside the observation aperture. */
+  public updateHose(): void {
+    if(this.hoseMesh) return;
+    this.hoseCurve=new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.138,this.PIVOT_HEIGHT_Y,-0.10),
+      new THREE.Vector3(0.205,this.PIVOT_HEIGHT_Y-0.015,-0.10),
+      new THREE.Vector3(0.26,0.49,-0.095),
+      new THREE.Vector3(0.29,0.22,-0.08),
+      new THREE.Vector3(0.35,0.09,-0.055),
+      new THREE.Vector3(0.40,0.15,-0.025),
+      this.pumpIntakeNozzle.clone(),
+    ]);
+    this.hoseMesh=this.part(this.group,new THREE.TubeGeometry(this.hoseCurve,64,0.006,12,false),this.hoseMaterial);
+    this.hoseMesh.name='freefall-hose';
+    this.instances(this.standGroup,new THREE.TorusGeometry(0.007,0.001,5,16),this.switchBoxMaterial,
+      Array.from({length:6},(_,i)=>({p:[0.14+i*0.004,0.74,-0.10],r:[0,Math.PI/2,0]})),'freefall-hose-strain-relief');
   }
 
   private lastHoseAngle = -999999;
@@ -1140,8 +600,19 @@ export class NewtonTubeMesh {
     }
 
     const ratio = Math.max(0, Math.min(1.0, pressureKPa / 101.325));
-    const needleAngle = -Math.PI * 1.35 * (1.0 - ratio);
+    const needleAngle = (0.75 - 1.5 * ratio) * Math.PI;
     this.pumpGaugeNeedlePivot.rotation.z = needleAngle;
+    this.pumpPowerSwitchMesh.rotation.x = isPumpRunning ? -0.12 : 0.12;
+    const text = Math.max(0, pressureKPa).toFixed(1);
+    if (text !== this.lastPressureText && this.pressureCanvas && this.pressureTexture) {
+      this.lastPressureText = text;
+      const ctx = this.pressureCanvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, 768, 128); ctx.fillStyle = '#b8e5e0';
+        ctx.font = '500 80px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(text, 384, 65); this.pressureTexture.needsUpdate = true;
+      }
+    }
   }
 
   /**
@@ -1156,7 +627,7 @@ export class NewtonTubeMesh {
       this.rotateButtonPivot.scale.set(1.08, 1.08, 1.08);
     } else {
       this.buttonGlowMaterial.emissive.setHex(0x0284c7);
-      this.buttonGlowMaterial.emissiveIntensity = 0.45;
+      this.buttonGlowMaterial.emissiveIntensity = 0.16;
       this.rotateButtonPivot.scale.set(1.0, 1.0, 1.0);
     }
   }
@@ -1166,59 +637,17 @@ export class NewtonTubeMesh {
    */
   public pulseRotateButton(): void {
     this.rotateButtonPivot.scale.set(0.92, 0.92, 0.92);
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       this.rotateButtonPivot.scale.set(1.0, 1.0, 1.0);
+      this.pulseTimers.delete(timer);
     }, 120);
-  }
-
-  /**
-   * 设置 3D 慢动作按钮高亮状态
-   */
-  public setSpeedButtonHovered(hovered: boolean): void {
-    if (this.speedButtonHovered === hovered) return;
-    this.speedButtonHovered = hovered;
-    if (hovered) {
-      this.speedButtonPivot.scale.set(1.08, 1.08, 1.08);
-      this.speedButtonGlowMaterial.emissiveIntensity = 0.95;
-    } else {
-      this.speedButtonPivot.scale.set(1.0, 1.0, 1.0);
-      this.speedButtonGlowMaterial.emissiveIntensity = 0.70;
-    }
-  }
-
-  /**
-   * 触发慢动作按钮点击脉冲波动画
-   */
-  public pulseSpeedButton(): void {
-    this.speedButtonPivot.scale.set(0.92, 0.92, 0.92);
-    setTimeout(() => {
-      this.speedButtonPivot.scale.set(1.0, 1.0, 1.0);
-    }, 120);
-  }
-
-  /**
-   * 更新慢动作按钮发光状态与色彩
-   */
-  public setSpeedState(isSlowMo: boolean): void {
-    if (isSlowMo) {
-      // 慢动作激活：翠绿高能发光
-      this.speedButtonGlowMaterial.color.setHex(0x34d399);
-      this.speedButtonGlowMaterial.emissive.setHex(0x10b981);
-      this.speedButtonGlowMaterial.emissiveIntensity = 0.75;
-    } else {
-      // 1.0x 物理原速：琥珀暖金微光
-      this.speedButtonGlowMaterial.color.setHex(0xfbbf24);
-      this.speedButtonGlowMaterial.emissive.setHex(0xf59e0b);
-      this.speedButtonGlowMaterial.emissiveIntensity = 0.45;
-    }
+    this.pulseTimers.add(timer);
   }
 
   public getInteractiveObjects(): THREE.Object3D[] {
     const list: THREE.Object3D[] = [];
     if (this.rotateButtonHitBox) list.push(this.rotateButtonHitBox);
     else if (this.rotateButtonPivot) list.push(this.rotateButtonPivot);
-    if (this.speedButtonHitBox) list.push(this.speedButtonHitBox);
-    else if (this.speedButtonPivot) list.push(this.speedButtonPivot);
     if (this.pumpSwitchHitBox) list.push(this.pumpSwitchHitBox);
     else if (this.pumpPowerSwitchMesh) list.push(this.pumpPowerSwitchMesh);
     if (this.valveHitBox) list.push(this.valveHitBox);
@@ -1232,6 +661,8 @@ export class NewtonTubeMesh {
    * 释放所有 3D 资源
    */
   public dispose(): void {
+    this.pulseTimers.forEach(timer => clearTimeout(timer));
+    this.pulseTimers.clear();
     disposeObjectTree(this.group);
   }
 }

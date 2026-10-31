@@ -56,11 +56,6 @@ export function isElementVisibleAndActive(el: HTMLElement | null): boolean {
 
   // 检查已知的应用容器可见性
   if (typeof el.closest === 'function') {
-    const drawer = el.closest('#experiment-drawer');
-    if (drawer && !drawer.classList.contains('open')) {
-      return false;
-    }
-
     const visionWindow = el.closest('#vision-spatial-window');
     if (visionWindow && visionWindow.classList.contains('hidden')) {
       return false;
@@ -92,7 +87,6 @@ export function isElementVisibleAndActive(el: HTMLElement | null): boolean {
         // 若父级为已知应用容器，其可见性已在上方检查过
         if (
           parent.id === 'vision-spatial-window' ||
-          parent.id === 'experiment-drawer' ||
           parent.id === 'account-modal-backdrop'
         ) {
           break;
@@ -285,16 +279,10 @@ export function initGlobalFocusGuards(): void {
     (e) => {
       if (e.key === 'Tab' || e.code === 'Tab') {
         const openAccountModal = document.querySelector('#account-modal-backdrop.open') as HTMLElement | null;
-        const openDrawer = document.querySelector('#experiment-drawer.open') as HTMLElement | null;
         const openVisionModal = document.querySelector('#vision-spatial-window:not(.hidden)') as HTMLElement | null;
 
         if (openAccountModal) {
           trapFocusInsideModal(openAccountModal, e);
-          return;
-        }
-
-        if (openDrawer) {
-          trapFocusInsideModal(openDrawer, e);
           return;
         }
 

@@ -1751,30 +1751,54 @@ export class HandTrackingHUD {
 
     const isFs = this.isFullscreen;
     const scale = isFs ? Math.max(1.3, Math.min(3.0, w / 540)) : 1.0;
-    const latencyCompensationMs = Math.min(Math.max(this.service.getTelemetry().latencyMs, 10), 50);
+    const isAppleVision = this.service.isAppleVision();
+    const latencyCompensationMs = isAppleVision
+      ? Math.min(Math.max(this.service.getTelemetry().latencyMs, 2), 10)
+      : Math.min(Math.max(this.service.getTelemetry().latencyMs, 10), 50);
+
+    const isValidHudPoint = (p: NormalizedLandmark | undefined | null): boolean => {
+      if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+      if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) return false;
+      if (p.visibility !== undefined && p.visibility <= 0) return false;
+      if ((p.x === 0 && p.y === 0) || (p.x === 1 && p.y === 0)) return false;
+      return true;
+    };
 
     for (const hand of handsToRender) {
       const rawLms = hand.data.landmarks;
+      if (!rawLms || rawLms.length < 21) continue;
       const prev = this.prevHandLandmarks.get(hand.handKey);
       let targetLms = this.targetHandLandmarks.get(hand.handKey) ?? rawLms;
 
-      // 视觉延迟前向外推补偿：当新推理帧到达时，计算前向预测目标关键点以抵消管线延迟
+      // 视觉延迟前向外推补偿：严禁将无效负坐标 (-1, -1) 钳制到 (0, 0) 右上角！
       if (!prev || frame.timestamp > prev.timestamp) {
         if (prev && frame.timestamp > prev.timestamp) {
           const dt = Math.max(frame.timestamp - prev.timestamp, 1);
-          const factor = Math.min(latencyCompensationMs / dt, 1.2);
+          const maxFactor = isAppleVision ? 0.35 : 1.2;
+          const factor = Math.min(latencyCompensationMs / dt, maxFactor);
           targetLms = rawLms.map((p, idx) => {
-            const prevP = prev.lms[idx] || p;
+            if (!isValidHudPoint(p)) {
+              return { x: -1, y: -1, z: 0, visibility: 0 };
+            }
+            const prevP = prev.lms[idx];
+            if (!isValidHudPoint(prevP)) {
+              return { x: p.x, y: p.y, z: p.z, visibility: p.visibility };
+            }
             const vx = (p.x - prevP.x) * factor;
             const vy = (p.y - prevP.y) * factor;
             return {
-              x: Math.max(0, Math.min(1, p.x + vx)),
-              y: Math.max(0, Math.min(1, p.y + vy)),
+              x: Math.max(0.005, Math.min(0.995, p.x + vx)),
+              y: Math.max(0.005, Math.min(0.995, p.y + vy)),
               z: p.z,
+              visibility: p.visibility,
             };
           });
         } else {
-          targetLms = rawLms.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+          targetLms = rawLms.map((p) =>
+            isValidHudPoint(p)
+              ? { x: p.x, y: p.y, z: p.z, visibility: p.visibility }
+              : { x: -1, y: -1, z: 0, visibility: 0 }
+          );
         }
         this.prevHandLandmarks.set(hand.handKey, { lms: rawLms, timestamp: frame.timestamp });
         this.targetHandLandmarks.set(hand.handKey, targetLms);
@@ -1787,18 +1811,29 @@ export class HandTrackingHUD {
         const lerpAlpha = 1 - Math.exp(-32 * dtSec);
         lms = prevSmoothed.map((cur, idx) => {
           const tgt = targetLms[idx];
+          if (!isValidHudPoint(tgt)) {
+            return { x: -1, y: -1, z: 0, visibility: 0 };
+          }
+          if (!isValidHudPoint(cur)) {
+            return { x: tgt.x, y: tgt.y, z: tgt.z, visibility: tgt.visibility };
+          }
           return {
             x: cur.x + (tgt.x - cur.x) * lerpAlpha,
             y: cur.y + (tgt.y - cur.y) * lerpAlpha,
             z: cur.z + (tgt.z - cur.z) * lerpAlpha,
+            visibility: tgt.visibility,
           };
         });
       } else {
-        lms = targetLms.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+        lms = targetLms.map((p) =>
+          isValidHudPoint(p)
+            ? { x: p.x, y: p.y, z: p.z, visibility: p.visibility }
+            : { x: -1, y: -1, z: 0, visibility: 0 }
+        );
       }
       this.smoothedHandLandmarks.set(hand.handKey, lms);
 
-      // 1. 在单一批量路径中绘制手部骨骼连线
+      // 1. 在单一批量路径中绘制手部骨骼连线（自动跳过任何缺失或跨屏异常线段）
       ctx.lineWidth = Math.round(2 * scale);
       ctx.strokeStyle = hand.boneColor;
       ctx.beginPath();
@@ -1806,32 +1841,36 @@ export class HandTrackingHUD {
         const [i, j] = CONNECTIONS[c];
         const p1 = lms[i];
         const p2 = lms[j];
+        if (!isValidHudPoint(p1) || !isValidHudPoint(p2)) continue;
+        if (Math.hypot(p1.x - p2.x, p1.y - p2.y) > 0.45) continue;
         ctx.moveTo((1.0 - p1.x) * w, p1.y * h);
         ctx.lineTo((1.0 - p2.x) * w, p2.y * h);
       }
       ctx.stroke();
 
-      // 2. 绘制拇指 (4) 与食指 (8) 之间的捏合指示虚线
+      // 2. 绘制拇指 (4) 与食指 (8) 之间的捏合指示连线
       const thumb = lms[4];
       const index = lms[8];
-      const tx = (1.0 - thumb.x) * w;
-      const ty = thumb.y * h;
-      const ix = (1.0 - index.x) * w;
-      const iy = index.y * h;
+      if (isValidHudPoint(thumb) && isValidHudPoint(index)) {
+        const tx = (1.0 - thumb.x) * w;
+        const ty = thumb.y * h;
+        const ix = (1.0 - index.x) * w;
+        const iy = index.y * h;
 
-      ctx.beginPath();
-      ctx.lineWidth = Math.round((hand.data.isPinching ? 3.5 : 2) * scale);
-      ctx.strokeStyle = hand.pinchLineColor;
-      ctx.moveTo(tx, ty);
-      ctx.lineTo(ix, iy);
-      ctx.stroke();
+        ctx.beginPath();
+        ctx.lineWidth = Math.round((hand.data.isPinching ? 3.5 : 2) * scale);
+        ctx.strokeStyle = hand.pinchLineColor;
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(ix, iy);
+        ctx.stroke();
+      }
 
       // 3. 批量绘制标准关节点（白色外环）
       ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
       ctx.beginPath();
       const rJoint = 2.5 * scale;
       for (let i = 0; i < lms.length; i++) {
-        if (i !== 4 && i !== 8) {
+        if (i !== 4 && i !== 8 && isValidHudPoint(lms[i])) {
           const px = (1.0 - lms[i].x) * w;
           const py = lms[i].y * h;
           ctx.moveTo(px + rJoint, py);
@@ -1841,45 +1880,51 @@ export class HandTrackingHUD {
       ctx.fill();
 
       // 4. 批量绘制关键指尖节点（大拇指与食指）
-      ctx.fillStyle = hand.data.isPinching ? '#30d158' : hand.jointColor;
-      ctx.beginPath();
-      const rTip = 4.5 * scale;
-      const tpx = (1.0 - thumb.x) * w;
-      const tpy = thumb.y * h;
-      ctx.moveTo(tpx + rTip, tpy);
-      ctx.arc(tpx, tpy, rTip, 0, 2 * Math.PI);
+      if (isValidHudPoint(thumb) && isValidHudPoint(index)) {
+        ctx.fillStyle = hand.data.isPinching ? '#30d158' : hand.jointColor;
+        ctx.beginPath();
+        const rTip = 4.5 * scale;
+        const tpx = (1.0 - thumb.x) * w;
+        const tpy = thumb.y * h;
+        ctx.moveTo(tpx + rTip, tpy);
+        ctx.arc(tpx, tpy, rTip, 0, 2 * Math.PI);
 
-      const ipx = (1.0 - index.x) * w;
-      const ipy = index.y * h;
-      ctx.moveTo(ipx + rTip, ipy);
-      ctx.arc(ipx, ipy, rTip, 0, 2 * Math.PI);
-      ctx.fill();
+        const ipx = (1.0 - index.x) * w;
+        const ipy = index.y * h;
+        ctx.moveTo(ipx + rTip, ipy);
+        ctx.arc(ipx, ipy, rTip, 0, 2 * Math.PI);
+        ctx.fill();
+      }
 
       // 5. 绘制大拇指上方交互锚点标记与状态反馈圆环（捏合圆环半径以 60 FPS 阻尼插值过渡）
       const anchorNorm = hand.data.interactionPointNorm ?? hand.data.midpointNorm;
-      const mx = (1.0 - anchorNorm.x) * w;
-      const my = anchorNorm.y * h;
-      const targetRadius = (hand.data.isPinching ? 6 : 9) * scale;
-      const prevRadius = this.smoothedPinchRadius.get(hand.handKey) ?? targetRadius;
-      const radiusLerp = dtSec > 0 ? 1 - Math.exp(-24 * dtSec) : 1.0;
-      const pinchRadius = prevRadius + (targetRadius - prevRadius) * radiusLerp;
-      this.smoothedPinchRadius.set(hand.handKey, pinchRadius);
+      if (isValidHudPoint(anchorNorm)) {
+        const mx = (1.0 - anchorNorm.x) * w;
+        const my = anchorNorm.y * h;
+        const targetRadius = (hand.data.isPinching ? 6 : 9) * scale;
+        const prevRadius = this.smoothedPinchRadius.get(hand.handKey) ?? targetRadius;
+        const radiusLerp = dtSec > 0 ? 1 - Math.exp(-24 * dtSec) : 1.0;
+        const pinchRadius = prevRadius + (targetRadius - prevRadius) * radiusLerp;
+        this.smoothedPinchRadius.set(hand.handKey, pinchRadius);
 
-      ctx.beginPath();
-      ctx.arc(mx, my, pinchRadius, 0, 2 * Math.PI);
-      ctx.fillStyle = hand.data.isPinching ? hand.pinchLineColor : 'rgba(255, 255, 255, 0.2)';
-      ctx.fill();
-      ctx.lineWidth = 1.5 * scale;
-      ctx.strokeStyle = hand.jointColor;
-      ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(mx, my, pinchRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = hand.data.isPinching ? hand.pinchLineColor : 'rgba(255, 255, 255, 0.2)';
+        ctx.fill();
+        ctx.lineWidth = 1.5 * scale;
+        ctx.strokeStyle = hand.jointColor;
+        ctx.stroke();
+      }
 
       // 6. 在手腕上方绘制手势左右手标识
-      const wristX = (1.0 - lms[0].x) * w;
-      const wristY = lms[0].y * h;
-      ctx.fillStyle = hand.jointColor;
-      ctx.font = `bold ${Math.round(10 * scale)}px -apple-system, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText(hand.label, wristX, Math.min(h - 6 * scale, wristY + 14 * scale));
+      if (isValidHudPoint(lms[0])) {
+        const wristX = (1.0 - lms[0].x) * w;
+        const wristY = lms[0].y * h;
+        ctx.fillStyle = hand.jointColor;
+        ctx.font = `bold ${Math.round(10 * scale)}px -apple-system, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(hand.label, wristX, Math.min(h - 6 * scale, wristY + 14 * scale));
+      }
     }
 
     ctx.restore();

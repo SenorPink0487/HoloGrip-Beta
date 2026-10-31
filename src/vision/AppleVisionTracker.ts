@@ -25,10 +25,34 @@ export type AppleVisionFrameCallback = (
   frameImage?: string
 ) => void;
 
+const PARENT_JOINT_INDICES: readonly number[] = [
+  0,  // 0: wrist
+  0,  // 1: thumbCMC
+  1,  // 2: thumbMP
+  2,  // 3: thumbIP
+  3,  // 4: thumbTip
+  0,  // 5: indexMCP
+  5,  // 6: indexPIP
+  6,  // 7: indexDIP
+  7,  // 8: indexTip
+  0,  // 9: middleMCP
+  9,  // 10: middlePIP
+  10, // 11: middleDIP
+  11, // 12: middleTip
+  0,  // 13: ringMCP
+  13, // 14: ringPIP
+  14, // 15: ringDIP
+  15, // 16: ringTip
+  0,  // 17: littleMCP
+  17, // 18: littlePIP
+  18, // 19: littleDIP
+  19, // 20: littleTip
+];
+
 /**
  * 苹果原生 Vision 框架前端适配器 (Hybrid Architecture - Apple Native App 模式)
  * 在 iOS / iPadOS 原生客户端中直接对接系统 Vision 框架 (VNDetectHumanHandPoseRequest)，
- * 由 Apple Neural Engine (ANE) 硬件加速实时输出 21 个手部关键点，延迟 ≤5ms，极省功耗且不占主线程。
+ * 由 Apple Neural Engine (ANE) 硬件加速实时输出 21 个手部关键点，延迟 <=5ms，极省功耗且不占主线程。
  */
 export class AppleVisionTracker {
   private isRunning = false;
@@ -42,6 +66,7 @@ export class AppleVisionTracker {
   private currentFps = 0;
   private lastLatencyMs = 0;
   private lastFrameImage: string | null = null;
+  private prevSanitizedHands: Map<string, { landmarks: NormalizedLandmark[]; timestamp: number }> = new Map();
 
   constructor() {}
 
@@ -172,6 +197,7 @@ export class AppleVisionTracker {
   public async stop(): Promise<boolean> {
     this.isRunning = false;
     this.lastFrameImage = null;
+    this.prevSanitizedHands.clear();
 
     if (typeof window !== 'undefined' && (window as any).__hologrip_mock_apple_vision) {
       return true;
@@ -220,13 +246,19 @@ export class AppleVisionTracker {
       return;
     }
 
-    // 格式化为与 HandGestureService.processMultiHands 一致的标准输入结构
+    // 格式化为与 HandGestureService.processMultiHands 一致的标准输入结构，
+    // 并在前端层执行二次手腕几何重建与越界点清洗，确保即便旧版原生二进制发送了 (-1, -1) 也不会引发右上角飞线或误捏合
     const landmarksList: NormalizedLandmark[][] = [];
     const handednessList: any[][] = [];
 
-    for (const hand of payload.hands) {
+    for (let idx = 0; idx < payload.hands.length; idx++) {
+      const hand = payload.hands[idx];
       if (hand.landmarks && hand.landmarks.length === 21) {
-        landmarksList.push(hand.landmarks);
+        const handKey = `${hand.handedness || 'right'}_${idx}`;
+        const sanitized = this.sanitizeAndRepairLandmarks(hand.landmarks, handKey, timestamp);
+        if (!sanitized) continue;
+
+        landmarksList.push(sanitized);
         const category = hand.handedness === 'left' ? 'Left' : 'Right';
         handednessList.push([
           {
@@ -240,6 +272,160 @@ export class AppleVisionTracker {
     if (this.onFrameCallback) {
       this.onFrameCallback(landmarksList, handednessList, timestamp, this.lastLatencyMs, payload.frameImage);
     }
+  }
+
+  /**
+   * 清洗并拓扑重建 21 个手部关键点：
+   * 1. 拦截原生未识别哨兵值 (-1, -1) 与角落低置信度噪点 (0, 0) / (1, 0)
+   * 2. 当手腕 (索引 0) 因处于画面下边缘缺失时，利用掌指关节 (MCP) 与近端指间关节 (PIP) 反向重建生理手腕位置
+   * 3. 正向修复子关节并对异常跨屏长骨进行生理长度钳制
+   */
+  public sanitizeAndRepairLandmarks(
+    raw: NormalizedLandmark[],
+    handKey: string,
+    timestamp: number
+  ): NormalizedLandmark[] | null {
+    if (!raw || raw.length !== 21) return null;
+
+    const isValidRawJoint = (p: NormalizedLandmark | undefined): boolean => {
+      if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+      if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) return false;
+      if (p.visibility !== undefined && p.visibility <= 0.0) return false;
+      const isCornerSpike =
+        (p.x <= 0.002 || p.x >= 0.998) &&
+        (p.y <= 0.002 || p.y >= 0.998) &&
+        (p.visibility === undefined || p.visibility < 0.45);
+      if (isCornerSpike) return false;
+      return true;
+    };
+
+    const validFlags: boolean[] = new Array(21);
+    const validIndices: number[] = [];
+    const points: NormalizedLandmark[] = new Array(21);
+
+    for (let i = 0; i < 21; i++) {
+      const p = raw[i];
+      const valid = isValidRawJoint(p);
+      validFlags[i] = valid;
+      if (valid) {
+        validIndices.push(i);
+        points[i] = {
+          x: p.x,
+          y: p.y,
+          z: Number.isFinite(p.z) ? p.z : 0,
+          visibility: p.visibility,
+        };
+      } else {
+        points[i] = { x: -1, y: -1, z: 0, visibility: 0 };
+      }
+    }
+
+    if (validIndices.length < 4) {
+      return null;
+    }
+
+    const prevRecord = this.prevSanitizedHands.get(handKey);
+    const recentPrev =
+      prevRecord && timestamp >= prevRecord.timestamp && timestamp - prevRecord.timestamp <= 250
+        ? prevRecord.landmarks
+        : null;
+
+    // 1. 优先修复根节点手腕 (索引 0)
+    if (!validFlags[0]) {
+      const mcpValid = [5, 9, 13, 17].filter((idx) => validFlags[idx]);
+      const pipValid = [6, 10, 14, 18].filter((idx) => validFlags[idx]);
+
+      let wristX = 0.5;
+      let wristY = 0.85;
+
+      if (mcpValid.length > 0) {
+        const mcpX = mcpValid.reduce((acc, idx) => acc + points[idx].x, 0) / mcpValid.length;
+        const mcpY = mcpValid.reduce((acc, idx) => acc + points[idx].y, 0) / mcpValid.length;
+
+        if (pipValid.length > 0) {
+          const pipX = pipValid.reduce((acc, idx) => acc + points[idx].x, 0) / pipValid.length;
+          const pipY = pipValid.reduce((acc, idx) => acc + points[idx].y, 0) / pipValid.length;
+          const vx = mcpX - pipX;
+          const vy = mcpY - pipY;
+          const vLen = Math.hypot(vx, vy);
+          if (vLen > 1e-4) {
+            const palmSpan = Math.min(0.18, Math.max(0.06, vLen * 1.45));
+            wristX = mcpX + (vx / vLen) * palmSpan;
+            wristY = mcpY + (vy / vLen) * palmSpan;
+          } else {
+            wristX = mcpX;
+            wristY = mcpY + 0.12;
+          }
+        } else {
+          wristX = mcpX;
+          wristY = mcpY + 0.12;
+        }
+      } else {
+        wristX = validIndices.reduce((acc, idx) => acc + points[idx].x, 0) / validIndices.length;
+        wristY = validIndices.reduce((acc, idx) => acc + points[idx].y, 0) / validIndices.length + 0.08;
+      }
+
+      points[0] = {
+        x: Math.min(0.98, Math.max(0.02, wristX)),
+        y: Math.min(0.98, Math.max(0.02, wristY)),
+        z: 0,
+        visibility: 0.16,
+      };
+      validFlags[0] = true;
+    }
+
+    // 2. 自顶向下修复子关节 (1..20)
+    for (let i = 1; i < 21; i++) {
+      if (!validFlags[i]) {
+        const parentIdx = PARENT_JOINT_INDICES[i];
+        const parent = points[parentIdx];
+        let rx = parent.x;
+        let ry = parent.y;
+
+        if (recentPrev && recentPrev[i] && recentPrev[parentIdx]) {
+          const dx = recentPrev[i].x - recentPrev[parentIdx].x;
+          const dy = recentPrev[i].y - recentPrev[parentIdx].y;
+          if (Math.hypot(dx, dy) <= 0.14) {
+            rx = parent.x + dx;
+            ry = parent.y + dy;
+          }
+        } else if (i % 4 !== 0 && i + 1 < 21 && validFlags[i + 1]) {
+          rx = (parent.x + points[i + 1].x) * 0.5;
+          ry = (parent.y + points[i + 1].y) * 0.5;
+        }
+
+        points[i] = {
+          x: Math.min(0.99, Math.max(0.01, rx)),
+          y: Math.min(0.99, Math.max(0.01, ry)),
+          z: parent.z,
+          visibility: 0.12,
+        };
+        validFlags[i] = true;
+      }
+    }
+
+    // 3. 生理骨长离群点钳制，彻底杜绝任何单关节跨屏飞线
+    for (let i = 1; i < 21; i++) {
+      const parentIdx = PARENT_JOINT_INDICES[i];
+      const parent = points[parentIdx];
+      const cur = points[i];
+      const maxBoneLen = parentIdx === 0 ? 0.38 : 0.24;
+      const dx = cur.x - parent.x;
+      const dy = cur.y - parent.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > maxBoneLen && dist > 1e-5) {
+        const ratio = maxBoneLen / dist;
+        points[i] = {
+          x: Math.min(0.99, Math.max(0.01, parent.x + dx * ratio)),
+          y: Math.min(0.99, Math.max(0.01, parent.y + dy * ratio)),
+          z: cur.z,
+          visibility: cur.visibility,
+        };
+      }
+    }
+
+    this.prevSanitizedHands.set(handKey, { landmarks: points, timestamp });
+    return points;
   }
 
   public getLastFrameImage(): string | null {

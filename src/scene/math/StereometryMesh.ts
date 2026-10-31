@@ -489,65 +489,7 @@ export class StereometryMesh {
 
   private buildStagePresentation(): void {
     this.clearGroup(this.stagePresentationGroup);
-
-    // 1. 台面柔和径向渐变接触阴影圆盘
-    const shadowCanvas = document.createElement('canvas');
-    shadowCanvas.width = 128;
-    shadowCanvas.height = 128;
-    const sctx = typeof (shadowCanvas as any).getContext === 'function' ? (shadowCanvas as any).getContext('2d') : null;
-    if (sctx) {
-      if (typeof sctx.createRadialGradient === 'function') {
-        const grad = sctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-        grad.addColorStop(0, 'rgba(3, 12, 26, 0.45)');
-        grad.addColorStop(0.45, 'rgba(2, 10, 24, 0.22)');
-        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        sctx.fillStyle = grad;
-        sctx.fillRect(0, 0, 128, 128);
-      } else {
-        sctx.fillStyle = 'rgba(3, 12, 26, 0.3)';
-        sctx.fillRect(0, 0, 128, 128);
-      }
-    }
-    const shadowTex = new THREE.CanvasTexture(shadowCanvas);
-    const shadowMat = new THREE.MeshBasicMaterial({
-      map: shadowTex,
-      transparent: true,
-      depthWrite: false,
-    });
-    const shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.88, 0.88), shadowMat);
-    shadowMesh.rotation.x = -Math.PI / 2;
-    shadowMesh.position.y = 0.001;
-    this.stagePresentationGroup.add(shadowMesh);
-
-    // 2. 全息极坐标激光投影光环（电光青蓝准星光圈）
-    const ringGeo = new THREE.RingGeometry(0.38, 0.386, 64);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00f7ff,
-      transparent: true,
-      opacity: 0.35,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.002;
-    this.stagePresentationGroup.add(ring);
-
-    // 内同心圆环
-    const innerRingGeo = new THREE.RingGeometry(0.19, 0.194, 48);
-    const innerRingMat = new THREE.MeshBasicMaterial({
-      color: 0x00d2ff,
-      transparent: true,
-      opacity: 0.22,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
-    innerRing.rotation.x = -Math.PI / 2;
-    innerRing.position.y = 0.002;
-    this.stagePresentationGroup.add(innerRing);
+    // 移除立体几何下方的全息投影光环与多余底盘，保持桌面纯净物理视界
   }
 
   private createSnapCursor(): void {
@@ -881,7 +823,7 @@ export class StereometryMesh {
 
   private updateHitEnvelope(): void {
     if (this.hitEnvelopeMesh && this.currentModelDef) {
-      const r = Math.max(0.78, (this.currentModelDef.boundingRadius || 0.8) * 1.25);
+      const r = Math.max(0.18, (this.currentModelDef.boundingRadius || 0.8) * 1.08);
       this.hitEnvelopeMesh.scale.set(r, r, r);
     }
   }
@@ -1993,18 +1935,17 @@ export class StereometryMesh {
 
   public isRayHittingModel(ray: THREE.Ray): boolean {
     if (!this.modelContainer) return false;
+    this.modelContainer.updateMatrixWorld(false);
     const center = new THREE.Vector3();
     this.modelContainer.getWorldPosition(center);
     let scaleFactor = this.modelScale;
-    if (this.modelContainer.parent) {
-      const worldScale = new THREE.Vector3();
-      this.modelContainer.getWorldScale(worldScale);
-      if (worldScale.x > 0.01) {
-        scaleFactor = worldScale.x;
-      }
+    const worldScale = new THREE.Vector3();
+    this.modelContainer.getWorldScale(worldScale);
+    if (worldScale.x > 0.01) {
+      scaleFactor = worldScale.x;
     }
     const baseR = this.currentModelDef?.boundingRadius ?? 0.8;
-    const r = Math.max(0.78, baseR * scaleFactor * 1.25);
+    const r = Math.max(0.18, baseR * scaleFactor * 1.08);
     const sphere = new THREE.Sphere(center, r);
     return ray.intersectsSphere(sphere);
   }
@@ -2429,12 +2370,6 @@ export class StereometryMesh {
 
     // 从当前摄像机视角动态更新可见实棱与遮挡虚线
     this.updateEdgeVisibility(camera);
-
-    // 全息展示环缓慢旋转
-    const stageRing = this.stagePresentationGroup.children[1];
-    if (stageRing) {
-      stageRing.rotation.z += delta * 0.12;
-    }
 
     // 稳定的磁吸捕捉指示器（无多余闪烁与旋转）
     if (this.snapCursorGroup.visible) {

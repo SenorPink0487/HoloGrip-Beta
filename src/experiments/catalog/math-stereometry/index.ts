@@ -650,6 +650,14 @@ export default class MathStereometryExperiment extends BaseExperiment {
     return this.interactionManager?.undoLastSegment();
   }
 
+  public isModelInteracting(): boolean {
+    return this.interactionManager?.isInteractingWithModel() ?? false;
+  }
+
+  public isVisionModelInteracting(): boolean {
+    return this.interactionManager?.isVisionModelInteractionActive() ?? false;
+  }
+
   public clearHover(): void {
     this.interactionManager?.clearHover();
   }

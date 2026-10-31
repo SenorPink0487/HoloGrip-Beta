@@ -486,6 +486,25 @@ console.log('Test 8: Glass Transmission & Pipeline Invariants Verification');
     'BeakerMesh must NOT use transmission > 0'
   );
 
+  // 3.1 Verify OpticalDispersionBenchMesh has zero transmissive objects (prevents secondary full-scene opaque render pass and GPU throttle over time)
+  const { OpticalDispersionBenchMesh } = await import('../src/scene/optics/OpticalDispersionBenchMesh.ts');
+  const dispersionBench = new OpticalDispersionBenchMesh();
+  let dispersionTransmissionCount = 0;
+  dispersionBench.group.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhysicalMaterial) {
+      if ((child.material as any).transmission > 0) {
+        dispersionTransmissionCount++;
+      }
+    }
+  });
+  dispersionBench.dispose();
+  console.log(`  OpticalDispersionBenchMesh Transmissive Meshes: ${dispersionTransmissionCount} (0 expected)`);
+  assert.strictEqual(
+    dispersionTransmissionCount,
+    0,
+    'OpticalDispersionBenchMesh must NOT use transmission > 0; use clearcoat specular highlights to avoid transmission render passes and GPU throttling'
+  );
+
   // 4. Verify Engine downsamples transmission resolution scale to <= 0.5 as fallback
   const enginePath = path.resolve(process.cwd(), 'src/core/Engine.ts');
   const engineCode = fs.readFileSync(enginePath, 'utf-8');

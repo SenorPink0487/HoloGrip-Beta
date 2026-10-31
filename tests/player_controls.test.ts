@@ -217,16 +217,12 @@ console.log('=== PlayerController Vertical Elevation Tests ===\n');
   assert(touchCode.includes('#touch-vision-launcher'), 'Must define #touch-vision-launcher');
   assert(touchCode.includes('right: calc('), 'Launcher must be positioned on the right (bottom-right)');
   assert(touchCode.includes('bottom: calc('), 'Launcher must be positioned on the bottom');
-  assert(touchCode.includes('全息视窗'), 'Launcher must contain label text 全息视窗');
+  assert(touchCode.includes('悬浮窗口'), 'Launcher must contain label text 悬浮窗口');
 
   // Verify bottom-left joystick positioning and aesthetic components
   assert(touchCode.includes('#virtual-joystick-base'), 'Must define #virtual-joystick-base');
   assert(touchCode.includes('left: calc('), 'Joystick must be positioned on the left (bottom-left)');
-  assert(touchCode.includes('vj-compass-pip'), 'Joystick base must contain cardinal compass direction pips');
-  assert(touchCode.includes('vj-guide-ring'), 'Joystick base must contain concentric guide track ring');
-  assert(touchCode.includes('vj-axis-cross'), 'Joystick base must contain subtle crosshair axis lines');
-  assert(touchCode.includes('vj-knob-ridge'), 'Joystick knob must contain tactile concentric ridge');
-  assert(touchCode.includes('vj-knob-core'), 'Joystick knob must contain luminous core pip');
+  assert(touchCode.includes('id="virtual-joystick-knob"'), 'Joystick must retain its movable knob');
 
   // Verify iPad / tablet responsive scaling (@media 768px+)
   assert(touchCode.includes('@media (pointer: coarse) and (min-width: 768px)'), 'Must include iPad/tablet media query');

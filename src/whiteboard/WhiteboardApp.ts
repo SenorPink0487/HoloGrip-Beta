@@ -372,8 +372,7 @@ export class WhiteboardApp {
     }
     if (this.engine.crosshair) {
       const isModalOpen = this.engine.visionModal?.visible ?? false;
-      const isDrawerOpen = this.engine.hud?.drawer?.open ?? false;
-      if (!isModalOpen && !isDrawerOpen && !freeCursor) {
+      if (!isModalOpen && !freeCursor) {
         this.engine.crosshair.setVisible(true);
       }
     }

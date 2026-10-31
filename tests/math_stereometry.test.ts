@@ -1482,9 +1482,9 @@ managerMesh.dispose();
 console.log('✓ Test 26 passed: Skew non-planar cycle rejection & interaction guidance lifecycle verified\n');
 
 // ========================================================
-// Test 27: 触摸屏滑动旋转视角 vs 轻触选点接线隔离测试
+// Test 27: 与 3D 模型交互严禁误触旋转 vs 显式 orbit 模式旋转隔离测试
 // ========================================================
-console.log('Test 27: 触摸屏滑动旋转视角 vs 轻触选点接线隔离测试');
+console.log('Test 27: 与 3D 模型交互严禁误触旋转 vs 显式 orbit 模式旋转隔离测试');
 
 const touchMesh = new StereometryMesh();
 touchMesh.setOptions({ modelType: 'cube' });
@@ -1498,84 +1498,100 @@ const touchManager = new StereometryInteractionManager(touchMesh, {
 const touchMockCam = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 touchMockCam.position.set(0, 0, 2);
 touchMockCam.lookAt(0, 0, 0);
+touchMockCam.updateMatrixWorld(true);
+touchMesh.modelContainer.updateMatrixWorld(true);
+const touchCanvas = {
+  getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+};
 const touchContext = {
   ...mockContext,
   camera: touchMockCam,
+  renderer: {
+    ...mockContext.renderer,
+    domElement: touchCanvas,
+  },
 };
 
-// 场景 A: 触摸屏单指在模型上按下并滑动 (移动 30px) -> 必须旋转视角，绝对不误触发接线
+// 场景 A: 默认连线交互模式下，单指在 3D 模型中心表面按下并滑动 30px -> 接管指针屏蔽相机旋转，且 3D 模型本身绝不旋转！
 const initialRotY = touchMesh.modelContainer.rotation.y;
+const t27Center = new THREE.Vector3();
+touchMesh.modelContainer.getWorldPosition(t27Center);
+const t27Ndc = t27Center.clone().project(touchMockCam);
+const t27Cx = ((t27Ndc.x + 1) / 2) * 1920;
+const t27Cy = ((-t27Ndc.y + 1) / 2) * 1080;
+
 const touchDownEvent = {
   button: 0,
-  clientX: 200,
-  clientY: 200,
+  clientX: t27Cx,
+  clientY: t27Cy,
   pointerId: 1,
   pointerType: 'touch',
 } as PointerEvent;
 
-touchManager.onPointerDown(touchDownEvent, null, touchContext);
-
-// 此时刚刚按下，位移为 0，不能被死锁为连线
+const claimedModel = touchManager.onPointerDown(touchDownEvent, null, touchContext);
+assert.strictEqual(claimedModel, true, 'Touching on 3D model must claim pointer so camera does NOT rotate');
 assert.strictEqual((touchManager as any).isOrbitDragging, false);
 assert.strictEqual((touchManager as any).hasMovedPastDragThreshold, false);
 
-// 手指滑动 30px
 const touchMoveEvent = {
   button: 0,
-  clientX: 230,
-  clientY: 215,
+  clientX: t27Cx + 30,
+  clientY: t27Cy + 15,
   pointerId: 1,
   pointerType: 'touch',
 } as PointerEvent;
 
 touchManager.onPointerMove(touchMoveEvent, null, touchContext);
 
-// 验证模型顺畅旋转
-assert((touchManager as any).isOrbitDragging, 'Finger dragging must activate orbit dragging');
+assert.strictEqual((touchManager as any).isOrbitDragging, false, 'Dragging on model in direct mode must NEVER trigger orbit rotation');
 assert((touchManager as any).hasMovedPastDragThreshold, 'Must mark moved past drag threshold');
-assert.notStrictEqual(touchMesh.modelContainer.rotation.y, initialRotY, 'Model rotation Y must change upon dragging');
+assert.strictEqual(touchMesh.modelContainer.rotation.y, initialRotY, 'Model rotation Y must remain unchanged while interacting with model');
 
-// 手指抬起
 const touchUpEvent = {
   button: 0,
-  clientX: 230,
-  clientY: 215,
+  clientX: t27Cx + 30,
+  clientY: t27Cy + 15,
   pointerId: 1,
   pointerType: 'touch',
 } as PointerEvent;
 
 touchManager.onPointerUp(touchUpEvent, touchContext);
+assert.strictEqual((touchManager as any).pendingStartPoint, null, 'Sliding across empty face must not retain random start point');
+assert.strictEqual((touchManager as any).isOrbitDragging, false);
 
-// 验证滑动释放后绝对没有暂存连线起点
-assert.strictEqual((touchManager as any).pendingStartPoint, null, 'Dragging to rotate must NEVER retain a connection start point');
-assert.strictEqual((touchManager as any).isOrbitDragging, false, 'Orbit dragging must be reset upon pointer up');
-
-// 场景 B: 触摸屏轻触 (Tap，位移 2px) 在棱线上 -> 必须选定为连线起点
+// 场景 B: 轻触选定起点 A 后，即使在模型表面误滑也绝不触发模型旋转，轻触目标点 B 稳健完成连线
 const kpVertexA = touchMesh.getModelDef().keyPoints.find((k) => k.id === 'v_0')!;
 const kpVertexB = touchMesh.getModelDef().keyPoints.find((k) => k.id === 'v_1')!;
 
-// 模拟轻触点击顶点 A
 (touchManager as any).handleClickOnPoint(kpVertexA);
 assert.strictEqual((touchManager as any).pendingStartPoint?.id, 'v_0', 'Tapping vertex A must set it as connection start point');
 assert(guidanceText.includes('已选起点 A'), `Guidance must announce start point A, got: ${guidanceText}`);
 
-// 在选定起点 A 期间，用户再次单指滑动旋转模型以看清背面
 const rotBefore = touchMesh.modelContainer.rotation.y;
-touchManager.onPointerDown({ button: 0, clientX: 100, clientY: 100, pointerId: 1, pointerType: 'touch' } as PointerEvent, null, touchContext);
-touchManager.onPointerMove({ button: 0, clientX: 150, clientY: 100, pointerId: 1, pointerType: 'touch' } as PointerEvent, null, touchContext);
-assert.notStrictEqual(touchMesh.modelContainer.rotation.y, rotBefore, 'Model must rotate while start point is pending');
-touchManager.onPointerUp({ button: 0, clientX: 150, clientY: 100, pointerId: 1, pointerType: 'touch' } as PointerEvent, touchContext);
+touchManager.onPointerDown({ button: 0, clientX: t27Cx, clientY: t27Cy, pointerId: 1, pointerType: 'touch' } as PointerEvent, null, touchContext);
+touchManager.onPointerMove({ button: 0, clientX: t27Cx + 50, clientY: t27Cy, pointerId: 1, pointerType: 'touch' } as PointerEvent, null, touchContext);
+assert.strictEqual(touchMesh.modelContainer.rotation.y, rotBefore, 'Model must NEVER rotate while start point A is pending');
+touchManager.onPointerUp({ button: 0, clientX: t27Cx + 50, clientY: t27Cy, pointerId: 1, pointerType: 'touch' } as PointerEvent, touchContext);
 
-// 验证旋转后起点 A 依然保留，等待连接目标点
-assert.strictEqual((touchManager as any).pendingStartPoint?.id, 'v_0', 'Pending start point A must be preserved through rotation');
+// 旋转未发生且起点 A 依然保留，等待连接目标点 B
+assert.strictEqual((touchManager as any).pendingStartPoint?.id, 'v_0', 'Pending start point A must be preserved');
 
-// 此时轻触目标顶点 B -> 成功完成连线
 (touchManager as any).handleClickOnPoint(kpVertexB);
 assert.strictEqual((touchManager as any).pendingStartPoint, null, 'Connecting target B must clear pending start point');
 assert.strictEqual(touchMesh.getSegments().length, 1, 'Auxiliary line between A and B must be successfully created');
 
+// 场景 C: 显式切换至 'orbit' 模式时，编程式模型旋转依然可用
+touchManager.setMode('orbit');
+const rotBeforeExplicitOrbit = touchMesh.modelContainer.rotation.y;
+touchManager.onPointerDown({ button: 0, clientX: t27Cx, clientY: t27Cy, pointerId: 2, pointerType: 'touch' } as PointerEvent, null, touchContext);
+touchManager.onPointerMove({ button: 0, clientX: t27Cx + 60, clientY: t27Cy, pointerId: 2, pointerType: 'touch' } as PointerEvent, null, touchContext);
+assert.strictEqual((touchManager as any).isOrbitDragging, true, 'Explicit orbit mode allows orbit dragging');
+assert.notStrictEqual(touchMesh.modelContainer.rotation.y, rotBeforeExplicitOrbit, 'Explicit orbit mode updates model rotation');
+touchManager.onPointerUp({ button: 0, clientX: t27Cx + 60, clientY: t27Cy, pointerId: 2, pointerType: 'touch' } as PointerEvent, touchContext);
+touchManager.setMode('direct');
+
 touchMesh.dispose();
-console.log('✓ Test 27 passed: 触摸屏滑动旋转视角 vs 轻触选点接线完全隔离验证通过\n');
+console.log('✓ Test 27 passed: 与 3D 模型交互严禁误触旋转 vs 显式 orbit 模式隔离验证通过\n');
 
 // ========================================================
 // Test 28: “起点应当只在线上”严格不变性测试
@@ -1929,7 +1945,7 @@ optManager.onPointerUp({
 } as PointerEvent, optContext);
 assert.strictEqual((optManager as any).isOrbitDragging, false, 'PointerUp must end orbit dragging');
 
-// 4.2 在 3D 模型表面区域单指滑动拖拽 -> 顺畅旋转 3D 立体几何模型
+// 4.2 在 3D 模型表面区域单指滑动拖拽 -> 接管指针屏蔽视角旋转，且模型本身严禁误触旋转！
 const modelCenterWorld = new THREE.Vector3();
 optMesh.modelContainer.getWorldPosition(modelCenterWorld);
 const ndcCenter = modelCenterWorld.clone().project(optCam);
@@ -1944,7 +1960,7 @@ const modelDownHandled = optManager.onPointerDown({
   pointerId: 15,
   pointerType: 'touch',
 } as PointerEvent, null, optContext);
-assert.strictEqual(modelDownHandled, true, 'PointerDown on 3D model must claim pointer to rotate model');
+assert.strictEqual(modelDownHandled, true, 'PointerDown on 3D model must claim pointer to block camera rotation');
 
 optManager.onPointerMove({
   button: 0,
@@ -1953,8 +1969,8 @@ optManager.onPointerMove({
   pointerId: 15,
   pointerType: 'touch',
 } as PointerEvent, null, optContext);
-assert.strictEqual((optManager as any).isOrbitDragging, true, 'Swiping on model must enter orbit dragging');
-assert.notStrictEqual(optMesh.modelContainer.rotation.y, rotBeforeModelDrag, 'Swiping on model must rotate the 3D model');
+assert.strictEqual((optManager as any).isOrbitDragging, false, 'Swiping on model during direct interaction must NOT enter orbit dragging');
+assert.strictEqual(optMesh.modelContainer.rotation.y, rotBeforeModelDrag, 'Swiping on model must NEVER accidentally rotate the 3D model');
 
 optManager.onPointerUp({
   button: 0,
@@ -1963,7 +1979,7 @@ optManager.onPointerUp({
   pointerId: 15,
   pointerType: 'touch',
 } as PointerEvent, optContext);
-assert.strictEqual((optManager as any).isOrbitDragging, false, 'PointerUp must end orbit dragging');
+assert.strictEqual((optManager as any).isOrbitDragging, false, 'PointerUp keeps orbit dragging false');
 
 // 4.3 在外部空白区域短按轻触 (Tap 且位移 <= 22px，无待选起点) -> 绝不发生误旋转
 const rotBeforeOutsideTap = optMesh.modelContainer.rotation.y;
@@ -2254,8 +2270,113 @@ assert(Math.abs(rHeight / rSide - Math.SQRT1_2) < 1e-4, 'Regular square pyramid 
 
 console.log(`✓ Test 34 passed: 极速单阶段视觉约束提取 + 毫秒级确定性三维求解器 (${fastSolveElapsedMs.toFixed(2)}ms) 验证通过\n`);
 
+// ========================================================
+// Test 35: 放大模型下世界尺度磁吸、字母标号吸附与 Vision 隔空手势连线零旋转回归测试
+// ========================================================
+console.log('Test 35: 放大模型下世界尺度磁吸、字母标号吸附与 Vision 隔空手势连线零旋转回归测试');
+{
+  const parentStage = new THREE.Group();
+  parentStage.scale.set(1.6, 1.6, 1.6); // 模拟 HoloStage targetScale = 1.6
+  const scaledMesh = new StereometryMesh();
+  scaledMesh.setOptions({ modelType: 'cube' });
+  scaledMesh.setScale(1.38); // 模拟用户双指放大至 138% (总世界缩放 2.208x)
+  parentStage.add(scaledMesh.group);
+  parentStage.updateMatrixWorld(true);
+
+  const scaledMgr = new StereometryInteractionManager(scaledMesh);
+  const cam = new THREE.PerspectiveCamera(45, 1920 / 1080, 0.1, 100);
+  cam.position.set(0, 1.2, 4.5);
+  cam.lookAt(0, 0.4, 0);
+  cam.updateMatrixWorld(true);
+
+  const canvasStub = {
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+  };
+  const ctx35 = {
+    ...mockContext,
+    camera: cam,
+    renderer: { ...mockContext.renderer, domElement: canvasStub },
+  };
+
+  // 1. 直接对准外偏 0.042 的顶点 A 字母标号发射点击（此前 0.045m 未缩放阈值必定漏检并触发旋转）
+  const kpA = scaledMesh.getModelDef().keyPoints.find((k) => k.id === 'v_0')!;
+  const kpC1 = scaledMesh.getModelDef().keyPoints.find((k) => k.id === 'v_6')!;
+  const dirA = kpA.position.clone().normalize();
+  const labelALocal = kpA.position.clone().addScaledVector(dirA, 0.042);
+  const labelAWorld = labelALocal.applyMatrix4(scaledMesh.modelContainer.matrixWorld);
+  const ndcLabelA = labelAWorld.clone().project(cam);
+  const sxA = ((ndcLabelA.x + 1) / 2) * 1920;
+  const syA = ((-ndcLabelA.y + 1) / 2) * 1080;
+
+  const visionDownA = {
+    button: 0,
+    clientX: sxA,
+    clientY: syA,
+    pointerId: 1,
+    pointerType: 'mouse',
+    __visionGesture: true,
+  } as unknown as PointerEvent;
+
+  const claimedA = scaledMgr.onPointerDown(visionDownA, null, ctx35);
+  assert.strictEqual(claimedA, true, 'Vision pinch on outer vertex label A at 2.2x world scale must snap & claim pointer');
+  assert.strictEqual((scaledMgr as any).dragStartKp?.id, 'v_0', 'Must snap directly to vertex A from its label position');
+
+  // 模拟隔空手势松开时伴随 20px 微颤（此前 mouse 8px tapSlop 会直接丢失选点）
+  scaledMgr.onPointerUp({
+    button: 0,
+    clientX: sxA + 16,
+    clientY: syA - 12,
+    pointerId: 1,
+    pointerType: 'mouse',
+    __visionGesture: true,
+  } as unknown as PointerEvent, ctx35);
+
+  assert.strictEqual((scaledMgr as any).pendingStartPoint?.id, 'v_0', '20px Vision pinch release tremor must still select start point A');
+  assert.strictEqual(scaledMgr.isVisionModelInteractionActive(), true, 'Vision model interaction must be active while pendingStartPoint is set');
+
+  // 2. 移动至体对角顶点 C1，模拟先悬停吸附，捏合瞬间偏离 24px 按下，并在释放时微颤 18px -> 依然零旋转完成 A-C1 连线！
+  const c1World = kpC1.position.clone().applyMatrix4(scaledMesh.modelContainer.matrixWorld);
+  const ndcC1 = c1World.clone().project(cam);
+  const sxC1 = ((ndcC1.x + 1) / 2) * 1920;
+  const syC1 = ((-ndcC1.y + 1) / 2) * 1080;
+
+  scaledMgr.onPointerMove({
+    button: 0,
+    clientX: sxC1,
+    clientY: syC1,
+    pointerId: 1,
+    pointerType: 'mouse',
+    __visionGesture: true,
+  } as unknown as PointerEvent, null, ctx35);
+  assert.strictEqual((scaledMgr as any).currentHoveredKp?.id, 'v_6', 'Hovering C1 must lock currentHoveredKp to v_6');
+
+  const rotBeforeC1 = scaledMesh.modelContainer.rotation.y;
+  scaledMgr.onPointerDown({
+    button: 0,
+    clientX: sxC1 + 22,
+    clientY: syC1 + 10,
+    pointerId: 1,
+    pointerType: 'mouse',
+    __visionGesture: true,
+  } as unknown as PointerEvent, null, ctx35);
+  scaledMgr.onPointerUp({
+    button: 0,
+    clientX: sxC1 + 6,
+    clientY: syC1 - 4,
+    pointerId: 1,
+    pointerType: 'mouse',
+    __visionGesture: true,
+  } as unknown as PointerEvent, ctx35);
+
+  assert.strictEqual(scaledMesh.modelContainer.rotation.y, rotBeforeC1, 'Connecting A to C1 must trigger ZERO model rotation');
+  assert.strictEqual(scaledMesh.getSegments().length, 1, 'Must create body diagonal segment A-C1');
+
+  scaledMesh.dispose();
+}
+console.log('✓ Test 35 passed: 放大模型下世界尺度磁吸、字母标号吸附与 Vision 隔空手势连线零旋转验证通过\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (34/34)!');
+console.log('All High School Stereometry Tests Passed Successfully (35/35)!');
 console.log('========================================================');
 
 

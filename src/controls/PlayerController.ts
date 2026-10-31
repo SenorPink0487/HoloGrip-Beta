@@ -27,8 +27,8 @@ export class PlayerController {
 
   public velocity = new THREE.Vector3();
   public direction = new THREE.Vector3();
-  public moveSpeed = 3.8;
-  public verticalSpeed = 3.0;
+  public moveSpeed = 1.9;
+  public verticalSpeed = 1.5;
   public sprintMultiplier = 1.7;
   public damping = 9.0;
   public eyeHeight: number = LAB_ENTRY_REST.y;
@@ -120,7 +120,7 @@ export class PlayerController {
     });
 
     window.addEventListener('mousedown', (e) => {
-      if (this.isLocked || !this.enabled) return;
+      if (this.isLocked || !this.enabled || !this.allowMouseRotation) return;
       // 任意位置右键，或在画布上左键
       const isTargetCanvas = e.target === this.domElement || (typeof Node !== 'undefined' && e.target instanceof Node && this.domElement.contains(e.target));
       if (e.button === 2 || (e.button === 0 && isTargetCanvas)) {
@@ -157,7 +157,10 @@ export class PlayerController {
     });
 
     document.addEventListener('mousemove', (e) => {
-      if (!this.enabled || !this.allowMouseRotation) return;
+      if (!this.enabled || !this.allowMouseRotation) {
+        isDragging = false;
+        return;
+      }
 
       if (this.isLocked) {
         const sensitivity = 0.0022;

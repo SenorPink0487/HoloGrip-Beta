@@ -32,6 +32,8 @@ import Tauri
     // 历史关节点缓存与时间平滑（消除骨骼线乱跳与缺失点突变）
     private var previousLandmarks: [String: [[String: Any]]] = [:]
     private var lastSeenTimestamp: [String: CFAbsoluteTime] = [:]
+    private var lastSingleHandLabel: String = "right"
+    private var lastSingleHandTimestamp: CFAbsoluteTime = 0
 
     // 关节层级拓扑（子关节 -> 父关节索引，用于骨骼断裂时平滑锚定）
     private let parentJointIndices: [Int] = [
@@ -509,12 +511,31 @@ import Tauri
 
         // 双手空间排序与手性稳健映射：
         // 在前置非镜像摄像头中，画面左侧（小 X）对应真实用户的右手（较大 screenX），画面右侧对应真实用户的左手
-        var parsedHands: [(landmarks: [[String: Any]], wristX: Double, chirality: VNChirality, confidence: Float)] = []
+        var parsedHands: [(landmarks: [[String: Any]], centerX: Double, chirality: VNChirality, confidence: Float)] = []
+        let candidateObservations = rawObservations.filter { $0.confidence >= 0.25 }
 
-        for obs in rawObservations.prefix(2) {
-            guard let landmarks = extract21Landmarks(observation: obs) else { continue }
-            let wristX = (landmarks[0]["x"] as? Double) ?? 0.5
-            parsedHands.append((landmarks: landmarks, wristX: wristX, chirality: obs.chirality, confidence: obs.confidence))
+        for obs in candidateObservations.prefix(2) {
+            var hint: String? = nil
+            if obs.chirality == .left {
+                hint = "left"
+            } else if obs.chirality == .right {
+                hint = "right"
+            } else if candidateObservations.count == 1 && (now - lastSingleHandTimestamp) < 0.45 {
+                hint = lastSingleHandLabel
+            }
+
+            guard let landmarks = extract21Landmarks(observation: obs, handHint: hint, now: now) else { continue }
+            let palmIndices = [0, 5, 9, 13, 17]
+            var sumX = 0.0
+            var countX = 0
+            for idx in palmIndices {
+                if let px = landmarks[idx]["x"] as? Double, px >= 0.0 && px <= 1.0 {
+                    sumX += px
+                    countX += 1
+                }
+            }
+            let centerX = countX > 0 ? (sumX / Double(countX)) : ((landmarks[9]["x"] as? Double) ?? 0.5)
+            parsedHands.append((landmarks: landmarks, centerX: centerX, chirality: obs.chirality, confidence: obs.confidence))
         }
 
         if parsedHands.isEmpty {
@@ -525,10 +546,10 @@ import Tauri
         var handsData: [[String: Any]] = []
 
         if parsedHands.count == 2 {
-            // 双手同时出现：按未镜像相机的 X 排序
-            // wristX 较小 -> 位于用户右侧 -> 右手
-            // wristX 较大 -> 位于用户左侧 -> 左手
-            let sorted = parsedHands.sorted { $0.wristX < $1.wristX }
+            // 双手同时出现：按未镜像相机的手掌中心 X 排序
+            // centerX 较小 -> 位于用户右侧 -> 右手
+            // centerX 较大 -> 位于用户左侧 -> 左手
+            let sorted = parsedHands.sorted { $0.centerX < $1.centerX }
             let rightHand = sorted[0]
             let leftHand = sorted[1]
 
@@ -546,7 +567,7 @@ import Tauri
                 "confidence": leftHand.confidence
             ])
         } else {
-            // 单手出现：结合 Vision 的解剖学手性与屏幕横向分布进行判决
+            // 单手出现：优先采用 Vision 解剖学手性，未知手性时保持时间连续性
             let single = parsedHands[0]
             var handLabel = "right"
 
@@ -554,10 +575,14 @@ import Tauri
                 handLabel = "left"
             } else if single.chirality == .right {
                 handLabel = "right"
+            } else if (now - lastSingleHandTimestamp) < 0.45 {
+                handLabel = lastSingleHandLabel
             } else {
-                // 未知手性时通过前置非镜像相机位置判决：x > 0.5 靠近用户左侧，x <= 0.5 靠近用户右侧
-                handLabel = single.wristX > 0.5 ? "left" : "right"
+                // 首次未知手性时通过前置非镜像相机位置判决：x > 0.5 靠近用户左侧，x <= 0.5 靠近用户右侧
+                handLabel = single.centerX > 0.5 ? "left" : "right"
             }
+            lastSingleHandLabel = handLabel
+            lastSingleHandTimestamp = now
 
             let smoothed = smoothLandmarks(raw: single.landmarks, handLabel: handLabel, now: now)
             handsData.append([
@@ -589,8 +614,12 @@ import Tauri
         dispatchFrame(payload: payload)
     }
 
-    /// 提取 Apple Vision 21 个关节并进行骨骼拓扑保护，彻底杜绝跳变至 (0.5, 0.5)
-    private func extract21Landmarks(observation: VNHumanHandPoseObservation) -> [[String: Any]]? {
+    /// 提取 Apple Vision 21 个关节并进行手腕重建与骨骼拓扑保护，彻底杜绝缺失点残留在 (-1, -1) 或乱跳至屏幕右上角
+    private func extract21Landmarks(
+        observation: VNHumanHandPoseObservation,
+        handHint: String? = nil,
+        now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+    ) -> [[String: Any]]? {
         guard #available(iOS 14.0, *) else { return nil }
 
         let jointKeys: [VNHumanHandPoseObservation.JointName] = [
@@ -619,51 +648,152 @@ import Tauri
 
         var points: [[String: Any]] = []
         points.reserveCapacity(21)
+        var confidentCount = 0
 
-        // 第一步：解析具备高置信度的原生关节点
-        for key in jointKeys {
-            if let pt = try? observation.recognizedPoint(key), pt.confidence >= 0.20 {
+        // 第一步：解析具备有效置信度的原生关节点（指尖在捏合自遮挡时允许 0.12 置信度，防止捏合中断跳回 DIP）
+        for (idx, key) in jointKeys.enumerated() {
+            let minConf: Float = (idx == 4 || idx == 8) ? 0.12 : 0.18
+            if let pt = try? observation.recognizedPoint(key), pt.confidence >= minConf {
                 // Vision location 原点在左下角 (Y向上)，转换为 Web 标准 (0,0) 在左上角
                 let normX = Double(pt.location.x)
                 let normY = 1.0 - Double(pt.location.y)
-                points.append([
-                    "x": normX,
-                    "y": normY,
-                    "z": 0.0,
-                    "visibility": Double(pt.confidence)
-                ])
-            } else {
-                // 暂时标记缺失，后续基于拓扑父关节与历史平滑修补，严禁回退到 (0.5, 0.5)
-                points.append([
-                    "x": -1.0,
-                    "y": -1.0,
-                    "z": 0.0,
-                    "visibility": 0.0
-                ])
+                let isValidCoord = normX.isFinite && normY.isFinite &&
+                    normX >= 0.0 && normX <= 1.0 &&
+                    normY >= 0.0 && normY <= 1.0
+                let isCornerArtifact = ((normX <= 0.002 || normX >= 0.998) && (normY <= 0.002 || normY >= 0.998) && pt.confidence < 0.45) ||
+                    ((normX <= 0.001 || normX >= 0.999 || normY <= 0.001 || normY >= 0.999) && pt.confidence < 0.30)
+
+                if isValidCoord && !isCornerArtifact {
+                    if pt.confidence >= 0.22 {
+                        confidentCount += 1
+                    }
+                    points.append([
+                        "x": normX,
+                        "y": normY,
+                        "z": 0.0,
+                        "visibility": Double(pt.confidence)
+                    ])
+                    continue
+                }
             }
+            // 暂时标记缺失，后续通过手腕几何反推与父子拓扑修补，严禁残留负数或回退到屏幕角落
+            points.append([
+                "x": -1.0,
+                "y": -1.0,
+                "z": 0.0,
+                "visibility": 0.0
+            ])
         }
 
-        // 第二步：拓扑修复（若某关节因遮挡缺失，优先采用其父关节位置保持骨骼连续，绝不跨越屏幕乱跳）
-        let validCount = points.filter { ($0["x"] as? Double ?? -1.0) >= 0.0 }.count
-        if validCount < 4 {
+        let validIndices = (0..<21).filter { (points[$0]["x"] as? Double ?? -1.0) >= 0.0 }
+        if validIndices.count < 5 || confidentCount < 5 {
             return nil
         }
 
-        for i in 0..<21 {
+        let recentPrev: [[String: Any]]? = {
+            guard let label = handHint,
+                  let prev = previousLandmarks[label],
+                  let lastTs = lastSeenTimestamp[label],
+                  (now - lastTs) < 0.25,
+                  prev.count == 21 else { return nil }
+            return prev
+        }()
+
+        // 第二步：优先修复根节点手腕 (points[0])！
+        // 当手腕位于取景框下边缘被裁切导致置信度低于阈值时，根据掌指关节 (MCP) 与近端指间关节 (PIP) 的解剖学主轴反向重建手腕，
+        // 彻底根除 points[0] 保持 (-1, -1) 后被前端钳制到 (0, 0) 导致 5 条掌骨线飞向画面右上角的 Bug！
+        if (points[0]["x"] as? Double ?? -1.0) < 0.0 {
+            let mcpIndices = [5, 9, 13, 17].filter { (points[$0]["x"] as? Double ?? -1.0) >= 0.0 }
+            let pipIndices = [6, 10, 14, 18].filter { (points[$0]["x"] as? Double ?? -1.0) >= 0.0 }
+
+            var wristX = 0.5
+            var wristY = 0.85
+
+            if !mcpIndices.isEmpty {
+                let mcpX = mcpIndices.reduce(0.0) { $0 + ((points[$1]["x"] as? Double) ?? 0.0) } / Double(mcpIndices.count)
+                let mcpY = mcpIndices.reduce(0.0) { $0 + ((points[$1]["y"] as? Double) ?? 0.0) } / Double(mcpIndices.count)
+
+                if !pipIndices.isEmpty {
+                    let pipX = pipIndices.reduce(0.0) { $0 + ((points[$1]["x"] as? Double) ?? 0.0) } / Double(pipIndices.count)
+                    let pipY = pipIndices.reduce(0.0) { $0 + ((points[$1]["y"] as? Double) ?? 0.0) } / Double(pipIndices.count)
+                    let vx = mcpX - pipX
+                    let vy = mcpY - pipY
+                    let vLen = hypot(vx, vy)
+                    if vLen > 1e-4 {
+                        let palmSpan = min(0.18, max(0.06, vLen * 1.45))
+                        wristX = mcpX + (vx / vLen) * palmSpan
+                        wristY = mcpY + (vy / vLen) * palmSpan
+                    } else {
+                        wristX = mcpX
+                        wristY = mcpY + 0.12
+                    }
+                } else {
+                    wristX = mcpX
+                    wristY = mcpY + 0.12
+                }
+            } else {
+                wristX = validIndices.reduce(0.0) { $0 + ((points[$1]["x"] as? Double) ?? 0.0) } / Double(validIndices.count)
+                wristY = validIndices.reduce(0.0) { $0 + ((points[$1]["y"] as? Double) ?? 0.0) } / Double(validIndices.count) + 0.08
+            }
+
+            points[0]["x"] = min(0.98, max(0.02, wristX))
+            points[0]["y"] = min(0.98, max(0.02, wristY))
+            points[0]["visibility"] = 0.16
+        }
+
+        // 第三步：自顶向下正向拓扑修复所有子关节 (1...20)，此时父节点必然已经拥有合法坐标
+        for i in 1..<21 {
             let px = points[i]["x"] as? Double ?? -1.0
             if px < 0.0 {
                 let parentIdx = parentJointIndices[i]
-                let parentX = points[parentIdx]["x"] as? Double ?? -1.0
-                if parentX >= 0.0 {
-                    points[i]["x"] = points[parentIdx]["x"]
-                    points[i]["y"] = points[parentIdx]["y"]
-                    points[i]["visibility"] = 0.1
-                } else if points[0]["x"] as? Double ?? -1.0 >= 0.0 {
-                    // 最底限对齐到手腕
-                    points[i]["x"] = points[0]["x"]
-                    points[i]["y"] = points[0]["y"]
-                    points[i]["visibility"] = 0.05
+                let parentX = (points[parentIdx]["x"] as? Double) ?? 0.5
+                let parentY = (points[parentIdx]["y"] as? Double) ?? 0.5
+
+                var repairedX = parentX
+                var repairedY = parentY
+
+                if let prev = recentPrev,
+                   let prevChildX = prev[i]["x"] as? Double,
+                   let prevChildY = prev[i]["y"] as? Double,
+                   let prevParentX = prev[parentIdx]["x"] as? Double,
+                   let prevParentY = prev[parentIdx]["y"] as? Double,
+                   prevChildX >= 0.0 && prevParentX >= 0.0 {
+                    let dx = prevChildX - prevParentX
+                    let dy = prevChildY - prevParentY
+                    if hypot(dx, dy) <= 0.14 {
+                        repairedX = parentX + dx
+                        repairedY = parentY + dy
+                    }
+                } else if (i % 4 != 0) && (i + 1 < 21),
+                          let nextX = points[i + 1]["x"] as? Double,
+                          let nextY = points[i + 1]["y"] as? Double,
+                          nextX >= 0.0 {
+                    repairedX = (parentX + nextX) * 0.5
+                    repairedY = (parentY + nextY) * 0.5
                 }
+
+                points[i]["x"] = min(0.99, max(0.01, repairedX))
+                points[i]["y"] = min(0.99, max(0.01, repairedY))
+                points[i]["visibility"] = 0.12
+            }
+        }
+
+        // 第四步：生理骨长离群点钳制，防止单帧低置信度噪点把单根骨骼拉飞到屏幕边缘
+        for i in 1..<21 {
+            let parentIdx = parentJointIndices[i]
+            let parentX = (points[parentIdx]["x"] as? Double) ?? 0.5
+            let parentY = (points[parentIdx]["y"] as? Double) ?? 0.5
+            let curX = (points[i]["x"] as? Double) ?? parentX
+            let curY = (points[i]["y"] as? Double) ?? parentY
+
+            let maxBoneLen = (parentIdx == 0) ? 0.38 : 0.22
+            let dx = curX - parentX
+            let dy = curY - parentY
+            let dist = hypot(dx, dy)
+            if dist > maxBoneLen && dist > 1e-5 {
+                let scale = maxBoneLen / dist
+                points[i]["x"] = min(0.99, max(0.01, parentX + dx * scale))
+                points[i]["y"] = min(0.99, max(0.01, parentY + dy * scale))
             }
         }
 

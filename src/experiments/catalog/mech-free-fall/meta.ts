@@ -31,7 +31,7 @@ export const metadata: ExperimentMetadata = {
       max: 1.0,
       step: 0.05,
       unit: 'x',
-      description: '物理下落时间演化倍率（默认开启 0.35x 慢动作，精细对比羽毛、软木塞与硬币的下落差异；支持 0.1x ~ 1.0x，快捷键 T 键或 3D 按钮一键切换）',
+      description: '物理下落时间演化倍率（默认开启 0.35x 慢动作，精细对比羽毛、软木塞与硬币的下落差异；支持 0.1x ~ 1.0x，快捷键 T 键切换）',
     },
     {
       id: 'gravity',

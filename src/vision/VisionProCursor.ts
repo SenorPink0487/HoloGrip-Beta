@@ -771,6 +771,7 @@ export class VisionProCursor {
         pointerType: 'mouse',
         isPrimary: true,
       });
+      Object.defineProperty(event, '__visionGesture', { value: true, enumerable: false });
       target.dispatchEvent(event);
     } catch (e) {
       // 忽略错误
@@ -797,6 +798,7 @@ export class VisionProCursor {
         button,
         buttons,
       });
+      Object.defineProperty(event, '__visionGesture', { value: true, enumerable: false });
       target.dispatchEvent(event);
     } catch (e) {
       // 忽略错误

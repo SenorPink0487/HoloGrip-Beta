@@ -1,4 +1,3 @@
-import { ExperimentDrawer } from './ExperimentDrawer.ts';
 import { PerfOverlay } from './PerfOverlay.ts';
 import { PlatformBridge } from '../core/platform/PlatformBridge.ts';
 import { isTextInputActive } from '../core/focus.ts';
@@ -6,27 +5,25 @@ import type { ComputeBridge } from '../core/platform/ComputeBridge.ts';
 import type { IExperiment, ExperimentContext } from '../core/types.ts';
 
 export class HUD {
-  public drawer: ExperimentDrawer;
   public perfOverlay: PerfOverlay;
   private platform = PlatformBridge.getInstance();
   private topBarEl: HTMLElement;
   private transitionToast: HTMLElement;
   private computeBridge: ComputeBridge;
-  private onSwitchExperiment: (id: string) => Promise<void>;
+  private onSwitchExperiment?: (id: string) => Promise<void>;
 
   constructor(
     computeBridge: ComputeBridge,
-    onSwitchExperiment: (id: string) => Promise<void>
+    onSwitchExperiment?: (id: string) => Promise<void>
   ) {
     this.computeBridge = computeBridge;
     this.onSwitchExperiment = onSwitchExperiment;
     this.initTopBar();
     this.initTransitionToast();
 
-    this.drawer = new ExperimentDrawer(document.body, this.onSwitchExperiment);
     this.perfOverlay = new PerfOverlay(this.computeBridge, this.platform, document.body);
-    // 根据需求默认显示左上角性能浮层（显示实时帧数，可通过按键 P 切换显示）
-    this.perfOverlay.toggle(true);
+    // 根据需求默认隐藏左上角性能浮层（实时帧数，可通过按键 P 切换显示）
+    this.perfOverlay.toggle(false);
 
     // 绑定 F 键切换全屏
     window.addEventListener('keydown', (e) => {
@@ -69,7 +66,6 @@ export class HUD {
     if (titleEl) {
       titleEl.textContent = experiment.metadata.name;
     }
-    this.drawer.setActiveExperiment(experiment.metadata.id);
   }
 
   public clearActiveExperiment(): void {
@@ -77,7 +73,6 @@ export class HUD {
     if (titleEl) {
       titleEl.textContent = '';
     }
-    this.drawer.setActiveExperiment('');
   }
 
   public update(delta: number, renderDuration = 0): void {
