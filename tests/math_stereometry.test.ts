@@ -1915,7 +1915,7 @@ assert.strictEqual((optManager as any).pendingStartPoint, null, 'Tapping blank m
 assert.strictEqual(optMesh.modelContainer.rotation.y, initialModelRotY, 'Tapping blank to cancel must NOT rotate model');
 
 // 4. 在模型外部空白区域交互测试：
-// 4.1 在外部空白区域滑动（触屏端在模型外部）：不劫持指针，模型不旋转，把视角旋转权让渡给场景相机（TouchController）
+// 4.1 在外部空白区域滑动（立体模型外交互）：触发 3D 立体模型自身的旋转（isOrbitDragging = true）
 const rotBeforeOutsideDrag = optMesh.modelContainer.rotation.y;
 const outsideDownHandled = optManager.onPointerDown({
   button: 0,
@@ -1924,7 +1924,8 @@ const outsideDownHandled = optManager.onPointerDown({
   pointerId: 13,
   pointerType: 'touch',
 } as PointerEvent, null, optContext);
-assert.strictEqual(outsideDownHandled, false, 'PointerDown in outside blank space must return false to allow touch screen camera look');
+assert.strictEqual(outsideDownHandled, true, 'PointerDown in outside blank space must return true to handle 3D model rotation');
+assert.strictEqual((optManager as any).isPointerDownOnModel, false, 'PointerDown in outside blank space must mark isPointerDownOnModel = false');
 
 optManager.onPointerMove({
   button: 0,
@@ -1933,8 +1934,8 @@ optManager.onPointerMove({
   pointerId: 13,
   pointerType: 'touch',
 } as PointerEvent, null, optContext);
-assert.strictEqual((optManager as any).isOrbitDragging, false, 'Swiping in outside blank area must not enter orbit dragging');
-assert.strictEqual(optMesh.modelContainer.rotation.y, rotBeforeOutsideDrag, 'Swiping in outside blank area must NOT rotate the 3D model itself');
+assert.strictEqual((optManager as any).isOrbitDragging, true, 'Swiping in outside blank area must enter orbit dragging');
+assert.notStrictEqual(optMesh.modelContainer.rotation.y, rotBeforeOutsideDrag, 'Swiping in outside blank area MUST rotate the 3D model itself');
 
 optManager.onPointerUp({
   button: 0,
@@ -1945,7 +1946,7 @@ optManager.onPointerUp({
 } as PointerEvent, optContext);
 assert.strictEqual((optManager as any).isOrbitDragging, false, 'PointerUp must end orbit dragging');
 
-// 4.2 在 3D 模型表面区域单指滑动拖拽 -> 接管指针屏蔽视角旋转，且模型本身严禁误触旋转！
+// 4.2 在 3D 模型表面区域单指滑动拖拽 -> 接管指针，且模型本身严禁误触旋转！
 const modelCenterWorld = new THREE.Vector3();
 optMesh.modelContainer.getWorldPosition(modelCenterWorld);
 const ndcCenter = modelCenterWorld.clone().project(optCam);
@@ -1961,6 +1962,7 @@ const modelDownHandled = optManager.onPointerDown({
   pointerType: 'touch',
 } as PointerEvent, null, optContext);
 assert.strictEqual(modelDownHandled, true, 'PointerDown on 3D model must claim pointer to block camera rotation');
+assert.strictEqual((optManager as any).isPointerDownOnModel, true, 'PointerDown on 3D model must mark isPointerDownOnModel = true');
 
 optManager.onPointerMove({
   button: 0,
@@ -1990,7 +1992,7 @@ const tapDownHandled = optManager.onPointerDown({
   pointerId: 14,
   pointerType: 'touch',
 } as PointerEvent, null, optContext);
-assert.strictEqual(tapDownHandled, false, 'Tap down in outside area must return false');
+assert.strictEqual(tapDownHandled, true, 'Tap down in outside area must return true');
 optManager.onPointerUp({
   button: 0,
   clientX: 34,

@@ -210,11 +210,13 @@ export class StereometryInteractionManager {
   }
 
   /**
-   * 判断目标 Object3D 是否归属于 3D 立体几何模型容器。
+   * 判断目标 Object3D 是否归属于 3D 立体几何模型实体（排除外围隐形包络球 math_hit_envelope）。
    */
   private isObjectOnModel(obj: THREE.Object3D | null): boolean {
-    let cur = obj;
+    if (!obj || obj.name === 'math_hit_envelope') return false;
+    let cur: THREE.Object3D | null = obj;
     while (cur) {
+      if (cur.name === 'math_hit_envelope') return false;
       if (cur === this.mesh.modelContainer) return true;
       cur = cur.parent;
     }
@@ -342,31 +344,29 @@ export class StereometryInteractionManager {
     }
 
     if (!isHittingModel) {
-      // 触碰点在 3D 模型外：
-      // 若此前有待接线的起点或剖切选点，消费本次点击取消待连状态，且严禁在取消瞬间误触发视角旋转！
-      if (this.pendingStartPoint || this.selectedCutPoints.length > 0) {
-        this.resetSelection();
-        this.isPointerDown = true;
-        this.isCancellingOutside = true;
-        this.isPointerDownOnModel = false;
-        this.isOrbitDragging = false;
-        this.isConnectingDrag = false;
-        this.dragStartKp = null;
-        this.rotationVelocity.set(0, 0);
-        return true;
-      }
-      this.isPointerDown = false;
+      // 触碰点在 3D 模型外部空白区域：
+      // 接管指针，使在模型外滑动能够顺畅旋转 3D 立体几何模型；若仅在空白处轻触且存在待选起点，则在抬手时取消选点
+      this.isPointerDown = true;
       this.isCancellingOutside = false;
-      this.isPointerDownOnModel = false;
-      this.isOrbitDragging = false;
       this.isConnectingDrag = false;
       this.dragStartKp = null;
-      // 触碰模型外部空白区域且无待连状态：不接管指针，允许在空白区域转动场景视角
-      return false;
+      this.isOrbitDragging = false;
+      this.hasMovedPastDragThreshold = false;
+      this.isPointerDownOnModel = false;
+
+      this.pointerDownX = event.clientX;
+      this.pointerDownY = event.clientY;
+      this.lastPointerX = event.clientX;
+      this.lastPointerY = event.clientY;
+      this.pointerDownTime = performance.now();
+      this.rotationVelocity.set(0, 0);
+      this.targetRotationX = this.mesh.modelContainer?.rotation ? this.mesh.modelContainer.rotation.x : 0;
+      this.targetRotationY = this.mesh.modelContainer?.rotation ? this.mesh.modelContainer.rotation.y : 0;
+      return true;
     }
 
     // 触碰点在 3D 模型实体上：
-    // 接管指针以彻底屏蔽相机视角旋转；且除非显式处于 'orbit' 模式，否则绝不旋转 3D 模型！
+    // 与模型交互时专注选点与连线，严禁旋转 3D 模型（除非显式处于 'orbit' 模式）！
     this.isPointerDown = true;
     this.isCancellingOutside = false;
     this.isConnectingDrag = false;
@@ -424,17 +424,18 @@ export class StereometryInteractionManager {
     const orbitDragThreshold = isTouch ? this.ORBIT_DRAG_THRESHOLD_TOUCH : this.ORBIT_DRAG_THRESHOLD_MOUSE;
     const snapThreshold = this.getEffectiveSnapThreshold(event);
 
-    // 2. 判定是关键点拖拽接线，还是显式 'orbit' 模式下的模型旋转
+    // 2. 判定是模型外部滑动旋转模型，还是在模型表面交互接线（与模型交互严禁触发旋转！）
     if (this.isPointerDown && !this.isConnectingDrag && !this.isOrbitDragging) {
       const dragDist = Math.hypot(event.clientX - this.pointerDownX, event.clientY - this.pointerDownY);
-      if (this.canOrbitModel()) {
+      if (!this.isPointerDownOnModel || this.canOrbitModel()) {
+        // 在立体模型外部空白区域拖拽（或显式 'orbit' 模式）：顺畅旋转 3D 立体几何模型
         if (dragDist >= orbitDragThreshold) {
           this.isOrbitDragging = true;
           this.hasMovedPastDragThreshold = true;
         }
       } else if (dragDist >= (isTouch || isVision ? 8 : 4)) {
         this.hasMovedPastDragThreshold = true;
-        // 与模型交互时严禁触发旋转！延迟检查按压起始点是否落在关键点附近，或已有待连起点时直接预览目标接线
+        // 在 3D 模型本体上交互：严禁触发旋转！延迟检查按压起始点是否落在关键点附近，或已有待连起点时直接预览目标接线
         if (context?.camera) {
           if (!this.pendingStartPoint && dragDist <= (isTouch || isVision ? 24 : 14)) {
             const downNDC = labPointerNDC(
@@ -767,7 +768,7 @@ export class StereometryInteractionManager {
     }
 
     // ==========================================
-    // 分支 2: 显式 'orbit' 模式下的模型旋转释放
+    // 分支 2: 在模型外部拖拽旋转模型释放（或显式 'orbit' 模式释放）
     // ==========================================
     if (this.isOrbitDragging) {
       this.isOrbitDragging = false;
@@ -777,7 +778,19 @@ export class StereometryInteractionManager {
     }
 
     // ==========================================
-    // 分支 3: 在模型非关键点处按下后的释放（轻触或滑向目标点完成接线，绝不旋转）
+    // 分支 3: 在模型外部空白处轻触释放（未发生旋转拖拽）
+    // ==========================================
+    if (!this.isPointerDownOnModel) {
+      this.isOrbitDragging = false;
+      this.hasMovedPastDragThreshold = false;
+      if (this.pendingStartPoint || this.selectedCutPoints.length > 0) {
+        this.resetSelection();
+      }
+      return;
+    }
+
+    // ==========================================
+    // 分支 4: 在模型非关键点处按下后的释放（轻触或滑向目标点完成接线，绝不旋转）
     // ==========================================
     const movedPastDrag = this.hasMovedPastDragThreshold;
     this.isOrbitDragging = false;

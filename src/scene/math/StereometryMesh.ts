@@ -1933,21 +1933,21 @@ export class StereometryMesh {
     this.snapBadgeTex.needsUpdate = true;
   }
 
+  private readonly hitTestRaycaster = new THREE.Raycaster();
+
   public isRayHittingModel(ray: THREE.Ray): boolean {
     if (!this.modelContainer) return false;
-    this.modelContainer.updateMatrixWorld(false);
-    const center = new THREE.Vector3();
-    this.modelContainer.getWorldPosition(center);
-    let scaleFactor = this.modelScale;
-    const worldScale = new THREE.Vector3();
-    this.modelContainer.getWorldScale(worldScale);
-    if (worldScale.x > 0.01) {
-      scaleFactor = worldScale.x;
+    this.modelContainer.updateMatrixWorld(true);
+    const targetMeshes =
+      this.solidGroup && this.solidGroup.visible && this.solidGroup.children.length > 0
+        ? this.solidGroup.children
+        : this.unfoldGroup.children;
+    if (targetMeshes && targetMeshes.length > 0) {
+      this.hitTestRaycaster.ray.copy(ray);
+      const hits = this.hitTestRaycaster.intersectObjects(targetMeshes, true);
+      return hits.length > 0;
     }
-    const baseR = this.currentModelDef?.boundingRadius ?? 0.8;
-    const r = Math.max(0.18, baseR * scaleFactor * 1.08);
-    const sphere = new THREE.Sphere(center, r);
-    return ray.intersectsSphere(sphere);
+    return false;
   }
 
   public findClosestSnapPoint(
