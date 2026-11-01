@@ -1330,22 +1330,45 @@ export class HandGestureService {
       leftHandData = this.leftTracker.process(leftDet.landmarks, timestamp, leftDet.score, this.config, this.isAppleVisionMode);
       rightHandData = this.rightTracker.process(rightDet.landmarks, timestamp, rightDet.score, this.config, this.isAppleVisionMode);
     } else {
-      // 仅检测到单手：结合空间屏幕区域与神经网络置信度综合判定左右手
+      // 仅检测到单手：优先延续连续运动手腕轨迹，防止右手跨入屏幕左半区操作时被翻转为左手
       const det = detections[0];
       let isLeft: boolean;
 
       if (this.isAppleVisionMode) {
         // Apple Vision 原生管线具备硬件级解剖学手性识别，支持右手光标自由跨越屏幕左半区操作而绝不反转为左手
         isLeft = det.label === 'left';
-      } else if (det.screenX >= 0.55) {
-        // 显著位于屏幕右半区
-        isLeft = false;
-      } else if (det.screenX <= 0.45) {
-        // 显著位于屏幕左半区
-        isLeft = true;
       } else {
-        // 中央区域：优先保持最近一次的手势标识，或回退至神经网络分类标签
-        if (Number.isFinite(this.rightTracker.lastSeenAt) && timestamp - this.rightTracker.lastSeenAt < 800) {
+        const rightRecent =
+          this.rightTracker.lastWrist !== null &&
+          Number.isFinite(this.rightTracker.lastSeenAt) &&
+          timestamp >= this.rightTracker.lastSeenAt &&
+          timestamp - this.rightTracker.lastSeenAt < 650;
+        const leftRecent =
+          this.leftTracker.lastWrist !== null &&
+          Number.isFinite(this.leftTracker.lastSeenAt) &&
+          timestamp >= this.leftTracker.lastSeenAt &&
+          timestamp - this.leftTracker.lastSeenAt < 650;
+
+        const rightMaxStep = this.rightTracker.isPinching ? 0.34 : 0.24;
+        const leftMaxStep = this.leftTracker.isPinching ? 0.34 : 0.24;
+        const distToRight = rightRecent && this.rightTracker.lastWrist
+          ? Math.hypot(det.wrist.x - this.rightTracker.lastWrist.x, det.wrist.y - this.rightTracker.lastWrist.y)
+          : Infinity;
+        const distToLeft = leftRecent && this.leftTracker.lastWrist
+          ? Math.hypot(det.wrist.x - this.leftTracker.lastWrist.x, det.wrist.y - this.leftTracker.lastWrist.y)
+          : Infinity;
+
+        if (distToRight <= rightMaxStep && distToRight < distToLeft) {
+          isLeft = false;
+        } else if (distToLeft <= leftMaxStep && distToLeft < distToRight) {
+          isLeft = true;
+        } else if (det.screenX >= 0.55) {
+          // 新进入视野且显著位于屏幕右半区
+          isLeft = false;
+        } else if (det.screenX <= 0.45) {
+          // 新进入视野且显著位于屏幕左半区
+          isLeft = true;
+        } else if (Number.isFinite(this.rightTracker.lastSeenAt) && timestamp - this.rightTracker.lastSeenAt < 800) {
           isLeft = false;
         } else if (Number.isFinite(this.leftTracker.lastSeenAt) && timestamp - this.leftTracker.lastSeenAt < 800) {
           isLeft = true;

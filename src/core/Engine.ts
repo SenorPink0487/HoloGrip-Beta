@@ -1758,6 +1758,7 @@ export class Engine {
         // 电磁定则手势板块：隐藏 2D 白色圆环光标，改由 3D 场景内的 21 节点素雅手部骨骼实时驱动
         this.visionProCursor?.setRightVisible(false);
         this.visionProCursor?.setLeftVisible(false);
+        this.visionProCursor?.setSpatialSnapActive(false);
         const exp = this.holoStage?.activeExperiment as any;
         exp?.onHandGestureFrame?.(frame);
       } else {
@@ -1766,6 +1767,12 @@ export class Engine {
         if (typeof exp?.onHandGestureFrame === 'function') {
           exp.onHandGestureFrame(frame, this.currentContext);
         }
+        const spatialSnapActive =
+          Boolean(frame.rightHand) &&
+          this.currentExperimentId === 'math-stereometry' &&
+          !this.visionModal?.visible &&
+          Boolean(exp?.hasHoveredKeyPoint?.());
+        this.visionProCursor?.setSpatialSnapActive(spatialSnapActive);
       }
 
       if (frame.hasHand) {
@@ -1804,18 +1811,19 @@ export class Engine {
     });
 
     // 左手长捏合：控制摄像机视角与观察朝向（在 60 FPS 渲染循环中通过阻尼平滑插值舒适追赶，消除 24Hz 阶跃卡顿，平滑舒适且无需前向预测）
+    // 遵循全局手势分工：左手长捏合专门用于转动实验室相机视角，右手捏合才用于选点接线与在模型外旋转 3D 模型
     this.handGestureService.onCameraRotate((dx: number, dy: number) => {
       // 在电磁定则手势板块中，左右手需自由做出螺旋与定则姿势，不触发相机视角旋转
       if (this.currentExperimentId === 'em-hand-rules') {
         return;
       }
-      // 实验交互互斥：当用户正在直接操作 3D 实验器材或数学 3D 模型连线/选点时，严禁触发视角旋转！
+      // 实验交互互斥：当右手正在直接按住操作 3D 实验器材或旋转/连线数学 3D 模型时，严禁触发视角旋转！
       if (this.isExperimentInteracting) {
         return;
       }
       if (this.currentExperimentId === 'math-stereometry') {
         const mathExp = this.holoStage?.activeExperiment as any;
-        if (mathExp?.isVisionModelInteracting?.() || mathExp?.isModelInteracting?.()) {
+        if (mathExp?.isModelInteracting?.()) {
           return;
         }
       }
@@ -2159,7 +2167,8 @@ export class Engine {
       this.getScreenNDC(e.clientX, e.clientY, this.lastPointerPos);
 
       const now = performance.now();
-      const shouldThrottleRaycast = (now - this.lastPointerRaycastTime) < 16;
+      const shouldThrottleRaycast =
+        this.currentExperimentId !== 'math-stereometry' && (now - this.lastPointerRaycastTime) < 16;
 
       if (
         !this.visionModal?.visible &&

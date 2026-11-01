@@ -183,6 +183,17 @@ export class GeometrySolver {
     });
   }
 
+  private static readonly _snapWorldPos = new THREE.Vector3();
+  private static readonly _snapLabelPos = new THREE.Vector3();
+  private static readonly _snapLabelDir = new THREE.Vector3();
+  private static readonly _snapModelCenter = new THREE.Vector3();
+  private static readonly _snapVA = new THREE.Vector3();
+  private static readonly _snapVB = new THREE.Vector3();
+  private static readonly _snapEdgeDir = new THREE.Vector3();
+  private static readonly _snapW0 = new THREE.Vector3();
+  private static readonly _snapPtOnEdge = new THREE.Vector3();
+  private static readonly _snapPtOnRay = new THREE.Vector3();
+
   /**
    * 查找离射线最近的磁吸目标：
    * 严格遵循“起点应当只在线上”原则：
@@ -199,20 +210,88 @@ export class GeometrySolver {
       drawnSegments?: Array<{ pointIdA: string; pointIdB: string; label?: string }>;
     }
   ): { keyPoint: KeyPoint; snapType: 'vertex' | 'midpoint' | 'third' | 'center' | 'apex'; distance: number; snapLabel: string } | null {
-    // 1. 棱向引导磁吸（天然保证候选点严格位于几何体的棱线上）
-    const edgeThreshold = threshold * 1.15;
-    let bestKp: KeyPoint | null = null;
-    let minDistance = edgeThreshold;
-    const worldPos = new THREE.Vector3();
-    const labelWorldPos = new THREE.Vector3();
-    const labelOffsetDir = new THREE.Vector3();
     const onlyOnEdgeOrLine = options?.onlyOnEdgeOrLine ?? true;
+    const maxDirectDist = threshold * 1.12;
+    const edgeCorridorDist = threshold * 1.05;
 
-    const vA = new THREE.Vector3();
-    const vB = new THREE.Vector3();
-    const edgeDir = new THREE.Vector3();
-    const w0 = new THREE.Vector3();
+    let bestKp: KeyPoint | null = null;
+    let bestScore = threshold * 1.12;
+    let bestRawDist = Infinity;
 
+    const worldPos = GeometrySolver._snapWorldPos;
+    const labelWorldPos = GeometrySolver._snapLabelPos;
+    const labelOffsetDir = GeometrySolver._snapLabelDir;
+    const modelCenter = GeometrySolver._snapModelCenter.set(0, 0, 0).applyMatrix4(modelMatrixWorld);
+    const vA = GeometrySolver._snapVA;
+    const vB = GeometrySolver._snapVB;
+    const edgeDir = GeometrySolver._snapEdgeDir;
+    const w0 = GeometrySolver._snapW0;
+    const ptOnEdge = GeometrySolver._snapPtOnEdge;
+    const ptOnRay = GeometrySolver._snapPtOnRay;
+
+    const centerDepth = w0.subVectors(modelCenter, ray.origin).dot(ray.direction);
+
+    const getPriorityWeight = (type: KeyPoint['type']): number => {
+      switch (type) {
+        case 'vertex':
+          return 0.72;
+        case 'custom':
+          return 0.78;
+        case 'midpoint':
+          return 0.86;
+        case 'center':
+          return 0.92;
+        case 'third':
+        default:
+          return 0.95;
+      }
+    };
+
+    // 1. 关键点与外偏顶点字母标号 (A, B, C, A1...) 直接距离 + 前向深度优先级判定
+    for (const kp of model.keyPoints) {
+      if (onlyOnEdgeOrLine && kp.type === 'center') {
+        continue; // 严禁面心与体心作为连线起点
+      }
+
+      worldPos.copy(kp.position).applyMatrix4(modelMatrixWorld);
+      const pointDepth = w0.subVectors(worldPos, ray.origin).dot(ray.direction);
+      if (pointDepth <= 0) continue;
+
+      let rawDist = ray.distanceToPoint(worldPos);
+
+      // 兼容直接点击/捏合外偏 0.042 的顶点字母标号 (A, B, C, A1...)
+      if (kp.type === 'vertex' || kp.type === 'custom') {
+        labelOffsetDir.copy(kp.position);
+        if (labelOffsetDir.lengthSq() < 1e-4) {
+          labelOffsetDir.set(0, 1, 0);
+        } else {
+          labelOffsetDir.normalize();
+        }
+        labelWorldPos
+          .copy(kp.position)
+          .addScaledVector(labelOffsetDir, 0.042)
+          .applyMatrix4(modelMatrixWorld);
+        const labelDist = ray.distanceToPoint(labelWorldPos) * 0.92;
+        if (labelDist < rawDist) {
+          rawDist = labelDist;
+        }
+      }
+
+      if (rawDist > maxDirectDist) continue;
+
+      // 当视线方向前后两个关键点发生屏幕投影近似重合时，优先吸附朝向操作者的前向点
+      const depthDelta = Math.max(0, pointDepth - centerDepth);
+      const depthPenalty = Math.min(threshold * 0.16, depthDelta * 0.015);
+      const score = rawDist * getPriorityWeight(kp.type) + depthPenalty;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestRawDist = rawDist;
+        bestKp = kp;
+      }
+    }
+
+    // 2. 棱线走廊辅助引导（综合垂直离棱距离与沿棱锚点距离，绝不抢夺顶点自身吸附区）
     for (const [i1, i2] of model.edges) {
       vA.copy(model.vertices[i1]).applyMatrix4(modelMatrixWorld);
       vB.copy(model.vertices[i2]).applyMatrix4(modelMatrixWorld);
@@ -237,34 +316,49 @@ export class GeometrySolver {
         t = THREE.MathUtils.clamp((e - b * d) / denom, 0, 1);
       }
 
-      const ptOnEdge = new THREE.Vector3().copy(vA).addScaledVector(edgeDir, t);
-      const ptOnRay = new THREE.Vector3().copy(ray.origin).addScaledVector(ray.direction, Math.max(0, s));
-      const dist = ptOnEdge.distanceTo(ptOnRay);
+      ptOnEdge.copy(vA).addScaledVector(edgeDir, t);
+      ptOnRay.copy(ray.origin).addScaledVector(ray.direction, Math.max(0, s));
+      const distToEdge = ptOnEdge.distanceTo(ptOnRay);
+      if (distToEdge >= edgeCorridorDist) continue;
 
-      if (dist < edgeThreshold && dist < minDistance) {
-        // 将参数 t 吸附到 0 (vA), 1/3 (tri1), 1/2 (mid), 2/3 (tri2), 1.0 (vB)
-        let targetId = '';
-        if (t < 0.16) {
-          targetId = `v_${i1}`;
-        } else if (t < 0.41) {
-          targetId = `tri1_${i1}_${i2}`;
-        } else if (t < 0.59) {
-          targetId = `mid_${i1}_${i2}`;
-        } else if (t < 0.84) {
-          targetId = `tri2_${i1}_${i2}`;
-        } else {
-          targetId = `v_${i2}`;
-        }
+      let targetId = '';
+      let anchorT = 0;
+      if (t <= 0.20) {
+        targetId = `v_${i1}`;
+        anchorT = 0;
+      } else if (t < 0.415) {
+        targetId = `tri1_${i1}_${i2}`;
+        anchorT = 1 / 3;
+      } else if (t <= 0.585) {
+        targetId = `mid_${i1}_${i2}`;
+        anchorT = 0.5;
+      } else if (t < 0.80) {
+        targetId = `tri2_${i1}_${i2}`;
+        anchorT = 2 / 3;
+      } else {
+        targetId = `v_${i2}`;
+        anchorT = 1;
+      }
 
-        const candidateKp = model.keyPoints.find((k) => k.id === targetId);
-        if (candidateKp) {
-          minDistance = dist;
-          bestKp = candidateKp;
-        }
+      const candidateKp = model.keyPoints.find((k) => k.id === targetId);
+      if (!candidateKp) continue;
+
+      const edgeLen = Math.sqrt(edgeLenSq);
+      const alongDist = Math.abs(t - anchorT) * edgeLen;
+      const combinedDist = Math.hypot(distToEdge, alongDist * 0.52);
+      const pointDepth = w0.subVectors(ptOnEdge, ray.origin).dot(ray.direction);
+      const depthDelta = Math.max(0, pointDepth - centerDepth);
+      const depthPenalty = Math.min(threshold * 0.16, depthDelta * 0.015);
+      const score = combinedDist * getPriorityWeight(candidateKp.type) + depthPenalty;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestRawDist = combinedDist;
+        bestKp = candidateKp;
       }
     }
 
-    // 2. 检查已绘制的辅助线段 (drawnSegments)
+    // 3. 已绘制辅助线端点引导（仅在靠近辅助线两端 25% 区间内温和引导至端点）
     if (options?.drawnSegments && options.drawnSegments.length > 0) {
       for (const seg of options.drawnSegments) {
         const kpA = model.keyPoints.find((k) => k.id === seg.pointIdA);
@@ -294,52 +388,24 @@ export class GeometrySolver {
           t = THREE.MathUtils.clamp((e - b * d) / denom, 0, 1);
         }
 
-        const ptOnEdge = new THREE.Vector3().copy(vA).addScaledVector(edgeDir, t);
-        const ptOnRay = new THREE.Vector3().copy(ray.origin).addScaledVector(ray.direction, Math.max(0, s));
-        const dist = ptOnEdge.distanceTo(ptOnRay);
+        if (t > 0.25 && t < 0.75) continue;
 
-        if (dist < edgeThreshold && dist < minDistance) {
-          const targetKp = t < 0.5 ? kpA : kpB;
-          minDistance = dist;
+        ptOnEdge.copy(vA).addScaledVector(edgeDir, t);
+        ptOnRay.copy(ray.origin).addScaledVector(ray.direction, Math.max(0, s));
+        const distToEdge = ptOnEdge.distanceTo(ptOnRay);
+        if (distToEdge >= threshold * 0.9) continue;
+
+        const targetKp = t <= 0.25 ? kpA : kpB;
+        const anchorT = t <= 0.25 ? 0 : 1;
+        const alongDist = Math.abs(t - anchorT) * Math.sqrt(edgeLenSq);
+        const combinedDist = Math.hypot(distToEdge, alongDist * 0.55);
+        const score = combinedDist * getPriorityWeight(targetKp.type);
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestRawDist = combinedDist;
           bestKp = targetKp;
         }
-      }
-    }
-
-    // 3. 关键点与顶点标号直接距离判定
-    // 若 onlyOnEdgeOrLine 为 true，严格排除非线上的点 (kp.type === 'center' 如面心、体心)
-    for (const kp of model.keyPoints) {
-      if (onlyOnEdgeOrLine && kp.type === 'center') {
-        continue; // 严禁面心与体心作为连线起点
-      }
-      worldPos.copy(kp.position).applyMatrix4(modelMatrixWorld);
-      let dist = ray.distanceToPoint(worldPos);
-
-      // 兼容直接点击/捏合外偏 0.042 的顶点字母标号 (A, B, C, A1...)
-      if (kp.type === 'vertex' || kp.type === 'custom') {
-        labelOffsetDir.copy(kp.position);
-        if (labelOffsetDir.lengthSq() < 1e-4) {
-          labelOffsetDir.set(0, 1, 0);
-        } else {
-          labelOffsetDir.normalize();
-        }
-        labelWorldPos
-          .copy(kp.position)
-          .addScaledVector(labelOffsetDir, 0.042)
-          .applyMatrix4(modelMatrixWorld);
-        const labelDist = ray.distanceToPoint(labelWorldPos) * 0.95;
-        if (labelDist < dist) {
-          dist = labelDist;
-        }
-      }
-
-      let effectiveDist = dist;
-      if (kp.type === 'vertex') effectiveDist *= 0.85;
-      else if (kp.type === 'midpoint' || kp.type === 'third') effectiveDist *= 0.90;
-
-      if (effectiveDist < minDistance) {
-        minDistance = effectiveDist;
-        bestKp = kp;
       }
     }
 
@@ -362,7 +428,7 @@ export class GeometrySolver {
     return {
       keyPoint: bestKp,
       snapType: bestKp.type as any,
-      distance: minDistance,
+      distance: bestRawDist,
       snapLabel,
     };
   }

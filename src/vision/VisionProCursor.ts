@@ -19,6 +19,9 @@ export class VisionProCursor {
   private isRightVisible = false;
   private isLeftVisible = false;
   private isHovered = false;
+  private isDomHovered = false;
+  private isSpatialSnapped = false;
+  private currentRightPinchStrength = 0;
   private isRightPinching = false;
   private isDualPinching = false;
   private currentRightX = 0;
@@ -293,6 +296,10 @@ export class VisionProCursor {
       this.rightContainer.classList.add('hidden');
       this.rightContainer.classList.remove('visible');
       this.rightKalman.reset();
+      this.currentRightPinchStrength = 0;
+      this.isSpatialSnapped = false;
+      this.isDomHovered = false;
+      this.setHovered(false);
       this.clearHover();
       this.releasePinch();
       this.lastHitElement = null;
@@ -363,17 +370,23 @@ export class VisionProCursor {
     const viewHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
 
     if (this.isRightVisible) {
+      // 捏合闭合前稳态阻尼：当拇指与食指正在靠拢准备捏合时，平滑抑制指根微颤以稳住瞄准点
+      const pinchSettle =
+        !this.isRightPinching && this.currentRightPinchStrength > 0.22
+          ? 1.0 - 0.65 * Math.min(1.0, (this.currentRightPinchStrength - 0.22) / 0.78)
+          : 1.0;
+
       if (this.rightKalman.initialized) {
         // 卡尔曼物理前向预测（根据速度与加速度预测此时此刻位置，抵消硬件延迟与丢帧顿挫）
         const predictedNorm = this.rightKalman.predict(now);
         const targetX = predictedNorm.x * viewWidth;
         const targetY = predictedNorm.y * viewHeight;
         // 恒定时间步长响应阻尼平滑（借鉴自 HoloPhysics RENDER_RESPONSE_PER_SECOND = 80）
-        const alpha = 1 - Math.exp(-80 * elapsedSec);
+        const alpha = (1 - Math.exp(-80 * elapsedSec)) * pinchSettle;
         this.renderRightX += (targetX - this.renderRightX) * alpha;
         this.renderRightY += (targetY - this.renderRightY) * alpha;
       } else {
-        const factor = 0.22;
+        const factor = 0.22 * pinchSettle;
         this.renderRightX += (this.targetRightX - this.renderRightX) * factor;
         this.renderRightY += (this.targetRightY - this.renderRightY) * factor;
       }
@@ -505,8 +518,10 @@ export class VisionProCursor {
       }
     }
 
+    this.currentRightPinchStrength = hand.isPinching ? 1.0 : (hand.pinchStrength || 0);
     const isInteractive = this.checkInteractive(element);
-    this.setHovered(isInteractive);
+    this.isDomHovered = isInteractive;
+    this.setHovered(this.isDomHovered || this.isSpatialSnapped);
 
     if (!hand.isPinching && hand.pinchStrength > 0.1) {
       const coreScale = 1.0 + hand.pinchStrength * 0.6;
@@ -602,6 +617,12 @@ export class VisionProCursor {
         'button, a, input, select, textarea, [role="button"], .clickable, .tab-item, .dock-btn, .color-swatch, .reagent-card, .vision-panel, .drawer-handle, .whiteboard-canvas-layer'
       )
     );
+  }
+
+  public setSpatialSnapActive(snapped: boolean): void {
+    if (this.isSpatialSnapped === snapped) return;
+    this.isSpatialSnapped = snapped;
+    this.setHovered(this.isDomHovered || this.isSpatialSnapped);
   }
 
   private setHovered(hovered: boolean): void {
@@ -700,9 +721,11 @@ export class VisionProCursor {
       }
     }
 
-    // 捏合松开（对应鼠标左键抬起与点击）
+    // 捏合松开（对应鼠标左键抬起与点击，统一使用平滑渲染坐标防止释放瞬间跳变）
     if (hand.justPinchEnded) {
-      this.releasePinch(x, y, currentElement);
+      const releaseX = this.renderRightX > 0 ? this.renderRightX : x;
+      const releaseY = this.renderRightY > 0 ? this.renderRightY : y;
+      this.releasePinch(releaseX, releaseY, currentElement);
     }
   }
 
@@ -722,7 +745,7 @@ export class VisionProCursor {
     this.dispatchMouseEvent('mouseup', target, x, y, 0, 0);
 
     const dist = Math.hypot(x - this.dragStartX, y - this.dragStartY);
-    if (dist < 26) {
+    if (dist < 42) {
       const upTarget = currentElement || document.elementFromPoint(x, y) || target;
       const clickTarget =
         upTarget && target.contains(upTarget) ? upTarget : target;

@@ -662,6 +662,14 @@ export default class MathStereometryExperiment extends BaseExperiment {
     return this.interactionManager?.isVisionModelInteractionActive() ?? false;
   }
 
+  public orbitByDelta(dx: number, dy: number): void {
+    this.interactionManager?.orbitByDelta(dx, dy);
+  }
+
+  public hasHoveredKeyPoint(): boolean {
+    return this.mesh?.hasHoveredKeyPoint() ?? false;
+  }
+
   public clearHover(): void {
     this.interactionManager?.clearHover();
   }

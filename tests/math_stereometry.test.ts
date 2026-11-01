@@ -1,4 +1,6 @@
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
 import * as THREE from 'three';
 import {
   GeometrySolver,
@@ -2633,8 +2635,209 @@ console.log('Test 37: 默认棱长为10与连线完成后长度标志持久显�
 }
 console.log('✓ Test 37 passed: 默认棱长为10与连线完成后长度标志持久显示（不消失）验证通过\n');
 
+// -------------------------------------------------------------
+// Test 38: 隔空手势交互重构：单状态机零冲突、外侧标号选点、模型外引线收起与丝滑旋转验证
+// -------------------------------------------------------------
+console.log('Test 38: 隔空手势交互重构：单状态机零冲突、外侧标号选点、模型外引线收起与丝滑旋转验证');
+{
+  const mesh38 = new StereometryMesh({ modelType: 'cube' });
+  mesh38.setScale(1.52); // 复现截图 152% 缩放倍率
+  const scene38 = new THREE.Scene();
+  scene38.add(mesh38.group);
+
+  const cam38 = new THREE.PerspectiveCamera(45, 1920 / 1080, 0.1, 100);
+  cam38.position.set(0, 1.35, 1.85);
+  cam38.lookAt(0, 1.15, 0);
+  cam38.updateMatrixWorld(true);
+  scene38.updateMatrixWorld(true);
+
+  const ctx38: any = {
+    scene: scene38,
+    camera: cam38,
+    renderer: {
+      domElement: {
+        clientWidth: 1920,
+        clientHeight: 1080,
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+      },
+    },
+  };
+
+  const mgr38 = new StereometryInteractionManager(mesh38);
+  const kps38 = mesh38.getModelDef().keyPoints;
+  const kpA1 = kps38.find((k) => k.id === 'v_4')!; // A₁
+  const kpC1 = kps38.find((k) => k.id === 'v_6')!; // C₁
+  const kpB1 = kps38.find((k) => k.id === 'v_5')!; // B₁
+
+  const projectLocalToScreen = (localPos: THREE.Vector3) => {
+    mesh38.modelContainer.updateMatrixWorld(true);
+    const wp = localPos.clone().applyMatrix4(mesh38.modelContainer.matrixWorld);
+    const ndc = wp.project(cam38);
+    return {
+      x: ((ndc.x + 1) * 0.5) * 1920,
+      y: ((-ndc.y + 1) * 0.5) * 1080,
+    };
+  };
+
+  // 1. 同帧双通道零自毁验证：捏合外侧轮廓字母标号 A₁ 时，onPointerDown 与 onHandGestureFrame 同帧触发绝不相互清空
+  const labelOutDir = kpA1.position.clone().normalize();
+  const a1LabelScreen = projectLocalToScreen(kpA1.position.clone().addScaledVector(labelOutDir, 0.042));
+
+  mgr38.onPointerMove(
+    { button: 0, clientX: a1LabelScreen.x, clientY: a1LabelScreen.y, pointerId: 1, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    null,
+    ctx38
+  );
+  assert.strictEqual(mesh38.hasHoveredKeyPoint(), true, 'Hovering outer vertex label A₁ must lock snap reticle');
+
+  // 光学聚焦准星平滑收敛动画验证 (0.080 -> 0.062)
+  const snapSprite38 = (mesh38 as any).snapCursorSprite as THREE.Sprite;
+  assert(Math.abs(snapSprite38.scale.x - 0.080) < 1e-4, 'Snap reticle starts at gentle expanded optical scale 0.080');
+  mesh38.update(0.12, undefined, cam38);
+  assert(Math.abs(snapSprite38.scale.x - 0.062) < 1e-4, 'Snap reticle smoothly locks in to 0.062 after 120ms');
+
+  mgr38.onPointerDown(
+    { button: 0, clientX: a1LabelScreen.x, clientY: a1LabelScreen.y, pointerId: 1, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    null,
+    ctx38
+  );
+  // 模拟 Engine.ts 同一帧紧接着调用的 onHandGestureFrame
+  mgr38.onHandGestureFrame(
+    {
+      hasHand: true,
+      rightHand: { screenX: a1LabelScreen.x, screenY: a1LabelScreen.y, isPinching: true, justPinchStarted: true },
+    },
+    ctx38
+  );
+  assert.strictEqual(mgr38.dragStartKp?.id, 'v_4', 'Same-frame onHandGestureFrame must NOT wipe dragStartKp on outer label A₁');
+
+  // 模拟隔空松手张开手指产生的 42px 自然回弹，依然稳定选定 A₁
+  mgr38.onPointerUp(
+    { button: 0, clientX: a1LabelScreen.x - 30, clientY: a1LabelScreen.y + 28, pointerId: 1, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    ctx38
+  );
+  assert.strictEqual((mgr38 as any).pendingStartPoint?.id, 'v_4', 'Vertex A₁ must be cleanly selected despite un-pinch finger rebound');
+
+  // 2. 复现并验证用户截图核心痛点：152% 缩放下起点 A₁ 已选，光标先在晶面空白处游走，再移至右侧模型外空白处
+  const faceBlankScreen = projectLocalToScreen(new THREE.Vector3(-0.12, 0.08, 0.25));
+  mgr38.onPointerMove(
+    { button: 0, clientX: faceBlankScreen.x, clientY: faceBlankScreen.y, pointerId: 1, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    null,
+    ctx38
+  );
+  assert.strictEqual((mgr38 as any).currentHoveredKp, null, 'Interior crystal face blank point should not snap to an edge keypoint');
+  assert.strictEqual((mesh38 as any).previewSegmentGroup.visible, true, 'Calm guide filament should appear inside model surface');
+  assert.strictEqual((mesh38 as any).previewBadgeSprite.visible, false, 'Un-snapped guide filament must NOT show noisy mid-air length numbers');
+
+  // 移至截图右侧空白区 (x = 1560, y = 560)
+  const outsideRightX = 1560;
+  const outsideRightY = 560;
+  mgr38.onPointerMove(
+    { button: 0, clientX: outsideRightX, clientY: outsideRightY, pointerId: 1, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    null,
+    ctx38
+  );
+  assert.strictEqual((mesh38 as any).previewSegmentGroup.visible, false, 'Preview wire must gracefully hide when cursor leaves polyhedron into orbital zone');
+
+  // 即使预览线强制开启，Engine Raycaster 亦绝不可命中预览端点圆珠或引线网格
+  mesh38.updatePreviewWire(kpA1.position, new THREE.Vector3(0.6, 0, 0.2), 0xa78bfa, '3', cam38);
+  const raycaster38 = new THREE.Raycaster();
+  raycaster38.setFromCamera(
+    new THREE.Vector2((outsideRightX / 1920) * 2 - 1, -(outsideRightY / 1080) * 2 + 1),
+    cam38
+  );
+  const strayHits = raycaster38.intersectObjects([mesh38.group], true);
+  assert.strictEqual(strayHits.length, 0, 'Preview beads, pipes, lines, and badges must all have NOOP_RAYCAST so outside space has 0 stray hits');
+
+  // 在右侧模型外捏合拖拽：立即终止 A₁ 待连态，且 100% 顺畅旋转模型！
+  const rotBeforeOutside = mesh38.modelContainer.rotation.y;
+  mgr38.onPointerDown(
+    { button: 0, clientX: outsideRightX, clientY: outsideRightY, pointerId: 2, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    null,
+    ctx38
+  );
+  assert.strictEqual((mgr38 as any).pendingStartPoint, null, 'Pinching outside at 152% scale must immediately cancel pendingStartPoint');
+  assert.strictEqual(mgr38.isPointerDownOnModel, false, 'Outside pinch at 152% scale must enter orbit-outside session');
+
+  mgr38.onPointerMove(
+    { button: 0, clientX: outsideRightX - 110, clientY: outsideRightY + 24, pointerId: 2, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    null,
+    ctx38
+  );
+  assert.strictEqual(mgr38.isOrbitDragging, true, 'Dragging outside at 152% scale must engage orbital rotation');
+  assert(Math.abs(mesh38.modelContainer.rotation.y - rotBeforeOutside) > 0.05, '3D model must rotate smoothly when dragged outside');
+  mgr38.onPointerUp(
+    { button: 0, clientX: outsideRightX - 110, clientY: outsideRightY + 24, pointerId: 2, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    ctx38
+  );
+
+  // 3. 捏合前时间窗锁定补偿 + 晶面误触保护 + 三角形辅助面渐显验证
+  (mgr38 as any).handleClickOnPoint(kpA1);
+  assert.strictEqual((mgr38 as any).pendingStartPoint?.id, 'v_4');
+
+  // 3.1 在晶面中央空白处误触捏合，绝不丢失起点 A₁
+  const frontCenter = projectLocalToScreen(new THREE.Vector3(-0.12, 0.08, 0.25));
+  mgr38.onPointerDown(
+    { button: 0, clientX: frontCenter.x, clientY: frontCenter.y, pointerId: 3, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    null,
+    ctx38
+  );
+  mgr38.onPointerUp(
+    { button: 0, clientX: frontCenter.x + 5, clientY: frontCenter.y - 4, pointerId: 3, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    ctx38
+  );
+  assert.strictEqual((mgr38 as any).pendingStartPoint?.id, 'v_4', 'Accidental pinch on crystal face must preserve pendingStartPoint A₁');
+
+  // 3.2 悬停锁定 C₁ 后模拟手指捏合瞬间产生 38px 漂移，依然稳健接通 A₁C₁
+  const c1Screen = projectLocalToScreen(kpC1.position);
+  mgr38.onPointerMove(
+    { button: 0, clientX: c1Screen.x, clientY: c1Screen.y, pointerId: 4, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    null,
+    ctx38
+  );
+  mgr38.onPointerDown(
+    { button: 0, clientX: c1Screen.x - 36, clientY: c1Screen.y - 12, pointerId: 4, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    null,
+    ctx38
+  );
+  mgr38.onPointerUp(
+    { button: 0, clientX: c1Screen.x - 36, clientY: c1Screen.y - 12, pointerId: 4, pointerType: 'mouse', __visionGesture: true } as unknown as PointerEvent,
+    ctx38
+  );
+  assert.strictEqual(mesh38.getSegments().length, 1, 'Pre-pinch hover lock must rescue 38px finger-closure drift and connect A₁C₁');
+  assert.strictEqual((mgr38 as any).pendingStartPoint?.id, 'v_6', 'Chain connection advances pendingStartPoint to C₁');
+
+  // 3.3 继续连接 B₁ 与 A₁ 闭合生成顶面辅助三角形，验证 240ms 水晶渐显动效
+  (mgr38 as any).handleClickOnPoint(kpB1);
+  (mgr38 as any).handleClickOnPoint(kpA1);
+  assert.strictEqual(mesh38.getAuxiliaryFaces().length, 1, 'Closed cycle A₁-C₁-B₁ must generate planar auxiliary face');
+  const faceMesh38 = (mesh38 as any).auxFacesGroup.children[0] as THREE.Mesh;
+  const faceMat38 = faceMesh38.material as THREE.MeshBasicMaterial;
+  assert(Math.abs(faceMat38.opacity - 0.14) < 1e-3, 'Auxiliary face starts at gentle bloom opacity 0.14');
+  mesh38.update(0.25, undefined, cam38);
+  assert(Math.abs(faceMat38.opacity - 0.35) < 1e-3, 'Auxiliary face smoothly settles at crystal opacity 0.35 after 240ms');
+
+  // 4. 左右手职责分工验证：左手长捏合转动相机视角 (PlayerController.rotateSmooth)，右手在模型外捏合才旋转 3D 模型
+  const engineSrc = fs.readFileSync(path.join(process.cwd(), 'src/core/Engine.ts'), 'utf-8');
+  const onCamRotateBlock = engineSrc.slice(
+    engineSrc.indexOf('this.handGestureService.onCameraRotate'),
+    engineSrc.indexOf('this.handGestureService.onDualPinchZoom')
+  );
+  assert(
+    !onCamRotateBlock.includes('orbitByDelta'),
+    'Left-hand onCameraRotate must rotate camera perspective (never rotate the 3D polyhedron model)'
+  );
+  assert(
+    onCamRotateBlock.includes('this.inputManager.player.rotateSmooth'),
+    'Left-hand onCameraRotate must drive player.rotateSmooth for camera perspective rotation'
+  );
+
+  mesh38.dispose();
+}
+console.log('✓ Test 38 passed: 隔空手势交互重构、单状态机零冲突、模型外丝滑旋转与优雅动效验证通过\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (37/37)!');
+console.log('All High School Stereometry Tests Passed Successfully (38/38)!');
 console.log('========================================================');
 
 

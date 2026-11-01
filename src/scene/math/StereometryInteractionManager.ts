@@ -6,11 +6,11 @@ import type { AuxiliaryFace } from './AuxiliaryFaceSolver.ts';
 import type { ExperimentContext } from '../../core/types.ts';
 
 export type InteractionMode =
-  | 'direct'          // 自然交互 (接线为主，空白拖拽旋转)
-  | 'orbit'           // 自由空间拖拽旋转
-  | 'connect-line'    // 两点接线
-  | 'three-point-cut' // 三点定面截面
-  | 'set-origin';     // 选取原点建系
+  | 'direct'          // 自然交互 (模型内选点连线，模型外空白旋转)
+  | 'orbit'           // 显式自由旋转模式
+  | 'connect-line'    // 两点接线模式
+  | 'three-point-cut' // 三点定面截面模式
+  | 'set-origin';     // 选取原点建系模式
 
 export interface StereometryInteractionCallbacks {
   onKeyPointClick?: (point: KeyPoint, mode: InteractionMode) => void;
@@ -26,65 +26,209 @@ export interface StereometryInteractionCallbacks {
   onGuidanceChange?: (hint: string, type?: 'info' | 'active' | 'success' | 'warn', colorHex?: number) => void;
 }
 
+type PointerZone = 'keypoint' | 'model-surface' | 'outside';
+
+interface ResolvedPointerTarget {
+  zone: PointerZone;
+  keyPoint: KeyPoint | null;
+  snapLabel: string;
+  isHittingSurface: boolean;
+}
+
+interface RecentSnapLock {
+  kp: KeyPoint;
+  snapLabel: string;
+  screenX: number;
+  screenY: number;
+  timestamp: number;
+}
+
+type PointerSession =
+  | { kind: 'idle' }
+  | { kind: 'pinch-zoom'; initialDist: number; initialScale: number }
+  | { kind: 'pinch-cooldown' }
+  | {
+      kind: 'point-gesture';
+      pointerId: number;
+      startKp: KeyPoint;
+      downX: number;
+      downY: number;
+      downTime: number;
+      movedPastThreshold: boolean;
+      isVision: boolean;
+      isTouch: boolean;
+    }
+  | {
+      kind: 'model-surface';
+      pointerId: number;
+      downX: number;
+      downY: number;
+      lastX: number;
+      lastY: number;
+      downTime: number;
+      movedPastThreshold: boolean;
+      orbiting: boolean;
+      isVision: boolean;
+      isTouch: boolean;
+    }
+  | {
+      kind: 'orbit-outside';
+      pointerId: number;
+      downX: number;
+      downY: number;
+      lastX: number;
+      lastY: number;
+      downTime: number;
+      orbiting: boolean;
+      isVision: boolean;
+      isTouch: boolean;
+    };
+
 export class StereometryInteractionManager {
   private mesh: StereometryMesh;
   private callbacks: StereometryInteractionCallbacks;
   private currentMode: InteractionMode = 'direct';
 
-  // 交互状态机
+  // 连线与剖切业务状态
   private pendingStartPoint: KeyPoint | null = null;
   private chainStartPoint: KeyPoint | null = null;
   private currentHoveredKp: KeyPoint | null = null;
   private currentSnapLabel = '';
   private selectedCutPoints: KeyPoint[] = [];
 
-  // 指针与多指拖拽交互状态
-  private isPointerDown = false;
-  private isOrbitDragging = false;
-  private isConnectingDrag = false;
-  private isCancellingOutside = false;
-  private dragStartKp: KeyPoint | null = null;
-  private hasMovedPastDragThreshold = false;
-  private isPointerDownOnModel = false;
-  private lastHoverClientX = -1000;
-  private lastHoverClientY = -1000;
+  // 单一判别式指针会话状态机（消除多重布尔标志冲突）
+  private session: PointerSession = { kind: 'idle' };
+  private activePointers = new Map<number, { x: number; y: number }>();
 
-  private pointerDownX = 0;
-  private pointerDownY = 0;
-  private lastPointerX = 0;
-  private lastPointerY = 0;
-  private pointerDownTime = 0;
+  // 捏合前时间窗悬停锁定：抵消隔空手指闭合瞬间的光标微移
+  private recentSnapLock: RecentSnapLock | null = null;
+
+  // 平滑轨道旋转与惯性状态
   private rotationVelocity = new THREE.Vector2(0, 0);
   private targetRotationX = 0;
   private targetRotationY = 0;
 
-  // 交互阈值（像素）
-  // 隔空手势点击容差 30px，触屏端点击容差 24px，鼠标端点击容差 10px
-  private readonly TAP_SLOP_VISION = 30;
-  private readonly TAP_SLOP_TOUCH = 24;
-  private readonly TAP_SLOP_MOUSE = 10;
-  private readonly ORBIT_DRAG_THRESHOLD_TOUCH = 14;
+  // 交互像素与空间阈值配置
+  private readonly TAP_SLOP_VISION = 48;
+  private readonly TAP_SLOP_TOUCH = 26;
+  private readonly TAP_SLOP_MOUSE = 12;
+  private readonly ORBIT_DRAG_THRESHOLD_VISION = 8;
+  private readonly ORBIT_DRAG_THRESHOLD_TOUCH = 12;
   private readonly ORBIT_DRAG_THRESHOLD_MOUSE = 5;
 
-  // 基准局部空间磁吸阈值（自动乘以模型世界缩放倍率，确保放大至 160%~250% 时顶点与字母标号依然轻松精准吸附）
-  private readonly SNAP_THRESHOLD_VISION = 0.105;
-  private readonly SNAP_THRESHOLD_TOUCH = 0.090;
-  private readonly SNAP_THRESHOLD_MOUSE = 0.062;
-  private readonly scratchScale = new THREE.Vector3(1, 1, 1);
+  private readonly SNAP_THRESHOLD_VISION = 0.096;
+  private readonly SNAP_THRESHOLD_TOUCH = 0.084;
+  private readonly SNAP_THRESHOLD_MOUSE = 0.058;
+  private readonly PRE_PINCH_LOCK_MS = 300;
 
-  // 双指捏合缩放状态（iPad 与触控设备）
-  private activePointers = new Map<number, { x: number; y: number }>();
-  private isPinching = false;
-  private pinchCooldown = false;
-  private initialPinchDist = 0;
-  private initialPinchScale = 1.0;
-  private internalRaycaster = new THREE.Raycaster();
+  // 零分配复用计算对象
+  private readonly internalRaycaster = new THREE.Raycaster();
+  private readonly scratchScale = new THREE.Vector3(1, 1, 1);
+  private readonly scratchWorldPos = new THREE.Vector3();
+  private readonly scratchLabelDir = new THREE.Vector3();
+  private readonly scratchLabelWorld = new THREE.Vector3();
+  private readonly scratchProjected = new THREE.Vector3();
+  private readonly scratchPlaneNormal = new THREE.Vector3();
+  private readonly scratchPlaneHit = new THREE.Vector3();
+  private readonly scratchInvMatrix = new THREE.Matrix4();
+  private readonly scratchDragPlane = new THREE.Plane();
 
   constructor(mesh: StereometryMesh, callbacks: StereometryInteractionCallbacks = {}) {
     this.mesh = mesh;
     this.callbacks = callbacks;
   }
 
+  // -------------------------------------------------------------
+  // 状态机派生只读访问器（完整兼容诊断遥测与单元测试断言）
+  // -------------------------------------------------------------
+  public get isPointerDown(): boolean {
+    return (
+      this.session.kind === 'point-gesture' ||
+      this.session.kind === 'model-surface' ||
+      this.session.kind === 'orbit-outside'
+    );
+  }
+
+  public set isPointerDown(val: boolean) {
+    if (!val && this.isPointerDown) {
+      this.session = { kind: 'idle' };
+    } else if (val && !this.isPointerDown) {
+      this.session = {
+        kind: 'orbit-outside',
+        pointerId: 1,
+        downX: 0,
+        downY: 0,
+        lastX: 0,
+        lastY: 0,
+        downTime: performance.now(),
+        orbiting: false,
+        isVision: false,
+        isTouch: false,
+      };
+    }
+  }
+
+  public get dragStartKp(): KeyPoint | null {
+    return this.session.kind === 'point-gesture' ? this.session.startKp : null;
+  }
+
+  public get isConnectingDrag(): boolean {
+    return this.session.kind === 'point-gesture';
+  }
+
+  public get isOrbitDragging(): boolean {
+    return (
+      (this.session.kind === 'orbit-outside' && this.session.orbiting) ||
+      (this.session.kind === 'model-surface' && this.session.orbiting)
+    );
+  }
+
+  public set isOrbitDragging(val: boolean) {
+    if (!val && this.isOrbitDragging) {
+      if (this.session.kind === 'orbit-outside' || this.session.kind === 'model-surface') {
+        this.session.orbiting = false;
+      }
+    } else if (val && !this.isOrbitDragging) {
+      this.session = {
+        kind: 'orbit-outside',
+        pointerId: 1,
+        downX: 0,
+        downY: 0,
+        lastX: 0,
+        lastY: 0,
+        downTime: performance.now(),
+        orbiting: true,
+        isVision: false,
+        isTouch: false,
+      };
+    }
+  }
+
+  public get hasMovedPastDragThreshold(): boolean {
+    if (this.session.kind === 'point-gesture' || this.session.kind === 'model-surface') {
+      return this.session.movedPastThreshold;
+    }
+    if (this.session.kind === 'orbit-outside') {
+      return this.session.orbiting;
+    }
+    return false;
+  }
+
+  public get isPointerDownOnModel(): boolean {
+    return this.session.kind === 'point-gesture' || this.session.kind === 'model-surface';
+  }
+
+  public get isPinching(): boolean {
+    return this.session.kind === 'pinch-zoom';
+  }
+
+  public get pinchCooldown(): boolean {
+    return this.session.kind === 'pinch-cooldown';
+  }
+
+  // -------------------------------------------------------------
+  // 模式与选择生命周期
+  // -------------------------------------------------------------
   public setMode(mode: InteractionMode): void {
     this.currentMode = mode;
     this.resetSelection();
@@ -99,12 +243,13 @@ export class StereometryInteractionManager {
   }
 
   public resetSelection(suppressGuidance = false): void {
-    const wasPending = Boolean(this.pendingStartPoint) || Boolean(this.dragStartKp);
+    const wasPending = Boolean(this.pendingStartPoint) || this.session.kind === 'point-gesture';
     this.chainStartPoint = null;
     this.pendingStartPoint = null;
-    this.dragStartKp = null;
-    this.isConnectingDrag = false;
     this.selectedCutPoints = [];
+    if (this.session.kind === 'point-gesture') {
+      this.session = { kind: 'idle' };
+    }
     this.mesh.setSelectedKeyPoints([]);
     this.mesh.clearPreviewWire();
     if (wasPending && !suppressGuidance) {
@@ -119,9 +264,14 @@ export class StereometryInteractionManager {
       const newFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
       this.callbacks.onSegmentRemoved?.(seg.label, seg.length);
       if (prevFaces.length > newFaces.length) {
-        const removedFace = prevFaces.find((pf) => !newFaces.some((nf) => nf.id === pf.id)) || prevFaces[prevFaces.length - 1];
+        const removedFace =
+          prevFaces.find((pf) => !newFaces.some((nf) => nf.id === pf.id)) ||
+          prevFaces[prevFaces.length - 1];
         this.callbacks.onAuxiliaryFaceRemoved?.(removedFace.id);
-        this.callbacks.onGuidanceChange?.(`已撤销辅助线 ${seg.label}，并移除关联辅助面 ${removedFace.faceLabel}`, 'warn');
+        this.callbacks.onGuidanceChange?.(
+          `已撤销辅助线 ${seg.label}，并移除关联辅助面 ${removedFace.faceLabel}`,
+          'warn'
+        );
       } else {
         this.callbacks.onGuidanceChange?.(`已撤销辅助线 ${seg.label}`, 'warn');
       }
@@ -137,6 +287,47 @@ export class StereometryInteractionManager {
     this.callbacks.onGuidanceChange?.('已清空所有辅助线与辅助面', 'warn');
   }
 
+  public clearHover(): void {
+    this.currentHoveredKp = null;
+    this.currentSnapLabel = '';
+    this.recentSnapLock = null;
+    this.session = { kind: 'idle' };
+    this.activePointers.clear();
+    this.rotationVelocity.set(0, 0);
+    this.mesh?.setHoveredKeyPoint(null);
+    this.mesh?.clearPreviewWire();
+    this.callbacks.onKeyPointHover?.(null);
+    this.callbacks.onGuidanceChange?.(
+      '在模型上轻触或拖拽棱上端点/中点/三等分点接线 · 在模型外空白处滑动旋转视角',
+      'info'
+    );
+    if (typeof document !== 'undefined' && document.body?.style) {
+      document.body.style.cursor = 'default';
+    }
+  }
+
+  public isInteractingWithModel(): boolean {
+    return this.session.kind !== 'idle';
+  }
+
+  public isVisionModelInteractionActive(): boolean {
+    return Boolean(
+      this.session.kind !== 'idle' ||
+        this.pendingStartPoint !== null ||
+        this.selectedCutPoints.length > 0 ||
+        this.currentHoveredKp !== null
+    );
+  }
+
+  public findKeyPointNearRay(raycaster: THREE.Raycaster, threshold?: number): KeyPoint | null {
+    const effectiveThreshold = threshold ?? this.SNAP_THRESHOLD_MOUSE * this.getModelWorldScale();
+    const res = this.mesh.findClosestSnapPoint(raycaster.ray, effectiveThreshold, { onlyOnEdgeOrLine: true });
+    return res ? res.keyPoint : null;
+  }
+
+  // -------------------------------------------------------------
+  // 统一空间 + 屏幕像素混合目标解析器（彻底隔离模型内选点与模型外旋转）
+  // -------------------------------------------------------------
   private isVisionGestureEvent(event?: Partial<PointerEvent> | null): boolean {
     return Boolean(event && (event as any).__visionGesture);
   }
@@ -152,9 +343,7 @@ export class StereometryInteractionManager {
     return this.mesh?.getScale?.() ?? 1.0;
   }
 
-  private getEffectiveSnapThreshold(event?: Partial<PointerEvent> | null): number {
-    const isVision = this.isVisionGestureEvent(event);
-    const isTouch = event?.pointerType === 'touch';
+  private getEffectiveSnapThreshold(isVision: boolean, isTouch: boolean): number {
     const base = isVision
       ? this.SNAP_THRESHOLD_VISION
       : isTouch
@@ -163,59 +352,78 @@ export class StereometryInteractionManager {
     return base * this.getModelWorldScale();
   }
 
-  private getEffectiveTapSlop(event?: Partial<PointerEvent> | null): number {
-    if (this.isVisionGestureEvent(event)) return this.TAP_SLOP_VISION;
-    if (event?.pointerType === 'touch') return this.TAP_SLOP_TOUCH;
+  private getEffectiveTapSlop(isVision: boolean, isTouch: boolean): number {
+    if (isVision) return this.TAP_SLOP_VISION;
+    if (isTouch) return this.TAP_SLOP_TOUCH;
     return this.TAP_SLOP_MOUSE;
   }
 
-  /**
-   * 仅当显式切换到 'orbit' 模式时才允许在模型上拖拽旋转模型本身；
-   * 默认在模型上交互（连线、选点、剖切、建系）严禁触发任何旋转！
-   */
-  private canOrbitModel(): boolean {
-    return this.currentMode === 'orbit';
+  private getOrbitDragThreshold(isVision: boolean, isTouch: boolean): number {
+    if (isVision) return this.ORBIT_DRAG_THRESHOLD_VISION;
+    if (isTouch) return this.ORBIT_DRAG_THRESHOLD_TOUCH;
+    return this.ORBIT_DRAG_THRESHOLD_MOUSE;
+  }
+
+  private getViewportBounds(context?: ExperimentContext): { left: number; top: number; width: number; height: number } {
+    const dom = context?.renderer?.domElement as any;
+    if (dom && typeof dom.getBoundingClientRect === 'function') {
+      const rect = dom.getBoundingClientRect();
+      if (rect && rect.width > 0 && rect.height > 0) {
+        return rect;
+      }
+    }
+    const w = typeof window !== 'undefined' && window.innerWidth > 0 ? window.innerWidth : 1920;
+    const h = typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerHeight : 1080;
+    return { left: 0, top: 0, width: w, height: h };
   }
 
   /**
-   * 当前是否正在直接按压或拖拽操作 3D 模型（用于抑制相机控制器误旋转）。
+   * 计算指针与关键点（及其外偏字母标号）的真实屏幕 2D 像素距离，
+   * 确保在任意缩放倍率 (35%~300%) 下模型外部空白处绝不会被 3D 阈值越界劫持。
    */
-  public isInteractingWithModel(): boolean {
-    return Boolean(
-      this.isPointerDown ||
-        this.isConnectingDrag ||
-        this.isCancellingOutside ||
-        this.isPinching ||
-        this.pinchCooldown
-    );
+  private computeKeyPointScreenDistancePx(
+    kp: KeyPoint,
+    clientX: number,
+    clientY: number,
+    camera: THREE.Camera,
+    bounds: { left: number; top: number; width: number; height: number }
+  ): number {
+    this.mesh.modelContainer.updateMatrixWorld(false);
+    this.scratchWorldPos.copy(kp.position).applyMatrix4(this.mesh.modelContainer.matrixWorld);
+    this.scratchProjected.copy(this.scratchWorldPos).project(camera);
+    const sx = bounds.left + ((this.scratchProjected.x + 1) * 0.5) * bounds.width;
+    const sy = bounds.top + ((-this.scratchProjected.y + 1) * 0.5) * bounds.height;
+    let minPx = Math.hypot(clientX - sx, clientY - sy);
+
+    if (kp.type === 'vertex' || kp.type === 'custom') {
+      this.scratchLabelDir.copy(kp.position);
+      if (this.scratchLabelDir.lengthSq() < 1e-4) {
+        this.scratchLabelDir.set(0, 1, 0);
+      } else {
+        this.scratchLabelDir.normalize();
+      }
+      this.scratchLabelWorld
+        .copy(kp.position)
+        .addScaledVector(this.scratchLabelDir, 0.042)
+        .applyMatrix4(this.mesh.modelContainer.matrixWorld);
+      this.scratchProjected.copy(this.scratchLabelWorld).project(camera);
+      const lx = bounds.left + ((this.scratchProjected.x + 1) * 0.5) * bounds.width;
+      const ly = bounds.top + ((-this.scratchProjected.y + 1) * 0.5) * bounds.height;
+      const labelPx = Math.hypot(clientX - lx, clientY - ly);
+      if (labelPx < minPx) {
+        minPx = labelPx;
+      }
+    }
+
+    return minPx;
   }
 
-  /**
-   * 隔空手势专用判定：包含悬停关键点与待连起点，防止右手瞄准连线时左手误转相机视角。
-   */
-  public isVisionModelInteractionActive(): boolean {
-    return Boolean(
-      this.isInteractingWithModel() ||
-        this.pendingStartPoint !== null ||
-        this.selectedCutPoints.length > 0 ||
-        this.currentHoveredKp !== null
-    );
-  }
-
-  /**
-   * 查找离射线最近的关键点，严格保证起点只在线上（顶点、1/2 中点、1/3 与 2/3 三等分点）。
-   */
-  public findKeyPointNearRay(raycaster: THREE.Raycaster, threshold?: number): KeyPoint | null {
-    const effectiveThreshold = threshold ?? this.SNAP_THRESHOLD_MOUSE * this.getModelWorldScale();
-    const res = this.mesh.findClosestSnapPoint(raycaster.ray, effectiveThreshold, { onlyOnEdgeOrLine: true });
-    return res ? res.keyPoint : null;
-  }
-
-  /**
-   * 判断目标 Object3D 是否归属于 3D 立体几何模型实体（排除外围隐形包络球 math_hit_envelope）。
-   */
-  private isObjectOnModel(obj: THREE.Object3D | null): boolean {
-    if (!obj || obj.name === 'math_hit_envelope') return false;
+  private isSurfaceHit(hit: THREE.Intersection | null | undefined): boolean {
+    const obj = hit?.object;
+    if (!obj) return false;
+    if (typeof (this.mesh as any).isSurfaceObject === 'function') {
+      return this.mesh.isSurfaceObject(obj);
+    }
     let cur: THREE.Object3D | null = obj;
     while (cur) {
       if (cur.name === 'math_hit_envelope') return false;
@@ -225,9 +433,102 @@ export class StereometryInteractionManager {
     return false;
   }
 
-  /**
-   * 引擎调用的指针按下事件钩子。
-   */
+  private resolvePointerTarget(
+    clientX: number,
+    clientY: number,
+    hit: THREE.Intersection | null | undefined,
+    isVision: boolean,
+    isTouch: boolean,
+    context?: ExperimentContext,
+    snapMultiplier = 1.0
+  ): ResolvedPointerTarget {
+    if (!context?.camera) {
+      const surfaceHit = hit ? this.isSurfaceHit(hit) : true;
+      return {
+        zone: surfaceHit ? 'model-surface' : 'outside',
+        keyPoint: null,
+        snapLabel: '',
+        isHittingSurface: surfaceHit,
+      };
+    }
+
+    const mouseNDC = labPointerNDC({ clientX, clientY }, context?.renderer?.domElement);
+    this.internalRaycaster.setFromCamera(mouseNDC, context.camera);
+
+    const isHittingSurface =
+      this.isSurfaceHit(hit) ||
+      (typeof this.mesh.isRayHittingModel === 'function'
+        ? this.mesh.isRayHittingModel(this.internalRaycaster.ray)
+        : false);
+
+    if (this.currentMode === 'orbit') {
+      return {
+        zone: isHittingSurface ? 'model-surface' : 'outside',
+        keyPoint: null,
+        snapLabel: '',
+        isHittingSurface,
+      };
+    }
+
+    const snapThreshold3D = this.getEffectiveSnapThreshold(isVision, isTouch) * snapMultiplier;
+    const snapRes =
+      typeof this.mesh.getModelDef === 'function'
+        ? this.mesh.findClosestSnapPoint(this.internalRaycaster.ray, snapThreshold3D, {
+            onlyOnEdgeOrLine: true,
+          })
+        : null;
+
+    if (snapRes) {
+      const bounds = this.getViewportBounds(context);
+      const screenPx = this.computeKeyPointScreenDistancePx(
+        snapRes.keyPoint,
+        clientX,
+        clientY,
+        context.camera,
+        bounds
+      );
+      const isPrimaryVertex = snapRes.keyPoint.type === 'vertex' || snapRes.keyPoint.type === 'custom';
+
+      // 屏幕像素双重门控：
+      // 1) 在几何体轮廓外：允许精准吸附轮廓顶点及外偏字母标号 (A, B, A₁...)，严禁向远处空白区域外溢而阻断右手捏合旋转模型
+      // 2) 在几何体表面内：允许舒适磁吸棱上关键点，同时保留宽敞面中心空白区不被远端棱抢占
+      const maxOutsidePx = (isVision ? (isPrimaryVertex ? 42 : 28) : isTouch ? (isPrimaryVertex ? 36 : 24) : (isPrimaryVertex ? 26 : 18)) * snapMultiplier;
+      const maxInsidePx = (isVision ? 58 : isTouch ? 48 : 34) * snapMultiplier;
+      const allowedPx = isHittingSurface ? maxInsidePx : maxOutsidePx;
+
+      if (screenPx <= allowedPx) {
+        return {
+          zone: 'keypoint',
+          keyPoint: snapRes.keyPoint,
+          snapLabel: snapRes.snapLabel,
+          isHittingSurface: true,
+        };
+      }
+    }
+
+    return {
+      zone: isHittingSurface ? 'model-surface' : 'outside',
+      keyPoint: null,
+      snapLabel: '',
+      isHittingSurface,
+    };
+  }
+
+  private projectRayToLocalPlane(anchorLocalPos: THREE.Vector3, camera: THREE.Camera): THREE.Vector3 | null {
+    camera.getWorldDirection(this.scratchPlaneNormal).negate();
+    this.mesh.modelContainer.updateMatrixWorld(false);
+    this.scratchWorldPos.copy(anchorLocalPos).applyMatrix4(this.mesh.modelContainer.matrixWorld);
+    this.scratchDragPlane.setFromNormalAndCoplanarPoint(this.scratchPlaneNormal, this.scratchWorldPos);
+    if (!this.internalRaycaster.ray.intersectPlane(this.scratchDragPlane, this.scratchPlaneHit)) {
+      return null;
+    }
+    this.scratchInvMatrix.copy(this.mesh.modelContainer.matrixWorld).invert();
+    return this.scratchPlaneHit.applyMatrix4(this.scratchInvMatrix).clone();
+  }
+
+  // -------------------------------------------------------------
+  // 核心指针事件流：onPointerDown / onPointerMove / onPointerUp
+  // -------------------------------------------------------------
   public onPointerDown(
     event: PointerEvent,
     hit: THREE.Intersection | null,
@@ -235,95 +536,102 @@ export class StereometryInteractionManager {
   ): boolean {
     if (event.button !== 0) return false;
 
-    // 记录多指触控指针（用于 iPad 及触控设备双指缩放）
     this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
+    // 1. 双指触控捏合缩放：高于一切单指手势，立即干净接管
     if (this.activePointers.size >= 2) {
-      // 检测到双指：立即切换为捏合缩放模式，彻底重置单指拖拽与连线状态
       const pts = Array.from(this.activePointers.values());
-      this.isPinching = true;
-      this.pinchCooldown = false;
-      this.isOrbitDragging = false;
-      this.isConnectingDrag = false;
-      this.dragStartKp = null;
-      this.hasMovedPastDragThreshold = false;
+      const initialDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const initialScale = this.mesh.getScale();
+      this.session = { kind: 'pinch-zoom', initialDist, initialScale };
+      this.rotationVelocity.set(0, 0);
       this.mesh.setHoveredKeyPoint(null);
-      this.mesh.clearPreviewWire();
-      this.initialPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      this.initialPinchScale = this.mesh.getScale();
-      this.callbacks.onGuidanceChange?.(`双指捏合缩放 · 当前: ${Math.round(this.initialPinchScale * 100)}%`, 'info');
+      if (!this.pendingStartPoint) {
+        this.mesh.clearPreviewWire();
+      }
+      this.callbacks.onGuidanceChange?.(`双指捏合缩放 · 当前: ${Math.round(initialScale * 100)}%`, 'info');
       return true;
     }
 
-    // 若刚从双指缩放释放（其中一指抬起），在所有手指完全离开前，严格抑制单指接管旋转与误触
-    if (this.pinchCooldown) {
+    if (this.session.kind === 'pinch-cooldown') {
       return false;
     }
 
     const isTouch = event.pointerType === 'touch';
     const isVision = this.isVisionGestureEvent(event);
-    const snapThreshold = this.getEffectiveSnapThreshold(event);
+    const now = performance.now();
 
-    // 1. 优先探测磁吸关键点（顶点、顶点标号、中点、三等分点），仅在非显式旋转模式下执行
-    let snapKp: KeyPoint | null = null;
-    let snapLabel = '';
+    let resolved = this.resolvePointerTarget(event.clientX, event.clientY, hit, isVision, isTouch, context);
 
-    if (context?.camera && typeof this.mesh.getModelDef === 'function') {
-      const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
-      this.internalRaycaster.setFromCamera(mouseNDC, context.camera);
-      if (!this.canOrbitModel()) {
-        const snapRes = this.mesh.findClosestSnapPoint(this.internalRaycaster.ray, snapThreshold, {
-          onlyOnEdgeOrLine: true,
-        });
-        if (snapRes) {
-          snapKp = snapRes.keyPoint;
-          snapLabel = snapRes.snapLabel;
-        } else if (this.currentHoveredKp) {
-          // 悬停锁定保护：当手势捏合或鼠标按下瞬间产生微小位移时，保持刚刚悬停高亮的关键点不丢失
-          const hoverLockRadius = isVision || isTouch ? 44 : 28;
-          const distFromHover = Math.hypot(
-            event.clientX - this.lastHoverClientX,
-            event.clientY - this.lastHoverClientY
-          );
-          if (distFromHover <= hoverLockRadius) {
-            snapKp = this.currentHoveredKp;
-            snapLabel = this.currentSnapLabel || snapKp.label;
-          }
-        }
+    // 2. 捏合前时间窗悬停锁定补偿：
+    // 用户瞄准顶点/中点后捏合手指的 200~300ms 内，即使食指与拇指靠拢引起轻微屏幕偏移，依然精准锁定目标点！
+    // 若右手已明确移至模型外空白区域 (!resolved.isHittingSurface)，则使用紧凑半径 (26px) 防止模型外旋转被刚刚滑过的边缘关键点拦截。
+    if (
+      resolved.zone !== 'keypoint' &&
+      this.currentMode !== 'orbit' &&
+      this.recentSnapLock &&
+      now - this.recentSnapLock.timestamp <= this.PRE_PINCH_LOCK_MS
+    ) {
+      const lockRadiusPx = resolved.isHittingSurface
+        ? (isVision ? 52 : isTouch ? 36 : 20)
+        : (isVision ? 26 : isTouch ? 20 : 14);
+      const driftPx = Math.hypot(
+        event.clientX - this.recentSnapLock.screenX,
+        event.clientY - this.recentSnapLock.screenY
+      );
+      if (driftPx <= lockRadiusPx) {
+        resolved = {
+          zone: 'keypoint',
+          keyPoint: this.recentSnapLock.kp,
+          snapLabel: this.recentSnapLock.snapLabel,
+          isHittingSurface: true,
+        };
       }
     }
 
-    // 2. 若命中了关键点：立即进入关键点交互模式（支持点击选点与直接拖拽接线，绝对不触发旋转）
-    if (snapKp) {
-      this.isPointerDown = true;
-      this.isConnectingDrag = true;
-      this.isCancellingOutside = false;
-      this.dragStartKp = snapKp;
-      this.isOrbitDragging = false;
-      this.hasMovedPastDragThreshold = false;
-      this.isPointerDownOnModel = true;
+    this.syncTargetRotationWithMesh();
+    this.rotationVelocity.set(0, 0);
 
-      this.pointerDownX = event.clientX;
-      this.pointerDownY = event.clientY;
-      this.lastPointerX = event.clientX;
-      this.lastPointerY = event.clientY;
-      this.pointerDownTime = performance.now();
-      this.rotationVelocity.set(0, 0);
+    // 分支 A：锁定关键点 -> 进入选点/拖拽连线会话（严禁触发任何旋转）
+    if (resolved.zone === 'keypoint' && resolved.keyPoint) {
+      const snapKp = resolved.keyPoint;
+      const snapLabel = resolved.snapLabel || snapKp.label;
+      this.session = {
+        kind: 'point-gesture',
+        pointerId: event.pointerId,
+        startKp: snapKp,
+        downX: event.clientX,
+        downY: event.clientY,
+        downTime: now,
+        movedPastThreshold: false,
+        isVision,
+        isTouch,
+      };
 
       this.currentHoveredKp = snapKp;
       this.currentSnapLabel = snapLabel;
       this.mesh.setHoveredKeyPoint(snapKp.id, snapLabel);
 
       const snapColor = this.getKeyPointColor(snapKp);
-      if (this.pendingStartPoint) {
+      if (this.pendingStartPoint && this.pendingStartPoint.id !== snapKp.id) {
+        const len = this.pendingStartPoint.position.distanceTo(snapKp.position);
+        const badgeText = this.mesh.formatNormalizedDistance(len);
+        this.mesh.updatePreviewWire(
+          this.pendingStartPoint.position,
+          snapKp.position,
+          0x7c3aed,
+          badgeText,
+          context?.camera,
+          { snapped: true, smooth: false }
+        );
         this.callbacks.onGuidanceChange?.(
-          `已按住 ${snapLabel || snapKp.label} · 拖拽或轻触完成接线`,
+          `已锁定目标 ${snapLabel} · 松开完成接线`,
           'active',
           snapColor
         );
       } else {
         this.callbacks.onGuidanceChange?.(
-          `已按住起点 ${snapLabel || snapKp.label} · 拖拽至目标点接线 (或轻触选定)`,
+          `已按住起点 ${snapLabel} · 拖拽至目标点接线 (或松开选定)`,
           'active',
           snapColor
         );
@@ -331,96 +639,67 @@ export class StereometryInteractionManager {
       return true;
     }
 
-    // 3. 检测是否触碰了 3D 模型实体或模型贴合包络区
-    let isHittingModel = false;
-    if (hit?.object) {
-      isHittingModel = this.isObjectOnModel(hit.object);
-    }
-    if (!isHittingModel && context?.camera) {
-      isHittingModel = typeof this.mesh.isRayHittingModel === 'function'
-        ? this.mesh.isRayHittingModel(this.internalRaycaster.ray)
-        : false;
-    } else if (!hit && !context?.camera) {
-      // 单元测试无相机环境默认保留交互响应
-      isHittingModel = true;
-    }
-
-    if (!isHittingModel) {
-      // 触碰点在 3D 模型外部空白区域：
-      // 规则：右手在立体几何模型外的区域捏合（或在模型外点击）则接线停止
-      const wasConnecting = Boolean(this.pendingStartPoint) || this.isConnectingDrag;
-      if (wasConnecting) {
+    // 分支 B：落在几何体外部空白区 -> 立即终止任何活跃连线，并准备自由顺畅旋转模型
+    if (resolved.zone === 'outside') {
+      if (this.pendingStartPoint || this.selectedCutPoints.length > 0) {
         this.resetSelection(true);
-        const isVision = this.isVisionGestureEvent(event);
-        const cancelMsg = isVision
-          ? '右手在模型外捏合，接线已停止'
-          : '在模型外点击，接线已停止';
+        const cancelMsg = isVision ? '右手在模型外捏合，接线已停止' : '在模型外点击，接线已停止';
         this.callbacks.onGuidanceChange?.(cancelMsg, 'info');
       }
+      this.currentHoveredKp = null;
+      this.currentSnapLabel = '';
+      this.recentSnapLock = null;
+      this.mesh.setHoveredKeyPoint(null);
+      this.mesh.clearPreviewWire();
 
-      // 接管指针，使在模型外滑动能够顺畅旋转 3D 立体几何模型
-      this.isPointerDown = true;
-      this.isCancellingOutside = false;
-      this.isConnectingDrag = false;
-      this.dragStartKp = null;
-      this.isOrbitDragging = false;
-      this.hasMovedPastDragThreshold = false;
-      this.isPointerDownOnModel = false;
-
-      this.pointerDownX = event.clientX;
-      this.pointerDownY = event.clientY;
-      this.lastPointerX = event.clientX;
-      this.lastPointerY = event.clientY;
-      this.pointerDownTime = performance.now();
-      this.rotationVelocity.set(0, 0);
-      this.targetRotationX = this.mesh.modelContainer?.rotation ? this.mesh.modelContainer.rotation.x : 0;
-      this.targetRotationY = this.mesh.modelContainer?.rotation ? this.mesh.modelContainer.rotation.y : 0;
+      this.session = {
+        kind: 'orbit-outside',
+        pointerId: event.pointerId,
+        downX: event.clientX,
+        downY: event.clientY,
+        lastX: event.clientX,
+        lastY: event.clientY,
+        downTime: now,
+        orbiting: false,
+        isVision,
+        isTouch,
+      };
       return true;
     }
 
-    // 触碰点在 3D 模型实体上：
-    // 与模型交互时专注选点与连线，严禁旋转 3D 模型（除非显式处于 'orbit' 模式）！
-    this.isPointerDown = true;
-    this.isCancellingOutside = false;
-    this.isConnectingDrag = false;
-    this.dragStartKp = null;
-    this.isOrbitDragging = false;
-    this.hasMovedPastDragThreshold = false;
-    this.isPointerDownOnModel = true;
-
-    this.pointerDownX = event.clientX;
-    this.pointerDownY = event.clientY;
-    this.lastPointerX = event.clientX;
-    this.lastPointerY = event.clientY;
-    this.pointerDownTime = performance.now();
-    this.rotationVelocity.set(0, 0);
-    if (this.canOrbitModel()) {
-      this.targetRotationX = this.mesh.modelContainer?.rotation ? this.mesh.modelContainer.rotation.x : 0;
-      this.targetRotationY = this.mesh.modelContainer?.rotation ? this.mesh.modelContainer.rotation.y : 0;
-    }
+    // 分支 C：落在几何体晶面内部（非关键点） -> 屏蔽误触旋转（除非显式处于 'orbit' 模式）
+    this.session = {
+      kind: 'model-surface',
+      pointerId: event.pointerId,
+      downX: event.clientX,
+      downY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      downTime: now,
+      movedPastThreshold: false,
+      orbiting: false,
+      isVision,
+      isTouch,
+    };
     return true;
   }
 
-  /**
-   * 引擎调用的指针移动事件钩子。
-   */
   public onPointerMove(
     event: PointerEvent,
     _hit: THREE.Intersection | null,
     context: ExperimentContext
   ): void {
-    // 持续更新活跃指针坐标
     if (this.activePointers.has(event.pointerId)) {
       this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     }
 
     // 1. 双指捏合缩放
-    if (this.isPinching && this.activePointers.size >= 2) {
+    if (this.session.kind === 'pinch-zoom' && this.activePointers.size >= 2) {
       const pts = Array.from(this.activePointers.values());
       const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      if (this.initialPinchDist > 5) {
-        const factor = currentDist / this.initialPinchDist;
-        const newScale = THREE.MathUtils.clamp(this.initialPinchScale * factor, 0.35, 3.0);
+      if (this.session.initialDist > 5) {
+        const factor = currentDist / this.session.initialDist;
+        const newScale = THREE.MathUtils.clamp(this.session.initialScale * factor, 0.35, 3.0);
         this.mesh.setScale(newScale);
         this.callbacks.onScaleChange?.(newScale);
         this.callbacks.onGuidanceChange?.(`立体几何缩放: ${Math.round(newScale * 100)}%`, 'active');
@@ -428,438 +707,387 @@ export class StereometryInteractionManager {
       return;
     }
 
-    if (this.isCancellingOutside) {
+    if (this.session.kind === 'pinch-cooldown') {
       return;
     }
 
-    const isTouch = event.pointerType === 'touch';
-    const isVision = this.isVisionGestureEvent(event);
-    const orbitDragThreshold = isTouch ? this.ORBIT_DRAG_THRESHOLD_TOUCH : this.ORBIT_DRAG_THRESHOLD_MOUSE;
-    const snapThreshold = this.getEffectiveSnapThreshold(event);
+    // 2. 模型外部轨道旋转会话
+    if (this.session.kind === 'orbit-outside') {
+      const totalDist = Math.hypot(event.clientX - this.session.downX, event.clientY - this.session.downY);
+      const orbitThreshold = this.getOrbitDragThreshold(this.session.isVision, this.session.isTouch);
 
-    // 2. 判定是模型外部滑动旋转模型，还是在模型表面交互接线（与模型交互严禁触发旋转！）
-    if (this.isPointerDown && !this.isConnectingDrag && !this.isOrbitDragging) {
-      const dragDist = Math.hypot(event.clientX - this.pointerDownX, event.clientY - this.pointerDownY);
-      if (!this.isPointerDownOnModel || this.canOrbitModel()) {
-        // 在立体模型外部空白区域拖拽（或显式 'orbit' 模式）：顺畅旋转 3D 立体几何模型
-        if (dragDist >= orbitDragThreshold) {
-          this.isOrbitDragging = true;
-          this.hasMovedPastDragThreshold = true;
+      if (!this.session.orbiting) {
+        if (totalDist < orbitThreshold) {
+          this.session.lastX = event.clientX;
+          this.session.lastY = event.clientY;
+          return;
         }
-      } else if (dragDist >= (isTouch || isVision ? 8 : 4)) {
-        this.hasMovedPastDragThreshold = true;
-        // 在 3D 模型本体上交互：严禁触发旋转！延迟检查按压起始点是否落在关键点附近，或已有待连起点时直接预览目标接线
-        if (context?.camera) {
-          if (!this.pendingStartPoint && dragDist <= (isTouch || isVision ? 24 : 14)) {
-            const downNDC = labPointerNDC(
-              { clientX: this.pointerDownX, clientY: this.pointerDownY },
-              context?.renderer?.domElement
-            );
-            this.internalRaycaster.setFromCamera(downNDC, context.camera);
-            const startSnap = this.mesh.findClosestSnapPoint(this.internalRaycaster.ray, snapThreshold * 1.15, {
-              onlyOnEdgeOrLine: true,
-            });
-            if (startSnap) {
-              this.isConnectingDrag = true;
-              this.dragStartKp = startSnap.keyPoint;
-              this.mesh.setHoveredKeyPoint(startSnap.keyPoint.id, startSnap.snapLabel);
-            }
-          }
-
-          if (!this.isConnectingDrag && this.pendingStartPoint) {
-            const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
-            this.internalRaycaster.setFromCamera(mouseNDC, context.camera);
-            const snapRes = this.mesh.findClosestSnapPoint(this.internalRaycaster.ray, snapThreshold, {
-              onlyOnEdgeOrLine: true,
-            });
-            if (snapRes && snapRes.keyPoint.id !== this.pendingStartPoint.id) {
-              const len = this.pendingStartPoint.position.distanceTo(snapRes.keyPoint.position);
-              const badgeText = this.mesh.formatNormalizedDistance(len);
-              this.mesh.updatePreviewWire(
-                this.pendingStartPoint.position,
-                snapRes.keyPoint.position,
-                0x7c3aed,
-                badgeText,
-                context.camera
-              );
-              this.mesh.setHoveredKeyPoint(snapRes.keyPoint.id, snapRes.snapLabel);
-              const snapColor = this.getKeyPointColor(snapRes.keyPoint);
-              this.callbacks.onGuidanceChange?.(
-                `起点 ${this.pendingStartPoint.label} → 目标: ${snapRes.snapLabel || snapRes.keyPoint.label} (长: ${badgeText}) · 松手完成接线`,
-                'active',
-                snapColor
-              );
-            }
-            return;
-          }
-        }
+        this.session.orbiting = true;
       }
+
+      const dx = event.clientX - this.session.lastX;
+      const dy = event.clientY - this.session.lastY;
+      this.session.lastX = event.clientX;
+      this.session.lastY = event.clientY;
+      this.applyPointerOrbitDelta(dx, dy);
+      return;
     }
 
-    // 3. 关键点拖拽连线状态（手指从端点/中点按下向外拖动）
-    // 核心保证：拖拽连线时，绝对不旋转 3D 模型！
-    if (this.isPointerDown && this.isConnectingDrag && this.dragStartKp) {
-      if (Math.hypot(event.clientX - this.pointerDownX, event.clientY - this.pointerDownY) >= 4) {
-        this.hasMovedPastDragThreshold = true;
-      }
-      if (context?.camera) {
-        const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
-        this.internalRaycaster.setFromCamera(mouseNDC, context.camera);
-        const snapRes = this.mesh.findClosestSnapPoint(this.internalRaycaster.ray, snapThreshold, {
-          onlyOnEdgeOrLine: true,
-        });
+    // 3. 模型晶面内部按压滑动会话
+    if (this.session.kind === 'model-surface') {
+      const totalDist = Math.hypot(event.clientX - this.session.downX, event.clientY - this.session.downY);
 
-        if (snapRes && snapRes.keyPoint.id !== this.dragStartKp.id) {
-          // 动态磁吸吸附到目标关键点
-          const len = this.dragStartKp.position.distanceTo(snapRes.keyPoint.position);
-          const badgeText = this.mesh.formatNormalizedDistance(len);
-          this.mesh.updatePreviewWire(this.dragStartKp.position, snapRes.keyPoint.position, 0x7c3aed, badgeText, context.camera);
-          this.mesh.setHoveredKeyPoint(snapRes.keyPoint.id, snapRes.snapLabel);
-          const snapColor = this.getKeyPointColor(snapRes.keyPoint);
-          this.callbacks.onGuidanceChange?.(
-            `起点 ${this.dragStartKp.label} → 目标: ${snapRes.snapLabel || snapRes.keyPoint.label} (长: ${badgeText}) · 松手完成接线`,
-            'active',
-            snapColor
-          );
+      if (this.currentMode === 'orbit') {
+        const orbitThreshold = this.getOrbitDragThreshold(this.session.isVision, this.session.isTouch);
+        if (!this.session.orbiting && totalDist >= orbitThreshold) {
+          this.session.orbiting = true;
+          this.session.movedPastThreshold = true;
+        }
+        if (this.session.orbiting) {
+          const dx = event.clientX - this.session.lastX;
+          const dy = event.clientY - this.session.lastY;
+          this.session.lastX = event.clientX;
+          this.session.lastY = event.clientY;
+          this.applyPointerOrbitDelta(dx, dy);
+        }
+        return;
+      }
+
+      if (totalDist >= (this.session.isVision || this.session.isTouch ? 8 : 4)) {
+        this.session.movedPastThreshold = true;
+      }
+
+      // 在模型表面滑向目标点：若已有起点，实时提供平滑目标磁吸预览，绝不触发模型旋转
+      if (this.pendingStartPoint && context?.camera) {
+        const target = this.resolvePointerTarget(
+          event.clientX,
+          event.clientY,
+          null,
+          this.session.isVision,
+          this.session.isTouch,
+          context,
+          1.08
+        );
+        if (target.keyPoint && target.keyPoint.id !== this.pendingStartPoint.id) {
+          this.renderSnappedPreview(this.pendingStartPoint, target.keyPoint, target.snapLabel, context.camera, true);
+        } else if (target.isHittingSurface) {
+          const hitLocal = this.projectRayToLocalPlane(this.pendingStartPoint.position, context.camera);
+          if (hitLocal) {
+            this.mesh.updatePreviewWire(
+              this.pendingStartPoint.position,
+              hitLocal,
+              0xa78bfa,
+              undefined,
+              context.camera,
+              { snapped: false, smooth: true }
+            );
+          }
+          this.mesh.setHoveredKeyPoint(null);
         } else {
-          // 悬空拖拽：将光标投影至过起点且平行于相机平面的空间平面上
-          const normal = new THREE.Vector3();
-          context.camera.getWorldDirection(normal).negate();
-          const startWorld = this.dragStartKp.position.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld);
-          const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, startWorld);
-          const hitWorld = new THREE.Vector3();
-          if (this.internalRaycaster.ray.intersectPlane(plane, hitWorld)) {
-            const hitLocal = hitWorld.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld.clone().invert());
-            const len = this.dragStartKp.position.distanceTo(hitLocal);
-            const badgeText = this.mesh.formatNormalizedDistance(len);
-            this.mesh.updatePreviewWire(this.dragStartKp.position, hitLocal, 0xa78bfa, badgeText, context.camera);
-            this.mesh.setHoveredKeyPoint(this.dragStartKp.id, this.dragStartKp.label);
-            this.callbacks.onGuidanceChange?.(
-              `正在从 ${this.dragStartKp.label} 拖拽接线 · 移至目标点松手连接 (松在空白处取消)`,
-              'info'
-            );
-          }
+          this.mesh.clearPreviewWire();
+          this.mesh.setHoveredKeyPoint(null);
         }
       }
       return;
     }
 
-    // 4. 单指或鼠标按住拖拽状态：顺畅执行 3D 视角旋转（模型表面与外部空白区域拖拽均支持旋转视角）
-    if (this.isPointerDown && this.isOrbitDragging) {
-      const dx = event.clientX - this.lastPointerX;
-      const dy = event.clientY - this.lastPointerY;
-      this.lastPointerX = event.clientX;
-      this.lastPointerY = event.clientY;
-
-      const moveDist = Math.hypot(dx, dy);
-      // 抖动死区抑制：过滤传感器底噪与手部轻颤
-      if (moveDist >= 0.6) {
-        const rotSpeed = 0.0055;
-        this.targetRotationY += dx * rotSpeed;
-        this.targetRotationX += dy * rotSpeed;
-
-        // 限制仰俯角，防止模型倒转
-        this.targetRotationX = THREE.MathUtils.clamp(
-          this.targetRotationX,
-          -Math.PI * 0.40,
-          Math.PI * 0.40
-        );
-
-        const immediateRatio = 0.55;
-        this.mesh.modelContainer.rotation.y += (this.targetRotationY - this.mesh.modelContainer.rotation.y) * immediateRatio;
-        this.mesh.modelContainer.rotation.x += (this.targetRotationX - this.mesh.modelContainer.rotation.x) * immediateRatio;
-        this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
-          this.mesh.modelContainer.rotation.x,
-          -Math.PI * 0.40,
-          Math.PI * 0.40
-        );
-
-        this.rotationVelocity.x = this.rotationVelocity.x * 0.35 + (dx * rotSpeed) * 0.65;
-        this.rotationVelocity.y = this.rotationVelocity.y * 0.35 + (dy * rotSpeed) * 0.65;
+    // 4. 关键点拖拽接线会话（按住起点直接拖向另一关键点）
+    if (this.session.kind === 'point-gesture') {
+      const totalDist = Math.hypot(event.clientX - this.session.downX, event.clientY - this.session.downY);
+      if (totalDist >= 4) {
+        this.session.movedPastThreshold = true;
       }
 
-      this.mesh.setHoveredKeyPoint(null);
-      if (!this.pendingStartPoint) {
+      if (!context?.camera) return;
+
+      const anchorKp =
+        this.pendingStartPoint && this.pendingStartPoint.id !== this.session.startKp.id && totalDist <= this.getEffectiveTapSlop(this.session.isVision, this.session.isTouch)
+          ? this.pendingStartPoint
+          : this.session.startKp;
+
+      const target = this.resolvePointerTarget(
+        event.clientX,
+        event.clientY,
+        null,
+        this.session.isVision,
+        this.session.isTouch,
+        context,
+        1.12
+      );
+
+      if (target.keyPoint && target.keyPoint.id !== anchorKp.id) {
+        this.renderSnappedPreview(anchorKp, target.keyPoint, target.snapLabel, context.camera, true);
+      } else if (target.isHittingSurface || totalDist <= this.getEffectiveTapSlop(this.session.isVision, this.session.isTouch)) {
+        const hitLocal = this.projectRayToLocalPlane(anchorKp.position, context.camera);
+        if (hitLocal) {
+          this.mesh.updatePreviewWire(
+            anchorKp.position,
+            hitLocal,
+            0xa78bfa,
+            undefined,
+            context.camera,
+            { snapped: false, smooth: true }
+          );
+        }
+        this.mesh.setHoveredKeyPoint(anchorKp.id, anchorKp.label);
+        this.callbacks.onGuidanceChange?.(
+          `正在从 ${anchorKp.label} 拖拽接线 · 移至目标点松手连接`,
+          'info'
+        );
+      } else {
         this.mesh.clearPreviewWire();
+        this.mesh.setHoveredKeyPoint(null);
       }
       return;
     }
 
-    // 5. 非按下状态下的鼠标悬停磁吸检测（PC 鼠标端）
-    if (!this.isPointerDown && context?.camera) {
-      let hoveredKp: KeyPoint | null = null;
-      let hoveredLabel = '';
-      const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
-      this.internalRaycaster.setFromCamera(mouseNDC, context.camera);
-      const snapRes = this.mesh.findClosestSnapPoint(this.internalRaycaster.ray, snapThreshold, {
-        onlyOnEdgeOrLine: true,
-      });
-      if (snapRes) {
-        hoveredKp = snapRes.keyPoint;
-        hoveredLabel = snapRes.snapLabel;
-      }
+    // 5. 空闲悬停态 (Idle Hover)：精确识别磁吸关键点、优雅引导线与区域过渡
+    if (!context?.camera) return;
 
-      if (this.pendingStartPoint) {
-        if (hoveredKp && hoveredKp.id !== this.pendingStartPoint.id) {
-          const len = this.pendingStartPoint.position.distanceTo(hoveredKp.position);
-          const badgeText = this.mesh.formatNormalizedDistance(len);
-          this.mesh.updatePreviewWire(this.pendingStartPoint.position, hoveredKp.position, 0x7c3aed, badgeText, context.camera);
-          const snapColor = this.getKeyPointColor(hoveredKp);
-          this.callbacks.onGuidanceChange?.(
-            `已选起点 ${this.pendingStartPoint.label} → 目标: ${hoveredLabel || hoveredKp.label} (长: ${badgeText}) · 轻触完成接线`,
-            'active',
-            snapColor
+    const isVision = this.isVisionGestureEvent(event);
+    const isTouch = event.pointerType === 'touch';
+    const now = performance.now();
+    const resolved = this.resolvePointerTarget(event.clientX, event.clientY, null, isVision, isTouch, context);
+
+    const hoveredKp = resolved.keyPoint;
+    const hoveredLabel = resolved.snapLabel;
+
+    if (hoveredKp) {
+      this.recentSnapLock = {
+        kp: hoveredKp,
+        snapLabel: hoveredLabel || hoveredKp.label,
+        screenX: event.clientX,
+        screenY: event.clientY,
+        timestamp: now,
+      };
+    }
+
+    if (this.pendingStartPoint) {
+      if (hoveredKp && hoveredKp.id !== this.pendingStartPoint.id) {
+        this.renderSnappedPreview(this.pendingStartPoint, hoveredKp, hoveredLabel, context.camera, false);
+      } else if (resolved.isHittingSurface) {
+        // 光标在几何体内部游走：呈现静稳阻尼半透明引导游丝（不显示杂乱悬空数字）
+        const hitLocal = this.projectRayToLocalPlane(this.pendingStartPoint.position, context.camera);
+        if (hitLocal) {
+          this.mesh.updatePreviewWire(
+            this.pendingStartPoint.position,
+            hitLocal,
+            0xa78bfa,
+            undefined,
+            context.camera,
+            { snapped: false, smooth: true }
           );
-        } else {
-          const normal = new THREE.Vector3();
-          context.camera.getWorldDirection(normal).negate();
-          const startWorld = this.pendingStartPoint.position.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld);
-          const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, startWorld);
-          const hitWorld = new THREE.Vector3();
-          if (this.internalRaycaster.ray.intersectPlane(plane, hitWorld)) {
-            const hitLocal = hitWorld.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld.clone().invert());
-            const len = this.pendingStartPoint.position.distanceTo(hitLocal);
-            const badgeText = this.mesh.formatNormalizedDistance(len);
-            this.mesh.updatePreviewWire(this.pendingStartPoint.position, hitLocal, 0xa78bfa, badgeText, context.camera);
-            this.callbacks.onGuidanceChange?.(`已选起点 ${this.pendingStartPoint.label} · 轻触目标点接线 (轻触空白取消)`, 'info');
-          }
         }
-      } else if (hoveredKp) {
-        const snapColor = this.getKeyPointColor(hoveredKp);
-        this.callbacks.onGuidanceChange?.(`已吸附 ${hoveredLabel || hoveredKp.label} · 轻触或拖拽接线`, 'info', snapColor);
+        this.callbacks.onGuidanceChange?.(
+          `已选起点 ${this.pendingStartPoint.label} · 移至目标点捏合接线 (在模型外捏合停止并可旋转)`,
+          'info'
+        );
       } else {
-        this.callbacks.onGuidanceChange?.('在模型上轻触或拖拽棱上端点/中点/三等分点接线 · 在模型外空白处滑动旋转视角', 'info');
+        // 光标移出几何体进入外部旋转域：优雅收起预览引线，避免悬空紫线跨屏拖拽干扰视线
+        this.mesh.clearPreviewWire();
+        this.callbacks.onGuidanceChange?.(
+          `已选起点 ${this.pendingStartPoint.label} · 在此处捏合可停止接线并自由旋转模型`,
+          'info'
+        );
       }
+    } else if (hoveredKp) {
+      const snapColor = this.getKeyPointColor(hoveredKp);
+      this.callbacks.onGuidanceChange?.(
+        `已吸附 ${hoveredLabel || hoveredKp.label} · 轻触或拖拽接线`,
+        'info',
+        snapColor
+      );
+    } else {
+      this.callbacks.onGuidanceChange?.(
+        '右手在模型上捏合端点/中点/三等分点接线 · 右手在模型外捏合拖拽旋转模型 · 左手长捏合转动视角',
+        'info'
+      );
+    }
 
-      this.currentHoveredKp = hoveredKp;
-      this.currentSnapLabel = hoveredLabel;
-      if (hoveredKp) {
-        this.lastHoverClientX = event.clientX;
-        this.lastHoverClientY = event.clientY;
-      }
+    this.currentHoveredKp = hoveredKp;
+    this.currentSnapLabel = hoveredLabel;
 
-      if (hoveredKp) {
-        this.mesh.setHoveredKeyPoint(hoveredKp.id, hoveredLabel);
-        this.callbacks.onKeyPointHover?.(hoveredKp, hoveredLabel);
+    if (hoveredKp) {
+      this.mesh.setHoveredKeyPoint(hoveredKp.id, hoveredLabel);
+      this.callbacks.onKeyPointHover?.(hoveredKp, hoveredLabel);
+      if (typeof document !== 'undefined' && document.body?.style) {
         document.body.style.cursor = 'pointer';
-      } else {
-        this.mesh.setHoveredKeyPoint(null);
-        this.callbacks.onKeyPointHover?.(null);
+      }
+    } else {
+      this.mesh.setHoveredKeyPoint(null);
+      this.callbacks.onKeyPointHover?.(null);
+      if (typeof document !== 'undefined' && document.body?.style) {
         document.body.style.cursor = 'default';
       }
     }
   }
 
-  /**
-   * 当模态弹窗开启或视图失去焦点时，重置所有悬停状态、预览连线与拖拽状态。
-   */
-  public clearHover(): void {
-    this.currentHoveredKp = null;
-    this.currentSnapLabel = '';
-    this.lastHoverClientX = -1000;
-    this.lastHoverClientY = -1000;
-    this.isOrbitDragging = false;
-    this.isConnectingDrag = false;
-    this.isCancellingOutside = false;
-    this.dragStartKp = null;
-    this.hasMovedPastDragThreshold = false;
-    this.isPointerDown = false;
-    this.isPointerDownOnModel = false;
-    this.isPinching = false;
-    this.pinchCooldown = false;
-    this.activePointers.clear();
-    this.rotationVelocity.set(0, 0);
-    this.mesh?.setHoveredKeyPoint(null);
-    this.mesh?.clearPreviewWire();
-    this.callbacks.onKeyPointHover?.(null);
-    this.callbacks.onGuidanceChange?.('在模型上轻触或拖拽棱上端点/中点/三等分点接线 · 在模型外空白处滑动旋转视角', 'info');
-    if (typeof document !== 'undefined') {
-      document.body.style.cursor = 'default';
-    }
-  }
-
-  /**
-   * 指针抬起事件钩子：与模型交互时专注选点与连线，严防误旋转。
-   */
   public onPointerUp(event: PointerEvent, context: ExperimentContext): void {
     this.activePointers.delete(event.pointerId);
 
-    // 双指捏合释放处理
-    if (this.isPinching) {
+    // 1. 双指捏合缩放释放与单指防抖冷却
+    if (this.session.kind === 'pinch-zoom') {
       if (this.activePointers.size === 0) {
-        this.isPinching = false;
-        this.pinchCooldown = false;
-        this.isOrbitDragging = false;
-        this.isConnectingDrag = false;
-        this.isCancellingOutside = false;
-        this.dragStartKp = null;
-        this.isPointerDown = false;
-        this.hasMovedPastDragThreshold = false;
+        this.session = { kind: 'idle' };
         this.callbacks.onGuidanceChange?.(`缩放完成 · 当前: ${Math.round(this.mesh.getScale() * 100)}%`, 'success');
       } else {
-        // 其中一指抬起：保持捏合冷却状态，禁止剩余手指突然触发旋转与误触
-        this.isPinching = false;
-        this.pinchCooldown = true;
-        this.isOrbitDragging = false;
-        this.isConnectingDrag = false;
-        this.isCancellingOutside = false;
-        this.dragStartKp = null;
-        this.isPointerDown = false;
-        this.hasMovedPastDragThreshold = false;
+        this.session = { kind: 'pinch-cooldown' };
       }
       return;
     }
 
-    if (this.pinchCooldown) {
+    if (this.session.kind === 'pinch-cooldown') {
       if (this.activePointers.size === 0) {
-        this.pinchCooldown = false;
+        this.session = { kind: 'idle' };
       }
       return;
     }
 
-    if (!this.isPointerDown) return;
-    this.isPointerDown = false;
+    if (this.session.kind === 'idle') return;
 
-    if (this.isCancellingOutside) {
-      this.isCancellingOutside = false;
-      this.isPointerDownOnModel = false;
+    const prevSession = this.session;
+    this.session = { kind: 'idle' };
+
+    // 2. 模型外部空白区释放：旋转自然收尾（松手保留丝滑阻尼惯性）
+    if (prevSession.kind === 'orbit-outside') {
       return;
     }
 
-    const tapSlop = this.getEffectiveTapSlop(event);
-    const snapThreshold = this.getEffectiveSnapThreshold(event);
-    const dist = Math.hypot(event.clientX - this.pointerDownX, event.clientY - this.pointerDownY);
+    const tapSlop = this.getEffectiveTapSlop(prevSession.isVision, prevSession.isTouch);
+    const dist = Math.hypot(event.clientX - prevSession.downX, event.clientY - prevSession.downY);
+    const duration = performance.now() - prevSession.downTime;
 
-    // ==========================================
-    // 分支 1: 关键点按下后的释放 (拖拽接线 / 轻触选点)
-    // ==========================================
-    if (this.isConnectingDrag && this.dragStartKp) {
-      const startKp = this.dragStartKp;
-      this.isConnectingDrag = false;
-      this.dragStartKp = null;
-      this.isOrbitDragging = false;
-      this.hasMovedPastDragThreshold = false;
-      this.isPointerDownOnModel = false;
+    // 3. 关键点交互释放：兼顾“轻触点击选点/连线”与“按住起点直接拖至终点连线”
+    if (prevSession.kind === 'point-gesture') {
+      const startKp = prevSession.startKp;
+      const endResolved = this.resolvePointerTarget(
+        event.clientX,
+        event.clientY,
+        null,
+        prevSession.isVision,
+        prevSession.isTouch,
+        context,
+        1.15
+      );
 
-      // 1.1 若位移在轻触容差内 (Tap Slop)：判定为轻触点击选定/连接该关键点！
-      if (dist <= tapSlop) {
+      // 3.1 若拖拽到了另一个有效关键点且超出点击容差 -> 直接完成两点连线！
+      if (dist > tapSlop && endResolved.keyPoint && endResolved.keyPoint.id !== startKp.id) {
+        if (this.currentMode === 'three-point-cut' || this.currentMode === 'set-origin') {
+          this.handleClickOnPoint(endResolved.keyPoint);
+          return;
+        }
+        if (!this.chainStartPoint) {
+          this.chainStartPoint = startKp;
+        }
+        const { segment, faceCreated } = this.connectTwoPoints(startKp, endResolved.keyPoint);
+        if (segment && !faceCreated && endResolved.keyPoint.id !== this.chainStartPoint?.id) {
+          this.pendingStartPoint = endResolved.keyPoint;
+          this.mesh.setSelectedKeyPoints([endResolved.keyPoint.id]);
+          this.mesh.clearPreviewWire();
+        } else {
+          this.resetSelection(true);
+        }
+        return;
+      }
+
+      // 3.2 宽容轻触判定：
+      // - 位移在 tapSlop 内；或
+      // - 松开时依然吸附在同一关键点上；或
+      // - 隔空捏合张开手指引起的自然回弹漂移（耗时 <= 550ms 且未拖出模型外远处）
+      const isForgivingTap =
+        dist <= tapSlop ||
+        endResolved.keyPoint?.id === startKp.id ||
+        (prevSession.isVision && duration <= 550 && dist <= tapSlop * 1.75 && endResolved.isHittingSurface);
+
+      if (isForgivingTap) {
         this.handleClickOnPoint(startKp);
         return;
       }
 
-      // 1.2 若位移超出轻触容差：判定为拖拽接线释放或两步连线第 2 点微颤释放
-      if (context?.camera) {
-        const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
-        this.internalRaycaster.setFromCamera(mouseNDC, context.camera);
-        const snapRes = this.mesh.findClosestSnapPoint(this.internalRaycaster.ray, snapThreshold * 1.15, {
-          onlyOnEdgeOrLine: true,
-        });
-
-        if (snapRes && snapRes.keyPoint.id !== startKp.id) {
-          // 从起点直接拖拽至目标点释放 -> 成功连线！
-          if (!this.chainStartPoint) {
-            this.chainStartPoint = startKp;
-          }
-          const { segment, faceCreated } = this.connectTwoPoints(startKp, snapRes.keyPoint);
-          if (segment && !faceCreated && snapRes.keyPoint.id !== this.chainStartPoint?.id) {
-            // 完成一根线的接线后不要断开，以上一段的终点作为起点继续接，直到完成一个平面
-            this.pendingStartPoint = snapRes.keyPoint;
-            this.mesh.setSelectedKeyPoints([snapRes.keyPoint.id]);
-            this.mesh.clearPreviewWire();
-          } else {
-            this.resetSelection(true);
-          }
-          return;
-        }
-
-        // 若此前已选定了起点 A，用户在目标点 B 按下时手部产生微颤 (> tapSlop) 但仍停留在 B 附近释放 -> 直接完成 A-B 连线！
-        if (
-          this.pendingStartPoint &&
-          this.pendingStartPoint.id !== startKp.id &&
-          (!snapRes || snapRes.keyPoint.id === startKp.id) &&
-          dist <= tapSlop * 2.2
-        ) {
-          this.handleClickOnPoint(startKp);
-          return;
-        }
-      }
-
-      // 拖出空白处松手：取消连线预览
-      this.resetSelection();
-      this.callbacks.onGuidanceChange?.('未对准有效目标点，已取消连线', 'info');
-      return;
-    }
-
-    // ==========================================
-    // 分支 2: 在模型外部拖拽旋转模型释放（或显式 'orbit' 模式释放）
-    // ==========================================
-    if (this.isOrbitDragging) {
-      this.isOrbitDragging = false;
-      this.hasMovedPastDragThreshold = false;
-      this.isPointerDownOnModel = false;
-      return;
-    }
-
-    // ==========================================
-    // 分支 3: 在模型外部空白处轻触释放（未发生旋转拖拽）
-    // ==========================================
-    if (!this.isPointerDownOnModel) {
-      this.isOrbitDragging = false;
-      this.hasMovedPastDragThreshold = false;
-      if (this.pendingStartPoint || this.selectedCutPoints.length > 0) {
-        this.resetSelection();
+      // 3.3 明确将线段拖出到空白处放弃：若此前已有待连起点则仅清理本次预览，否则复位
+      this.mesh.clearPreviewWire();
+      if (!this.pendingStartPoint) {
+        this.resetSelection(true);
+        this.callbacks.onGuidanceChange?.('未对准有效目标点，已取消连线', 'info');
       }
       return;
     }
 
-    // ==========================================
-    // 分支 4: 在模型非关键点处按下后的释放（轻触或滑向目标点完成接线，绝不旋转）
-    // ==========================================
-    const movedPastDrag = this.hasMovedPastDragThreshold;
-    this.isOrbitDragging = false;
-    this.hasMovedPastDragThreshold = false;
-    this.isPointerDownOnModel = false;
-
-    if (context?.camera) {
-      const mouseNDC = labPointerNDC(event, context?.renderer?.domElement);
-      this.internalRaycaster.setFromCamera(mouseNDC, context.camera);
-      const snapRes = this.mesh.findClosestSnapPoint(this.internalRaycaster.ray, snapThreshold, {
-        onlyOnEdgeOrLine: true,
-      });
-
-      // 若已有待连起点 A，用户在模型上按下并滑到目标点 B 松手 -> 顺畅完成 A-B 连线！
-      if (this.pendingStartPoint && snapRes?.keyPoint && snapRes.keyPoint.id !== this.pendingStartPoint.id) {
-        this.handleClickOnPoint(snapRes.keyPoint);
+    // 4. 模型晶面内部释放：
+    // - 若滑到了某个有效目标点且已有待连起点 -> 顺畅完成接线！
+    // - 若不小心点偏在晶面上 -> 绝不误清已选起点 pendingStartPoint，让用户从容再点目标点！
+    if (prevSession.kind === 'model-surface') {
+      if (prevSession.orbiting) {
         return;
       }
 
-      if (dist <= tapSlop && snapRes?.keyPoint) {
-        this.handleClickOnPoint(snapRes.keyPoint);
+      const endResolved = this.resolvePointerTarget(
+        event.clientX,
+        event.clientY,
+        null,
+        prevSession.isVision,
+        prevSession.isTouch,
+        context,
+        1.10
+      );
+
+      if (this.pendingStartPoint && endResolved.keyPoint && endResolved.keyPoint.id !== this.pendingStartPoint.id) {
+        this.handleClickOnPoint(endResolved.keyPoint);
         return;
       }
-    }
 
-    if (movedPastDrag && dist > tapSlop) {
-      this.callbacks.onGuidanceChange?.('请从棱上端点、中点 (1/2) 或三等分点 (1/3) 按下接线 · 在模型外空白处滑动可旋转视角', 'info');
-      return;
-    }
+      if (dist <= tapSlop && endResolved.keyPoint) {
+        this.handleClickOnPoint(endResolved.keyPoint);
+        return;
+      }
 
-    if (this.pendingStartPoint) {
-      // 若已有选中的起点，轻触模型非关键点空白面取消选择
-      this.resetSelection();
-    } else if (this.selectedCutPoints.length > 0) {
-      this.resetSelection();
-    } else {
-      this.callbacks.onGuidanceChange?.('起点须在线上，请轻触棱上端点、中点 (1/2) 或三等分点 (1/3)', 'info');
+      if (this.pendingStartPoint) {
+        // 保护已选起点不被晶面误触擦除
+        this.callbacks.onGuidanceChange?.(
+          `已保留起点 ${this.pendingStartPoint.label} · 请对准棱上顶点/中点/三等分点接线 (在模型外捏合停止)`,
+          'info'
+        );
+      } else {
+        this.callbacks.onGuidanceChange?.(
+          '起点须在线上，请轻触棱上端点、中点 (1/2) 或三等分点 (1/3)',
+          'info'
+        );
+      }
     }
   }
 
-  /**
-   * 处理关键点的点击事件。
-   */
+  private renderSnappedPreview(
+    startKp: KeyPoint,
+    targetKp: KeyPoint,
+    snapLabel: string,
+    camera: THREE.Camera,
+    isDragging: boolean
+  ): void {
+    const len = startKp.position.distanceTo(targetKp.position);
+    const badgeText = this.mesh.formatNormalizedDistance(len);
+    this.mesh.updatePreviewWire(
+      startKp.position,
+      targetKp.position,
+      0x7c3aed,
+      badgeText,
+      camera,
+      { snapped: true, smooth: false }
+    );
+    this.mesh.setHoveredKeyPoint(targetKp.id, snapLabel);
+    const snapColor = this.getKeyPointColor(targetKp);
+    const actionVerb = isDragging ? '松手完成接线' : '轻触完成接线';
+    this.callbacks.onGuidanceChange?.(
+      `起点 ${startKp.label} → 目标: ${snapLabel || targetKp.label} (长: ${badgeText}) · ${actionVerb}`,
+      'active',
+      snapColor
+    );
+  }
+
+  // -------------------------------------------------------------
+  // 选点与空间连线核心业务规则
+  // -------------------------------------------------------------
   private handleClickOnPoint(kp: KeyPoint): void {
     if (this.currentMode === 'three-point-cut') {
-      // 截面剖切定面模式
       const idx = this.selectedCutPoints.findIndex((p) => p.id === kp.id);
       if (idx !== -1) {
         this.selectedCutPoints.splice(idx, 1);
@@ -889,20 +1117,19 @@ export class StereometryInteractionManager {
       return;
     }
 
-    // 默认及两点连线模式：两点连线
     if (!this.pendingStartPoint) {
-      // 第一次点击：选择连线起点
       this.chainStartPoint = kp;
       this.pendingStartPoint = kp;
       this.mesh.setSelectedKeyPoints([kp.id]);
-      this.callbacks.onGuidanceChange?.(`已选起点 ${kp.label} · 移动至目标点完成接线 (在模型外捏合或轻触可停止)`, 'info');
+      this.callbacks.onGuidanceChange?.(
+        `已选起点 ${kp.label} · 移动至目标点完成接线 (在模型外捏合或轻触可停止)`,
+        'info'
+      );
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
     } else if (this.pendingStartPoint.id === kp.id) {
-      // 再次点击相同点：取消选择
       this.resetSelection();
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
     } else {
-      // 完成连线
       const start = this.pendingStartPoint;
       if (!this.chainStartPoint) {
         this.chainStartPoint = start;
@@ -910,7 +1137,7 @@ export class StereometryInteractionManager {
       const { segment, faceCreated } = this.connectTwoPoints(start, kp);
       this.callbacks.onKeyPointClick?.(kp, this.currentMode);
       if (segment && !faceCreated && kp.id !== this.chainStartPoint?.id) {
-        // 完成一根线的接线后不要断开，以上一段的终点作为起点继续接，直到完成一个平面
+        // 连续接线：以上一段终点作为新起点继续接，直至闭合生成平面或在模型外捏合终止
         this.pendingStartPoint = kp;
         this.mesh.setSelectedKeyPoints([kp.id]);
         this.mesh.clearPreviewWire();
@@ -920,9 +1147,6 @@ export class StereometryInteractionManager {
     }
   }
 
-  /**
-   * 在两个关键点之间创建空间线段。
-   */
   private connectTwoPoints(p1: KeyPoint, p2: KeyPoint): { segment: any; faceCreated: boolean } {
     const prevFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
     const seg = this.mesh.addSegment(p1.id, p2.id);
@@ -956,18 +1180,154 @@ export class StereometryInteractionManager {
     return 0x38bdf8;
   }
 
+  // -------------------------------------------------------------
+  // 丝滑轨道旋转与帧率无关指数阻尼 (支持右手外部拖拽 + 左手长捏合旋转)
+  // -------------------------------------------------------------
+  private syncTargetRotationWithMesh(): void {
+    if (this.mesh?.modelContainer?.rotation) {
+      this.targetRotationX = this.mesh.modelContainer.rotation.x;
+      this.targetRotationY = this.mesh.modelContainer.rotation.y;
+    }
+  }
+
+  private applyPointerOrbitDelta(dx: number, dy: number): void {
+    const moveDist = Math.hypot(dx, dy);
+    if (moveDist < 0.4) return;
+
+    const rotSpeed = 0.0054;
+    const stepY = dx * rotSpeed;
+    const stepX = dy * rotSpeed;
+
+    this.targetRotationY += stepY;
+    this.targetRotationX = THREE.MathUtils.clamp(
+      this.targetRotationX + stepX,
+      -Math.PI * 0.42,
+      Math.PI * 0.42
+    );
+
+    // 同步推进 50% 位移保证零延迟跟手性，剩余 50% 由 update() 指数平滑收敛
+    const immediateRatio = 0.50;
+    this.mesh.modelContainer.rotation.y +=
+      (this.targetRotationY - this.mesh.modelContainer.rotation.y) * immediateRatio;
+    this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
+      this.mesh.modelContainer.rotation.x +
+        (this.targetRotationX - this.mesh.modelContainer.rotation.x) * immediateRatio,
+      -Math.PI * 0.42,
+      Math.PI * 0.42
+    );
+
+    const vx = THREE.MathUtils.clamp(this.rotationVelocity.x * 0.4 + stepY * 0.6, -0.055, 0.055);
+    const vy = THREE.MathUtils.clamp(this.rotationVelocity.y * 0.4 + stepX * 0.6, -0.055, 0.055);
+    this.rotationVelocity.set(vx, vy);
+  }
+
   /**
-   * 滚轮缩放事件处理器。
+   * 外部手势（如左手长捏合）平滑驱动 3D 几何体旋转，无需转动实验室房间视角。
    */
+  public orbitByDelta(dx: number, dy: number): void {
+    if (Math.hypot(dx, dy) < 0.3) return;
+    if (
+      Math.abs(this.targetRotationY - this.mesh.modelContainer.rotation.y) > 0.35 ||
+      Math.abs(this.targetRotationX - this.mesh.modelContainer.rotation.x) > 0.35
+    ) {
+      this.syncTargetRotationWithMesh();
+    }
+    const rotSpeed = 0.0048;
+    this.targetRotationY += dx * rotSpeed;
+    this.targetRotationX = THREE.MathUtils.clamp(
+      this.targetRotationX + dy * rotSpeed,
+      -Math.PI * 0.42,
+      Math.PI * 0.42
+    );
+    this.rotationVelocity.set(0, 0);
+  }
+
+  public update(delta: number): void {
+    const dt = Math.max(0, Math.min(delta, 0.1));
+    if (dt <= 0) return;
+
+    if (!this.isOrbitDragging && this.rotationVelocity.lengthSq() > 1e-8) {
+      const frameScale = dt * 60;
+      this.targetRotationY += this.rotationVelocity.x * frameScale;
+      this.targetRotationX = THREE.MathUtils.clamp(
+        this.targetRotationX + this.rotationVelocity.y * frameScale,
+        -Math.PI * 0.42,
+        Math.PI * 0.42
+      );
+      const decay = Math.exp(-6.5 * dt);
+      this.rotationVelocity.multiplyScalar(decay);
+      if (this.rotationVelocity.lengthSq() < 1e-8) {
+        this.rotationVelocity.set(0, 0);
+      }
+    }
+
+    const diffY = this.targetRotationY - this.mesh.modelContainer.rotation.y;
+    const diffX = this.targetRotationX - this.mesh.modelContainer.rotation.x;
+    if (Math.abs(diffY) > 1e-5 || Math.abs(diffX) > 1e-5) {
+      const alpha = 1 - Math.exp(-24 * dt);
+      this.mesh.modelContainer.rotation.y += diffY * alpha;
+      this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
+        this.mesh.modelContainer.rotation.x + diffX * alpha,
+        -Math.PI * 0.42,
+        Math.PI * 0.42
+      );
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 标准视角预设、缩放、键盘与多端事件适配
+  // -------------------------------------------------------------
+  public resetToIsometricView(): void {
+    this.mesh.modelContainer.rotation.set(0.12, 0.42, 0);
+    this.targetRotationX = 0.12;
+    this.targetRotationY = 0.42;
+    this.rotationVelocity.set(0, 0);
+  }
+
+  public resetToTextbookObliqueView(): void {
+    this.mesh.modelContainer.rotation.set(0.22, -0.34, 0);
+    this.targetRotationX = 0.22;
+    this.targetRotationY = -0.34;
+    this.rotationVelocity.set(0, 0);
+  }
+
+  public resetToFrontView(): void {
+    this.mesh.modelContainer.rotation.set(0, 0, 0);
+    this.targetRotationX = 0;
+    this.targetRotationY = 0;
+    this.rotationVelocity.set(0, 0);
+  }
+
+  public resetToSideView(): void {
+    this.mesh.modelContainer.rotation.set(0, Math.PI / 2, 0);
+    this.targetRotationX = 0;
+    this.targetRotationY = Math.PI / 2;
+    this.rotationVelocity.set(0, 0);
+  }
+
+  public resetToTopView(): void {
+    this.mesh.modelContainer.rotation.set(-Math.PI / 2, 0, 0);
+    this.targetRotationX = -Math.PI / 2;
+    this.targetRotationY = 0;
+    this.rotationVelocity.set(0, 0);
+  }
+
+  public onPointerCancel(event: PointerEvent): void {
+    this.activePointers.delete(event.pointerId);
+    if (this.activePointers.size === 0) {
+      this.session = { kind: 'idle' };
+      if (!this.pendingStartPoint) {
+        this.mesh?.clearPreviewWire();
+      }
+    }
+  }
+
   public onWheel(event: WheelEvent): void {
     const factor = event.deltaY < 0 ? 1.08 : 0.92;
     const newScale = this.mesh.zoom(factor);
     this.callbacks.onScaleChange?.(newScale);
   }
 
-  /**
-   * 键盘快捷键（缩放与操作撤销）。
-   */
   public onKeyDown(event: KeyboardEvent): boolean {
     if ((event.code === 'KeyZ' && (event.metaKey || event.ctrlKey)) || event.code === 'Backspace') {
       event.preventDefault();
@@ -1032,15 +1392,14 @@ export class StereometryInteractionManager {
     return false;
   }
 
-  /**
-   * 状态栏实时交互引导文案。
-   */
   public getInteractionHint(): string {
     if (this.currentMode === 'three-point-cut') {
       const count = this.selectedCutPoints.length;
       if (count === 0) return '剖切模式：请点击第 1 个点';
       if (count === 1) return `剖切模式：已选 [${this.selectedCutPoints[0].label}]，请点击第 2 个点`;
-      if (count === 2) return `剖切模式：已选 [${this.selectedCutPoints[0].label}, ${this.selectedCutPoints[1].label}]，请点击第 3 个点剖切`;
+      if (count === 2) {
+        return `剖切模式：已选 [${this.selectedCutPoints[0].label}, ${this.selectedCutPoints[1].label}]，请点击第 3 个点剖切`;
+      }
     }
 
     if (this.pendingStartPoint) {
@@ -1055,132 +1414,21 @@ export class StereometryInteractionManager {
       return `吸附到: ${this.currentSnapLabel} · 轻触选为起点或拖拽接线`;
     }
 
-    return '在模型上轻触或拖拽棱上端点/中点/三等分点接线 · 在模型外空白处滑动旋转视角';
+    return '右手在模型上捏合端点/中点/三等分点接线 · 右手在模型外捏合拖拽旋转模型 · 左手长捏合转动视角';
   }
 
-  /**
-   * 每帧持续动画更新（手势旋转平滑阻尼与松手惯性阻尼）。
-   */
-  public update(delta: number): void {
-    const dt = Math.min(delta, 0.1);
-
-    if (this.isOrbitDragging) {
-      // 拖拽过程中以高阶指数阻尼平滑逼近 targetRotation，彻底消除手势追踪 24-30Hz 阶跃与微颤
-      if (
-        Math.abs(this.targetRotationY - this.mesh.modelContainer.rotation.y) > 1e-4 ||
-        Math.abs(this.targetRotationX - this.mesh.modelContainer.rotation.x) > 1e-4
-      ) {
-        const rotFactor = 1 - Math.exp(-26 * dt);
-        this.mesh.modelContainer.rotation.y +=
-          (this.targetRotationY - this.mesh.modelContainer.rotation.y) * rotFactor;
-        this.mesh.modelContainer.rotation.x +=
-          (this.targetRotationX - this.mesh.modelContainer.rotation.x) * rotFactor;
-        this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
-          this.mesh.modelContainer.rotation.x,
-          -Math.PI * 0.40,
-          Math.PI * 0.40
-        );
-      }
-    } else if (
-      Math.abs(this.rotationVelocity.x) > 1e-4 ||
-      Math.abs(this.rotationVelocity.y) > 1e-4
-    ) {
-      this.mesh.modelContainer.rotation.y += this.rotationVelocity.x;
-      this.mesh.modelContainer.rotation.x += this.rotationVelocity.y;
-      this.mesh.modelContainer.rotation.x = THREE.MathUtils.clamp(
-        this.mesh.modelContainer.rotation.x,
-        -Math.PI * 0.40,
-        Math.PI * 0.40
-      );
-      this.targetRotationX = this.mesh.modelContainer.rotation.x;
-      this.targetRotationY = this.mesh.modelContainer.rotation.y;
-
-      // 惯性阻尼衰减
-      const damping = Math.max(0, 1 - dt * 4.5);
-      this.rotationVelocity.multiplyScalar(damping);
-    }
-  }
-
-  /**
-   * 重置旋转至课本标准直观图斜二测视角（底面水平、侧棱竖直）。
-   */
-  public resetToIsometricView(): void {
-    this.mesh.modelContainer.rotation.set(0.12, 0.42, 0);
-    this.targetRotationX = 0.12;
-    this.targetRotationY = 0.42;
-    this.rotationVelocity.set(0, 0);
-  }
-
-  /**
-   * 针对拍照/识图还原模型：从【右前上方】标准教材斜二测视角观测，
-   * 使 +X 水平向右、+Y 竖直向上、+Z 向左下方延伸，虚实棱遮挡与试卷印刷图完全一致。
-   */
-  public resetToTextbookObliqueView(): void {
-    this.mesh.modelContainer.rotation.set(0.22, -0.34, 0);
-    this.targetRotationX = 0.22;
-    this.targetRotationY = -0.34;
-    this.rotationVelocity.set(0, 0);
-  }
-
-  public resetToFrontView(): void {
-    this.mesh.modelContainer.rotation.set(0, 0, 0);
-    this.targetRotationX = 0;
-    this.targetRotationY = 0;
-    this.rotationVelocity.set(0, 0);
-  }
-
-  public resetToSideView(): void {
-    this.mesh.modelContainer.rotation.set(0, Math.PI / 2, 0);
-    this.targetRotationX = 0;
-    this.targetRotationY = Math.PI / 2;
-    this.rotationVelocity.set(0, 0);
-  }
-
-  public resetToTopView(): void {
-    this.mesh.modelContainer.rotation.set(-Math.PI / 2, 0, 0);
-    this.targetRotationX = -Math.PI / 2;
-    this.targetRotationY = 0;
-    this.rotationVelocity.set(0, 0);
-  }
-
-  /**
-   * 指针取消事件钩子。
-   */
-  public onPointerCancel(event: PointerEvent): void {
-    this.activePointers.delete(event.pointerId);
-    if (this.activePointers.size < 2) {
-      this.isPinching = false;
-    }
-    if (this.activePointers.size === 0) {
-      this.isPointerDown = false;
-      this.isOrbitDragging = false;
-      this.isConnectingDrag = false;
-      this.isCancellingOutside = false;
-      this.dragStartKp = null;
-      this.hasMovedPastDragThreshold = false;
-      this.isPointerDownOnModel = false;
-      this.pinchCooldown = false;
-      if (!this.pendingStartPoint) {
-        this.mesh?.clearPreviewWire();
-      }
-    }
-  }
-
-  /**
-   * iPad 与触控屏幕的原生 Touch 触摸事件处理器。
-   */
   public onTouchStart(event: TouchEvent, _context?: ExperimentContext): boolean {
     if (event.touches.length >= 2) {
       const t1 = event.touches[0];
       const t2 = event.touches[1];
-      this.isPinching = true;
-      this.isOrbitDragging = false;
-      this.hasMovedPastDragThreshold = false;
+      const initialDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const initialScale = this.mesh.getScale();
+      this.session = { kind: 'pinch-zoom', initialDist, initialScale };
       this.mesh.setHoveredKeyPoint(null);
-      this.mesh.clearPreviewWire();
-      this.initialPinchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      this.initialPinchScale = this.mesh.getScale();
-      this.callbacks.onGuidanceChange?.(`双指捏合缩放 · 当前: ${Math.round(this.initialPinchScale * 100)}%`, 'info');
+      if (!this.pendingStartPoint) {
+        this.mesh.clearPreviewWire();
+      }
+      this.callbacks.onGuidanceChange?.(`双指捏合缩放 · 当前: ${Math.round(initialScale * 100)}%`, 'info');
       if (event.cancelable) event.preventDefault();
       return true;
     }
@@ -1192,14 +1440,12 @@ export class StereometryInteractionManager {
       const t1 = event.touches[0];
       const t2 = event.touches[1];
       const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      if (!this.isPinching) {
-        this.isPinching = true;
-        this.initialPinchDist = currentDist;
-        this.initialPinchScale = this.mesh.getScale();
+      if (this.session.kind !== 'pinch-zoom') {
+        this.session = { kind: 'pinch-zoom', initialDist: currentDist, initialScale: this.mesh.getScale() };
       }
-      if (this.initialPinchDist > 5) {
-        const factor = currentDist / this.initialPinchDist;
-        const newScale = THREE.MathUtils.clamp(this.initialPinchScale * factor, 0.35, 3.0);
+      if (this.session.initialDist > 5) {
+        const factor = currentDist / this.session.initialDist;
+        const newScale = THREE.MathUtils.clamp(this.session.initialScale * factor, 0.35, 3.0);
         this.mesh.setScale(newScale);
         this.callbacks.onScaleChange?.(newScale);
         this.callbacks.onGuidanceChange?.(`立体几何缩放: ${Math.round(newScale * 100)}%`, 'active');
@@ -1211,45 +1457,29 @@ export class StereometryInteractionManager {
   }
 
   public onTouchEnd(event: TouchEvent, _context?: ExperimentContext): void {
-    if (this.isPinching && event.touches.length < 2) {
-      this.isPinching = false;
-      this.isOrbitDragging = false;
-      this.hasMovedPastDragThreshold = false;
-      if (event.touches.length === 1) {
-        this.lastPointerX = event.touches[0].clientX;
-        this.lastPointerY = event.touches[0].clientY;
-        this.pointerDownX = event.touches[0].clientX;
-        this.pointerDownY = event.touches[0].clientY;
-      }
+    if (this.session.kind === 'pinch-zoom' && event.touches.length < 2) {
+      this.session = event.touches.length === 0 ? { kind: 'idle' } : { kind: 'pinch-cooldown' };
       this.callbacks.onGuidanceChange?.(`缩放完成 · 当前: ${Math.round(this.mesh.getScale() * 100)}%`, 'success');
+    } else if (this.session.kind === 'pinch-cooldown' && event.touches.length === 0) {
+      this.session = { kind: 'idle' };
     }
   }
 
   public onTouchCancel(_event: TouchEvent): void {
-    this.isPinching = false;
-    this.pinchCooldown = false;
-    this.isOrbitDragging = false;
-    this.isConnectingDrag = false;
-    this.isCancellingOutside = false;
-    this.dragStartKp = null;
-    this.hasMovedPastDragThreshold = false;
-    this.isPointerDownOnModel = false;
+    this.session = { kind: 'idle' };
+    this.activePointers.clear();
   }
 
-  /**
-   * Safari WebKit 手势处理器 (iPadOS)。
-   */
   public onGestureStart(event: any): void {
-    this.isPinching = true;
-    this.initialPinchScale = this.mesh.getScale();
+    this.session = { kind: 'pinch-zoom', initialDist: 100, initialScale: this.mesh.getScale() };
     if (typeof event.preventDefault === 'function' && event.cancelable) {
       event.preventDefault();
     }
   }
 
   public onGestureChange(event: any): void {
-    if (this.isPinching && typeof event.scale === 'number') {
-      const newScale = THREE.MathUtils.clamp(this.initialPinchScale * event.scale, 0.35, 3.0);
+    if (this.session.kind === 'pinch-zoom' && typeof event.scale === 'number') {
+      const newScale = THREE.MathUtils.clamp(this.session.initialScale * event.scale, 0.35, 3.0);
       this.mesh.setScale(newScale);
       this.callbacks.onScaleChange?.(newScale);
       this.callbacks.onGuidanceChange?.(`立体几何缩放: ${Math.round(newScale * 100)}%`, 'active');
@@ -1260,8 +1490,8 @@ export class StereometryInteractionManager {
   }
 
   public onGestureEnd(event: any): void {
-    if (this.isPinching) {
-      this.isPinching = false;
+    if (this.session.kind === 'pinch-zoom') {
+      this.session = { kind: 'idle' };
       this.callbacks.onGuidanceChange?.(`缩放完成 · 当前: ${Math.round(this.mesh.getScale() * 100)}%`, 'success');
       if (typeof event.preventDefault === 'function' && event.cancelable) {
         event.preventDefault();
@@ -1269,9 +1499,6 @@ export class StereometryInteractionManager {
     }
   }
 
-  /**
-   * 编程式与触控 UI 缩放方法。
-   */
   public zoomIn(factor = 1.10): number {
     const newScale = this.mesh.zoom(factor);
     this.callbacks.onScaleChange?.(newScale);
@@ -1305,35 +1532,28 @@ export class StereometryInteractionManager {
   }
 
   public isPinchingActive(): boolean {
-    return this.isPinching;
+    return this.session.kind === 'pinch-zoom';
   }
 
   /**
-   * 隔空手势帧响应：检测右手在立体几何模型外部区域捏合以终止接线
+   * 隔空手势帧同步兜底（无冗余冲突设计）：
+   * 当 VisionProCursor 已通过标准 PointerEvent 接管本次捏合 (this.session.kind !== 'idle') 时绝不重复干预，
+   * 彻底根除“捏合外侧顶点/标号刚被 onPointerDown 捕获，同一帧又被 onHandGestureFrame 误判为模型外清空”的自相矛盾缺陷。
    */
   public onHandGestureFrame(frame: any, context?: ExperimentContext): void {
-    if (!frame) return;
+    if (!frame || this.session.kind !== 'idle') return;
     const right = frame.rightHand || (frame.hasHand && !frame.leftHand ? frame : null);
-    if (!right) return;
+    if (!right || !right.justPinchStarted || !this.pendingStartPoint) return;
 
-    // 当右手触发捏合且当前正处于接线状态（已有起点或正在拖拽接线）时响应
-    if (right.justPinchStarted && (this.pendingStartPoint !== null || this.isConnectingDrag)) {
-      if (context?.camera && typeof this.mesh.isRayHittingModel === 'function') {
-        const mouseNDC = labPointerNDC(
-          { clientX: right.screenX, clientY: right.screenY },
-          context?.renderer?.domElement
-        );
-        this.internalRaycaster.setFromCamera(mouseNDC, context.camera);
-        const hitting = this.mesh.isRayHittingModel(this.internalRaycaster.ray);
-        if (!hitting) {
-          this.resetSelection(true);
-          this.callbacks.onGuidanceChange?.('右手在模型外捏合，接线已停止', 'info');
-        }
-      } else if (!context?.camera) {
-        // 无相机上下文测试环境
+    if (context?.camera) {
+      const resolved = this.resolvePointerTarget(right.screenX, right.screenY, null, true, false, context);
+      if (resolved.zone === 'outside') {
         this.resetSelection(true);
         this.callbacks.onGuidanceChange?.('右手在模型外捏合，接线已停止', 'info');
       }
+    } else {
+      this.resetSelection(true);
+      this.callbacks.onGuidanceChange?.('右手在模型外捏合，接线已停止', 'info');
     }
   }
 }

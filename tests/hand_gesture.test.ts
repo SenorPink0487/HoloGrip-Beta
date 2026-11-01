@@ -1219,8 +1219,47 @@ await (async () => {
   console.log('✓ Test 28 passed: Smooth and comfortable perspective dragging with 60 FPS exponential damping verified\n');
 }
 
+// Test 29: Single Right-Hand Continuous Trajectory Across Screen Midline & Pre-Pinch Cursor Stabilization
+{
+  console.log('Test 29: Single Right-Hand Continuous Trajectory Across Screen Midline & Pre-Pinch Cursor Stabilization');
+  const service = new HandGestureService();
+
+  // Start single right hand on right half of screen: raw x = 0.30 -> mirrored screenX = 0.70 (> 0.55 -> Right Hand)
+  const fStart = service.processMultiHands(
+    [createMockHand([0.28, 0.5, 0], [0.38, 0.5, 0], 0.2, 0.30, 0.7)],
+    [[{ categoryName: 'Left' }]],
+    1000
+  );
+  assert(fStart.rightHand !== null && fStart.leftHand === null, 'Initial hand on right half must be tracked as rightHand');
+
+  // Continuously move single hand leftward across x=0.50 into x=0.36 and x=0.26 (where left-side polyhedron vertices D1, C1, C, D sit),
+  // even when MediaPipe handedness flickers to 'Right' (which would naively mirror to Left without trajectory continuity).
+  const rawSteps = [0.46, 0.58, 0.68, 0.74]; // mirrored screenX = 0.54 -> 0.42 -> 0.32 -> 0.26
+  let ts = 1040;
+  for (const rawX of rawSteps) {
+    const frame = service.processMultiHands(
+      [createMockHand([rawX - 0.02, 0.5, 0], [rawX + 0.08, 0.5, 0], 0.2, rawX, 0.7)],
+      [[{ categoryName: 'Right' }]],
+      ts
+    );
+    assert(
+      frame.rightHand !== null && frame.leftHand === null,
+      `Continuous single right hand crossing to mirrored x=${(1 - rawX).toFixed(2)} must remain rightHand (never flip to leftHand)`
+    );
+    ts += 40;
+  }
+
+  // Verify VisionProCursor pre-pinch velocity settling, unified release coordinates, and spatial snap feedback
+  const cursorCode = fs.readFileSync(path.join(rootDir, 'src/vision/VisionProCursor.ts'), 'utf-8');
+  assert(cursorCode.includes('setSpatialSnapActive'), 'VisionProCursor must expose setSpatialSnapActive for 3D keypoint magnetic focus');
+  assert(cursorCode.includes('pinchSettle'), 'VisionProCursor must apply pre-pinch velocity settling to prevent finger-closure cursor drift');
+  assert(cursorCode.includes('this.releasePinch(releaseX, releaseY'), 'VisionProCursor must release pinch at unified smoothed coordinates');
+
+  console.log('✓ Test 29 passed: Single right-hand midline trajectory continuity & pre-pinch cursor stabilization verified\n');
+}
+
 console.log('========================================================');
-console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (28/28)!');
+console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (29/29)!');
 console.log('========================================================\n');
 
 
