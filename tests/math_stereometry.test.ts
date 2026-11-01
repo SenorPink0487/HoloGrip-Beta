@@ -536,14 +536,14 @@ assert.notStrictEqual(crossSectionMat.color.getHex(), 0xffffff, 'Cross section f
 assert.notStrictEqual(vertexMat.color.getHex(), 0xffffff, 'Vertex nodes must not be pure white');
 
 // 2. Specific signature color hex checks
-assert.strictEqual(frontMat.color.getHex(), 0x0284c7, 'Front faces must be Azure Crystal (0x0284c7)');
+assert.strictEqual(frontMat.color.getHex(), 0x4f8eff, 'Front faces must be Glacier Blue (0x4f8eff)');
 assert.strictEqual(dashedMat.color.getHex(), 0xf59e0b, 'Dashed edges must be Warm Amber Gold (0xf59e0b)');
-assert.strictEqual(strutMat.color.getHex(), 0x0284c7, 'Struts must be Cobalt-Titanium (0x0284c7)');
-assert.strictEqual(crossSectionMat.color.getHex(), 0xf43f5e, 'Cross section must be Coral Rose (0xf43f5e)');
+assert.strictEqual(strutMat.color.getHex(), 0x3b82f6, 'Struts must be Electric Blue (0x3b82f6)');
+assert.strictEqual(crossSectionMat.color.getHex(), 0x8b5cf6, 'Cross section must be Electric Purple (0x8b5cf6)');
 assert.strictEqual(midpointMat.color.getHex(), 0xf59e0b, '1/2 midpoints must be Amber Gold (0xf59e0b)');
 assert.strictEqual(thirdMat.color.getHex(), 0x10b981, '1/3 trisection points must be Mint Emerald (0x10b981)');
 
-console.log('  Azure Crystal (0x0284c7), Amber Dashed Lines (0xf59e0b), Coral Cross-Section (0xf43f5e) verified');
+console.log('  Glacier Ice Blue (0x4f8eff), Amber Dashed Lines (0xf59e0b), Electric Purple Cross-Section (0x8b5cf6) verified');
 console.log('✓ Test 13 passed: High-contrast color palette verified\n');
 
 // -------------------------------------------------------------
@@ -657,9 +657,17 @@ assert.strictEqual(anims.length, 0, 'Animation must complete after duration');
 const permSegs = animMesh.getSegments();
 assert.strictEqual(permSegs.length, 1, 'Permanent segment AB must remain');
 
+// 核心验证：接线完成后，线的长度标志不要消失 (检查持久保留的标牌)
+const badgeGroup = animMesh.getSegmentBadgesGroup();
+assert(badgeGroup !== null, 'Segment badges group must exist');
+const badgeMap = animMesh.getSegmentBadges();
+assert(badgeMap.has(permSegs[0].id), 'Permanent length badge for segment AB must exist');
+assert.strictEqual(badgeMap.get(permSegs[0].id)!.text, '10', 'Permanent badge text must show default edge length 10');
+
 // 4. Add second segment
 const segB = animMesh.addSegment('v_4', 'v_5', 0xffd43b);
 assert.strictEqual(animMesh.getSegments().length, 2);
+assert.strictEqual(animMesh.getSegmentBadges().size, 2, 'Both segments must have permanent length badges');
 
 // 5. Undo last segment
 const undone = animMesh.undoLastSegment();
@@ -667,6 +675,7 @@ assert(undone !== null, 'Undo must return the undone segment');
 assert.strictEqual(undone!.label, 'A₁B₁');
 assert.strictEqual(animMesh.getSegments().length, 1, 'Only 1 segment should remain after undo');
 assert.strictEqual(animMesh.getSegments()[0].label, 'AB');
+assert.strictEqual(animMesh.getSegmentBadges().size, 1, 'Only segment AB badge should remain after undo');
 
 // 6. Preview wire with enlarged distance badge (normalized, no units)
 const vStart = new THREE.Vector3(0, 0, 0);
@@ -681,11 +690,16 @@ assert.strictEqual(badgeSprite.scale.x, 0.240, 'Badge sprite scale X must be enl
 assert.strictEqual(badgeSprite.scale.y, 0.080, 'Badge sprite scale Y must be enlarged to 0.080m');
 assert.strictEqual((animMesh as any).lastPreviewBadgeKey, '0.655_1096065', 'Badge key should store pure normalized distance string');
 
-// Test formatNormalizedDistance math logic: 线的长度精确到整数，都是归一化的
-assert.strictEqual(animMesh.formatNormalizedDistance(0.58), '1', 'Cube edge must normalize to integer 1');
-assert.strictEqual(animMesh.formatNormalizedDistance(0.29), '1', 'Half edge must normalize to integer 1');
-assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.SQRT2), '1', 'Face diagonal must normalize to integer 1');
-assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.sqrt(3)), '2', 'Space diagonal must normalize to integer 2');
+// 关键验证：预览取消后，已完成连线的标牌绝不消失
+animMesh.clearPreviewWire();
+assert.strictEqual(previewGroup.visible, false, 'Preview wire group is hidden');
+assert.strictEqual(animMesh.getSegmentBadges().size, 1, 'Permanent line badge still exists and does not disappear');
+
+// Test formatNormalizedDistance math logic: 默认棱长为 10，线的长度精确到整数，都是归一化的
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58), '10', 'Cube edge must normalize to integer 10');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.29), '5', 'Half edge must normalize to integer 5');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.SQRT2), '14', 'Face diagonal must normalize to integer 14');
+assert.strictEqual(animMesh.formatNormalizedDistance(0.58 * Math.sqrt(3)), '17', 'Space diagonal must normalize to integer 17');
 
 // When user modifies model dimensions (e.g. edge length a = 2)
 animMesh.setOptions({ dimensions: { a: 2, h: 2 } });
@@ -705,7 +719,7 @@ assert.strictEqual(animMesh.getScale(), 1.0, 'Visual display scale must remain u
 animMesh.zoom(1.10);
 assert(Math.abs(animMesh.getScale() - 1.10) < 1e-4, 'Scale must change only through zoom (+/- / touch)');
 animMesh.setScale(1.0);
-animMesh.setOptions({ dimensions: { a: 1, h: 1 } });
+animMesh.setOptions({ dimensions: { a: 10, h: 10 } });
 
 
 // 6.1 Perspective projection alignment: sprite rotation must match screen 2D line angle
@@ -2125,6 +2139,15 @@ labCam.lookAt(0, 1.35, 0.72);
 labCam.updateMatrixWorld(true);
 cqMesh.updateEdgeVisibility(labCam, true);
 
+// 默认立体几何外轮廓被遮挡的棱也用实线（8条棱全为纯净实线）
+const cqDefaultSolidCount = (cqMesh as any).solidEdgesMesh.geometry.drawRange.count / 2;
+const cqDefaultDashedCount = (cqMesh as any).dashedEdgesMesh.geometry.drawRange.count / 2;
+assert.strictEqual(cqDefaultSolidCount, 8, 'Default mode must show all 8 outer edges as solid lines (including occluded edges)');
+assert.strictEqual(cqDefaultDashedCount, 0, 'No dashed edges in default solid mode');
+
+// 显式开启教材虚线模式时，验证斜二测消隐判定（7条可见实线棱 + 仅后底边 DC 1条虚线棱）
+cqMesh.setOptions({ showDashedLines: true });
+cqMesh.updateEdgeVisibility(labCam, true);
 const cqVisibleCount = (cqMesh as any).solidEdgesMesh.geometry.drawRange.count / 2;
 const cqOccludedCount = (cqMesh as any).dashedEdgesMesh.geometry.drawRange.count / 2;
 assert.strictEqual(cqVisibleCount, 7, 'Textbook oblique view must show 7 visible solid edges (AB,BC,DA,EA,EB,EC,ED)');
@@ -2473,6 +2496,7 @@ console.log('Test 36: 连续接线逻辑（以上段终点为新起点直到闭�
   // 关键验证：在模型外部捏合立即终止接线！
   assert.strictEqual((mgr36 as any).pendingStartPoint, null, 'Pending start point must be cleared immediately when pinching outside model');
   assert.strictEqual(currentGuidance, '右手在模型外捏合，接线已停止', `Guidance must report right hand pinch stop, got: ${currentGuidance}`);
+  mgr36.onPointerUp(visionPinchOutside, ctx36);
 
   // 2.3 测试通过 onHandGestureFrame 右手捏合外部区域终止接线
   (mgr36 as any).handleClickOnPoint(kpD);
@@ -2491,12 +2515,126 @@ console.log('Test 36: 连续接线逻辑（以上段终点为新起点直到闭�
   assert.strictEqual((mgr36 as any).pendingStartPoint, null, 'onHandGestureFrame pinch outside model must stop line connection');
   assert.strictEqual(currentGuidance, '右手在模型外捏合，接线已停止', `Guidance must report right hand pinch stop, got: ${currentGuidance}`);
 
+  // --- 测试环节 3: 回归测试 Engine.ts 默认 Raycaster (params.Line.threshold=1) 在模型右侧空白处 (NDC 0.7, 0.18) 拖拽旋转 ---
+  // 此前 Three.js LineSegments 默认 1m 射线阈值会在 x=85%, y=41% 处误命中 solidEdges，导致 isPointerDownOnModel=true 无法拖拽旋转
+  const engineRaycaster = new THREE.Raycaster();
+  const rightBlankX = 0.85 * 1920; // 1632
+  const rightBlankY = 0.41 * 1080; // 442.8
+  engineRaycaster.setFromCamera(new THREE.Vector2(0.7, 0.18), cam36);
+  const rawHitsAtRightBlank = engineRaycaster.intersectObjects([mesh36.group], true);
+  assert.strictEqual(rawHitsAtRightBlank.length, 0, 'Wireframe LineSegments must have NOOP_RAYCAST so Engine raycaster returns 0 hits in outside blank space');
+
+  const rotBeforeRightBlank = mesh36.modelContainer.rotation.y;
+  mgr36.onPointerDown(
+    {
+      button: 0,
+      clientX: rightBlankX,
+      clientY: rightBlankY,
+      pointerId: 88,
+      pointerType: 'mouse',
+      __visionGesture: true,
+    } as unknown as PointerEvent,
+    rawHitsAtRightBlank[0] ? { object: rawHitsAtRightBlank[0].object, point: rawHitsAtRightBlank[0].point, distance: rawHitsAtRightBlank[0].distance } : null,
+    ctx36
+  );
+  assert.strictEqual((mgr36 as any).isPointerDownOnModel, false, 'Cursor at right blank space (85%, 41%) must set isPointerDownOnModel = false');
+
+  mgr36.onPointerMove(
+    {
+      button: 0,
+      clientX: rightBlankX - 120,
+      clientY: rightBlankY + 30,
+      pointerId: 88,
+      pointerType: 'mouse',
+      __visionGesture: true,
+    } as unknown as PointerEvent,
+    null,
+    ctx36
+  );
+  assert.strictEqual((mgr36 as any).isOrbitDragging, true, 'Dragging from right blank space (85%, 41%) must enter orbit dragging');
+  assert.notStrictEqual(mesh36.modelContainer.rotation.y, rotBeforeRightBlank, 'Dragging from right blank space (85%, 41%) must rotate the 3D model');
+  mgr36.onPointerUp(
+    {
+      button: 0,
+      clientX: rightBlankX - 120,
+      clientY: rightBlankY + 30,
+      pointerId: 88,
+      pointerType: 'mouse',
+      __visionGesture: true,
+    } as unknown as PointerEvent,
+    ctx36
+  );
+
   mesh36.dispose();
 }
 console.log('✓ Test 36 passed: 连续接线逻辑（终点作为新起点直到闭合为面）与模型外右手捏合停止接线验证通过\n');
 
+// -------------------------------------------------------------
+// Test 37: 默认棱长为10与连线完成后长度标志持久显示（不消失）验证
+// -------------------------------------------------------------
+console.log('Test 37: 默认棱长为10与连线完成后长度标志持久显示（不消失）验证');
+{
+  // 1. 验证 StereometryStatusCard 初始各模型棱长默认均为 10
+  const card37 = new StereometryStatusCard();
+  card37.openParamPage('cube');
+  assert.strictEqual(card37.getDimensions('cube').a, 10, 'Cube default edge length a must be 10');
+  assert((card37 as any).paramControlsEl.innerHTML.includes('>10<'), 'Param controls must display default value 10');
+
+  card37.openParamPage('tetrahedron');
+  assert.strictEqual(card37.getDimensions('tetrahedron').a, 10, 'Tetrahedron default edge length a must be 10');
+
+  card37.openParamPage('square-pyramid');
+  assert.strictEqual(card37.getDimensions('square-pyramid').a, 10, 'Square pyramid default edge length a must be 10');
+
+  // 2. 验证 StereometryMesh 默认维度与长度归一化为 10
+  const mesh37 = new StereometryMesh();
+  const options = mesh37.getOptions();
+  assert.strictEqual(options.dimensions?.a, 10, 'StereometryMesh options dimensions a must default to 10');
+  assert.strictEqual(options.dimensions?.h, 10, 'StereometryMesh options dimensions h must default to 10');
+
+  // 3. 验证端点连线 (A -> B) 完成后，长度标志不会消失
+  const segAB = mesh37.addSegment('v_0', 'v_1', 0x38d9a9);
+  assert(segAB !== null, 'Segment AB must be created');
+  assert.strictEqual(segAB!.length, 10, 'Normalized segment AB length must be 10');
+
+  const badgesMap = mesh37.getSegmentBadges();
+  assert.strictEqual(badgesMap.size, 1, 'Segment badges map must have 1 badge');
+  const badgeAB = badgesMap.get(segAB!.id);
+  assert(badgeAB !== undefined, 'Badge for segment AB must exist');
+  assert.strictEqual(badgeAB!.text, '10', 'Badge text must be "10"');
+  assert.strictEqual(badgeAB!.sprite.name, `badge_seg_${segAB!.id}`);
+  assert.strictEqual(mesh37.getSegmentBadgesGroup().children.length, 1, 'Badges group must contain 1 sprite child');
+
+  // 模拟接线操作中清空预览线 (clearPreviewWire)
+  mesh37.clearPreviewWire();
+  // 核心验证：预览线清空后，已完成连线的长度标牌绝不消失！
+  assert.strictEqual(mesh37.getSegmentBadges().size, 1, 'Badge must persist after clearPreviewWire');
+  assert.strictEqual(mesh37.getSegmentBadgesGroup().children.length, 1, 'Badges group must still have 1 sprite');
+
+  // 4. 验证连线多段时所有已完成线的标志均持久保留
+  const segBC = mesh37.addSegment('v_1', 'v_2', 0x38d9a9);
+  assert.strictEqual(mesh37.getSegmentBadges().size, 2, 'Both AB and BC badges must persist');
+
+  // 5. 验证维度参数动态变更时，标牌上的长度数值自动同步更新
+  mesh37.setOptions({ dimensions: { a: 12, h: 10 } });
+  const updatedBadges = mesh37.getSegmentBadges();
+  assert.strictEqual(updatedBadges.get(segAB!.id)?.text, '12', 'Badge text must update to 12 when dimension a is changed to 12');
+  assert.strictEqual(updatedBadges.get(segBC!.id)?.text, '12', 'Badge text must update to 12 when dimension a is changed to 12');
+
+  // 6. 验证撤销与清空连线时标牌资源安全释放
+  mesh37.undoLastSegment();
+  assert.strictEqual(mesh37.getSegmentBadges().size, 1, 'Only 1 badge should remain after undo');
+
+  mesh37.clearAllSegments();
+  assert.strictEqual(mesh37.getSegmentBadges().size, 0, '0 badges should remain after clearAllSegments');
+  assert.strictEqual(mesh37.getSegmentBadgesGroup().children.length, 0, 'Badges group must be empty after clearAllSegments');
+
+  mesh37.dispose();
+}
+console.log('✓ Test 37 passed: 默认棱长为10与连线完成后长度标志持久显示（不消失）验证通过\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (36/36)!');
+console.log('All High School Stereometry Tests Passed Successfully (37/37)!');
 console.log('========================================================');
 
 

@@ -95,15 +95,15 @@ export class StereometryStatusCard {
   private currentModel: HighSchoolModelType = 'cube';
   private isParamPageOpen = false;
 
-  // 记录各模型配置的归一化整数尺寸参数
+  // 记录各模型配置的归一化整数尺寸参数（立体几何中，棱长默认为 10）
   private modelDimensions: Record<string, { a: number; h: number }> = {
-    cube: { a: 1, h: 1 },
-    tetrahedron: { a: 1, h: 1 },
-    'square-pyramid': { a: 2, h: 2 },
-    'triangular-prism': { a: 2, h: 2 },
-    'corner-pyramid': { a: 2, h: 2 },
-    'cylinder-cone': { a: 2, h: 2 },
-    recognized: { a: 1, h: 1 },
+    cube: { a: 10, h: 10 },
+    tetrahedron: { a: 10, h: 10 },
+    'square-pyramid': { a: 10, h: 10 },
+    'triangular-prism': { a: 10, h: 10 },
+    'corner-pyramid': { a: 10, h: 10 },
+    'cylinder-cone': { a: 10, h: 10 },
+    recognized: { a: 10, h: 10 },
   };
 
   // 缓存的 DOM 元素
@@ -124,6 +124,7 @@ export class StereometryStatusCard {
   constructor(callbacks: StereometryStatusCardCallbacks = {}) {
     this.callbacks = callbacks;
     this.createUI();
+    this.syncPreservationDimensions(this.modelDimensions.cube);
   }
 
   private createUI(): void {
@@ -246,10 +247,10 @@ export class StereometryStatusCard {
         <div style="display: none;">
           <span id="math-scan-status"></span>
           <span id="math-euler-badge"></span>
-          <span id="val-dim-a">1</span>
-          <input type="range" id="slider-dim-a" value="1" />
-          <span id="val-dim-h">1</span>
-          <input type="range" id="slider-dim-h" value="1" />
+          <span id="val-dim-a">10</span>
+          <input type="range" id="slider-dim-a" value="10" />
+          <span id="val-dim-h">10</span>
+          <input type="range" id="slider-dim-h" value="10" />
         </div>
       </div>
     `;
@@ -292,7 +293,7 @@ export class StereometryStatusCard {
         this.callbacks.onModelChange?.(model);
         this.callbacks.onClearSegments?.();
 
-        const dims = this.modelDimensions[model] || { a: 1, h: 1 };
+        const dims = this.modelDimensions[model] || { a: 10, h: 10 };
         this.syncPreservationDimensions(dims);
         this.callbacks.onDimensionChange?.(dims);
       } else {
@@ -402,11 +403,15 @@ export class StereometryStatusCard {
     if (this.selectionViewEl) this.selectionViewEl.style.display = 'flex';
   }
 
+  public getDimensions(model: HighSchoolModelType = this.currentModel): { a: number; h: number } {
+    return { ...(this.modelDimensions[model] || { a: 10, h: 10 }) };
+  }
+
   private renderParamControls(model: HighSchoolModelType): void {
     if (!this.paramControlsEl) return;
 
     const configs = MODEL_PARAMS[model] || [{ key: 'a', label: '棱长 a' }];
-    const dims = this.modelDimensions[model] || { a: 1, h: 1 };
+    const dims = this.modelDimensions[model] || { a: 10, h: 10 };
 
     this.paramControlsEl.innerHTML = configs
       .map((cfg) => {
@@ -452,7 +457,7 @@ export class StereometryStatusCard {
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         const key = (b.getAttribute('data-param') || 'a') as 'a' | 'h';
-        dims[key] = Math.min(20, dims[key] + 1);
+        dims[key] = Math.min(100, dims[key] + 1);
         const valEl = this.paramControlsEl?.querySelector(`#stepper-val-${key}`);
         if (valEl) valEl.textContent = String(dims[key]);
         this.syncPreservationDimensions(dims);

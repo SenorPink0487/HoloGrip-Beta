@@ -163,8 +163,8 @@ export class AuxiliaryFaceSolver {
         const faceLabel = `面 ${labels.join('')}`;
         const faceId = `aux_face_${cycle.join('_')}`;
 
-        // 查找构成此三角形的线段颜色，使切面颜色与线段保持完全一致
-        let faceColor = 0x38d9a9;
+        // 查找构成此三角形的线段颜色，使切面颜色与线段保持完全一致（默认纯正电光紫 0x7c3aed）
+        let faceColor = 0x7c3aed;
         for (let i = 0; i < 3; i++) {
           const uId = cycle[i];
           const vId = cycle[(i + 1) % 3];
@@ -266,8 +266,8 @@ export class AuxiliaryFaceSolver {
         const faceLabel = `面 ${labels.join('')}`;
         const faceId = `aux_face_${cycle.join('_')}`;
 
-        // 查找构成此闭合环的线段颜色，使切面颜色与线段保持完全一致
-        let faceColor = 0x38d9a9;
+        // 查找构成此闭合环的线段颜色，使切面颜色与线段保持完全一致（默认纯正电光紫 0x7c3aed）
+        let faceColor = 0x7c3aed;
         for (let i = 0; i < m; i++) {
           const uId = cycle[i];
           const vId = cycle[(i + 1) % m];

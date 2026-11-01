@@ -478,7 +478,7 @@ export class StereometryInteractionManager {
               this.mesh.updatePreviewWire(
                 this.pendingStartPoint.position,
                 snapRes.keyPoint.position,
-                0x10b981,
+                0x7c3aed,
                 badgeText,
                 context.camera
               );
@@ -513,7 +513,7 @@ export class StereometryInteractionManager {
           // 动态磁吸吸附到目标关键点
           const len = this.dragStartKp.position.distanceTo(snapRes.keyPoint.position);
           const badgeText = this.mesh.formatNormalizedDistance(len);
-          this.mesh.updatePreviewWire(this.dragStartKp.position, snapRes.keyPoint.position, 0x10b981, badgeText, context.camera);
+          this.mesh.updatePreviewWire(this.dragStartKp.position, snapRes.keyPoint.position, 0x7c3aed, badgeText, context.camera);
           this.mesh.setHoveredKeyPoint(snapRes.keyPoint.id, snapRes.snapLabel);
           const snapColor = this.getKeyPointColor(snapRes.keyPoint);
           this.callbacks.onGuidanceChange?.(
@@ -532,7 +532,7 @@ export class StereometryInteractionManager {
             const hitLocal = hitWorld.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld.clone().invert());
             const len = this.dragStartKp.position.distanceTo(hitLocal);
             const badgeText = this.mesh.formatNormalizedDistance(len);
-            this.mesh.updatePreviewWire(this.dragStartKp.position, hitLocal, 0x38bdf8, badgeText, context.camera);
+            this.mesh.updatePreviewWire(this.dragStartKp.position, hitLocal, 0xa78bfa, badgeText, context.camera);
             this.mesh.setHoveredKeyPoint(this.dragStartKp.id, this.dragStartKp.label);
             this.callbacks.onGuidanceChange?.(
               `正在从 ${this.dragStartKp.label} 拖拽接线 · 移至目标点松手连接 (松在空白处取消)`,
@@ -603,7 +603,7 @@ export class StereometryInteractionManager {
         if (hoveredKp && hoveredKp.id !== this.pendingStartPoint.id) {
           const len = this.pendingStartPoint.position.distanceTo(hoveredKp.position);
           const badgeText = this.mesh.formatNormalizedDistance(len);
-          this.mesh.updatePreviewWire(this.pendingStartPoint.position, hoveredKp.position, 0x10b981, badgeText, context.camera);
+          this.mesh.updatePreviewWire(this.pendingStartPoint.position, hoveredKp.position, 0x7c3aed, badgeText, context.camera);
           const snapColor = this.getKeyPointColor(hoveredKp);
           this.callbacks.onGuidanceChange?.(
             `已选起点 ${this.pendingStartPoint.label} → 目标: ${hoveredLabel || hoveredKp.label} (长: ${badgeText}) · 轻触完成接线`,
@@ -620,7 +620,7 @@ export class StereometryInteractionManager {
             const hitLocal = hitWorld.clone().applyMatrix4(this.mesh.modelContainer.matrixWorld.clone().invert());
             const len = this.pendingStartPoint.position.distanceTo(hitLocal);
             const badgeText = this.mesh.formatNormalizedDistance(len);
-            this.mesh.updatePreviewWire(this.pendingStartPoint.position, hitLocal, 0x38bdf8, badgeText, context.camera);
+            this.mesh.updatePreviewWire(this.pendingStartPoint.position, hitLocal, 0xa78bfa, badgeText, context.camera);
             this.callbacks.onGuidanceChange?.(`已选起点 ${this.pendingStartPoint.label} · 轻触目标点接线 (轻触空白取消)`, 'info');
           }
         }

@@ -77,10 +77,10 @@ export default class MathStereometryExperiment extends BaseExperiment {
   private touchZoomWidget: StereometryTouchZoomWidget | null = null;
   private onKeyDownBound: ((e: KeyboardEvent) => void) | null = null;
 
-  // 状态缓存
+  // 状态缓存（默认棱长为 10）
   private modelType: HighSchoolModelType = 'cube';
-  private dimA = 1;
-  private dimH = 1;
+  private dimA = 10;
+  private dimH = 10;
   private originPointId = 'v_0';
   private interactionMode: InteractionMode = 'direct';
   private lastTelemetryStateKey = '';
@@ -203,11 +203,11 @@ export default class MathStereometryExperiment extends BaseExperiment {
         });
         break;
       case 'dimA':
-        this.dimA = Math.max(1, Math.round(parseFloat(value) || 1));
+        this.dimA = Math.max(1, Math.round(parseFloat(value) || 10));
         this.mesh.setOptions({ dimensions: { a: this.dimA, h: this.dimH } });
         break;
       case 'dimH':
-        this.dimH = Math.max(1, Math.round(parseFloat(value) || 1));
+        this.dimH = Math.max(1, Math.round(parseFloat(value) || 10));
         this.mesh.setOptions({ dimensions: { a: this.dimA, h: this.dimH } });
         break;
       case 'showKeyPoints':
