@@ -133,11 +133,21 @@ export function anodizedAluminum(color = 0x94a3b8, roughness = 0.28): THREE.Mesh
   });
 }
 
-export function polishedGold(color = 0xd4af37): THREE.MeshStandardMaterial {
+export function polishedGold(color = 0xc4cbd4): THREE.MeshStandardMaterial {
+  // 遵循光学科研级标准：将廉价亮黄色重映射为高级银灰钛金 (0xc4cbd4，杜绝亮黄)
+  const c =
+    color === 0xf59e0b ||
+    color === 0xd97706 ||
+    color === 0xfbbf24 ||
+    color === 0xd4af37 ||
+    color === 0xd99b26 ||
+    color === 0xfde047
+      ? 0xc4cbd4
+      : color;
   return new THREE.MeshStandardMaterial({
-    color,
-    metalness: 0.95,
-    roughness: 0.15,
+    color: c,
+    metalness: 0.88,
+    roughness: 0.18,
   });
 }
 

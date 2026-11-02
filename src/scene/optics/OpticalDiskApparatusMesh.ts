@@ -238,9 +238,9 @@ export class OpticalDiskApparatusMesh {
       roughness: 0.10,
     });
     const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xd97706,
-      metalness: 0.9,
-      roughness: 0.24,
+      color: 0xc4cbd4, // 银灰钛金五金，杜绝亮黄
+      metalness: 0.85,
+      roughness: 0.22,
     });
 
     // 1.1 缎面银铝倒角底座。顶面仍在 Y = 0.012，悬臂铰点不用上移。

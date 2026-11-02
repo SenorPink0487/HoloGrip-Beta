@@ -136,9 +136,9 @@ export class SuspensionPlateMesh {
    * 为小孔创建金属护圈和拾取碰撞体（不注入任何悬浮 ABCD 标牌）
    */
   private createHoleAssembly(hole: PlateHoleDef): void {
-    // 正面与背面双面黄铜铆装保护孔圈
+    // 正面与背面双面银灰钛金铆装保护孔圈 (遵循光学科研级标准，杜绝廉价亮黄)
     const grommetGeo = new THREE.TorusGeometry(hole.radius + 0.0018, 0.0014, 12, 24);
-    const grommetMat = mechMetal(0xf59e0b, 0.9, 0.2); // 黄铜金属加固扣环
+    const grommetMat = mechMetal(0xc4cbd4, 0.9, 0.2); // 银灰钛金金属加固扣环
 
     const frontGrommet = new THREE.Mesh(grommetGeo, grommetMat);
     frontGrommet.position.set(hole.x, hole.y, 0.0040);
@@ -182,11 +182,11 @@ export class SuspensionPlateMesh {
         }
       } else {
         if (frontGrommet) {
-          (frontGrommet.material as THREE.MeshStandardMaterial).color.setHex(0xf59e0b); // 正常黄铜
+          (frontGrommet.material as THREE.MeshStandardMaterial).color.setHex(0xc4cbd4); // 正常银灰钛金
           frontGrommet.scale.setScalar(1.0);
         }
         if (backGrommet) {
-          (backGrommet.material as THREE.MeshStandardMaterial).color.setHex(0xf59e0b);
+          (backGrommet.material as THREE.MeshStandardMaterial).color.setHex(0xc4cbd4);
           backGrommet.scale.setScalar(1.0);
         }
       }

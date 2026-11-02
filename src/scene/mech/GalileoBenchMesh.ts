@@ -41,11 +41,11 @@ function createNameplateTexture(): THREE.CanvasTexture | null {
   ctx.fillStyle = '#e2e8f0';
   ctx.fillRect(0, 0, 512, 64);
 
-  ctx.strokeStyle = '#d97706';
+  ctx.strokeStyle = '#64748b';
   ctx.lineWidth = 3;
   ctx.strokeRect(3, 3, 506, 58);
 
-  ctx.strokeStyle = '#94a3b8';
+  ctx.strokeStyle = '#0284c7';
   ctx.lineWidth = 1;
   ctx.strokeRect(6, 6, 500, 52);
 
@@ -171,8 +171,8 @@ export class GalileoBenchMesh {
     // 抛光镜面液态铬精密滑轨 (Liquid Chrome 316L)
     this.rodMetalMat = createLiquidChromeMaterial(0xffffff, 0.98, 0.06);
 
-    // 香槟金黄铜精密调节构件材质 (Champagne Brass: 0xf59e0b)
-    this.brassMat = createChampagneBrassMaterial(0xf59e0b, 0.90, 0.20);
+    // 银灰钛金精密调节五金构件材质 (Titanium Hardware: 0xc4cbd4，彻底告别廉价亮黄)
+    this.brassMat = createChampagneBrassMaterial(0xc4cbd4, 0.85, 0.22);
 
     // 防震脚垫橡胶材质
     this.footMat = createLevelingPadMaterial(0x0f172a, 0.85);
@@ -180,8 +180,19 @@ export class GalileoBenchMesh {
     // 伸缩立柱外筒航天银铝
     this.strutOuterMat = createSatinSilverMaterial(0xe2e8f0, 0.76, 0.22);
 
-    // 伽利略实心黄铜小球材质
-    this.ballMat = createChampagneBrassMaterial(0xf59e0b, 0.95, 0.08);
+    // 计量级单晶红宝石高精测球材质 (Precision Synthetic Ruby Sphere: 0xbe123c)
+    // 采用 Renishaw 工业计量级单晶红刚玉标准：纯正深红宝石晶体光泽，高透光微晶深度 (ior: 1.76, clearcoat: 1.0)
+    // 彻底告别死沉灰色与廉价亮黄，在阳极氧化喷砂银铝导轨上具有极佳的视觉辨识度与科研质感
+    this.ballMat = new THREE.MeshPhysicalMaterial({
+      color: 0xbe123c,
+      emissive: 0x9f1239,
+      emissiveIntensity: 0.14,
+      roughness: 0.05,
+      metalness: 0.08,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.03,
+      ior: 1.76,
+    });
 
     // 左右磁吸交互环高亮材质 (极光冰蓝/科技发光，内核为实心黄铜)
     this.handleGlowMatL = new THREE.MeshStandardMaterial({
@@ -608,8 +619,7 @@ export class GalileoBenchMesh {
   }
 
   /**
-   * 6. 经典抛光香槟黄铜实心球 (Solid Champagne Brass Precision Sphere)
-   * 历史考证：伽利略在《关于两门新科学的对话》中原版实验即采用精密实心青铜/黄铜球
+   * 6. 计量级单晶红宝石高精测球 (Precision Synthetic Ruby Sphere: 0xbe123c)
    */
   private createBall(): void {
     const ballGeom = new THREE.SphereGeometry(this.ballRadius, 32, 32);
@@ -619,12 +629,12 @@ export class GalileoBenchMesh {
     this.ballMesh.userData = { isBall: true };
     this.ballMesh.position.set(0, this.ballRadius, 0);
 
-    // 精细赤道与经度微雕刻线 (增强小球在双轨上滚转时的物理自转视觉感知)
+    // 精细液态铬赤道与经度微雕嵌线 (高反差液态铬银标线，清晰直观感知小球沿导轨滚转时的物理自转)
     const ringGeom = new THREE.TorusGeometry(this.ballRadius * 0.998, 0.0006, 12, 32);
     const ringMat = new THREE.MeshStandardMaterial({
-      color: 0xd97706,
-      metalness: 0.95,
-      roughness: 0.2,
+      color: 0xffffff,
+      metalness: 0.98,
+      roughness: 0.05,
     });
     const equatorRing = new THREE.Mesh(ringGeom, ringMat);
     equatorRing.rotation.x = Math.PI / 2;

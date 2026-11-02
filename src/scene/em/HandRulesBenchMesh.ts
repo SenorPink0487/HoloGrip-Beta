@@ -274,7 +274,7 @@ export class HandRulesBenchMesh {
     metalness: 0.96,
     roughness: 0.08,
   });
-  private readonly champagneBrassMat = polishedGold(0xf59e0b);
+  private readonly champagneBrassMat = polishedGold(0xc4cbd4); // 银灰钛金五金，杜绝亮黄
   private readonly knownCurrentMat = labGlow(0xf59e0b, 0.68); // 琥珀金：已知电流 I
   private readonly knownFieldMat = labGlow(0x38bdf8, 0.62);   // 冰海青：已知磁场 B
   private readonly knownMotionMat = new THREE.MeshStandardMaterial({

@@ -121,7 +121,7 @@ export class NewtonTubeMesh {
     this.pumpMotorMaterial = createSatinSilverMaterial(0x8da2b5, 0.55, 0.30);
     this.switchBoxMaterial = createSatinSilverMaterial(0xcbd5e1, 0.60, 0.25);
     this.darkSiliconeMaterial = createLevelingPadMaterial(0x475569, 0.85);
-    this.brassMaterial = createChampagneBrassMaterial(0xf59e0b, 0.90, 0.20);
+    this.brassMaterial = createChampagneBrassMaterial(0xc4cbd4, 0.85, 0.22); // 银灰钛金五金，杜绝亮黄
     this.siliconeMaterial = new THREE.MeshStandardMaterial({ color: 0xc5d9dc, roughness: 0.65 });
     this.featherMaterial = new THREE.MeshStandardMaterial({ color: 0xf5eee0, roughness: 0.8, side: THREE.DoubleSide });
     this.featherQuillMaterial = mechMetal(0xcbbd9d, 0.04, 0.7);

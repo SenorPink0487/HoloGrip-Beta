@@ -69,18 +69,26 @@ export function createLiquidChromeMaterial(
   });
 }
 
-/** 3. 香槟金 / 抛光黄铜精密调节构件材质 (Champagne Brass) */
+/** 3. 银灰钛金精密调节五金构件材质 (Titanium Hardware: 0xc4cbd4，遵循光学科研级标准，彻底杜绝廉价亮黄) */
 export function createChampagneBrassMaterial(
-  color: number = 0xf59e0b,
-  metalness = 0.88,
+  color: number = 0xc4cbd4,
+  metalness = 0.85,
   roughness = 0.22
 ): THREE.MeshStandardMaterial {
+  // 彻底杜绝廉价亮黄：将旧版高饱和黄/橙黄自动重映射为纯正光学科研级银灰钛金 (0xc4cbd4)
+  const c =
+    color === 0xf59e0b || color === 0xd97706 || color === 0xfbbf24 || color === 0xd4af37
+      ? 0xc4cbd4
+      : color;
   return new THREE.MeshStandardMaterial({
-    color,
+    color: c,
     metalness,
     roughness,
   });
 }
+
+/** 3b. 精密银灰钛金五金构件标准别名 */
+export const createTitaniumHardwareMaterial = createChampagneBrassMaterial;
 
 /** 4. 精密机加工钛晶深灰材质 (Precision Titanium Slate / Gunmetal) */
 export function createTitaniumSlateMaterial(

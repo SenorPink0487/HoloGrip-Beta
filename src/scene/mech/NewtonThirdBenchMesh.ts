@@ -188,7 +188,7 @@ export class NewtonThirdBenchMesh {
    */
   private initSharedMaterials(): void {
     this.chromeMat = createLiquidChromeMaterial(0xffffff, 0.98, 0.08);
-    this.brassMat = createChampagneBrassMaterial(0xf59e0b, 0.90, 0.20);
+    this.brassMat = createChampagneBrassMaterial(0xc4cbd4, 0.85, 0.22); // 银灰钛金五金，杜绝亮黄
     this.aluminumMat = createSatinSilverMaterial(0xf1f5f9, 0.74, 0.22);
     this.titaniumSlateMat = createTitaniumSlateMaterial(0x334155, 0.82, 0.26);
     this.footPadMat = createLevelingPadMaterial(0x0f172a, 0.85);

@@ -178,8 +178,8 @@ export class SpringDynamometerMesh {
     // 1. 镜面液态铬不锈钢 (316L liquid chrome)
     this.chromeMat = createLiquidChromeMaterial(0xffffff, 0.98, 0.06);
 
-    // 2. 香槟金精密黄铜 (Champagne brass)
-    this.brassMat = createChampagneBrassMaterial(0xf59e0b, 0.90, 0.20);
+    // 2. 银灰钛金精密五金构件 (Titanium hardware: 0xc4cbd4，彻底杜绝廉价亮黄)
+    this.brassMat = createChampagneBrassMaterial(0xc4cbd4, 0.85, 0.22);
 
     // 3. 航空级阳极氧化喷砂金属端盖
     this.capMat = new THREE.MeshStandardMaterial({

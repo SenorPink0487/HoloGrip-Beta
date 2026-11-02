@@ -739,7 +739,7 @@ export class CapacitorDischargeBenchMesh {
     const battL = 0.054;
     const chromeMat = labMetal(0xffffff, 0.98, 0.08); // 镜面抛光液态铬
     const nickelMat = labMetal(0xf1f5f9, 0.95, 0.16); // 抛光高亮不锈钢
-    const goldRolledMat = anodizedAluminum(0xf59e0b, 0.22); // 阳极氧化香槟金
+    const goldRolledMat = anodizedAluminum(0xc4cbd4, 0.22); // 银灰钛金五金，杜绝亮黄
     const darkGasketMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.85 }); // 绝缘密封圈
 
     // 1. 电池主体外包套管圆柱体 (带有 Nanfu 聚能环极高清晰度印刷涂装)

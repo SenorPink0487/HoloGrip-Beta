@@ -129,7 +129,7 @@ export function brushedCopper(): THREE.MeshPhysicalMaterial {
 
 export function terminalBrass(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
-    color: 0xd97706,
+    color: 0xc4cbd4, // 银灰钛金端子五金，杜绝亮黄
     metalness: 0.94,
     roughness: 0.28,
   });
