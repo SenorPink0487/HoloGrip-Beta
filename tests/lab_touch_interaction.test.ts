@@ -103,7 +103,7 @@ win.emit('pointerup', pointer(1, 1450));
 assert.equal(calls.move, 2, 'Release position is applied even after a throttled final move');
 assert.equal(calls.up, 1);
 assert.equal(engine.inputManager.player.enabled, true);
-assert.equal(engine.inputManager.player.allowPointerLock, true, 'Pointer lock allowed so crosshair can activate');
+assert.equal(engine.inputManager.player.allowPointerLock, false, 'Desk manipulation preserves the free cursor after release');
 assert.equal(canvas.captured.size, 0);
 
 // Hover feedback on instruments.
@@ -117,10 +117,10 @@ engine.getInteractiveTargetAt = () => null;
 engine.lastCrosshairCheck = -Infinity;
 experiment.getHoverTarget = () => { physicalHover++; return { id: 'knob', label: '调节旋钮', cursor: 'ew-resize' }; };
 engine.checkCrosshairIntersection(performance.now());
-assert.equal(crosshairVisible, true);
+assert.equal(crosshairVisible, false, 'Desk experiments keep the viewport free of a reticle');
 assert.equal(physicalHover, 1);
 assert.equal(canvas.style.cursor, 'ew-resize');
-assert.equal(crosshairLabel, '调节旋钮');
+assert.equal(crosshairLabel, '', 'Hover uses a native cursor without a floating tooltip');
 
 // All interruption paths release capture and call cancellation, never a click.
 for (const interruption of ['pointercancel', 'lostpointercapture', 'blur', 'visibilitychange']) {

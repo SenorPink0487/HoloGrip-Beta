@@ -1,0 +1,7 @@
+#demonstration-bar[hidden] { display:none; }
+#demonstration-bar { position:fixed; inset:auto 0 0; box-sizing:border-box; min-height:126px; padding:12px 24px calc(14px + env(safe-area-inset-bottom)); background:#c7c4bc; color:#243242; display:flex; flex-direction:column; justify-content:center; gap:9px; z-index:6; }
+.demonstration-caption { margin:0 auto; max-width:880px; min-height:48px; font:500 17px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif; text-align:center; text-wrap:balance; white-space:pre-line; }
+.demonstration-controls { display:flex; align-items:center; justify-content:center; gap:12px; }
+.demonstration-controls button { min-height:44px; min-width:88px; touch-action:manipulation; padding:9px 18px; border:1px solid #24324224; border-radius:22px; color:#243242; background:#ffffff85; font:500 14px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif; cursor:pointer; }
+.demonstration-controls button:disabled { opacity:.45; cursor:default; }
+.demonstration-controls button:focus-visible { outline:2px solid #0071e3; outline-offset:3px; }

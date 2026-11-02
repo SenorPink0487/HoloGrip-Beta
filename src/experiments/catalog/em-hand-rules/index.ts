@@ -217,6 +217,14 @@ export default class EmHandRulesExperiment extends BaseExperiment {
     return false;
   }
 
+  /** Uses the same valid synthetic pose as the apparatus's existing desktop interaction. */
+  public setDesktopDemonstration(enabled: boolean): void {
+    this.simulatedHandActive = enabled;
+    if (enabled) this.config.gestureEnabled = true;
+    this.latestFrame = enabled ? this.generateSyntheticFrameForCurrentConfig() : null;
+    this.recomputeAndBroadcast();
+  }
+
   private toggleDesktopField(): void {
     // A tap offers the same reveal as a correct hand pose, without a camera.
     this.simulatedHandActive = !this.simulatedHandActive;

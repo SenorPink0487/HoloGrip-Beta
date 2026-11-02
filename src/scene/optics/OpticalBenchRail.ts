@@ -97,7 +97,7 @@ function numeralInk(finish: OpticalRailFinish): string {
   const accent = channelLuma(finish.scaleAccent);
   const paper = channelLuma(finish.scaleBackground);
   const contrast = (Math.max(accent, paper) + 0.05) / (Math.min(accent, paper) + 0.05);
-  return contrast >= 3 ? finish.scaleAccent : finish.scaleTick;
+  return contrast >= 4.5 ? finish.scaleAccent : finish.scaleTick;
 }
 
 function paintSteelRule(
@@ -130,7 +130,7 @@ function paintSteelRule(
 
   ctx.strokeStyle = finish.scaleTick;
   ctx.fillStyle = ink;
-  ctx.font = `600 ${Math.round(height * 0.28)}px "SF Mono", "PingFang SC", sans-serif`;
+  ctx.font = `700 ${Math.round(height * 0.38)}px "SF Mono", "PingFang SC", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineCap = 'butt';
@@ -164,7 +164,7 @@ function paintSteelRule(
   }
 
   ctx.fillStyle = ink;
-  ctx.font = `600 ${Math.round(height * 0.18)}px "SF Mono", "PingFang SC", sans-serif`;
+  ctx.font = `600 ${Math.round(height * 0.26)}px "SF Mono", "PingFang SC", sans-serif`;
   ctx.textAlign = 'left';
   ctx.fillText('cm', scaleEndX + Math.round(width * 0.008), labelY);
 }
@@ -375,11 +375,10 @@ export function buildPrecisionOpticalRail(options: {
     const plate = addMesh(
       group,
       new THREE.PlaneGeometry(plateW, plateH),
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshBasicMaterial({
         map: scaleTexture,
         color: 0xffffff,
-        metalness: 0.04,
-        roughness: 0.62,
+        toneMapped: false,
         polygonOffset: true,
         polygonOffsetFactor: -2,
         polygonOffsetUnits: -2,

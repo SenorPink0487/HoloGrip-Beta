@@ -1,3 +1,4 @@
+import { ResourceTracker } from './Lifecycle.ts';
 import * as THREE from 'three';
 import type { IExperiment, ExperimentContext } from './types.ts';
 
@@ -14,13 +15,36 @@ export class HologramStage {
   private hologramApertureLight: THREE.PointLight;
   private transitionParticles: THREE.Points;
 
-  constructor() {
+  private decorationsEnabled = true;
+
+  constructor(decorations = true) {
     this.group.name = 'HologramStage';
     this.group.position.set(0, 0.908, 0); // 直接位于实验台圆形孔径托盘上方
     this.group.add(this.transitionGroup);
 
-    this.initTransitionEffects();
+    this.decorationsEnabled = decorations;
+    if (decorations) this.initTransitionEffects();
     this.setStageVisible(false);
+  }
+
+  public setDecorationsEnabled(enabled: boolean): void {
+    this.decorationsEnabled = enabled;
+    if (enabled && !this.emitterRing) this.initTransitionEffects();
+    if (enabled && this.currentExperiment?.hideCenterEmitter) {
+      this.emitterRing.visible = false;
+      this.hologramApertureLight.visible = false;
+      this.transitionParticles.visible = false;
+    }
+    if (!enabled && this.emitterRing) {
+      const tracker = new ResourceTracker();
+      for (const object of [this.emitterRing, this.hologramApertureLight, this.transitionParticles]) {
+        object.removeFromParent(); tracker.track(object);
+      }
+      tracker.dispose();
+      this.emitterRing = undefined!;
+      this.hologramApertureLight = undefined!;
+      this.transitionParticles = undefined!;
+    }
   }
 
   private initTransitionEffects(): void {
@@ -159,9 +183,9 @@ export class HologramStage {
     this.group.add(newExperiment.rootGroup);
 
     const hideEmitter = Boolean((newExperiment as any)?.hideCenterEmitter);
-    this.emitterRing.visible = !hideEmitter;
-    this.hologramApertureLight.visible = !hideEmitter;
-    this.transitionParticles.visible = !hideEmitter;
+    if (this.emitterRing) this.emitterRing.visible = this.decorationsEnabled && !hideEmitter;
+    if (this.hologramApertureLight) this.hologramApertureLight.visible = this.decorationsEnabled && !hideEmitter;
+    if (this.transitionParticles) this.transitionParticles.visible = this.decorationsEnabled && !hideEmitter;
 
     this.setStageVisible(true);
 
@@ -193,9 +217,9 @@ export class HologramStage {
       oldExperiment.dispose(context);
       this.currentExperiment = null;
     }
-    this.emitterRing.visible = false;
-    this.hologramApertureLight.visible = false;
-    this.transitionParticles.visible = false;
+    if (this.emitterRing) this.emitterRing.visible = false;
+    if (this.hologramApertureLight) this.hologramApertureLight.visible = false;
+    if (this.transitionParticles) this.transitionParticles.visible = false;
     this.setStageVisible(false);
   }
 
@@ -203,10 +227,10 @@ export class HologramStage {
     if (!this.group.visible) return;
 
     // 驱动全息发射器动画
-    if (this.emitterRing.visible) {
+    if (this.emitterRing?.visible) {
       this.emitterRing.rotation.z += delta * 0.5;
     }
-    if (this.hologramApertureLight.visible) {
+    if (this.hologramApertureLight?.visible) {
       this.hologramApertureLight.intensity = 0.8 + Math.sin(elapsed * 4.0) * 0.12;
     }
 

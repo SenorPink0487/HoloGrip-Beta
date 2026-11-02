@@ -1,3 +1,4 @@
+import { createPhysicsDemonstration } from '../demonstrations/physicsDemonstrations.ts';
 import * as THREE from 'three';
 import type { IExperiment, ExperimentMetadata, ExperimentContext, ParameterDef } from '../../core/types.ts';
 import { ResourceTracker } from '../../core/Lifecycle.ts';
@@ -53,6 +54,10 @@ export abstract class BaseExperiment implements IExperiment {
 
     // 执行 GPU 资源的深度销毁
     this.tracker.dispose();
+  }
+
+  public createDemonstration(context: ExperimentContext) {
+    return createPhysicsDemonstration(this, context);
   }
 
   public onParameterChange?(id: string, value: any, context: ExperimentContext): void;

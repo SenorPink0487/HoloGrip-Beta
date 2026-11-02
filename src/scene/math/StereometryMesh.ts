@@ -41,6 +41,34 @@ export interface DrawnSegment {
   length: number;
 }
 
+export interface DrawnAngle {
+  id: string;
+  lineId1: string;
+  lineId2: string;
+  label1: string;
+  label2: string;
+  angleDeg: number;
+  angleType: 'intersecting' | 'skew' | 'parallel';
+  vertexPos: THREE.Vector3;
+  badgePos: THREE.Vector3;
+  dir1: THREE.Vector3;
+  dir2: THREE.Vector3;
+  isRightAngle: boolean;
+  color: number;
+}
+
+export interface InteractableLine {
+  id: string;
+  pointIdA: string;
+  pointIdB: string;
+  label: string;
+  isDrawnSegment: boolean;
+  posA: THREE.Vector3;
+  posB: THREE.Vector3;
+  hitPoint3D: THREE.Vector3;
+  screenDistPx: number;
+}
+
 export class StereometryMesh {
   public readonly group = new THREE.Group();
 
@@ -97,6 +125,42 @@ export class StereometryMesh {
   private chargingHitPoint = new THREE.Vector3();
   private hoveredSegmentId: string | null = null;
   private eliminatingSegmentIds = new Set<string>();
+
+  // 空间线线夹角测量与长按消除体系
+  private drawnAngles: DrawnAngle[] = [];
+  private anglesGroup = new THREE.Group();
+  private angleBadges = new Map<
+    string,
+    {
+      sprite: THREE.Sprite;
+      canvas: HTMLCanvasElement;
+      texture: THREE.CanvasTexture;
+      material: THREE.SpriteMaterial;
+      pos: THREE.Vector3;
+      text: string;
+      color: number;
+    }
+  >();
+  private selectedAngleLineId: string | null = null;
+  private selectedAngleLineHighlightMesh: THREE.Mesh | null = null;
+  private hoveredAngleId: string | null = null;
+  private chargingAngleId: string | null = null;
+  private eliminatingAngleIds = new Set<string>();
+
+  private activeAngleEliminations: Array<{
+    id: string;
+    pointsMesh?: THREE.Points;
+    particles?: Array<{
+      pos: THREE.Vector3;
+      vel: THREE.Vector3;
+    }>;
+    badgeSprite?: THREE.Sprite;
+    arcMesh?: THREE.Line;
+    fanMesh?: THREE.Mesh;
+    progress: number;
+    duration: number;
+    onComplete?: () => void;
+  }> = [];
 
   private activeEliminations: Array<{
     id: string;
@@ -542,6 +606,8 @@ export class StereometryMesh {
     this.modelContainer.add(this.eliminationEffectsGroup);
     this.chargingRingGroup.name = 'chargingRingGroup';
     this.modelContainer.add(this.chargingRingGroup);
+    this.anglesGroup.name = 'drawnAngles';
+    this.modelContainer.add(this.anglesGroup);
 
     // 隐形交互碰撞包络体（禁用默认射线命中，避免阻断模型外部空白区域的自由旋转）
     const hitGeo = new THREE.SphereGeometry(1.0, 16, 16);
@@ -1443,13 +1509,17 @@ export class StereometryMesh {
       (anim.glowTipMesh.material as THREE.Material).dispose();
       this.activeSegmentAnimations.splice(animIdx, 1);
     }
+    this.drawnAngles = this.drawnAngles.filter((a) => a.lineId1 !== removed.id && a.lineId2 !== removed.id);
     this.rebuildSegments();
+    this.rebuildAngles();
     return removed;
   }
 
   public removeSegment(id: string): void {
     this.drawnSegments = this.drawnSegments.filter((s) => s.id !== id);
+    this.drawnAngles = this.drawnAngles.filter((a) => a.lineId1 !== id && a.lineId2 !== id);
     this.rebuildSegments();
+    this.rebuildAngles();
   }
 
   public clearAllSegments(): void {
@@ -1460,6 +1530,7 @@ export class StereometryMesh {
     this.knownAuxFaceIds.clear();
     this.activeAuxFaceAnimations = [];
     this.clearGroup(this.auxFacesGroup);
+    this.clearAllAngles();
     for (const badge of this.segmentBadges.values()) {
       badge.material.dispose();
       badge.texture.dispose();
@@ -1494,7 +1565,7 @@ export class StereometryMesh {
     let bestDist = maxScreenDistPx;
     let bestHitLocal = new THREE.Vector3();
 
-    this.modelContainer.updateMatrixWorld(false);
+    this.modelContainer.updateWorldMatrix(true, false);
     const mWorld = this.modelContainer.matrixWorld;
 
     const vA = new THREE.Vector3();
@@ -1849,6 +1920,702 @@ export class StereometryMesh {
     });
   }
 
+  // -------------------------------------------------------------
+  // 空间直线夹角标出与长按消除体系 (Click-to-Measure & Long-Press Eliminate)
+  // -------------------------------------------------------------
+  public findClosestLine(
+    ray: THREE.Ray,
+    clientX?: number,
+    clientY?: number,
+    camera?: THREE.Camera,
+    viewport?: { left: number; top: number; width: number; height: number },
+    maxScreenDistPx: number = 32
+  ): InteractableLine | null {
+    // 1. 优先检测已绘制的辅助线
+    const drawnHit = this.findClosestDrawnSegment(ray, clientX, clientY, camera, viewport, maxScreenDistPx);
+    if (drawnHit) {
+      const kpA = this.currentModelDef.keyPoints.find((k) => k.id === drawnHit.segment.pointIdA);
+      const kpB = this.currentModelDef.keyPoints.find((k) => k.id === drawnHit.segment.pointIdB);
+      if (kpA && kpB) {
+        return {
+          id: drawnHit.segment.id,
+          pointIdA: drawnHit.segment.pointIdA,
+          pointIdB: drawnHit.segment.pointIdB,
+          label: drawnHit.segment.label,
+          isDrawnSegment: true,
+          posA: kpA.position.clone(),
+          posB: kpB.position.clone(),
+          hitPoint3D: drawnHit.hitPoint3D,
+          screenDistPx: drawnHit.screenDistPx,
+        };
+      }
+    }
+
+    // 2. 检测几何体自身的棱 (Edges)
+    if (
+      this.currentModelDef &&
+      this.currentModelDef.edges &&
+      camera &&
+      viewport &&
+      typeof clientX === 'number' &&
+      typeof clientY === 'number'
+    ) {
+      let bestEdge: InteractableLine | null = null;
+      let bestDist = maxScreenDistPx;
+
+      this.modelContainer.updateWorldMatrix(true, false);
+      const mWorld = this.modelContainer.matrixWorld;
+
+      const vA = new THREE.Vector3();
+      const vB = new THREE.Vector3();
+      const projA = new THREE.Vector3();
+      const projB = new THREE.Vector3();
+
+      for (const [idxA, idxB] of this.currentModelDef.edges) {
+        const lblA = this.currentModelDef.vertexLabels[idxA];
+        const lblB = this.currentModelDef.vertexLabels[idxB];
+        const kpA = this.currentModelDef.keyPoints.find((k) => k.type === 'vertex' && k.label === lblA);
+        const kpB = this.currentModelDef.keyPoints.find((k) => k.type === 'vertex' && k.label === lblB);
+        if (!kpA || !kpB) continue;
+
+        vA.copy(kpA.position).applyMatrix4(mWorld);
+        vB.copy(kpB.position).applyMatrix4(mWorld);
+
+        projA.copy(vA).project(camera);
+        projB.copy(vB).project(camera);
+        if (projA.z > 1.0 || projB.z > 1.0) continue;
+
+        const sxA = viewport.left + ((projA.x + 1) * 0.5) * viewport.width;
+        const syA = viewport.top + ((-projA.y + 1) * 0.5) * viewport.height;
+        const sxB = viewport.left + ((projB.x + 1) * 0.5) * viewport.width;
+        const syB = viewport.top + ((-projB.y + 1) * 0.5) * viewport.height;
+
+        const dx = sxB - sxA;
+        const dy = syB - syA;
+        const lenSq = dx * dx + dy * dy;
+        let t = lenSq < 1e-4 ? 0.5 : ((clientX - sxA) * dx + (clientY - syA) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+
+        const cx = sxA + t * dx;
+        const cy = syA + t * dy;
+        const dist = Math.hypot(clientX - cx, clientY - cy);
+
+        if (dist <= maxScreenDistPx && dist < bestDist) {
+          bestDist = dist;
+          bestEdge = {
+            id: `edge_${kpA.id}_${kpB.id}`,
+            pointIdA: kpA.id,
+            pointIdB: kpB.id,
+            label: `${kpA.label}${kpB.label}`,
+            isDrawnSegment: false,
+            posA: kpA.position.clone(),
+            posB: kpB.position.clone(),
+            hitPoint3D: kpA.position.clone().lerp(kpB.position, t),
+            screenDistPx: dist,
+          };
+        }
+      }
+
+      if (bestEdge) return bestEdge;
+    }
+
+    return null;
+  }
+
+  public findClosestAngle(
+    ray: THREE.Ray,
+    clientX?: number,
+    clientY?: number,
+    camera?: THREE.Camera,
+    viewport?: { left: number; top: number; width: number; height: number },
+    maxScreenDistPx: number = 34
+  ): { angle: DrawnAngle; hitPoint3D: THREE.Vector3; screenDistPx: number } | null {
+    if (this.drawnAngles.length === 0) return null;
+
+    let bestAngle: DrawnAngle | null = null;
+    let bestDist = maxScreenDistPx;
+    let bestHit = new THREE.Vector3();
+
+    this.modelContainer.updateWorldMatrix(true, false);
+    const mWorld = this.modelContainer.matrixWorld;
+
+    const bWorld = new THREE.Vector3();
+    const vWorld = new THREE.Vector3();
+    const projB = new THREE.Vector3();
+    const projV = new THREE.Vector3();
+
+    for (const ang of this.drawnAngles) {
+      if (this.eliminatingAngleIds.has(ang.id)) continue;
+
+      if (camera && viewport && typeof clientX === 'number' && typeof clientY === 'number') {
+        // 1. 优先测试标牌距离
+        bWorld.copy(ang.badgePos).applyMatrix4(mWorld);
+        projB.copy(bWorld).project(camera);
+        if (projB.z <= 1.0) {
+          const bx = viewport.left + ((projB.x + 1) * 0.5) * viewport.width;
+          const by = viewport.top + ((-projB.y + 1) * 0.5) * viewport.height;
+          const distB = Math.hypot(clientX - bx, clientY - by);
+          if (distB <= maxScreenDistPx && distB < bestDist) {
+            bestDist = distB;
+            bestAngle = ang;
+            bestHit.copy(ang.badgePos);
+            continue;
+          }
+        }
+
+        // 2. 测试顶点/弧线中心距离
+        vWorld.copy(ang.vertexPos).applyMatrix4(mWorld);
+        projV.copy(vWorld).project(camera);
+        if (projV.z <= 1.0) {
+          const vx = viewport.left + ((projV.x + 1) * 0.5) * viewport.width;
+          const vy = viewport.top + ((-projV.y + 1) * 0.5) * viewport.height;
+          const distV = Math.hypot(clientX - vx, clientY - vy);
+          if (distV <= maxScreenDistPx && distV < bestDist) {
+            bestDist = distV;
+            bestAngle = ang;
+            bestHit.copy(ang.vertexPos);
+          }
+        }
+      } else {
+        bWorld.copy(ang.badgePos).applyMatrix4(mWorld);
+        const distRay = ray.distanceToPoint(bWorld);
+        if (distRay <= 0.05 * this.modelScale && distRay < bestDist) {
+          bestDist = distRay;
+          bestAngle = ang;
+          bestHit.copy(ang.badgePos);
+        }
+      }
+    }
+
+    if (!bestAngle) return null;
+    return {
+      angle: bestAngle,
+      hitPoint3D: bestHit,
+      screenDistPx: bestDist,
+    };
+  }
+
+  public setSelectedAngleLine(lineId: string | null): void {
+    if (this.selectedAngleLineId === lineId) return;
+
+    // 清理前一条选中的高亮
+    if (this.selectedAngleLineId) {
+      const prevCore = this.segmentsGroup.getObjectByName(`perm_seg_${this.selectedAngleLineId}`) as THREE.Mesh;
+      if (prevCore && (prevCore as any).userData?.baseColor) {
+        prevCore.scale.set(1, 1, 1);
+        (prevCore.material as THREE.MeshBasicMaterial).color.setHex((prevCore as any).userData.baseColor);
+      }
+      if (this.selectedAngleLineHighlightMesh) {
+        this.modelContainer.remove(this.selectedAngleLineHighlightMesh);
+        this.selectedAngleLineHighlightMesh.geometry.dispose();
+        (this.selectedAngleLineHighlightMesh.material as THREE.Material).dispose();
+        this.selectedAngleLineHighlightMesh = null;
+      }
+    }
+
+    this.selectedAngleLineId = lineId;
+
+    if (lineId) {
+      const core = this.segmentsGroup.getObjectByName(`perm_seg_${lineId}`) as THREE.Mesh;
+      if (core) {
+        core.scale.set(1.5, 1, 1.5);
+        (core.material as THREE.MeshBasicMaterial).color.setHex(0x38bdf8); // 苹果电光青
+      } else {
+        const parts = lineId.replace('edge_', '').split('_');
+        const pAId = parts.slice(0, 2).join('_');
+        const pBId = parts.slice(2).join('_');
+        const kpA = this.currentModelDef.keyPoints.find((k) => k.id === pAId);
+        const kpB = this.currentModelDef.keyPoints.find((k) => k.id === pBId);
+        if (kpA && kpB) {
+          const dir = new THREE.Vector3().subVectors(kpB.position, kpA.position);
+          const len = dir.length();
+          const mid = new THREE.Vector3().addVectors(kpA.position, kpB.position).multiplyScalar(0.5);
+          const hGeo = new THREE.CylinderGeometry(0.0032, 0.0032, len, 10);
+          const hMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.95,
+            depthTest: false,
+          });
+          const hMesh = new THREE.Mesh(hGeo, hMat);
+          hMesh.position.copy(mid);
+          hMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+          hMesh.renderOrder = 18;
+          hMesh.raycast = StereometryMesh.NOOP_RAYCAST;
+          this.selectedAngleLineHighlightMesh = hMesh;
+          this.modelContainer.add(hMesh);
+        }
+      }
+    }
+  }
+
+  public getSelectedAngleLineId(): string | null {
+    return this.selectedAngleLineId;
+  }
+
+  public setHoveredAngle(angleId: string | null): void {
+    if (this.hoveredAngleId === angleId) return;
+
+    if (this.hoveredAngleId) {
+      const prevBadge = this.angleBadges.get(this.hoveredAngleId);
+      if (prevBadge && prevBadge.sprite) {
+        prevBadge.sprite.scale.set(0.180, 0.090, 1);
+      }
+      const prevArc = this.anglesGroup.getObjectByName(`ang_arc_${this.hoveredAngleId}`) as THREE.Line;
+      if (prevArc) {
+        (prevArc.material as THREE.LineBasicMaterial).color.setHex(0x38bdf8);
+      }
+    }
+
+    this.hoveredAngleId = angleId;
+
+    if (angleId && !this.eliminatingAngleIds.has(angleId)) {
+      const badge = this.angleBadges.get(angleId);
+      if (badge && badge.sprite) {
+        badge.sprite.scale.set(0.205, 0.102, 1);
+      }
+      const arc = this.anglesGroup.getObjectByName(`ang_arc_${angleId}`) as THREE.Line;
+      if (arc) {
+        (arc.material as THREE.LineBasicMaterial).color.setHex(0xf43f5e);
+      }
+    }
+  }
+
+  public getHoveredAngleId(): string | null {
+    return this.hoveredAngleId;
+  }
+
+  public addAngle(line1: InteractableLine, line2: InteractableLine): DrawnAngle {
+    const existing = this.drawnAngles.find(
+      (a) => (a.lineId1 === line1.id && a.lineId2 === line2.id) || (a.lineId1 === line2.id && a.lineId2 === line1.id)
+    );
+    if (existing) return existing;
+
+    const p1A = line1.posA;
+    const p1B = line1.posB;
+    const p2A = line2.posA;
+    const p2B = line2.posB;
+
+    let vertexPos: THREE.Vector3;
+    let d1 = new THREE.Vector3();
+    let d2 = new THREE.Vector3();
+    let angleType: 'intersecting' | 'skew' | 'parallel' = 'intersecting';
+
+    // 1. 判断是否共端点 (三角形/多面体顶点处的天然角)
+    if (p1A.distanceTo(p2A) < 1e-4) {
+      vertexPos = p1A.clone();
+      d1.subVectors(p1B, p1A).normalize();
+      d2.subVectors(p2B, p2A).normalize();
+    } else if (p1A.distanceTo(p2B) < 1e-4) {
+      vertexPos = p1A.clone();
+      d1.subVectors(p1B, p1A).normalize();
+      d2.subVectors(p2A, p2B).normalize();
+    } else if (p1B.distanceTo(p2A) < 1e-4) {
+      vertexPos = p1B.clone();
+      d1.subVectors(p1A, p1B).normalize();
+      d2.subVectors(p2B, p2A).normalize();
+    } else if (p1B.distanceTo(p2B) < 1e-4) {
+      vertexPos = p1B.clone();
+      d1.subVectors(p1A, p1B).normalize();
+      d2.subVectors(p2A, p2B).normalize();
+    } else {
+      // 2. 异面直线或未共端点相交直线
+      const skew = GeometrySolver.computeSkewLineMetrics(p1A, p1B, p2A, p2B);
+      angleType = skew.type;
+      const u = p1B.clone().sub(p1A);
+      const v = p2B.clone().sub(p2A);
+      const w0 = p1A.clone().sub(p2A);
+      const a = u.dot(u);
+      const b = u.dot(v);
+      const c = v.dot(v);
+      const d = u.dot(w0);
+      const e = v.dot(w0);
+      const denom = a * c - b * b;
+      let sc = 0.5;
+      let tc = 0.5;
+      if (Math.abs(denom) > 1e-6) {
+        sc = THREE.MathUtils.clamp((b * e - c * d) / denom, 0.1, 0.9);
+        tc = THREE.MathUtils.clamp((a * e - b * d) / denom, 0.1, 0.9);
+      }
+      const pt1 = p1A.clone().addScaledVector(u, sc);
+      const pt2 = p2A.clone().addScaledVector(v, tc);
+      vertexPos = pt1.clone().add(pt2).multiplyScalar(0.5);
+      d1 = skew.directionA.clone();
+      d2 = skew.directionB.clone();
+      // 高中教材规范：空间异面直线夹角定义为锐角/直角 [0, 90°]
+      if (d1.dot(d2) < 0 && skew.type !== 'parallel') {
+        d2.negate();
+      }
+    }
+
+    // 计算两条射线夹角
+    const cosAngle = THREE.MathUtils.clamp(d1.dot(d2), -1, 1);
+    const rad = Math.acos(cosAngle);
+    const angleDeg = Math.round((rad * 180 / Math.PI) * 10) / 10;
+    const isRightAngle = Math.abs(angleDeg - 90) < 0.6;
+
+    // 建立两条射线所在平面的精确 2D 正交基底 (e1, e2)，保证角标符号与两线严格共面
+    const e1 = d1.clone().normalize();
+    const w = d2.clone().addScaledVector(e1, -cosAngle);
+    let e2: THREE.Vector3;
+    if (w.lengthSq() < 1e-6) {
+      let temp = new THREE.Vector3(0, 1, 0);
+      if (Math.abs(e1.dot(temp)) > 0.9) temp.set(1, 0, 0);
+      e2 = new THREE.Vector3().crossVectors(e1, temp).normalize();
+    } else {
+      e2 = w.normalize();
+    }
+
+    // 角平分线方向 (在两条线所在平面内)
+    const halfRad = rad * 0.5;
+    const bisector = new THREE.Vector3()
+      .addScaledVector(e1, Math.cos(halfRad))
+      .addScaledVector(e2, Math.sin(halfRad))
+      .normalize();
+
+    const R = 0.052 * this.modelScale;
+    const badgePos = vertexPos.clone().addScaledVector(bisector, R * 1.62);
+
+    const drawnAngle: DrawnAngle = {
+      id: `ang_${line1.id}_${line2.id}`,
+      lineId1: line1.id,
+      lineId2: line2.id,
+      label1: line1.label,
+      label2: line2.label,
+      angleDeg,
+      angleType,
+      vertexPos,
+      badgePos,
+      dir1: d1,
+      dir2: d2,
+      isRightAngle,
+      color: 0x38bdf8,
+    };
+
+    this.drawnAngles.push(drawnAngle);
+    this.rebuildAngles();
+    AppleHapticAudio.playPop();
+    return drawnAngle;
+  }
+
+  public removeAngle(id: string): void {
+    this.drawnAngles = this.drawnAngles.filter((a) => a.id !== id);
+    this.rebuildAngles();
+  }
+
+  public clearAllAngles(): void {
+    this.drawnAngles = [];
+    this.rebuildAngles();
+  }
+
+  public getAngles(): DrawnAngle[] {
+    return [...this.drawnAngles];
+  }
+
+  public isAngleEliminating(id: string): boolean {
+    return this.eliminatingAngleIds.has(id);
+  }
+
+  private rebuildAngles(): void {
+    this.clearGroup(this.anglesGroup);
+    const activeAngleIds = new Set<string>();
+
+    for (const ang of this.drawnAngles) {
+      activeAngleIds.add(ang.id);
+      const V = ang.vertexPos;
+      const R = 0.052 * this.modelScale;
+
+      const d1 = ang.dir1;
+      const d2 = ang.dir2;
+      const cosAngle = THREE.MathUtils.clamp(d1.dot(d2), -1, 1);
+      const totalRad = Math.acos(cosAngle);
+
+      // 计算当前两条线形成平面内的精确正交基底 (e1, e2)
+      const e1 = d1.clone().normalize();
+      const w = d2.clone().addScaledVector(e1, -cosAngle);
+      let e2: THREE.Vector3;
+      if (w.lengthSq() < 1e-6) {
+        let temp = new THREE.Vector3(0, 1, 0);
+        if (Math.abs(e1.dot(temp)) > 0.9) temp.set(1, 0, 0);
+        e2 = new THREE.Vector3().crossVectors(e1, temp).normalize();
+      } else {
+        e2 = w.normalize();
+      }
+
+      // 1. 构建角标符号 (在两线精确共面内绘制，严禁方向偏差或垂直下垂)
+      if (ang.isRightAngle) {
+        // 直角方框 (Perpendicular Square Corner)
+        const s = 0.034 * this.modelScale;
+        const p1 = V.clone().addScaledVector(e1, s);
+        const pCorner = V.clone().addScaledVector(e1, s).addScaledVector(e2, s);
+        const p2 = V.clone().addScaledVector(e2, s);
+
+        const bracketGeo = new THREE.BufferGeometry().setFromPoints([p1, pCorner, p2]);
+        const bracketMat = new THREE.LineBasicMaterial({
+          color: 0x38bdf8,
+          linewidth: 2.5,
+          transparent: true,
+          opacity: 0.95,
+          depthTest: true,
+          depthWrite: false,
+        });
+        const bracketMesh = new THREE.Line(bracketGeo, bracketMat);
+        bracketMesh.name = `ang_arc_${ang.id}`;
+        bracketMesh.renderOrder = 8;
+        bracketMesh.raycast = StereometryMesh.NOOP_RAYCAST;
+        this.anglesGroup.add(bracketMesh);
+      } else {
+        // 经典共面空间圆弧 (Circular Arc)
+        const arcPoints: THREE.Vector3[] = [];
+        const segments = 24;
+
+        for (let i = 0; i <= segments; i++) {
+          const t = i / segments;
+          const currentA = t * totalRad;
+          const pt = V.clone()
+            .addScaledVector(e1, R * Math.cos(currentA))
+            .addScaledVector(e2, R * Math.sin(currentA));
+          arcPoints.push(pt);
+        }
+
+        const arcGeo = new THREE.BufferGeometry().setFromPoints(arcPoints);
+        const arcMat = new THREE.LineBasicMaterial({
+          color: 0x38bdf8,
+          linewidth: 2.5,
+          transparent: true,
+          opacity: 0.95,
+          depthTest: true,
+          depthWrite: false,
+        });
+        const arcMesh = new THREE.Line(arcGeo, arcMat);
+        arcMesh.name = `ang_arc_${ang.id}`;
+        arcMesh.renderOrder = 8;
+        arcMesh.raycast = StereometryMesh.NOOP_RAYCAST;
+        this.anglesGroup.add(arcMesh);
+      }
+
+      // 2. 纯数字排版角度 Sprite (彻底移除气泡背景，与棱长 6, 8, 10 风格一致)
+      const degRounded = Math.round(ang.angleDeg * 10) / 10;
+      const text = `${degRounded % 1 === 0 ? degRounded.toFixed(0) : degRounded.toFixed(1)}°`;
+
+      let badge = this.angleBadges.get(ang.id);
+      if (!badge) {
+        let canvas: HTMLCanvasElement | null = null;
+        if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+          canvas = document.createElement('canvas');
+          canvas.width = 512;
+          canvas.height = 256;
+        }
+        const tex = canvas ? new THREE.CanvasTexture(canvas) : (new THREE.Texture() as THREE.CanvasTexture);
+        tex.minFilter = THREE.LinearFilter;
+        const mat = new THREE.SpriteMaterial({
+          map: tex,
+          transparent: true,
+          depthTest: false,
+        });
+        const sprite = new THREE.Sprite(mat);
+        sprite.name = `badge_ang_${ang.id}`;
+        sprite.scale.set(0.180, 0.090, 1);
+        sprite.position.copy(ang.badgePos);
+        sprite.renderOrder = 12;
+        sprite.raycast = StereometryMesh.NOOP_RAYCAST;
+        this.anglesGroup.add(sprite);
+
+        badge = {
+          sprite,
+          canvas: canvas!,
+          texture: tex,
+          material: mat,
+          pos: ang.badgePos.clone(),
+          text,
+          color: ang.color,
+        };
+        this.angleBadges.set(ang.id, badge);
+
+        if (canvas) {
+          this.renderAngleBadgeToCanvas(canvas, text, ang.color);
+          tex.needsUpdate = true;
+        }
+      } else {
+        badge.pos.copy(ang.badgePos);
+        badge.sprite.position.copy(ang.badgePos);
+        if (badge.text !== text || badge.color !== ang.color) {
+          badge.text = text;
+          badge.color = ang.color;
+          if (badge.canvas) {
+            this.renderAngleBadgeToCanvas(badge.canvas, text, ang.color);
+            badge.texture.needsUpdate = true;
+          }
+        }
+      }
+    }
+
+    for (const [id, badge] of this.angleBadges.entries()) {
+      if (!activeAngleIds.has(id)) {
+        this.anglesGroup.remove(badge.sprite);
+        badge.material.dispose();
+        badge.texture.dispose();
+        this.angleBadges.delete(id);
+      }
+    }
+  }
+
+  private renderAngleBadgeToCanvas(canvas: HTMLCanvasElement, text: string, _color: number): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+
+    // 严禁绘制任何气泡背景、底色或圆角边框！纯数字高对比度排版 (Pure Typography)
+    ctx.font = 'bold 104px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Times New Roman", "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // 柔和空间环境微阴影
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+    ctx.shadowBlur = 10;
+
+    // 深色对比描边边缘 (13.0px)
+    ctx.lineWidth = 13.0;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(10, 16, 32, 0.95)';
+    if (typeof ctx.strokeText === 'function') {
+      ctx.strokeText(text, cx, cy);
+    }
+
+    // 纯白高亮字形填充
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, cx, cy);
+  }
+
+  public startAngleLongPress(angleId: string, hitPoint3D: THREE.Vector3): void {
+    if (this.eliminatingAngleIds.has(angleId)) return;
+    this.chargingAngleId = angleId;
+    this.startSegmentLongPress(`angle_proxy_${angleId}`, hitPoint3D);
+  }
+
+  public updateAngleLongPress(angleId: string, progress: number, hitPoint3D?: THREE.Vector3): void {
+    if (this.eliminatingAngleIds.has(angleId)) return;
+    this.chargingAngleId = angleId;
+    this.updateSegmentLongPress(`angle_proxy_${angleId}`, progress, hitPoint3D);
+
+    const badge = this.angleBadges.get(angleId);
+    if (badge && badge.sprite) {
+      const compress = 1.0 - 0.12 * Math.sin(progress * Math.PI * 0.5);
+      badge.sprite.scale.set(0.180 * compress, 0.090 * compress, 1);
+    }
+  }
+
+  public cancelAngleLongPress(): void {
+    const angId = this.chargingAngleId;
+    this.chargingAngleId = null;
+    this.cancelSegmentLongPress();
+    if (angId) {
+      const badge = this.angleBadges.get(angId);
+      if (badge && badge.sprite) {
+        badge.sprite.scale.set(0.180, 0.090, 1);
+      }
+    }
+  }
+
+  public playAngleEliminationAnimation(angleId: string, onComplete: () => void): void {
+    const ang = this.drawnAngles.find((a) => a.id === angleId);
+    if (!ang) {
+      onComplete();
+      return;
+    }
+
+    this.eliminatingAngleIds.add(angleId);
+    if (this.chargingRingSprite) {
+      this.chargingRingSprite.visible = false;
+    }
+    this.chargingAngleId = null;
+    this.cancelSegmentLongPress();
+
+    // 播放苹果 Pop
+    AppleHapticAudio.playPop();
+
+    const count = 24;
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const particleData: Array<{ pos: THREE.Vector3; vel: THREE.Vector3 }> = [];
+
+    const V = ang.vertexPos;
+    const B = ang.badgePos;
+    const applePalette = [
+      new THREE.Color(0xffffff),
+      new THREE.Color(0x38bdf8),
+      new THREE.Color(0xc084fc),
+      new THREE.Color(0xf43f5e),
+    ];
+
+    for (let i = 0; i < count; i++) {
+      const t = i / count;
+      const p = V.clone().lerp(B, t);
+      p.x += (Math.random() - 0.5) * 0.005;
+      p.y += (Math.random() - 0.5) * 0.005;
+      p.z += (Math.random() - 0.5) * 0.005;
+
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.35,
+        0.10 + Math.random() * 0.25,
+        (Math.random() - 0.5) * 0.35
+      );
+
+      positions[i * 3] = p.x;
+      positions[i * 3 + 1] = p.y;
+      positions[i * 3 + 2] = p.z;
+
+      const col = applePalette[i % applePalette.length];
+      colors[i * 3] = col.r;
+      colors[i * 3 + 1] = col.g;
+      colors[i * 3 + 2] = col.b;
+
+      particleData.push({ pos: p, vel });
+    }
+
+    const pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    pGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const pMat = new THREE.PointsMaterial({
+      size: 0.010,
+      vertexColors: true,
+      transparent: true,
+      opacity: 1.0,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const pointsMesh = new THREE.Points(pGeo, pMat);
+    pointsMesh.renderOrder = 24;
+    pointsMesh.raycast = StereometryMesh.NOOP_RAYCAST;
+    this.eliminationEffectsGroup.add(pointsMesh);
+
+    const arcMesh = this.anglesGroup.getObjectByName(`ang_arc_${angleId}`) as THREE.Line;
+    const fanMesh = this.anglesGroup.getObjectByName(`ang_fan_${angleId}`) as THREE.Mesh;
+    const badge = this.angleBadges.get(angleId);
+
+    this.activeAngleEliminations.push({
+      id: angleId,
+      pointsMesh,
+      particles: particleData,
+      badgeSprite: badge?.sprite,
+      arcMesh,
+      fanMesh,
+      progress: 0,
+      duration: 0.32,
+      onComplete: () => {
+        this.eliminatingAngleIds.delete(angleId);
+        onComplete();
+      },
+    });
+  }
+
   private initChargingRing(): void {
     if (typeof document === 'undefined') return;
     this.chargingRingCanvas = document.createElement('canvas');
@@ -1980,6 +2747,10 @@ export class StereometryMesh {
 
   public getSegmentBadgesGroup(): THREE.Group {
     return this.segmentBadgesGroup;
+  }
+
+  public getAnglesGroup(): THREE.Group {
+    return this.anglesGroup;
   }
 
   public getSegmentBadges(): Map<string, { sprite: THREE.Sprite; text: string; length: number }> {
@@ -3419,6 +4190,58 @@ export class StereometryMesh {
         this.renderChargingRingCanvas(0, this.chargingSpringScale);
       }
     }
+
+    // 更新夹角标注消散粒子与坍缩动画
+    for (let i = this.activeAngleEliminations.length - 1; i >= 0; i--) {
+      const anim = this.activeAngleEliminations[i];
+      anim.progress += safeDelta / anim.duration;
+      const p = Math.min(anim.progress, 1.0);
+
+      if (anim.pointsMesh && anim.particles) {
+        const posAttr = anim.pointsMesh.geometry.attributes.position as THREE.BufferAttribute;
+        const positions = posAttr.array as Float32Array;
+        for (let j = 0; j < anim.particles.length; j++) {
+          const pt = anim.particles[j];
+          pt.pos.addScaledVector(pt.vel, safeDelta);
+          pt.vel.multiplyScalar(0.91);
+          positions[j * 3] = pt.pos.x;
+          positions[j * 3 + 1] = pt.pos.y;
+          positions[j * 3 + 2] = pt.pos.z;
+        }
+        posAttr.needsUpdate = true;
+        (anim.pointsMesh.material as THREE.PointsMaterial).opacity = Math.max(0, 1.0 - Math.pow(p, 1.6));
+      }
+
+      if (anim.arcMesh) {
+        (anim.arcMesh.material as THREE.LineBasicMaterial).opacity = Math.max(0, 1.0 - p);
+      }
+      if (anim.fanMesh) {
+        (anim.fanMesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.18 * (1.0 - p));
+      }
+
+      if (anim.badgeSprite) {
+        let s = 1.0;
+        if (p < 0.18) {
+          s = 1.0 + (p / 0.18) * 0.35;
+        } else {
+          s = 1.35 * Math.max(0, 1.0 - (p - 0.18) / 0.82);
+        }
+        anim.badgeSprite.scale.set(0.180 * s, 0.090 * s, 1);
+        (anim.badgeSprite.material as THREE.SpriteMaterial).opacity = Math.max(0, 1.0 - p * 1.5);
+        (anim.badgeSprite.material as THREE.SpriteMaterial).rotation += safeDelta * 3.5;
+      }
+
+      if (p >= 1.0) {
+        if (anim.pointsMesh) {
+          this.eliminationEffectsGroup.remove(anim.pointsMesh);
+          anim.pointsMesh.geometry.dispose();
+          (anim.pointsMesh.material as THREE.Material).dispose();
+        }
+        this.activeAngleEliminations.splice(i, 1);
+        this.eliminatingAngleIds.delete(anim.id);
+        anim.onComplete?.();
+      }
+    }
   }
 
   public dispose(): void {
@@ -3428,6 +4251,12 @@ export class StereometryMesh {
     this.clearGroup(this.auxFacesGroup);
     this.clearGroup(this.eliminationEffectsGroup);
     this.clearGroup(this.chargingRingGroup);
+    this.clearGroup(this.anglesGroup);
+    for (const badge of this.angleBadges.values()) {
+      badge.material.dispose();
+      badge.texture.dispose();
+    }
+    this.angleBadges.clear();
     if (this.chargingRingSprite) {
       this.chargingRingSprite.material.dispose();
     }

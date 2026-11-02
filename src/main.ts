@@ -1,3 +1,4 @@
+import './ui/demonstration.css';
 import { Engine } from './core/Engine';
 import { WhiteboardApp } from './whiteboard/WhiteboardApp';
 import { preloadAccountAssets } from './whiteboard/AccountModal';

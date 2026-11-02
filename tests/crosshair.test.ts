@@ -172,24 +172,9 @@ isWhiteboardMode = true;
 assert.strictEqual(computeExpectedCrosshairVisibility(), false, 'Hidden when returning to whiteboard');
 console.log('✓ Test 4 passed: All state matrix conditions verified\n');
 
-// Test 5: All Physics Experiments Center Crosshair & Pointer Lock Invariants
-console.log('Test 5: All Physics Experiments Center Crosshair & Pointer Lock Invariants');
-const allPhysicsExperiments = [
-  'mech-galileo',
-  'mech-free-fall',
-  'mech-center-of-gravity',
-  'mech-newton-third',
-  'mech-newton-cannon',
-  'em-field',
-  'em-hall',
-  'em-capacitor-discharge',
-  'optics-diffraction',
-  'optics-dispersion',
-  'optics-double-slit',
-  'optics-polarization',
-  'optics-reflection-refraction',
-  'thermo-carnot',
-];
+// Test 5: Desk Physics Free Cursor & Pointer Lock Invariants
+console.log('Test 5: Desk Physics Free Cursor & Pointer Lock Invariants');
+const { PHYSICS_DEMONSTRATION_IDS: allPhysicsExperiments } = await import('../src/experiments/demonstrations/physicsDemonstrations.ts');
 
 const { Engine } = await import('../src/core/Engine.ts');
 const engine: any = Object.create(Engine.prototype);
@@ -200,19 +185,22 @@ for (const expId of allPhysicsExperiments) {
   engine.holoStage = { activeExperiment: experiment };
   assert.strictEqual(
     engine.isFreeCursorExperiment(expId),
-    false,
-    `Physics experiment [${expId}] must NOT be classified as free cursor; center crosshair must activate`
+    true,
+    `Direct-manipulation apparatus [${expId}] must use a free cursor without pointer lock`
   );
 }
 
-// Math stereometry remains the dedicated free cursor mode
+// Mathematics and all lite scenes also use a free cursor.
 assert.strictEqual(
   engine.isFreeCursorExperiment('math-stereometry'),
   true,
-  'Math stereometry must remain dedicated free cursor mode'
+  'Math stereometry must remain a free cursor mode'
 );
 
-console.log('✓ Test 5 passed: Center crosshair activation guaranteed across all physics experiments\n');
+assert.equal(engine.isFreeCursorExperiment(null), false, 'The empty full room retains navigation');
+engine.laboratoryMode = 'lite';
+assert.equal(engine.isFreeCursorExperiment(null), true, 'Even an empty lite scene never locks the cursor');
+console.log('✓ Test 5 passed: Free cursor guaranteed for desk physics and lite presentation\n');
 
 console.log('Test 6: iPad Touch Mode Never Shows a Crosshair');
 const touchCrosshair = new Crosshair(body, true);

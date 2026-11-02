@@ -1,6 +1,9 @@
 export type AccountRole = 'teacher' | 'student';
 
+export type LaboratoryMode = 'full' | 'lite';
+
 export interface AccountPreferences {
+  laboratoryMode?: LaboratoryMode;
   spatialWindowScale?: number;
   whiteboardTheme?: 'plain' | 'grid' | 'chalkboard' | 'dark';
   galleryPortraits?: boolean;

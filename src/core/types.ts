@@ -1,3 +1,4 @@
+import type { ExperimentDemonstration } from '../experiments/demonstrations/DemonstrationPlayer.ts';
 import * as THREE from 'three';
 import type { ComputeBridge } from './platform/ComputeBridge';
 import type { WorkerPool } from '../workers/WorkerPool';
@@ -77,6 +78,7 @@ export interface ExperimentContext {
 }
 
 export interface IExperiment {
+  createDemonstration?(context: ExperimentContext): ExperimentDemonstration | null;
   readonly metadata: ExperimentMetadata;
   readonly rootGroup: THREE.Group;
   readonly targetScale?: number;

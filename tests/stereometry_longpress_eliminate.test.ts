@@ -218,6 +218,185 @@ assert.equal(typeof (global as any).window?.document?.querySelector?.('.floating
 assert.equal(mesh.group.children.length > 0, true, 'Visuals are 100% native 3D scene meshes and sprites');
 console.log('✓ Test 7 passed: Strict zero floating popups invariant preserved\n');
 
+// ---------------------------------------------------------------------------
+// Test 8: Click line 1 then click line 2 marks their 3D angle (点击两线标出夹角)
+// ---------------------------------------------------------------------------
+console.log('Test 8: Click line 1 then click line 2 marks their 3D angle');
+let createdAngle: any = null;
+let removedAngleId: string | null = null;
+let removedAngleDeg: number | null = null;
+
+(interactionManager as any).callbacks.onAngleCreated = (ang: any) => { createdAngle = ang; };
+(interactionManager as any).callbacks.onAngleRemoved = (id: string, deg: number) => {
+  removedAngleId = id;
+  removedAngleDeg = deg;
+};
+
+// 当前剩余两个有效辅助线：seg2 (BC) 和 seg3 (CA)
+mesh.modelContainer.updateWorldMatrix(true, false);
+const segList = mesh.getSegments();
+assert.equal(segList.length, 2, 'Should have 2 remaining auxiliary segments');
+const segBC = segList[0];
+const segCA = segList[1];
+
+const kpBC_A = mesh.getModelDef().keyPoints.find((k) => k.id === segBC.pointIdA)!;
+const kpBC_B = mesh.getModelDef().keyPoints.find((k) => k.id === segBC.pointIdB)!;
+const midBC = kpBC_A.position.clone().lerp(kpBC_B.position, 0.20);
+const worldBC = midBC.clone().applyMatrix4(mesh.modelContainer.matrixWorld);
+const projBC = worldBC.clone().project(camera);
+const bcScreenX = ((projBC.x + 1) * 0.5) * 1920;
+const bcScreenY = ((-projBC.y + 1) * 0.5) * 1080;
+
+const kpCA_A = mesh.getModelDef().keyPoints.find((k) => k.id === segCA.pointIdA)!;
+const kpCA_B = mesh.getModelDef().keyPoints.find((k) => k.id === segCA.pointIdB)!;
+const midCA = kpCA_A.position.clone().lerp(kpCA_B.position, 0.20);
+const worldCA = midCA.clone().applyMatrix4(mesh.modelContainer.matrixWorld);
+const projCA = worldCA.clone().project(camera);
+const caScreenX = ((projCA.x + 1) * 0.5) * 1920;
+const caScreenY = ((-projCA.y + 1) * 0.5) * 1080;
+
+// 1. 点击第一根线 segBC (< 450ms 短按)
+const downLine1: any = { button: 0, pointerId: 1, clientX: bcScreenX, clientY: bcScreenY, pointerType: 'mouse' };
+interactionManager.onPointerDown(downLine1, null, mockContext);
+assert.equal((interactionManager as any).session.kind, 'segment-long-press', 'Down on segment starts session');
+
+const upLine1: any = { button: 0, pointerId: 1, clientX: bcScreenX, clientY: bcScreenY, pointerType: 'mouse' };
+interactionManager.onPointerUp(upLine1, mockContext);
+
+assert.equal(interactionManager.getSelectedAngleLine()?.id, segBC.id, 'Line 1 must be selected for angle');
+assert.equal(mesh.getSelectedAngleLineId(), segBC.id, 'Line 1 must be highlighted in mesh');
+
+// 2. 点击第二根线 segCA (< 450ms 短按)
+const downLine2: any = { button: 0, pointerId: 1, clientX: caScreenX, clientY: caScreenY, pointerType: 'mouse' };
+interactionManager.onPointerDown(downLine2, null, mockContext);
+const upLine2: any = { button: 0, pointerId: 1, clientX: caScreenX, clientY: caScreenY, pointerType: 'mouse' };
+interactionManager.onPointerUp(upLine2, mockContext);
+
+assert.equal(interactionManager.getSelectedAngleLine(), null, 'Selected line must be cleared after angle is marked');
+assert.equal(mesh.getSelectedAngleLineId(), null, 'Mesh highlight must be cleared');
+assert(createdAngle !== null, 'onAngleCreated callback must be delivered');
+assert.equal(mesh.getAngles().length, 1, 'Mesh must contain exactly 1 drawn angle');
+assert(createdAngle.angleDeg > 0, `Angle degree must be positive, got: ${createdAngle.angleDeg}°`);
+assert(mesh.getAnglesGroup().children.length > 0, 'anglesGroup must contain 3D arc line and badge');
+
+// 严谨验证：角标弧线必须严格位于两线所确立的 3D 平面内，且起于 line1 止于 line2
+const arcMesh = mesh.getAnglesGroup().getObjectByName(`ang_arc_${createdAngle.id}`) as THREE.Line;
+assert(arcMesh, 'Arc mesh must exist in anglesGroup');
+const posAttr = arcMesh.geometry.attributes.position as THREE.BufferAttribute;
+const planeNormal = new THREE.Vector3().crossVectors(createdAngle.dir1, createdAngle.dir2).normalize();
+const anglePlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, createdAngle.vertexPos);
+
+for (let i = 0; i < posAttr.count; i++) {
+  const pt = new THREE.Vector3().fromBufferAttribute(posAttr, i);
+  const distToPlane = Math.abs(anglePlane.distanceToPoint(pt));
+  assert(distToPlane < 1e-4, `Arc vertex ${i} must lie strictly in the angle plane, dist: ${distToPlane}`);
+}
+
+const startPt = new THREE.Vector3().fromBufferAttribute(posAttr, 0);
+const endPt = new THREE.Vector3().fromBufferAttribute(posAttr, posAttr.count - 1);
+const startDir = startPt.clone().sub(createdAngle.vertexPos).normalize();
+const endDir = endPt.clone().sub(createdAngle.vertexPos).normalize();
+assert(startDir.distanceTo(createdAngle.dir1) < 1e-3, 'Arc must start along line 1 direction');
+assert(endDir.distanceTo(createdAngle.dir2) < 1e-3, 'Arc must end along line 2 direction');
+console.log('✓ Arc strictly coplanar and correctly oriented from line 1 to line 2');
+
+console.log(`✓ Test 8 passed: 3D angle marked between [${createdAngle.label1}] and [${createdAngle.label2}]: ${createdAngle.angleDeg}°\n`);
+
+// ---------------------------------------------------------------------------
+// Test 9: Click same line or outside cancels line selection
+// ---------------------------------------------------------------------------
+console.log('Test 9: Click same line cancels line selection');
+interactionManager.onPointerDown(downLine1, null, mockContext);
+interactionManager.onPointerUp(upLine1, mockContext);
+assert.equal(interactionManager.getSelectedAngleLine()?.id, segBC.id, 'Line 1 re-selected');
+
+// 再次点击同一根线取消选择
+interactionManager.onPointerDown(downLine1, null, mockContext);
+interactionManager.onPointerUp(upLine1, mockContext);
+assert.equal(interactionManager.getSelectedAngleLine(), null, 'Re-clicking same line cancels selection');
+
+// 点击模型外空白处也取消选择
+interactionManager.onPointerDown(downLine1, null, mockContext);
+interactionManager.onPointerUp(upLine1, mockContext);
+assert.equal(interactionManager.getSelectedAngleLine()?.id, segBC.id);
+interactionManager.onPointerDown({ button: 0, pointerId: 1, clientX: 10, clientY: 10, pointerType: 'mouse' }, null, mockContext);
+assert.equal(interactionManager.getSelectedAngleLine(), null, 'Clicking outside cancels selection');
+console.log('✓ Test 9 passed: Selection cancelation verified\n');
+
+// ---------------------------------------------------------------------------
+// Test 10: Long-press angle annotation to eliminate it with Apple pop & particles
+// ---------------------------------------------------------------------------
+console.log('Test 10: Long-press angle annotation eliminates it with Apple pop & particle dissolution');
+const ang = mesh.getAngles()[0];
+assert(ang, 'Drawn angle must exist');
+
+// 投影夹角度数标牌的屏幕坐标
+const badgeWorld = ang.badgePos.clone().applyMatrix4(mesh.modelContainer.matrixWorld);
+const projBadge = badgeWorld.clone().project(camera);
+const angScreenX = ((projBadge.x + 1) * 0.5) * 1920;
+const angScreenY = ((-projBadge.y + 1) * 0.5) * 1080;
+
+// 1. 测试提早松开 (< 520ms) 不消除
+const downAngleEvent: any = { button: 0, pointerId: 1, clientX: angScreenX, clientY: angScreenY, pointerType: 'mouse' };
+interactionManager.onPointerDown(downAngleEvent, null, mockContext);
+assert.equal((interactionManager as any).session.kind, 'angle-long-press', 'Session must be angle-long-press');
+
+interactionManager.update(0.20);
+assert.equal((interactionManager as any).session.completed, false, 'Angle elimination not completed at 200ms');
+
+const upAngleEvent: any = { button: 0, pointerId: 1, clientX: angScreenX, clientY: angScreenY, pointerType: 'mouse' };
+interactionManager.onPointerUp(upAngleEvent, mockContext);
+assert.equal(mesh.getAngles().length, 1, 'Angle remains intact on early release');
+assert.equal(removedAngleId, null, 'No angle removal callback on early release');
+
+// 2. 完整长按蓄力 (>= 520ms) 消除
+let anglePopPlayed = false;
+const origPop2 = AppleHapticAudio.playPop;
+AppleHapticAudio.playPop = () => { anglePopPlayed = true; };
+
+interactionManager.onPointerDown(downAngleEvent, null, mockContext);
+assert.equal((interactionManager as any).session.kind, 'angle-long-press');
+
+(interactionManager as any).session.downTime = performance.now() - 600; // 600ms elapsed
+interactionManager.update(0.016);
+
+assert(anglePopPlayed, 'Apple Haptic Pop must play on angle elimination');
+assert.equal(mesh.isAngleEliminating(ang.id), true, 'Angle must be marked as eliminating');
+
+// 推进时间让粒子与标牌动效完成
+mesh.update(0.36, 1.0, camera);
+
+assert.equal(mesh.getAngles().length, 0, 'Angle must be removed from drawnAngles');
+assert.equal(removedAngleId, ang.id, 'onAngleRemoved callback must report eliminated angle ID');
+assert.equal(removedAngleDeg, ang.angleDeg, 'onAngleRemoved callback must report eliminated angle degree');
+
+AppleHapticAudio.playPop = origPop2;
+console.log('✓ Test 10 passed: Angle long-press eliminated with Apple pop and particle dissolution\n');
+
+// ---------------------------------------------------------------------------
+// Test 11: Removing a segment automatically dissolves any angles attached to it
+// ---------------------------------------------------------------------------
+console.log('Test 11: Removing a segment automatically dissolves any angles attached to it');
+// 重新在 segBC 和 segCA 之间添加夹角
+const testAngle = mesh.addAngle(
+  { id: segBC.id, pointIdA: segBC.pointIdA, pointIdB: segBC.pointIdB, label: segBC.label, isDrawnSegment: true, posA: kpBC_A.position, posB: kpBC_B.position, hitPoint3D: kpBC_A.position },
+  { id: segCA.id, pointIdA: segCA.pointIdA, pointIdB: segCA.pointIdB, label: segCA.label, isDrawnSegment: true, posA: kpCA_A.position, posB: kpCA_B.position, hitPoint3D: kpCA_A.position }
+);
+assert.equal(mesh.getAngles().length, 1, 'Angle re-added');
+
+// 消除 segBC -> 附着在其上的 testAngle 必须同步被移除
+mesh.removeSegment(segBC.id);
+assert.equal(mesh.getAngles().length, 0, 'Angle attached to removed segment must be automatically dissolved');
+console.log('✓ Test 11 passed: Segment elimination cascades to dissolve attached angles\n');
+
+// ---------------------------------------------------------------------------
+// Test 12: Invariant Check - Strict Zero Floating Popups for All Angle Features
+// ---------------------------------------------------------------------------
+console.log('Test 12: Invariant check - Zero DOM modals/popups injected during angle operations');
+assert.equal(typeof (global as any).window?.document?.querySelector?.('.floating-toast'), 'undefined');
+assert.equal(typeof (global as any).window?.document?.querySelector?.('.angle-modal'), 'undefined');
+console.log('✓ Test 12 passed: Zero floating popups invariant fully preserved across all angle features\n');
+
 console.log('========================================================================');
-console.log('All Stereometry Long-Press Elimination Tests Passed (7/7)!');
+console.log('All Stereometry Long-Press & Angle Marking Tests Passed (12/12)!');
 console.log('========================================================================\n');

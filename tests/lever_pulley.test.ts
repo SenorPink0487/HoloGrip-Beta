@@ -128,7 +128,7 @@ assert.equal(disposed, 1, 'shared resources dispose only once');
 assert.equal(exp.rootGroup.children.length, 0);
 const engine = readFileSync(new URL('../src/core/Engine.ts', import.meta.url), 'utf8');
 assert.match(engine, /return id === 'math-stereometry' \|\| id === 'mech-lever-pulley'/);
-assert.match(engine, /showTransition\(id !== 'mech-lever-pulley'/);
+assert.match(engine, /showTransition\(!this\.isLiteLaboratory && id !== 'mech-lever-pulley'/);
 const menu = readFileSync(new URL('../src/ui/vision/PhysicsDisciplineModal.ts', import.meta.url), 'utf8');
 assert(menu.includes("id: 'mech-lever-pulley'"));
 console.log('✓ Lever balance, self-weight, slots, pulley work/rope conservation, pointer ownership, cancel, transformed dragging, menu, and disposal passed.');

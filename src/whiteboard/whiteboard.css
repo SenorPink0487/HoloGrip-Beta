@@ -3919,3 +3919,91 @@ textarea:focus::placeholder {
 @keyframes apple-ar-shutter-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ==========================================================================
+   Laboratory Mode & Settings Integration (Apple Inset Grouped Standard)
+   ========================================================================== */
+.laboratory-mode-row {
+  min-height: 52px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  gap: 14px;
+}
+
+.laboratory-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(120, 120, 128, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 3px;
+  border-radius: 9px;
+  gap: 2px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.laboratory-mode-switch .laboratory-mode-btn,
+.laboratory-mode-switch button {
+  height: 28px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #6e6e73;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  line-height: 1;
+}
+
+.laboratory-mode-switch .laboratory-mode-btn:hover,
+.laboratory-mode-switch button:hover {
+  color: #1d1d1f;
+}
+
+.laboratory-mode-switch .laboratory-mode-btn.active,
+.laboratory-mode-switch button.active {
+  background: #ffffff;
+  color: #1d1d1f;
+  font-weight: 600;
+  box-shadow: 
+    0 1.5px 4px rgba(0, 0, 0, 0.10),
+    0 0.5px 1.5px rgba(0, 0, 0, 0.05);
+}
+
+.laboratory-mode-switch .laboratory-mode-btn:focus-visible,
+.laboratory-mode-switch button:focus-visible {
+  outline: 2px solid var(--apple-blue);
+  outline-offset: 1px;
+}
+
+.laboratory-portrait-row {
+  min-height: 52px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  gap: 14px;
+}
+
+.apple-section-footer {
+  font-size: 11.5px;
+  color: #86868b;
+  line-height: 1.4;
+  margin: 4px 8px 0;
+  user-select: none;
+}
+
+.gallery-palette-deck {
+  transition: opacity 0.2s ease;
+}
+
+.gallery-palette-deck.is-dimmed {
+  opacity: 0.6;
+}

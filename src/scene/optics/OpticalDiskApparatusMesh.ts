@@ -336,10 +336,10 @@ export class OpticalDiskApparatusMesh {
     diskGroup.add(bezel);
 
     // 2.2 刻度盘正面主体薄圆柱 (正面朝向 +Z)
-    const dialMat = new THREE.MeshStandardMaterial({
+    // Printed graduations stay legible under the studio's bright metal reflections.
+    const dialMat = new THREE.MeshBasicMaterial({
       map: this.dialTexture,
-      roughness: 0.30,
-      metalness: 0.06,
+      toneMapped: false,
     });
     const plateGeo = new THREE.CylinderGeometry(this.diskRadius, this.diskRadius, 0.008, 96);
     plateGeo.rotateX(Math.PI / 2);
@@ -400,7 +400,7 @@ export class OpticalDiskApparatusMesh {
     // 2. 核心分界基准线 (参考图：穿过圆心的细黑实线)
     // 介质交界面 (水平直径横线)
     ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = 4.5;
     ctx.beginPath();
     ctx.moveTo(cx - rOuter + 20, cy);
     ctx.lineTo(cx + rOuter - 20, cy);
@@ -438,7 +438,7 @@ export class OpticalDiskApparatusMesh {
       if (deg % 10 === 0) {
         // 10 度主刻度线 (长 125px，终止于 730px，远大于水槽 647px，完全裸露)
         ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 3.8;
+        ctx.lineWidth = 7.0;
         ctx.beginPath();
         ctx.moveTo(cx + cos * 730, cy + sin * 730);
         ctx.lineTo(cx + cos * rTickOuter, cy + sin * rTickOuter);
@@ -449,7 +449,7 @@ export class OpticalDiskApparatusMesh {
         const textY = cy + sin * rNumbers;
 
         ctx.save();
-        ctx.font = '600 42px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif';
+        ctx.font = '700 72px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
@@ -467,7 +467,7 @@ export class OpticalDiskApparatusMesh {
       } else if (deg % 5 === 0) {
         // 5 度中刻度线 (长 75px，从 855px 到 780px)
         ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 2.4;
+        ctx.lineWidth = 4.5;
         ctx.beginPath();
         ctx.moveTo(cx + cos * 780, cy + sin * 780);
         ctx.lineTo(cx + cos * rTickOuter, cy + sin * rTickOuter);
@@ -475,7 +475,7 @@ export class OpticalDiskApparatusMesh {
       } else {
         // 1 度微刻度线 (长 40px，从 855px 到 815px)
         ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(cx + cos * 815, cy + sin * 815);
         ctx.lineTo(cx + cos * rTickOuter, cy + sin * rTickOuter);
@@ -485,6 +485,7 @@ export class OpticalDiskApparatusMesh {
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
     return texture;
   }
 
@@ -981,15 +982,18 @@ export class OpticalDiskApparatusMesh {
       return { canvas: null, texture: null, sprite };
     }
 
-    // 高清纯文字画布 (宽 600，高 140，长宽比约 4.286:1，背景完全透明)
-    canvas.width = 600;
-    canvas.height = 140;
+    // Keep the texture and sprite aspect ratios identical, with enough pixels for iPad text.
+    canvas.width = 640;
+    canvas.height = 128;
     const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = 8;
 
     const spriteMat = new THREE.SpriteMaterial({
       map: texture,
+      toneMapped: false,
       transparent: true,
       depthTest: false,
       depthWrite: false,
@@ -998,8 +1002,8 @@ export class OpticalDiskApparatusMesh {
     const sprite = new THREE.Sprite(spriteMat);
     sprite.name = `AngleBadge_${type}`;
     sprite.raycast = () => {};
-    // 大尺寸纯文字标度 (宽 0.165m, 高 0.0385m)，字形与表盘刻度数字相当，清晰夺目
-    sprite.scale.set(0.165, 0.0385, 1.0);
+    // Larger glyphs, without a panel or a floating DOM label.
+    sprite.scale.set(0.240, 0.048, 1.0);
     sprite.renderOrder = 30;
 
     return { canvas, texture, sprite };
@@ -1028,7 +1032,7 @@ export class OpticalDiskApparatusMesh {
 
     const cy = h / 2;
 
-    ctx.font = 'bold 50px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.font = '700 80px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif';
     ctx.textBaseline = 'middle';
 
     // 严禁绘制任何背景气泡、胶囊底板或实心圆点！纯文字 + 醒目大尺寸度数符号 (°)
@@ -1037,9 +1041,9 @@ export class OpticalDiskApparatusMesh {
       ctx.textAlign = 'center';
       const cx = w / 2;
       if (typeof ctx.strokeText === 'function') {
-        ctx.lineWidth = 6.0;
+        ctx.lineWidth = 4.0;
         ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(8, 14, 26, 0.95)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)';
         ctx.strokeText(label, cx, cy);
       }
       ctx.fillStyle = color;
@@ -1054,20 +1058,20 @@ export class OpticalDiskApparatusMesh {
         if (tm && typeof tm.width === 'number') mainW = tm.width;
       }
 
-      // 角度符号 (°) 的几何规格：半径 7.0px、间距 6px、线宽 3.0px，保持开孔通透清晰
-      const degRadius = 7.0;
-      const degGap = 6.0;
+      // 镂空角度符号留足间距，缩小时仍能分辨圆环与文字。
+      const degRadius = 9.0;
+      const degGap = 8.0;
       const totalW = mainW + degGap + degRadius * 2;
 
       // 整体居中对齐
       const startX = (w - totalW) / 2;
       ctx.textAlign = 'left';
 
-      // 1. 绘制文字深色保护描边与纯色填充
+      // 1. 绘制文字浅色保护描边与纯色填充
       if (typeof ctx.strokeText === 'function') {
-        ctx.lineWidth = 6.0;
+        ctx.lineWidth = 4.0;
         ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(8, 14, 26, 0.95)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)';
         ctx.strokeText(mainText, startX, cy);
       }
       ctx.fillStyle = color;
@@ -1075,15 +1079,15 @@ export class OpticalDiskApparatusMesh {
 
       // 2. 绘制醒目镂空角度符号 (°)
       const degCenterX = startX + mainW + degGap + degRadius;
-      const degCenterY = cy - 14.0; // 上标适度提升
+      const degCenterY = cy - 24.0; // 上标适度提升
 
-      // 外层深色描边
+      // 外层浅色描边
       ctx.beginPath();
       if (typeof ctx.arc === 'function') {
         ctx.arc(degCenterX, degCenterY, degRadius, 0, Math.PI * 2);
       }
-      ctx.lineWidth = 5.5;
-      ctx.strokeStyle = 'rgba(8, 14, 26, 0.95)';
+      ctx.lineWidth = 7.0;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)';
       ctx.stroke();
 
       // 内层纯色圆环 (镂空通透，彻底告别糊成墨点)
@@ -1091,7 +1095,7 @@ export class OpticalDiskApparatusMesh {
       if (typeof ctx.arc === 'function') {
         ctx.arc(degCenterX, degCenterY, degRadius, 0, Math.PI * 2);
       }
-      ctx.lineWidth = 3.0;
+      ctx.lineWidth = 4.0;
       ctx.strokeStyle = color;
       ctx.stroke();
     }
@@ -1201,7 +1205,7 @@ export class OpticalDiskApparatusMesh {
         this.incidentBadgeTex,
         '入射角',
         theta1Key,
-        '#4ade80'
+        '#047857'
       );
     }
 
@@ -1212,7 +1216,7 @@ export class OpticalDiskApparatusMesh {
         this.reflectedBadgeTex,
         '反射角',
         theta1Key,
-        '#2dd4bf'
+        '#0e7490'
       );
     }
 
@@ -1225,7 +1229,7 @@ export class OpticalDiskApparatusMesh {
           this.refractedBadgeTex,
           '全反射',
           '',
-          '#f43f5e'
+          '#be123c'
         );
       } else {
         this.renderAngleBadge(
@@ -1233,7 +1237,7 @@ export class OpticalDiskApparatusMesh {
           this.refractedBadgeTex,
           '折射角',
           theta2Key,
-          '#fbbf24'
+          '#92400e'
         );
       }
     }
@@ -1249,22 +1253,26 @@ export class OpticalDiskApparatusMesh {
 
     if (theta1DegAbs < 5.0) {
       // 0 点及极小角度下，入射角标注位于法线右侧(+X)，反射角标注位于法线左侧(-X)，折射角居于水下
-      this.incidentBadgeSprite.position.set(0.046, this.isAirToWater ? rInc : -rInc, 0);
-      this.reflectedBadgeSprite.position.set(-0.046, this.isAirToWater ? rRefl : -rRefl, 0);
-      this.refractedBadgeSprite.position.set(0.046, this.isAirToWater ? -rRefr : rRefr, 0);
+      this.incidentBadgeSprite.position.set(0.090, this.isAirToWater ? rInc : -rInc, 0);
+      this.reflectedBadgeSprite.position.set(-0.090, this.isAirToWater ? rRefl : -rRefl, 0);
+      this.refractedBadgeSprite.position.set(0.090, this.isAirToWater ? -rRefr : rRefr, 0);
     } else {
+      const labelX = (angle: number, radius: number) => {
+        const x = Math.cos(angle) * radius;
+        return (x < 0 ? -1 : 1) * Math.max(0.090, Math.abs(x));
+      };
       this.incidentBadgeSprite.position.set(
-        Math.cos(midAng1) * rInc,
+        labelX(midAng1, rInc),
         Math.sin(midAng1) * rInc,
         0
       );
       this.reflectedBadgeSprite.position.set(
-        Math.cos(midAngR) * rRefl,
+        labelX(midAngR, rRefl),
         Math.sin(midAngR) * rRefl,
         0
       );
       this.refractedBadgeSprite.position.set(
-        Math.cos(midAng2) * rRefr,
+        labelX(midAng2, rRefr),
         Math.sin(midAng2) * rRefr,
         0
       );

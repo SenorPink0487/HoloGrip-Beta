@@ -14,6 +14,8 @@ if (typeof window !== 'undefined') {
   window.addEventListener('resize', () => { cachedRect = null; }, { passive: true });
 }
 
+export function invalidateLabPointerBounds(): void { cachedRect = null; }
+
 export function labPointerNDC(
   event: { clientX: number; clientY: number },
   canvas?: Pick<HTMLElement, 'getBoundingClientRect'>,

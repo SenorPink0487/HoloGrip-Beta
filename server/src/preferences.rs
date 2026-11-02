@@ -6,6 +6,8 @@ use crate::error::AppError;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccountPreferences {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub laboratory_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spatial_window_scale: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub whiteboard_theme: Option<String>,
@@ -17,6 +19,11 @@ pub struct AccountPreferences {
 
 impl AccountPreferences {
     pub fn validate(&self) -> Result<(), AppError> {
+        if let Some(mode) = self.laboratory_mode.as_deref() {
+            if !["full", "lite"].contains(&mode) {
+                return Err(AppError::validation("实验室版本无效"));
+            }
+        }
         if let Some(theme) = self.whiteboard_theme.as_deref() {
             if !["plain", "grid", "chalkboard", "dark"].contains(&theme) {
                 return Err(AppError::validation("白板背景无效"));
@@ -39,6 +46,17 @@ impl AccountPreferences {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn validates_laboratory_mode() {
+        for mode in ["full", "lite"] {
+            let preferences: AccountPreferences = serde_json::from_str(&format!(r#"{{"laboratoryMode":"{}"}}"#, mode)).unwrap();
+            assert!(preferences.validate().is_ok());
+        }
+        let invalid: AccountPreferences = serde_json::from_str(r#"{"laboratoryMode":"unknown"}"#).unwrap();
+        assert!(invalid.validate().is_err());
+        assert!(serde_json::from_str::<AccountPreferences>(r#"{"laboratoryMode":true}"#).is_err());
+    }
 
     #[test]
     fn validates_window_scale() {

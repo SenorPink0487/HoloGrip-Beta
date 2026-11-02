@@ -5,13 +5,17 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 
-import { Laboratory } from '../scene/Laboratory.ts';
+import type { Laboratory } from '../scene/Laboratory.ts';
+import { ResourceTracker } from './Lifecycle.ts';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { DemonstrationPlayer } from '../experiments/demonstrations/DemonstrationPlayer.ts';
+import { DemonstrationBar } from '../ui/DemonstrationBar.ts';
 import { HoloTable, HOLO_TABLE_CLEARANCE } from '../scene/HoloTable.ts';
 import { Lighting } from '../scene/Lighting.ts';
 import { TextureGenerator } from '../scene/Textures.ts';
 import { HologramStage } from './HologramStage.ts';
 import { InputManager } from '../controls/InputManager.ts';
-import { LabPointerSession, raycastTouchCandidates } from '../controls/LabPointerInput.ts';
+import { LabPointerSession, raycastTouchCandidates, invalidateLabPointerBounds } from '../controls/LabPointerInput.ts';
 import { WorkerPool } from '../workers/WorkerPool.ts';
 import { ComputeBridge } from './platform/ComputeBridge.ts';
 import { ExperimentRegistry } from '../experiments/ExperimentRegistry.ts';
@@ -82,6 +86,17 @@ export class Engine {
   private envHemi: THREE.HemisphereLight | null = null;
   private envKey: THREE.DirectionalLight | null = null;
   private appliedGalleryPalette: GalleryPaletteId = 'warm';
+  public laboratoryMode: 'full' | 'lite' = 'full';
+  private preparedMode: 'full' | 'lite' | null = null;
+  private prepareRequest = 0;
+  private environmentTarget: THREE.WebGLRenderTarget | null = null;
+  public readonly demonstration = new DemonstrationPlayer();
+  private demonstrationBar: DemonstrationBar;
+  private demonstrationStarting = false;
+  private experimentElapsed = 0;
+  private spatialWindowObserver: ResizeObserver | null = null;
+  private fullCameraPose: { position: THREE.Vector3; quaternion: THREE.Quaternion; fov: number; near: number; far: number } | null = null;
+  public get isLiteLaboratory(): boolean { return this.laboratoryMode === 'lite'; }
   public lab: Laboratory;
   public holoTable: HoloTable;
   public holoStage: HologramStage;
@@ -190,7 +205,6 @@ export class Engine {
 
     this.initRenderer();
     this.initCSS3DRenderer();
-    this.moleculeStage = new MoleculeHologramStage(this.container);
     this.initScene();
     this.initCamera();
     this.initPostProcessing();
@@ -418,13 +432,17 @@ export class Engine {
 
   private syncGalleryPreferences(): void {
     const preferences = accountPreferences();
+    if (!this.lab) return;
     this.lab.setPortraitsVisible(preferences.galleryPortraits);
+    this.lab.applyPalette(preferences.galleryPalette);
+    this.holoTable?.applyPalette(preferences.galleryPalette);
+    this.lighting.applyPalette(preferences.galleryPalette);
     const palette = preferences.galleryPalette;
     if (palette === this.appliedGalleryPalette) return;
     this.appliedGalleryPalette = palette;
-    this.lab.applyPalette(palette);
+    this.lab?.applyPalette(palette);
     this.lighting.applyPalette(palette);
-    this.holoTable.applyPalette(palette);
+    this.holoTable?.applyPalette(palette);
     this.applyEnvironmentPalette(palette);
   }
 
@@ -456,51 +474,105 @@ export class Engine {
 
   private initWorld(): void {
     this.lighting = new Lighting(this.scene);
-    this.initImageBasedLighting();
-
-    this.lab = new Laboratory();
-    this.scene.add(this.lab.group);
-
-    if (this.computeBridge) {
-      TextureGenerator.bakeAllTexturesAsync(this.computeBridge)
-        .then((textures) => {
-          this.lab.updateFloorTextures(textures);
-        })
-        .catch((err) => {
-          console.warn('[Engine] Async floor texture baking fallback:', err);
-        });
-    }
-
-    this.holoTable = new HoloTable();
-    this.scene.add(this.holoTable.group);
-
-    this.holoStage = new HologramStage();
+    this.holoStage = new HologramStage(false);
     this.scene.add(this.holoStage.group);
-
-    // 在实验台两侧对称放置两只化学烧杯（避开实验台中心）
+    // The selector needs chemical data, but meshes and effects are created only on selection.
     this.chemistryEngineLeft = new ChemistryEngine();
     this.chemistryEngineLeft.setComputeBridge(this.computeBridge);
     this.chemistryEngineRight = new ChemistryEngine();
     this.chemistryEngineRight.setComputeBridge(this.computeBridge);
+  }
 
+  public async prepareLaboratory(): Promise<void> {
+    const mode = accountPreferences().laboratoryMode;
+    if (this.preparedMode === mode) return;
+    const request = ++this.prepareRequest;
+    this.cancelLabInteraction();
+    this.demonstration?.pause();
+    if (mode === 'full') {
+      const { Laboratory } = await import('../scene/Laboratory.ts');
+      if (request !== this.prepareRequest) return;
+      this.laboratoryMode = mode;
+      this.demonstration?.takeOver();
+      this.disposeEnvironment();
+      this.initImageBasedLighting();
+      this.lab = new Laboratory();
+      const lab = this.lab;
+      this.scene.add(lab.group);
+      this.holoTable = new HoloTable();
+      this.scene.add(this.holoTable.group);
+      this.holoTable?.hideHologram(!!this.currentExperimentId);
+      this.holoStage.setDecorationsEnabled(true);
+      if (this.beakerLeft) this.holoTable.mountBeakers(this.beakerLeft.group, this.beakerRight.group,
+        this.beakerLeft.restingPosition, this.beakerRight.restingPosition);
+      void TextureGenerator.bakeAllTexturesAsync(this.computeBridge).then(textures => {
+        if (this.lab === lab) lab.updateFloorTextures(textures);
+        else for (const texture of Object.values(textures)) if (texture instanceof THREE.Texture) texture.dispose();
+      }).catch(error => console.warn('[Engine] Floor texture fallback:', error));
+      this.scene.background = new THREE.Color(0xe3dacc);
+      if (this.fullCameraPose) {
+        this.camera.position.copy(this.fullCameraPose.position);
+        this.camera.quaternion.copy(this.fullCameraPose.quaternion);
+        this.camera.fov = this.fullCameraPose.fov;
+        this.camera.near = this.fullCameraPose.near;
+        this.camera.far = this.fullCameraPose.far;
+        this.camera.updateProjectionMatrix();
+      }
+      this.syncGalleryPreferences();
+    } else {
+      this.fullCameraPose = { position: this.camera.position.clone(), quaternion: this.camera.quaternion.clone(), fov: this.camera.fov, near: this.camera.near, far: this.camera.far };
+      this.laboratoryMode = mode;
+      // Preserve selected academic apparatus while disposing the full room and public furniture.
+      if (this.beakerLeft) this.scene.add(this.beakerLeft.group, this.beakerRight.group);
+      const tracker = new ResourceTracker();
+      for (const object of [this.lab?.group, this.holoTable?.group]) {
+        if (object) { object.removeFromParent(); tracker.track(object); }
+      }
+      tracker.dispose();
+      this.lab = undefined!; this.holoTable = undefined!;
+      this.holoStage.setDecorationsEnabled(false);
+      this.disposeEnvironment();
+      const room = new RoomEnvironment();
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      this.environmentTarget = pmrem.fromScene(room, 0.04);
+      this.scene.environment = this.environmentTarget.texture;
+      room.dispose(); pmrem.dispose();
+      this.scene.environmentIntensity = 1;
+      this.scene.background = new THREE.Color(0xc7c4bc);
+    }
+    this.preparedMode = mode;
+    this.container.dataset.laboratoryMode = mode;
+  }
+
+  private disposeEnvironment(): void {
+    if (this.environmentTarget) this.environmentTarget.dispose();
+    else this.scene.environment?.dispose();
+    this.environmentTarget = null; this.scene.environment = null;
+    if (this.envScene) {
+      const tracker = new ResourceTracker(); tracker.track(this.envScene); tracker.dispose();
+      this.envScene = null;
+    }
+  }
+
+  private initChemistryWorld(): void {
+    if (this.beakerLeft) return;
+    this.moleculeStage = new MoleculeHologramStage(this.container);
     this.beakerLeft = new BeakerMesh();
     this.beakerLeft.restingPosition.set(-0.38, 0.998, 1.10);
-    this.beakerLeft.setVisible(false, false);
+    this.beakerLeft?.setVisible(false, false);
 
     this.beakerRight = new BeakerMesh();
     this.beakerRight.restingPosition.set(0.38, 0.998, 1.10);
-    this.beakerRight.setVisible(false, false);
+    this.beakerRight?.setVisible(false, false);
 
-    this.holoTable.mountBeakers(
-      this.beakerLeft.group,
-      this.beakerRight.group,
-      this.beakerLeft.restingPosition,
-      this.beakerRight.restingPosition
+    if (this.holoTable) this.holoTable.mountBeakers(
+      this.beakerLeft.group, this.beakerRight.group, this.beakerLeft.restingPosition, this.beakerRight.restingPosition
     );
+    else this.scene.add(this.beakerLeft.group, this.beakerRight.group);
 
     // 调用 setVisible 时保持可见性同步
     this.beakerLeft.onVisibilityChange = (visible, animate) => {
-      this.beakerRight.setVisible(visible, animate);
+      this.beakerRight?.setVisible(visible, animate);
     };
 
     this.reactionEffectsLeft = new ReactionEffects(this.beakerLeft);
@@ -723,6 +795,7 @@ export class Engine {
         return this.experimentParams.get(id);
       },
       setParameter: <T = any>(id: string, value: T): void => {
+        this.demonstration?.takeOver();
         this.experimentParams.set(id, value);
       },
       css3dScene: this.css3dScene,
@@ -731,6 +804,7 @@ export class Engine {
   }
 
   public isFreeCursorExperiment(id: string | null): boolean {
+    if (this.isLiteLaboratory || (id !== null && /^(optics|mech|em|thermo)-/.test(id))) return true;
     return id === 'math-stereometry' || id === 'mech-lever-pulley';
   }
 
@@ -745,6 +819,8 @@ export class Engine {
     });
 
     this.crosshair = new Crosshair(document.body, Boolean(this.inputManager.touch));
+    this.demonstrationBar = new DemonstrationBar(this.demonstration, () => this.startDemonstration(),
+      () => this.visionModal?.open('disciplines'), () => this.onResize());
   }
 
   private updateSpatialWindowTransform(delta: number, snap = false): void {
@@ -840,6 +916,21 @@ export class Engine {
   }
 
   public positionWindowDefault(snap = true): void {
+    if (this.isLiteLaboratory && this.spatialWindowObject) {
+      // Keep the existing selector centered and fully reachable on narrow screens.
+      const distance = 2.2;
+      const direction = this.camera.getWorldDirection(new THREE.Vector3());
+      this.spatialWindowTargetPos.copy(this.camera.position).addScaledVector(direction, distance);
+      this.spatialWindowTargetRotY = Math.atan2(-direction.x, -direction.z);
+      const halfHeight = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * distance;
+      const width = this.visionModal.element.offsetWidth || 1260;
+      const height = this.visionModal.element.offsetHeight || 724;
+      const fit = Math.min(halfHeight * 2 * this.camera.aspect * .9 / width, halfHeight * 2 * .85 / height);
+      this.spatialWindowObject.scale.setScalar(Math.min(.0028 * this.visionModal.scale, fit));
+      this.updateSpatialWindowTransform(.1, snap);
+      this.lastCss3dCamPos.set(Infinity, Infinity, Infinity);
+      return;
+    }
     this.positionWindowAtTableCenter(snap);
   }
 
@@ -888,6 +979,7 @@ export class Engine {
         exp?.clearHover?.();
       },
       onOpen: () => {
+        this.demonstration?.pause();
         this.cancelLabInteraction();
         this.positionWindowDefault(true);
         this.spatialWindowObject.visible = true;
@@ -907,24 +999,28 @@ export class Engine {
         const s = baseScale * multiplier;
         this.spatialWindowObject.scale.set(s, s, s);
         accountPreferences().setSpatialWindowScale(multiplier);
+        if (this.isLiteLaboratory) this.positionWindowDefault(true);
       },
       onSelectChemistry: () => {
+        this.demonstration?.load(null);
+        this.initChemistryWorld();
         const baseScale = 0.0028 * this.visionModal.scale;
         this.spatialWindowObject.scale.set(baseScale, baseScale, baseScale);
-        this.holoTable.hideHologram();
+        this.holoTable?.hideHologram();
         this.holoStage.clearExperiment(this.currentContext);
         this.currentExperimentId = null;
         this.hud.clearActiveExperiment();
-        this.beakerLeft.setVisible(true, true);
-        this.beakerRight.setVisible(true, true);
+        if (this.isLiteLaboratory) { this.frameLiteChemistry(); this.positionWindowDefault(true); }
+        this.beakerLeft?.setVisible(true, true);
+        this.beakerRight?.setVisible(true, true);
         if (this.renderer?.shadowMap?.enabled) {
           this.renderer.shadowMap.needsUpdate = true;
         }
       },
       onSelectPhysicsExperiment: async (id: string) => {
-        this.beakerLeft.setVisible(false, true);
-        this.beakerRight.setVisible(false, true);
-        this.holoTable.showHologram();
+        this.beakerLeft?.setVisible(false, true);
+        this.beakerRight?.setVisible(false, true);
+        this.holoTable?.showHologram();
         this.holoStage.setStageVisible(true);
         await this.switchExperiment(id);
         const baseScale = 0.0028 * this.visionModal.scale;
@@ -1412,6 +1508,13 @@ export class Engine {
     this.positionWindowDefault(true);
     this.spatialWindowObject.visible = false;
     this.css3dScene.add(this.spatialWindowObject);
+    if (typeof ResizeObserver !== 'undefined') {
+      this.spatialWindowObserver = new ResizeObserver(() => {
+        if (this.isLiteLaboratory && this.visionModal.visible) this.positionWindowDefault(true);
+      });
+      this.spatialWindowObserver.observe(this.visionModal.element);
+    }
+
 
     const preferences = accountPreferences();
     const restoreWindowScale = () => this.visionModal.setScale(preferences.spatialWindowScale, false);
@@ -1443,15 +1546,17 @@ export class Engine {
   }
 
   public async switchExperiment(id: string): Promise<void> {
+    this.demonstration?.load(null);
+    this.experimentElapsed = 0;
     this.cancelLabInteraction();
     const requestId = ++this.currentSwitchRequestId;
-    this.hud.showTransition(id !== 'mech-lever-pulley', '全息粒子解聚与参数重构...');
+    this.hud.showTransition(!this.isLiteLaboratory && id !== 'mech-lever-pulley', '全息粒子解聚与参数重构...');
 
     // 确保全息舞台处于活动状态，并为 3D 设备清理实验台表面
     this.holoStage.setStageVisible(true);
-    this.holoTable.hideHologram(true);
-    this.beakerLeft.setVisible(false, true);
-    this.beakerRight.setVisible(false, true);
+    this.holoTable?.hideHologram(true);
+    this.beakerLeft?.setVisible(false, true);
+    this.beakerRight?.setVisible(false, true);
     this.reactionEffectsLeft?.reset();
     this.reactionEffectsRight?.reset();
 
@@ -1478,7 +1583,7 @@ export class Engine {
         this.currentContext,
         (status) => {
           if (requestId === this.currentSwitchRequestId) {
-            this.hud.showTransition(id !== 'mech-lever-pulley', status);
+            this.hud.showTransition(!this.isLiteLaboratory && id !== 'mech-lever-pulley', status);
           }
         }
       );
@@ -1495,7 +1600,12 @@ export class Engine {
       }
 
       this.currentExperimentId = id;
-      if (experiment.initialCameraPose && !this.isWhiteboardMode && !this.labEntryActive) {
+      this.demonstration?.load(experiment.createDemonstration?.(this.currentContext) ?? null);
+      if (this.isLiteLaboratory) {
+        experiment.rootGroup.scale.setScalar(experiment.targetScale ?? 1);
+        this.frameLiteExperiment();
+      }
+      if (!this.isLiteLaboratory && experiment.initialCameraPose && !this.isWhiteboardMode && !this.labEntryActive) {
         this.applyLabEntryPose({ ...experiment.initialCameraPose, fov: this.camera.fov });
       }
       if (id === 'em-field') {
@@ -1556,6 +1666,7 @@ export class Engine {
   }
 
   public clearExperiment(): void {
+    this.demonstration?.load(null);
     this.cancelLabInteraction();
     if (this.holoStage) {
       this.holoStage.clearExperiment(this.currentContext);
@@ -1573,6 +1684,46 @@ export class Engine {
     }
   }
 
+  public async startDemonstration(): Promise<void> {
+    const id = this.currentExperimentId;
+    if (!this.isLiteLaboratory || !id || this.demonstrationStarting) return;
+    this.demonstrationStarting = true;
+    try {
+      await this.switchExperiment(id);
+      if (this.currentExperimentId === id && !this.isWhiteboardMode) this.demonstration?.play();
+    } finally { this.demonstrationStarting = false; }
+  }
+
+  private frameLiteExperiment(): void {
+    const experiment = this.holoStage?.activeExperiment;
+    if (!experiment) {
+      if (this.beakerLeft?.isVisible()) this.frameLiteChemistry();
+      else { this.camera.position.set(0, 1.5, 3.8); this.camera.lookAt(0, 1.3, 0); }
+      return;
+    }
+    experiment.rootGroup.updateWorldMatrix(true, true);
+    const bounds = new THREE.Box3().setFromObject(experiment.rootGroup);
+    this.frameLiteBounds(bounds);
+  }
+
+  private frameLiteChemistry(): void {
+    this.frameLiteBounds(new THREE.Box3(new THREE.Vector3(-0.7, .85, .8), new THREE.Vector3(.7, 1.6, 1.4)));
+  }
+
+  private frameLiteBounds(bounds: THREE.Box3): void {
+    if (bounds.isEmpty()) return;
+    const size = bounds.getSize(new THREE.Vector3());
+    const center = bounds.getCenter(new THREE.Vector3());
+    this.camera.fov = 38;
+    const fov = THREE.MathUtils.degToRad(this.camera.fov / 2);
+    const distance = Math.max(size.y / 2 / Math.tan(fov), size.x / 2 / (Math.tan(fov) * this.camera.aspect)) * 1.18 + size.z / 2;
+    this.camera.position.set(center.x, center.y + distance * .08, center.z + distance);
+    this.camera.near = Math.max(.005, distance / 1000);
+    this.camera.far = Math.max(400, distance * 10);
+    this.camera.lookAt(center);
+    this.camera.updateProjectionMatrix();
+  }
+
   private async initDefaultExperiment(): Promise<void> {
     try {
       const registry = ExperimentRegistry.getInstance();
@@ -1584,21 +1735,21 @@ export class Engine {
       // 用户要求：进入实验室后，未选择实验时桌上不放置实验器材
       // 待机模式下隐藏全息舞台与烧杯，保持桌面整洁。
       this.holoStage.setStageVisible(false);
-      this.holoTable.hideHologram(true);
-      this.beakerLeft.setVisible(false, false);
-      this.beakerRight.setVisible(false, false);
+      this.holoTable?.hideHologram(true);
+      this.beakerLeft?.setVisible(false, false);
+      this.beakerRight?.setVisible(false, false);
       this.currentExperimentId = null;
 
       // 启动时预热并编译烧杯着色器与纹理，避免首次点击化学实验时掉帧卡顿
       if (this.renderer && this.scene && this.camera && this.beakerLeft && this.beakerRight) {
-        this.beakerLeft.setVisible(true, false);
-        this.beakerRight.setVisible(true, false);
+        this.beakerLeft?.setVisible(true, false);
+        this.beakerRight?.setVisible(true, false);
         if (this.renderer.shadowMap.enabled) {
           this.renderer.shadowMap.needsUpdate = true;
         }
         this.renderer.render(this.scene, this.camera);
-        this.beakerLeft.setVisible(false, false);
-        this.beakerRight.setVisible(false, false);
+        this.beakerLeft?.setVisible(false, false);
+        this.beakerRight?.setVisible(false, false);
       }
       if (typeof window !== 'undefined') {
         (window as any).__ENGINE_READY__ = true;
@@ -1771,11 +1922,11 @@ export class Engine {
         this.visionProCursor?.setLeftVisible(false);
         this.visionProCursor?.setSpatialSnapActive(false);
         const exp = this.holoStage?.activeExperiment as any;
-        exp?.onHandGestureFrame?.(frame);
+        if (this.demonstration?.state !== 'playing') exp?.onHandGestureFrame?.(frame);
       } else {
         this.visionProCursor?.update(frame);
         const exp = this.holoStage?.activeExperiment as any;
-        if (typeof exp?.onHandGestureFrame === 'function') {
+        if (this.demonstration?.state !== 'playing' && typeof exp?.onHandGestureFrame === 'function') {
           exp.onHandGestureFrame(frame, this.currentContext);
         }
         const spatialSnapActive =
@@ -1951,7 +2102,7 @@ export class Engine {
   private restoreLabInput(): void {
     this.isExperimentInteracting = this.labPointers.active;
     if (this.labPointers.active) return;
-    this.inputManager.player.enabled = !this.labEntryActive;
+    this.inputManager.player.enabled = !this.labEntryActive && !this.isLiteLaboratory;
     this.inputManager.player.allowPointerLock = !this.labEntryActive &&
       !this.visionModal?.visible &&
       this.handGestureService?.getStatus() !== 'running' && !this.isFreeCursorExperiment(this.currentExperimentId);
@@ -1980,15 +2131,24 @@ export class Engine {
 
   private initEvents(): void {
     window.addEventListener('resize', () => this.onResize());
+    window.addEventListener('account-modal-open', () => this.demonstration?.pause());
 
     // WebGL 上下文丢失与恢复保护（保护 iPadOS/iOS/macOS 后台切换与息屏恢复）
+    window.addEventListener('keydown', event => {
+      const apparatusKey = ['Enter', 'KeyC', 'KeyR', 'BracketLeft', 'BracketRight', 'Digit1', 'Digit2', 'Digit3', 'Digit4'].includes(event.code);
+      if (!apparatusKey || isTextInputElement(event.target as HTMLElement)
+          || (event.target as HTMLElement)?.closest?.('#demonstration-bar') || this.visionModal?.visible) return;
+      if (this.demonstration?.state === 'playing') {
+        event.stopImmediatePropagation(); event.preventDefault();
+      } else this.demonstration?.takeOver();
+    }, { capture: true });
     const canvas = this.renderer.domElement;
     canvas.style.touchAction = 'none';
     canvas.style.userSelect = 'none';
     canvas.style.setProperty('-webkit-touch-callout', 'none');
-    window.addEventListener('blur', () => this.cancelLabInteraction());
+    window.addEventListener('blur', () => { this.cancelLabInteraction(); this.demonstration?.pause(); });
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.cancelLabInteraction();
+      if (document.hidden) { this.cancelLabInteraction(); this.demonstration?.pause(); }
     });
 
     canvas.addEventListener('webglcontextlost', (e: Event) => {
@@ -2054,6 +2214,7 @@ export class Engine {
     // 3D 指针交互（单击选择试剂/操作器材，长按拖拽倾倒/调节）
     canvas.addEventListener('pointerdown', (e: PointerEvent) => {
       blurActiveInput(true);
+      if (this.demonstration?.state === 'playing') return;
       if (this.labEntryActive) return;
       if (this.visionModal && this.visionModal.visible) return;
 
@@ -2122,6 +2283,7 @@ export class Engine {
           for (const hit of candidates) {
             const handled = experiment.onPointerDown?.(e, hit, this.currentContext);
             if (handled) {
+              this.demonstration?.takeOver();
               this.claimLabPointer(e);
               return true;
             }
@@ -2383,8 +2545,11 @@ export class Engine {
 
   private onResize(): void {
     const width = window.innerWidth;
-    const height = window.innerHeight;
+    const height = Math.max(1, window.innerHeight - (this.demonstrationBar && !this.demonstrationBar.element.hidden ? this.demonstrationBar.element.getBoundingClientRect().height : 0));
 
+    // Global canvas CSS fills its container, so reserve the footer on the container too.
+    if (this.container?.style) this.container.style.height = `${height}px`;
+    invalidateLabPointerBounds();
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
 
@@ -2407,6 +2572,10 @@ export class Engine {
       this.renderer.shadowMap.needsUpdate = true;
     }
     this.updateCachedCanvasRect();
+    if (this.isLiteLaboratory && !this.isWhiteboardMode) {
+      this.frameLiteExperiment();
+      if (this.visionModal?.visible) this.positionWindowDefault(true);
+    }
   }
 
   private checkCrosshairIntersection(now: number): void {
@@ -2631,12 +2800,22 @@ export class Engine {
   public setViewMode(mode: 'whiteboard' | 'laboratory'): void {
     const wasWhiteboard = this.isWhiteboardMode;
     this.isWhiteboardMode = mode === 'whiteboard';
+    if (this.isWhiteboardMode) this.demonstration?.pause();
+    this.demonstrationBar?.setVisible(this.isLiteLaboratory && !this.isWhiteboardMode);
+    if (this.isLiteLaboratory) {
+      this.inputManager.player.enabled = false;
+      this.inputManager.player.allowPointerLock = false;
+      this.inputManager.player.exitLock();
+      this.crosshair?.setVisible(false);
+      this.inputManager.touch?.setVisible(false);
+      if (!this.isWhiteboardMode) this.frameLiteExperiment();
+    }
 
     this.holoStage?.setViewMode(mode);
-    this.handTrackingHUD?.setVisible(!this.isWhiteboardMode);
+    this.handTrackingHUD?.setVisible(!this.isWhiteboardMode && !this.isLiteLaboratory);
 
     if (this.inputManager?.touch) {
-      this.inputManager.touch.setVisible(!this.isWhiteboardMode);
+      this.inputManager.touch.setVisible(!this.isWhiteboardMode && !this.isLiteLaboratory);
     }
 
     if (wasWhiteboard && !this.isWhiteboardMode) {
@@ -2683,7 +2862,7 @@ export class Engine {
     // 运镜平息前由其接管摄像机，避免玩家控制器积分使其偏离路径。
     if (this.labEntryActive) {
       this.tickLabEntry(delta);
-    } else if (this.inputManager) {
+    } else if (this.inputManager && !this.isLiteLaboratory) {
       this.inputManager.update(delta);
     }
 
@@ -2718,7 +2897,17 @@ export class Engine {
     }
 
     if (this.holoStage) {
-      this.holoStage.update(delta, elapsed, this.currentContext);
+      this.demonstration?.beforeFrame(delta);
+      if (this.demonstration?.state !== 'paused') {
+        const speed = this.demonstration?.state === 'playing' ? this.demonstration?.simulationSpeed : 1;
+        const count = Math.max(1, Math.ceil(speed));
+        for (let i = 0; i < count; i++) {
+          const dt = delta * speed / count;
+          this.experimentElapsed += dt;
+          this.holoStage.update(dt, this.experimentElapsed, this.currentContext);
+        }
+      }
+      this.demonstration?.afterFrame();
       if (isModalOpen && this.visionModal.currentTab === 'math') {
         const nowMs = performance.now();
         if (nowMs - this.lastMathTelemetrySync >= 120) {

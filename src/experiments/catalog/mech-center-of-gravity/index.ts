@@ -51,6 +51,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   // 动画平滑过渡 (一键点击悬挂 / 脱钩)
   private isTransitionAnimating = false;
   private animStartTime = 0;
+  private animElapsed = 0;
   private animDuration = 0.42;
   private animStartPos = new THREE.Vector3();
   private animTargetPos = new THREE.Vector3();
@@ -432,6 +433,7 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
 
     this.isTransitionAnimating = true;
     this.animStartTime = performance.now();
+    this.animElapsed = 0;
     this.animDuration = 0.40;
 
     this.animStartPos.copy(this.plate.group.position);
@@ -473,6 +475,8 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
   /**
    * 立即跳过物理摆动直接稳定
    */
+  public getTelemetry() { return this.solver.getTelemetry(); }
+
   public stabilizeNow(): void {
     if (this.solver.state === 'swinging') {
       this.solver.stabilizeImmediately();
@@ -488,8 +492,8 @@ export default class MechCenterOfGravityExperiment extends BaseExperiment {
 
     // 1. 更新过渡动画 (平滑飞入悬挂)
     if (this.isTransitionAnimating) {
-      const now = performance.now();
-      const progress = Math.min(1.0, (now - this.animStartTime) / (this.animDuration * 1000));
+      this.animElapsed += delta;
+      const progress = Math.min(1.0, this.animElapsed / this.animDuration);
       const ease = 1 - Math.pow(1 - progress, 3);
       this.plate.group.position.lerpVectors(this.animStartPos, this.animTargetPos, ease);
       this.plate.group.rotation.z = THREE.MathUtils.lerp(this.animStartRotZ, this.animTargetRotZ, ease);

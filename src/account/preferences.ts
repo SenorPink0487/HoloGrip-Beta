@@ -17,6 +17,8 @@ export function normalizePreferences(value: unknown): AccountPreferences {
   if (typeof portraits === 'boolean') result.galleryPortraits = portraits;
   const palette = (value as AccountPreferences).galleryPalette;
   if (palette === 'warm' || palette === 'glacier') result.galleryPalette = palette;
+  const mode = (value as AccountPreferences).laboratoryMode;
+  if (mode === 'full' || mode === 'lite') result.laboratoryMode = mode;
   return result;
 }
 
@@ -37,6 +39,23 @@ export class AccountPreferenceStore {
   ) {
     this.save = save;
     this.storage = storage;
+    this.value = this.readGuestMode();
+  }
+
+  get laboratoryMode(): 'full' | 'lite' { return this.value.laboratoryMode ?? 'full'; }
+
+  setLaboratoryMode(mode: 'full' | 'lite'): void {
+    if (!['full', 'lite'].includes(mode) || mode === this.laboratoryMode) return;
+    this.update({ laboratoryMode: mode });
+    if (!this.userId) {
+      try { this.storage?.setItem('virtuallab_guest_laboratory_mode', mode); } catch { /* Storage is optional. */ }
+    }
+  }
+
+  private readGuestMode(): AccountPreferences {
+    try {
+      return this.storage?.getItem('virtuallab_guest_laboratory_mode') === 'lite' ? { laboratoryMode: 'lite' } : {};
+    } catch { return {}; }
   }
 
   get spatialWindowScale(): number {
@@ -72,7 +91,7 @@ export class AccountPreferenceStore {
     }
     this.value = user
       ? { ...normalizePreferences(user.preferences), ...this.pending.get(user.id) }
-      : {};
+      : this.readGuestMode();
     this.emit();
     if (this.userId && this.pending.has(this.userId)) this.schedule(0);
   }

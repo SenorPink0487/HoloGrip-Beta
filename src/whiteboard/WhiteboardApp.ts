@@ -34,6 +34,7 @@ export class WhiteboardApp {
   private currentMode: 'whiteboard' | 'laboratory' = 'whiteboard';
   private callbacks: WhiteboardAppOptions;
   private labEntryToken = 0;
+  private preparingLaboratory = false;
   private labEntryCleanup = 0;
   private transitionKind: 'enter' | 'return' | null = null;
   private returnBtn!: HTMLButtonElement;
@@ -131,10 +132,15 @@ export class WhiteboardApp {
     this.applyViewMode('whiteboard');
   }
 
-  public switchToLab(): void {
+  public async switchToLab(): Promise<void> {
+    if (this.preparingLaboratory) return;
     if (this.currentMode === 'laboratory' || this.transitionKind !== null) return;
+    this.preparingLaboratory = true;
+    try { await this.engine?.prepareLaboratory?.(); }
+    catch (error) { console.error('[Whiteboard] Laboratory preparation failed:', error); return; }
+    finally { this.preparingLaboratory = false; }
     this.callbacks.onEnterLab?.();
-    if (this.engine && !this.prefersReducedMotion()) {
+    if (this.engine && !this.engine.isLiteLaboratory && !this.prefersReducedMotion()) {
       this.playLabEntry();
       return;
     }
@@ -142,6 +148,7 @@ export class WhiteboardApp {
   }
 
   public switchToWhiteboard(): void {
+    this.engine?.demonstration?.pause();
     if (this.transitionKind === 'return') return;
     const inLab = this.currentMode === 'laboratory';
     if (!inLab && this.transitionKind !== 'enter') return;
@@ -367,7 +374,7 @@ export class WhiteboardApp {
     if (!this.engine) return;
     const freeCursor = this.engine.isCurrentExperimentFreeCursor();
     if (this.engine.inputManager?.player) {
-      this.engine.inputManager.player.enabled = true;
+      this.engine.inputManager.player.enabled = !this.engine.isLiteLaboratory;
       this.engine.inputManager.player.allowPointerLock = !freeCursor;
     }
     if (this.engine.crosshair) {

@@ -1,6 +1,6 @@
 import { labPointerNDC } from '../../controls/LabPointerInput.ts';
 import * as THREE from 'three';
-import type { StereometryMesh, DrawnSegment } from './StereometryMesh.ts';
+import type { StereometryMesh, DrawnSegment, DrawnAngle, InteractableLine } from './StereometryMesh.ts';
 import { GeometrySolver, type KeyPoint } from './GeometrySolver.ts';
 import type { AuxiliaryFace } from './AuxiliaryFaceSolver.ts';
 import type { ExperimentContext } from '../../core/types.ts';
@@ -18,6 +18,8 @@ export interface StereometryInteractionCallbacks {
   onKeyPointHover?: (point: KeyPoint | null, snapLabel?: string) => void;
   onSegmentCreated?: (segLabel: string, length: number) => void;
   onSegmentRemoved?: (segLabel: string, length: number) => void;
+  onAngleCreated?: (angle: DrawnAngle) => void;
+  onAngleRemoved?: (angleId: string, angleDeg: number) => void;
   onAuxiliaryFaceCreated?: (face: AuxiliaryFace) => void;
   onAuxiliaryFaceRemoved?: (faceId: string) => void;
   onCrossSectionCreated?: (type: string, area: number) => void;
@@ -52,6 +54,7 @@ type PointerSession =
       kind: 'segment-long-press';
       pointerId: number;
       segment: DrawnSegment;
+      line?: InteractableLine;
       hitPoint3D: THREE.Vector3;
       downX: number;
       downY: number;
@@ -59,6 +62,29 @@ type PointerSession =
       isVision: boolean;
       isTouch: boolean;
       completed: boolean;
+    }
+  | {
+      kind: 'angle-long-press';
+      pointerId: number;
+      angle: DrawnAngle;
+      hitPoint3D: THREE.Vector3;
+      downX: number;
+      downY: number;
+      downTime: number;
+      isVision: boolean;
+      isTouch: boolean;
+      completed: boolean;
+    }
+  | {
+      kind: 'edge-press';
+      pointerId: number;
+      line: InteractableLine;
+      hitPoint3D: THREE.Vector3;
+      downX: number;
+      downY: number;
+      downTime: number;
+      isVision: boolean;
+      isTouch: boolean;
     }
   | {
       kind: 'point-gesture';
@@ -108,6 +134,9 @@ export class StereometryInteractionManager {
   private currentHoveredKp: KeyPoint | null = null;
   private currentSnapLabel = '';
   private selectedCutPoints: KeyPoint[] = [];
+
+  // 选线测夹角业务状态
+  private selectedLineForAngle: InteractableLine | null = null;
 
   // 单一判别式指针会话状态机（消除多重布尔标志冲突）
   private session: PointerSession = { kind: 'idle' };
@@ -293,12 +322,27 @@ export class StereometryInteractionManager {
     return seg;
   }
 
+  public clearAngleSelection(): void {
+    this.selectedLineForAngle = null;
+    if (typeof this.mesh.setSelectedAngleLine === 'function') {
+      this.mesh.setSelectedAngleLine(null);
+    }
+  }
+
+  public getSelectedAngleLine(): InteractableLine | null {
+    return this.selectedLineForAngle;
+  }
+
   public clearAll(): void {
     this.resetSelection();
+    this.clearAngleSelection();
     this.mesh.clearAllSegments();
+    if (typeof this.mesh.clearAllAngles === 'function') {
+      this.mesh.clearAllAngles();
+    }
     this.mesh.setOptions({ crossSectionPlane: undefined, clippingEnabled: false });
     this.callbacks.onClearSegments?.();
-    this.callbacks.onGuidanceChange?.('已清空所有辅助线与辅助面', 'warn');
+    this.callbacks.onGuidanceChange?.('已清空所有辅助线与辅助面 (含夹角标注)', 'warn');
   }
 
   public clearHover(): void {
@@ -307,9 +351,18 @@ export class StereometryInteractionManager {
         this.mesh.cancelSegmentLongPress();
       }
     }
+    if (this.session.kind === 'angle-long-press') {
+      if (typeof this.mesh.cancelAngleLongPress === 'function') {
+        this.mesh.cancelAngleLongPress();
+      }
+    }
     if (typeof this.mesh.setHoveredSegment === 'function') {
       this.mesh.setHoveredSegment(null);
     }
+    if (typeof this.mesh.setHoveredAngle === 'function') {
+      this.mesh.setHoveredAngle(null);
+    }
+    this.clearAngleSelection();
     this.currentHoveredKp = null;
     this.currentSnapLabel = '';
     this.recentSnapLock = null;
@@ -320,7 +373,7 @@ export class StereometryInteractionManager {
     this.mesh?.clearPreviewWire();
     this.callbacks.onKeyPointHover?.(null);
     this.callbacks.onGuidanceChange?.(
-      '在模型上轻触或拖拽棱上端点/中点/三等分点接线 · 在模型外空白处滑动旋转视角',
+      '在模型上轻触或拖拽端点/中点/三等分点接线 · 点击两线测夹角 · 长按连线或夹角消除',
       'info'
     );
     if (typeof document !== 'undefined' && document.body?.style) {
@@ -336,6 +389,7 @@ export class StereometryInteractionManager {
     return Boolean(
       this.session.kind !== 'idle' ||
         this.pendingStartPoint !== null ||
+        this.selectedLineForAngle !== null ||
         this.selectedCutPoints.length > 0 ||
         this.currentHoveredKp !== null
     );
@@ -616,6 +670,7 @@ export class StereometryInteractionManager {
 
     // 分支 A：锁定关键点 -> 进入选点/拖拽连线会话（严禁触发任何旋转）
     if (resolved.zone === 'keypoint' && resolved.keyPoint) {
+      this.clearAngleSelection();
       const snapKp = resolved.keyPoint;
       const snapLabel = resolved.snapLabel || snapKp.label;
       this.session = {
@@ -661,8 +716,58 @@ export class StereometryInteractionManager {
       return true;
     }
 
-    // 优先检测：是否点中或按住了已绘制的辅助线（含其长度数值标牌） -> 触发苹果原生动效长按消除
     const bounds = this.getViewportBounds(context);
+
+    // 优先检测 1：是否点中或按住了已绘制的夹角（圆弧或度数标牌） -> 触发苹果原生动效长按消除
+    const maxAngleHitPx = isVision ? 44 : isTouch ? 36 : 24;
+    const hitAngle = typeof this.mesh.findClosestAngle === 'function'
+      ? this.mesh.findClosestAngle(
+          this.internalRaycaster.ray,
+          event.clientX,
+          event.clientY,
+          context?.camera,
+          bounds,
+          maxAngleHitPx
+        )
+      : null;
+
+    if (hitAngle && (!resolved.keyPoint || resolved.zone !== 'keypoint')) {
+      if (this.pendingStartPoint) {
+        this.resetSelection(true);
+      }
+      this.clearAngleSelection();
+      this.currentHoveredKp = null;
+      this.currentSnapLabel = '';
+      this.recentSnapLock = null;
+      this.mesh?.setHoveredKeyPoint?.(null);
+      this.mesh?.clearPreviewWire?.();
+
+      this.session = {
+        kind: 'angle-long-press',
+        pointerId: event.pointerId,
+        angle: hitAngle.angle,
+        hitPoint3D: hitAngle.hitPoint3D,
+        downX: event.clientX,
+        downY: event.clientY,
+        downTime: now,
+        isVision,
+        isTouch,
+        completed: false,
+      };
+
+      if (typeof this.mesh.startAngleLongPress === 'function') {
+        this.mesh.startAngleLongPress(hitAngle.angle.id, hitAngle.hitPoint3D);
+      }
+      AppleHapticAudio.playTick();
+      this.callbacks.onGuidanceChange?.(
+        `按住消除夹角 ∠(${hitAngle.angle.label1}, ${hitAngle.angle.label2})...`,
+        'active',
+        0xf43f5e
+      );
+      return true;
+    }
+
+    // 优先检测 2：是否点中或按住了已绘制的辅助线（含其长度数值标牌） -> 触发长按消除或点击选线测夹角
     const maxSegmentHitPx = isVision ? 44 : isTouch ? 34 : 22;
     const hitSeg = typeof this.mesh.findClosestDrawnSegment === 'function'
       ? this.mesh.findClosestDrawnSegment(
@@ -682,13 +787,30 @@ export class StereometryInteractionManager {
       this.currentHoveredKp = null;
       this.currentSnapLabel = '';
       this.recentSnapLock = null;
-      this.mesh.setHoveredKeyPoint(null);
-      this.mesh.clearPreviewWire();
+      this.mesh?.setHoveredKeyPoint?.(null);
+      this.mesh?.clearPreviewWire?.();
+
+      const keyPoints = this.mesh.getModelDef().keyPoints;
+      const pointA = keyPoints.find(point => point.id === hitSeg.segment.pointIdA);
+      const pointB = keyPoints.find(point => point.id === hitSeg.segment.pointIdB);
+      if (!pointA || !pointB) return false;
+      const line: InteractableLine = {
+        id: hitSeg.segment.id,
+        pointIdA: hitSeg.segment.pointIdA,
+        pointIdB: hitSeg.segment.pointIdB,
+        label: hitSeg.segment.label,
+        isDrawnSegment: true,
+        posA: pointA.position.clone(),
+        posB: pointB.position.clone(),
+        hitPoint3D: hitSeg.hitPoint3D.clone(),
+        screenDistPx: hitSeg.screenDistPx,
+      };
 
       this.session = {
         kind: 'segment-long-press',
         pointerId: event.pointerId,
         segment: hitSeg.segment,
+        line,
         hitPoint3D: hitSeg.hitPoint3D,
         downX: event.clientX,
         downY: event.clientY,
@@ -702,16 +824,76 @@ export class StereometryInteractionManager {
         this.mesh.startSegmentLongPress(hitSeg.segment.id, hitSeg.hitPoint3D);
       }
       AppleHapticAudio.playTick();
-      this.callbacks.onGuidanceChange?.(
-        `按住消除辅助线 ${hitSeg.segment.label}...`,
-        'active',
-        0xf43f5e
-      );
+      if (this.selectedLineForAngle) {
+        this.callbacks.onGuidanceChange?.(
+          `点击标注与 [${this.selectedLineForAngle.label}] 的夹角 · 长按消除辅助线`,
+          'active',
+          0x38bdf8
+        );
+      } else {
+        this.callbacks.onGuidanceChange?.(
+          `长按消除辅助线 ${hitSeg.segment.label} · 短按可用于选线测夹角`,
+          'active',
+          0xf43f5e
+        );
+      }
       return true;
     }
 
-    // 分支 B：落在几何体外部空白区 -> 立即终止任何活跃连线，并准备自由顺畅旋转模型
+    // 优先检测 3：是否点击了几何体原始棱边 (用于选线测夹角)
+    const hitEdge = typeof this.mesh.findClosestLine === 'function'
+      ? this.mesh.findClosestLine(
+          this.internalRaycaster.ray,
+          event.clientX,
+          event.clientY,
+          context?.camera,
+          bounds,
+          maxSegmentHitPx
+        )
+      : null;
+
+    if (hitEdge && (!resolved.keyPoint || resolved.zone !== 'keypoint')) {
+      if (this.pendingStartPoint) {
+        this.resetSelection(true);
+      }
+      this.currentHoveredKp = null;
+      this.currentSnapLabel = '';
+      this.recentSnapLock = null;
+      this.mesh?.setHoveredKeyPoint?.(null);
+      this.mesh?.clearPreviewWire?.();
+
+      this.session = {
+        kind: 'edge-press',
+        pointerId: event.pointerId,
+        line: hitEdge,
+        hitPoint3D: hitEdge.hitPoint3D,
+        downX: event.clientX,
+        downY: event.clientY,
+        downTime: now,
+        isVision,
+        isTouch,
+      };
+
+      AppleHapticAudio.playTick();
+      if (this.selectedLineForAngle) {
+        this.callbacks.onGuidanceChange?.(
+          `点击标注与 [${this.selectedLineForAngle.label}] 的夹角`,
+          'active',
+          0x38bdf8
+        );
+      } else {
+        this.callbacks.onGuidanceChange?.(
+          `已按住棱边 [${hitEdge.label}] · 松手选定测夹角`,
+          'active',
+          0x38bdf8
+        );
+      }
+      return true;
+    }
+
+    // 分支 B：落在几何体外部空白区 -> 立即终止任何活跃连线与线选，并准备自由顺畅旋转模型
     if (resolved.zone === 'outside') {
+      this.clearAngleSelection();
       if (this.pendingStartPoint || this.selectedCutPoints.length > 0) {
         this.resetSelection(true);
         const cancelMsg = isVision ? '右手在模型外捏合，接线已停止' : '在模型外点击，接线已停止';
@@ -782,7 +964,34 @@ export class StereometryInteractionManager {
       return;
     }
 
-    // 2. 连线长按会话：位移一旦超出容差 tapSlop，立即取消长按蓄力，平滑转为轨道旋转
+    // 2. 夹角长按会话：位移一旦超出容差 tapSlop，立即取消长按蓄力，平滑转为轨道旋转
+    if (this.session.kind === 'angle-long-press') {
+      const dist = Math.hypot(event.clientX - this.session.downX, event.clientY - this.session.downY);
+      const tapSlop = this.getEffectiveTapSlop(this.session.isVision, this.session.isTouch);
+      if (dist > tapSlop) {
+        if (typeof this.mesh.cancelAngleLongPress === 'function') {
+          this.mesh.cancelAngleLongPress();
+        }
+        AppleHapticAudio.playCancel();
+        this.session = {
+          kind: 'model-surface',
+          pointerId: event.pointerId,
+          downX: this.session.downX,
+          downY: this.session.downY,
+          lastX: event.clientX,
+          lastY: event.clientY,
+          downTime: this.session.downTime,
+          movedPastThreshold: true,
+          orbiting: true,
+          isVision: this.session.isVision,
+          isTouch: this.session.isTouch,
+        };
+        this.callbacks.onGuidanceChange?.('已取消消除操作', 'info');
+      }
+      return;
+    }
+
+    // 3. 辅助线长按会话：位移一旦超出容差 tapSlop，立即取消长按蓄力，平滑转为轨道旋转
     if (this.session.kind === 'segment-long-press') {
       const dist = Math.hypot(event.clientX - this.session.downX, event.clientY - this.session.downY);
       const tapSlop = this.getEffectiveTapSlop(this.session.isVision, this.session.isTouch);
@@ -805,6 +1014,28 @@ export class StereometryInteractionManager {
           isTouch: this.session.isTouch,
         };
         this.callbacks.onGuidanceChange?.('已取消消除操作', 'info');
+      }
+      return;
+    }
+
+    // 4. 棱边按压会话：位移超出容差转为轨道旋转
+    if (this.session.kind === 'edge-press') {
+      const dist = Math.hypot(event.clientX - this.session.downX, event.clientY - this.session.downY);
+      const tapSlop = this.getEffectiveTapSlop(this.session.isVision, this.session.isTouch);
+      if (dist > tapSlop) {
+        this.session = {
+          kind: 'model-surface',
+          pointerId: event.pointerId,
+          downX: this.session.downX,
+          downY: this.session.downY,
+          lastX: event.clientX,
+          lastY: event.clientY,
+          downTime: this.session.downTime,
+          movedPastThreshold: true,
+          orbiting: true,
+          isVision: this.session.isVision,
+          isTouch: this.session.isTouch,
+        };
       }
       return;
     }
@@ -996,35 +1227,108 @@ export class StereometryInteractionManager {
         snapColor
       );
     } else {
+      let hoveredAngleId: string | null = null;
       let hoveredSegId: string | null = null;
-      if (!this.pendingStartPoint && context.camera && typeof this.mesh.findClosestDrawnSegment === 'function') {
-        const bounds = this.getViewportBounds(context);
-        const maxSegmentHoverPx = isVision ? 40 : isTouch ? 30 : 20;
-        const hitSeg = this.mesh.findClosestDrawnSegment(
-          this.internalRaycaster.ray,
-          event.clientX,
-          event.clientY,
-          context.camera,
-          bounds,
-          maxSegmentHoverPx
-        );
-        if (hitSeg) {
-          hoveredSegId = hitSeg.segment.id;
-          this.callbacks.onGuidanceChange?.(
-            `辅助线 ${hitSeg.segment.label} · 长按消除`,
-            'info'
+      const bounds = this.getViewportBounds(context);
+
+      if (!this.pendingStartPoint && context.camera) {
+        // 优先检测夹角 (标牌与圆弧)
+        if (typeof this.mesh.findClosestAngle === 'function') {
+          const maxAngleHoverPx = isVision ? 40 : isTouch ? 32 : 22;
+          const hitAngle = this.mesh.findClosestAngle(
+            this.internalRaycaster.ray,
+            event.clientX,
+            event.clientY,
+            context.camera,
+            bounds,
+            maxAngleHoverPx
           );
+          if (hitAngle) {
+            hoveredAngleId = hitAngle.angle.id;
+            this.callbacks.onGuidanceChange?.(
+              `夹角 ∠(${hitAngle.angle.label1}, ${hitAngle.angle.label2}) = ${hitAngle.angle.angleDeg.toFixed(1)}° · 长按消除`,
+              'info',
+              0x38bdf8
+            );
+          }
         }
+
+        // 若未命中夹角，检测辅助线或棱边
+        if (!hoveredAngleId) {
+          if (typeof this.mesh.findClosestDrawnSegment === 'function') {
+            const maxSegmentHoverPx = isVision ? 40 : isTouch ? 30 : 20;
+            const hitSeg = this.mesh.findClosestDrawnSegment(
+              this.internalRaycaster.ray,
+              event.clientX,
+              event.clientY,
+              context.camera,
+              bounds,
+              maxSegmentHoverPx
+            );
+            if (hitSeg) {
+              hoveredSegId = hitSeg.segment.id;
+              if (this.selectedLineForAngle) {
+                this.callbacks.onGuidanceChange?.(
+                  `点击标注与 [${this.selectedLineForAngle.label}] 的夹角 · 长按消除辅助线`,
+                  'info',
+                  0x38bdf8
+                );
+              } else {
+                this.callbacks.onGuidanceChange?.(
+                  `辅助线 ${hitSeg.segment.label} · 点击选线测夹角 · 长按消除`,
+                  'info'
+                );
+              }
+            }
+          }
+
+          if (!hoveredSegId && typeof this.mesh.findClosestLine === 'function') {
+            const hitLine = this.mesh.findClosestLine(
+              this.internalRaycaster.ray,
+              event.clientX,
+              event.clientY,
+              context.camera,
+              bounds,
+              isVision ? 36 : isTouch ? 28 : 18
+            );
+            if (hitLine) {
+              if (this.selectedLineForAngle) {
+                this.callbacks.onGuidanceChange?.(
+                  `点击标注与 [${this.selectedLineForAngle.label}] 的夹角`,
+                  'info',
+                  0x38bdf8
+                );
+              } else {
+                this.callbacks.onGuidanceChange?.(
+                  `棱边 [${hitLine.label}] · 点击测夹角`,
+                  'info'
+                );
+              }
+            }
+          }
+        }
+      }
+
+      if (typeof this.mesh.setHoveredAngle === 'function') {
+        this.mesh.setHoveredAngle(hoveredAngleId);
       }
       if (typeof this.mesh.setHoveredSegment === 'function') {
         this.mesh.setHoveredSegment(hoveredSegId);
       }
 
-      if (!hoveredSegId) {
-        this.callbacks.onGuidanceChange?.(
-          '右手在模型上捏合端点/中点/三等分点接线 · 长按已连线消除 · 右手在模型外捏合旋转模型',
-          'info'
-        );
+      if (!hoveredAngleId && !hoveredSegId) {
+        if (this.selectedLineForAngle) {
+          this.callbacks.onGuidanceChange?.(
+            `已选基准线 [${this.selectedLineForAngle.label}] · 请点击第 2 根线标注夹角 (点空白处取消)`,
+            'info',
+            0x38bdf8
+          );
+        } else {
+          this.callbacks.onGuidanceChange?.(
+            '轻触端点/中点/三等分点接线 · 点击两根线标出夹角 · 长按辅助线或夹角消除',
+            'info'
+          );
+        }
       }
     }
 
@@ -1041,9 +1345,9 @@ export class StereometryInteractionManager {
       this.mesh.setHoveredKeyPoint(null);
       this.callbacks.onKeyPointHover?.(null);
       if (typeof document !== 'undefined' && document.body?.style) {
-        const isHovered = typeof this.mesh.getHoveredSegmentId === 'function'
-          ? Boolean(this.mesh.getHoveredSegmentId())
-          : false;
+        const isHovered =
+          (typeof this.mesh.getHoveredSegmentId === 'function' && Boolean(this.mesh.getHoveredSegmentId())) ||
+          (typeof this.mesh.getHoveredAngleId === 'function' && Boolean(this.mesh.getHoveredAngleId()));
         document.body.style.cursor = isHovered ? 'pointer' : 'default';
       }
     }
@@ -1075,23 +1379,59 @@ export class StereometryInteractionManager {
     const prevSession = this.session;
     this.session = { kind: 'idle' };
 
-    // 2. 连线长按释放：未达 520ms 阈值则柔和回弹并取消消除
-    if (prevSession.kind === 'segment-long-press') {
+    // 2. 夹角长按释放：未达 520ms 阈值则柔和回弹并取消消除
+    if (prevSession.kind === 'angle-long-press') {
       if (!prevSession.completed) {
-        if (typeof this.mesh.cancelSegmentLongPress === 'function') {
-          this.mesh.cancelSegmentLongPress();
+        if (typeof this.mesh.cancelAngleLongPress === 'function') {
+          this.mesh.cancelAngleLongPress();
         }
         AppleHapticAudio.playCancel();
         this.callbacks.onGuidanceChange?.(
-          `长按可消除辅助线 ${prevSession.segment.label}`,
+          `长按可消除夹角 ∠(${prevSession.angle.label1}, ${prevSession.angle.label2})`,
           'info'
         );
       }
       return;
     }
 
-    // 3. 模型外部空白区释放：旋转自然收尾（松手保留丝滑阻尼惯性）
+    // 3. 辅助线长按/轻触释放：未达 520ms 阈值则取消蓄力；若在 450ms 内轻触松开且位移在容差内 -> 触发选线测夹角！
+    if (prevSession.kind === 'segment-long-press') {
+      if (!prevSession.completed) {
+        if (typeof this.mesh.cancelSegmentLongPress === 'function') {
+          this.mesh.cancelSegmentLongPress();
+        }
+        const tapSlop = this.getEffectiveTapSlop(prevSession.isVision, prevSession.isTouch);
+        const dist = Math.hypot(event.clientX - prevSession.downX, event.clientY - prevSession.downY);
+        const duration = performance.now() - prevSession.downTime;
+
+        if (duration <= 450 && dist <= tapSlop && prevSession.line) {
+          this.handleLineClickForAngle(prevSession.line);
+        } else {
+          AppleHapticAudio.playCancel();
+          this.callbacks.onGuidanceChange?.(
+            `长按可消除辅助线 ${prevSession.segment.label}`,
+            'info'
+          );
+        }
+      }
+      return;
+    }
+
+    // 4. 棱边轻触释放 -> 触发选线测夹角！
+    if (prevSession.kind === 'edge-press') {
+      const tapSlop = this.getEffectiveTapSlop(prevSession.isVision, prevSession.isTouch);
+      const dist = Math.hypot(event.clientX - prevSession.downX, event.clientY - prevSession.downY);
+      const duration = performance.now() - prevSession.downTime;
+
+      if (duration <= 450 && dist <= tapSlop) {
+        this.handleLineClickForAngle(prevSession.line);
+      }
+      return;
+    }
+
+    // 5. 模型外部空白区释放：旋转自然收尾（松手保留丝滑阻尼惯性）
     if (prevSession.kind === 'orbit-outside') {
+      this.clearAngleSelection();
       return;
     }
 
@@ -1181,6 +1521,10 @@ export class StereometryInteractionManager {
       if (dist <= tapSlop && endResolved.keyPoint) {
         this.handleClickOnPoint(endResolved.keyPoint);
         return;
+      }
+
+      if (dist <= tapSlop && !endResolved.keyPoint) {
+        this.clearAngleSelection();
       }
 
       if (this.pendingStartPoint) {
@@ -1388,6 +1732,24 @@ export class StereometryInteractionManager {
     const dt = Math.max(0, Math.min(delta, 0.1));
     if (dt <= 0) return;
 
+    // 苹果原生夹角长按蓄力推进 (520ms 触控阈值)
+    if (this.session.kind === 'angle-long-press') {
+      const elapsed = performance.now() - this.session.downTime;
+      const LONG_PRESS_DURATION = 520;
+      const progress = Math.min(1.0, elapsed / LONG_PRESS_DURATION);
+
+      if (typeof this.mesh.updateAngleLongPress === 'function') {
+        this.mesh.updateAngleLongPress(this.session.angle.id, progress, this.session.hitPoint3D);
+      }
+
+      if (progress >= 1.0 && !this.session.completed) {
+        this.session.completed = true;
+        const targetAngle = this.session.angle;
+        this.session = { kind: 'idle' };
+        this.executeAngleElimination(targetAngle);
+      }
+    }
+
     // 苹果原生辅助线长按蓄力推进 (520ms 触控阈值)
     if (this.session.kind === 'segment-long-press') {
       const elapsed = performance.now() - this.session.downTime;
@@ -1435,6 +1797,9 @@ export class StereometryInteractionManager {
   }
 
   private executeElimination(segment: DrawnSegment): void {
+    if (this.selectedLineForAngle?.id === segment.id) {
+      this.clearAngleSelection();
+    }
     const prevFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
     const finishElimination = () => {
       this.mesh.removeSegment(segment.id);
@@ -1461,6 +1826,61 @@ export class StereometryInteractionManager {
       this.mesh.playSegmentEliminationAnimation(segment.id, finishElimination);
     } else {
       finishElimination();
+    }
+  }
+
+  private executeAngleElimination(angle: DrawnAngle): void {
+    const finishAngleElimination = () => {
+      if (typeof this.mesh.removeAngle === 'function') {
+        this.mesh.removeAngle(angle.id);
+      }
+      this.callbacks.onAngleRemoved?.(angle.id, angle.angleDeg);
+      this.callbacks.onGuidanceChange?.(
+        `已消除夹角 ∠(${angle.label1}, ${angle.label2})`,
+        'warn'
+      );
+    };
+
+    if (typeof this.mesh.playAngleEliminationAnimation === 'function') {
+      this.mesh.playAngleEliminationAnimation(angle.id, finishAngleElimination);
+    } else {
+      finishAngleElimination();
+    }
+  }
+
+  private handleLineClickForAngle(line: InteractableLine): void {
+    if (!this.selectedLineForAngle) {
+      this.selectedLineForAngle = line;
+      if (typeof this.mesh.setSelectedAngleLine === 'function') {
+        this.mesh.setSelectedAngleLine(line.id);
+      }
+      AppleHapticAudio.playTick();
+      this.callbacks.onGuidanceChange?.(
+        `已选中基准线 [${line.label}] · 请点击第 2 根线标注夹角 (或点空白处取消)`,
+        'active',
+        0x38bdf8
+      );
+    } else if (this.selectedLineForAngle.id === line.id) {
+      this.clearAngleSelection();
+      AppleHapticAudio.playCancel();
+      this.callbacks.onGuidanceChange?.(`已取消选择 [${line.label}]`, 'info');
+    } else {
+      const line1 = this.selectedLineForAngle;
+      const line2 = line;
+      this.clearAngleSelection();
+
+      if (typeof this.mesh.addAngle === 'function') {
+        const angle = this.mesh.addAngle(line1, line2);
+        if (angle) {
+          AppleHapticAudio.playPop();
+          this.callbacks.onAngleCreated?.(angle);
+          this.callbacks.onGuidanceChange?.(
+            `已标出夹角: ∠(${line1.label}, ${line2.label}) = ${angle.angleDeg.toFixed(1)}° · 长按夹角可消除`,
+            'success',
+            0x38bdf8
+          );
+        }
+      }
     }
   }
 

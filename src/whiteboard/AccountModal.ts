@@ -59,6 +59,24 @@ export class AccountModal {
     this.bindShell();
     const preferences = accountPreferences();
     const syncPreferences = () => {
+      const isLite = preferences.laboratoryMode === 'lite';
+      this.element.querySelectorAll<HTMLButtonElement>('[data-laboratory-mode]').forEach(button => {
+        const active = button.dataset.laboratoryMode === preferences.laboratoryMode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      const portraitHint = this.element.querySelector('.laboratory-portrait-subhint');
+      if (portraitHint) {
+        portraitHint.textContent = isLite ? '仅在完整版 3D 场景中生效' : '3D 场景内悬挂科学家纪念肖像';
+      }
+      const paletteDeck = this.element.querySelector('.gallery-palette-deck');
+      if (paletteDeck) {
+        paletteDeck.classList.toggle('is-dimmed', isLite);
+      }
+      const paletteFooter = this.element.querySelector('.laboratory-palette-footer');
+      if (paletteFooter) {
+        paletteFooter.textContent = isLite ? '当前为精简版，配色将在切回完整版时生效' : '适用于完整版 3D 实验室场景';
+      }
       if (this.canvas.getTheme() !== preferences.whiteboardTheme) {
         this.canvas.setTheme(preferences.whiteboardTheme);
       }
@@ -121,6 +139,7 @@ export class AccountModal {
   }
 
   public open(): void {
+    window.dispatchEvent?.(new Event('account-modal-open'));
     this.isOpen = true;
     this.element.classList.add('open');
     this.element.removeAttribute?.('aria-hidden');
@@ -498,7 +517,7 @@ export class AccountModal {
       this.body.appendChild(this.joinBlock());
     }
 
-    this.body.appendChild(this.galleryBlock());
+    this.body.appendChild(this.laboratoryBlock());
     this.body.appendChild(this.whiteboardBlock());
 
     const error = document.createElement('div');
@@ -727,7 +746,7 @@ export class AccountModal {
     return section;
   }
 
-  private galleryBlock(): HTMLElement {
+  private laboratoryBlock(): HTMLElement {
     const wrap = document.createElement('div');
     wrap.className = 'account-gallery-block apple-settings-section';
 
@@ -739,17 +758,71 @@ export class AccountModal {
     const group = document.createElement('div');
     group.className = 'apple-settings-group';
 
-    const row = document.createElement('div');
-    row.className = 'apple-settings-row';
+    // 1. 实验室版本切换行 (Apple Inset Grouped 标准行内分段控制器)
+    const modeRow = document.createElement('div');
+    modeRow.className = 'apple-settings-row laboratory-mode-row';
 
-    const info = document.createElement('div');
-    info.className = 'apple-row-info';
-    const label = document.createElement('span');
-    label.className = 'apple-row-label';
-    label.textContent = '墙上肖像';
-    info.appendChild(label);
+    const modeInfo = document.createElement('div');
+    modeInfo.className = 'apple-row-info';
+
+    const modeLabel = document.createElement('span');
+    modeLabel.className = 'apple-row-label';
+    modeLabel.textContent = '实验室版本';
+
+    const modeHint = document.createElement('span');
+    modeHint.className = 'macos-row-subhint';
+    modeHint.textContent = '精简版使用纯色背景并提供物理实验演示';
+
+    modeInfo.appendChild(modeLabel);
+    modeInfo.appendChild(modeHint);
+
+    const switchGroup = document.createElement('div');
+    switchGroup.className = 'laboratory-mode-switch';
+    switchGroup.setAttribute('role', 'group');
+    switchGroup.setAttribute('aria-label', '实验室版本');
+
+    const modes = [
+      { id: 'full', label: '完整版' },
+      { id: 'lite', label: '精简版' },
+    ] as const;
+
+    for (const { id, label } of modes) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.laboratoryMode = id;
+      button.className = 'laboratory-mode-btn';
+      button.textContent = label;
+      const active = accountPreferences().laboratoryMode === id;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+      button.addEventListener('click', () => accountPreferences().setLaboratoryMode(id));
+      switchGroup.appendChild(button);
+    }
+
+    modeRow.appendChild(modeInfo);
+    modeRow.appendChild(switchGroup);
+    group.appendChild(modeRow);
+
+    // 2. 墙上肖像行
+    const portraitRow = document.createElement('div');
+    portraitRow.className = 'apple-settings-row laboratory-portrait-row';
+
+    const portraitInfo = document.createElement('div');
+    portraitInfo.className = 'apple-row-info';
+
+    const portraitLabel = document.createElement('span');
+    portraitLabel.className = 'apple-row-label';
+    portraitLabel.textContent = '墙上肖像';
 
     const preferences = accountPreferences();
+    const isLite = preferences.laboratoryMode === 'lite';
+    const portraitHint = document.createElement('span');
+    portraitHint.className = 'macos-row-subhint laboratory-portrait-subhint';
+    portraitHint.textContent = isLite ? '仅在完整版 3D 场景中生效' : '3D 场景内悬挂科学家纪念肖像';
+
+    portraitInfo.appendChild(portraitLabel);
+    portraitInfo.appendChild(portraitHint);
+
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'gallery-portrait-switch';
@@ -765,11 +838,18 @@ export class AccountModal {
       accountPreferences().setGalleryPortraits(!accountPreferences().galleryPortraits);
     });
 
-    row.appendChild(info);
-    row.appendChild(toggle);
-    group.appendChild(row);
+    portraitRow.appendChild(portraitInfo);
+    portraitRow.appendChild(toggle);
+    group.appendChild(portraitRow);
+
     wrap.appendChild(group);
 
+    const footer = document.createElement('div');
+    footer.className = 'apple-section-footer';
+    footer.textContent = '切换实验室版本将在下次进入时生效。';
+    wrap.appendChild(footer);
+
+    // 3. 实验室配色
     const paletteTitle = document.createElement('div');
     paletteTitle.className = 'apple-section-header';
     paletteTitle.textContent = '实验室配色';
@@ -779,6 +859,7 @@ export class AccountModal {
     paletteGroup.className = 'apple-settings-group theme-group-card';
     const deck = document.createElement('div');
     deck.className = 'theme-selector-deck gallery-palette-deck';
+    if (isLite) deck.classList.add('is-dimmed');
     const palettes: { id: 'warm' | 'glacier'; label: string; preview: string }[] = [
       { id: 'warm', label: '暖石灰', preview: 'preview-warm' },
       { id: 'glacier', label: '霜青', preview: 'preview-glacier' },
@@ -804,6 +885,12 @@ export class AccountModal {
     }
     paletteGroup.appendChild(deck);
     wrap.appendChild(paletteGroup);
+
+    const paletteFooter = document.createElement('div');
+    paletteFooter.className = 'apple-section-footer laboratory-palette-footer';
+    paletteFooter.textContent = isLite ? '当前为精简版，配色将在切回完整版时生效' : '适用于完整版 3D 实验室场景';
+    wrap.appendChild(paletteFooter);
+
     return wrap;
   }
 
