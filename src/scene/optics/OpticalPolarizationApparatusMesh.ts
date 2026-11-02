@@ -6,7 +6,12 @@ import {
   type PolarizationAnalysisResult,
   type BrewsterReflectionResult,
 } from './OpticalPhysics.ts';
-import { buildPrecisionOpticalRail } from './OpticalBenchRail.ts';
+import { buildPrecisionOpticalRail, QUIET_RAIL } from './OpticalBenchRail.ts';
+import {
+  createChamferedHexNut,
+  createGuideShaftGeometry,
+  createKnurledBand,
+} from '../em/conductorRod.ts';
 
 export type PolarizationLightSourceMode = 'monochromatic' | 'white';
 
@@ -371,6 +376,46 @@ export class OpticalPolarizationApparatusMesh {
   private cachedAnalysis: PolarizationAnalysisResult | null = null;
   private cachedBrewster: BrewsterReflectionResult | null = null;
 
+  // 旗舰级精工科研材质系统 (以光的色散实验器材建模材质为基准)
+  private titaniumSlate = new THREE.MeshStandardMaterial({
+    color: 0x243242,
+    metalness: 0.30,
+    roughness: 0.40,
+  });
+  private satin = new THREE.MeshStandardMaterial({
+    color: 0xdde3ea,
+    metalness: 0.35,
+    roughness: 0.28,
+  });
+  private chrome = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    metalness: 0.92,
+    roughness: 0.12,
+  });
+  private silverMat = new THREE.MeshStandardMaterial({
+    color: 0xc8d1dc,
+    metalness: 0.45,
+    roughness: 0.22,
+  });
+  private satinSilverMat = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    metalness: 0.35,
+    roughness: 0.28,
+  });
+  private bluedSteelMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    metalness: 0.52,
+    roughness: 0.30,
+  });
+  private groundEdgeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    metalness: 0.90,
+    roughness: 0.08,
+  });
+  private datumLineMat = new THREE.MeshBasicMaterial({
+    color: 0xd9383a,
+  });
+
   constructor(options: OpticalPolarizationOptions = {}) {
     this.group.name = 'OpticalPolarizationApparatusMesh';
 
@@ -412,7 +457,7 @@ export class OpticalPolarizationApparatusMesh {
     this.updateScreenTexture();
   }
 
-  // ==================== 通用精密导轨滑鞍与 316L 镜面铬升降立柱生成器 ====================
+  // ==================== 通用精密导轨滑鞍与 316L 镜面铬升降立柱生成器 (以光的色散实验器材为基准) ====================
   private createSliderSaddle(
     xPos: number,
     name: string,
@@ -423,81 +468,84 @@ export class OpticalPolarizationApparatusMesh {
     group.name = name;
     group.position.set(xPos, 0, 0);
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.36,
-      roughness: 0.26,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x334155,
-      metalness: 0.25,
-      roughness: 0.40,
-    });
-    const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.78,
-      roughness: 0.12,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.45,
-      roughness: 0.24,
-    });
+    // 1. CNC 精密倒角滑座靴 (深空钛晶灰蓝阳极氧化铝)
+    const shoeW = baseWidth || 0.074;
+    const shoeH = 0.020;
+    const shoeD = 0.082;
+    const shoe = new THREE.Mesh(
+      createChamferedBlockGeometry(shoeW, shoeH, shoeD, 0.002),
+      this.titaniumSlate
+    );
+    shoe.position.set(0, this.railHeight + shoeH * 0.5, 0);
+    shoe.castShadow = true;
+    shoe.receiveShadow = true;
+    group.add(shoe);
 
-    // 1. 滑鞍主体基座 (航天级喷砂银铝精铣滑座 + 深空钛灰上压板与下燕尾卡爪)
-    const baseW = baseWidth;
-    const baseH = 0.020;
-    const baseD = 0.078;
-    const baseGeo = createChamferedBlockGeometry(baseW, baseH, baseD, 0.0016);
-    const base = new THREE.Mesh(baseGeo, satinSilverMat);
-    base.position.set(0, this.railHeight + baseH * 0.5, 0);
-    base.castShadow = true;
-    base.receiveShadow = true;
-    group.add(base);
+    // 四角紧固内六角螺栓 (液态铬精车内六角)
+    const boltCornerX = shoeW * 0.5 - 0.007;
+    const boltCornerZ = shoeD * 0.5 - 0.007;
+    const boltCorners = [
+      [-boltCornerX, -boltCornerZ],
+      [boltCornerX, -boltCornerZ],
+      [-boltCornerX, boltCornerZ],
+      [boltCornerX, boltCornerZ],
+    ];
+    for (const [bx, bz] of boltCorners) {
+      const bolt = new THREE.Mesh(createChamferedHexNut(0.0024, 0.002), this.chrome);
+      bolt.position.set(bx, this.railHeight + shoeH + 0.001, bz);
+      group.add(bolt);
+    }
 
-    const topPlateGeo = createChamferedBlockGeometry(baseW * 0.86, 0.004, baseD * 0.86, 0.0008);
-    const topPlate = new THREE.Mesh(topPlateGeo, titaniumSlateMat);
-    topPlate.position.set(0, this.railHeight + baseH + 0.002, 0);
-    group.add(topPlate);
+    // 正面光学标尺读数游标板 (缎面银铝底板 + 激光蚀刻极细红色基准线)
+    const indexPlate = new THREE.Mesh(
+      createChamferedBlockGeometry(0.018, 0.012, 0.0015, 0.0004),
+      this.satin
+    );
+    indexPlate.position.set(0, this.railHeight + 0.006, shoeD * 0.5 + 0.0008);
+    group.add(indexPlate);
 
-    // 正面香槟金游标对齐读数指针
-    const indexLineGeo = new THREE.BoxGeometry(0.0022, 0.016, 0.0022);
-    const indexLine = new THREE.Mesh(indexLineGeo, brassMat);
-    indexLine.position.set(0, this.railHeight + 0.006, baseD * 0.502);
-    group.add(indexLine);
+    const indexHairline = new THREE.Mesh(
+      new THREE.BoxGeometry(0.0006, 0.009, 0.0004),
+      this.datumLineMat
+    );
+    indexHairline.position.set(0, this.railHeight + 0.006, shoeD * 0.5 + 0.0016);
+    group.add(indexHairline);
 
-    // 2. 中央立柱六角法兰与香槟金锁紧套筒
-    const flangeGeo = new THREE.CylinderGeometry(0.0135, 0.0135, 0.005, 6);
-    const flange = new THREE.Mesh(flangeGeo, titaniumSlateMat);
-    flange.position.set(0, this.railHeight + baseH + 0.004, 0);
-    group.add(flange);
+    // 侧向燕尾槽锁紧手轮 (液态铬短轴 + 微米滚花手轮)
+    const lockShaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.003, 0.003, 0.008, 16),
+      this.chrome
+    );
+    lockShaft.rotation.z = Math.PI / 2;
+    lockShaft.position.set(shoeW * 0.5 + 0.004, this.railHeight + shoeH * 0.45, 0);
+    group.add(lockShaft);
 
-    const collarRadius = 0.0105;
-    const collarH = 0.030;
-    const collarGeo = new THREE.CylinderGeometry(collarRadius, collarRadius, collarH, 28);
-    const collar = new THREE.Mesh(collarGeo, brassMat);
-    collar.position.set(0, this.railHeight + baseH + collarH * 0.5, 0);
-    collar.castShadow = true;
+    const lockWheel = new THREE.Mesh(createKnurledBand(0.0065, 0.008), this.chrome);
+    lockWheel.rotation.z = Math.PI / 2;
+    lockWheel.position.set(shoeW * 0.5 + 0.010, this.railHeight + shoeH * 0.45, 0);
+    group.add(lockWheel);
+
+    // 立柱法兰套筒与滚花锁圈
+    const collar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.011, 0.012, 0.014, 24),
+      this.titaniumSlate
+    );
+    collar.position.set(0, this.railHeight + shoeH + 0.007, 0);
     group.add(collar);
 
-    // 3. 套筒侧面滚花锁紧螺钉
-    const screwShaftGeo = new THREE.CylinderGeometry(0.0032, 0.0032, 0.008, 16);
-    screwShaftGeo.rotateZ(Math.PI / 2);
-    const screwShaft = new THREE.Mesh(screwShaftGeo, chromeRodMat);
-    screwShaft.position.set(collarRadius + 0.004, this.railHeight + baseH + collarH * 0.55, 0);
-    group.add(screwShaft);
+    const knurledRing = new THREE.Mesh(createKnurledBand(0.012, 0.006), this.silverMat);
+    knurledRing.position.set(0, this.railHeight + shoeH + 0.014, 0);
+    group.add(knurledRing);
 
-    const screwHeadGeo = new THREE.CylinderGeometry(0.0070, 0.0070, 0.006, 24);
-    screwHeadGeo.rotateZ(Math.PI / 2);
-    const screwHead = new THREE.Mesh(screwHeadGeo, brassMat);
-    screwHead.position.set(collarRadius + 0.010, this.railHeight + baseH + collarH * 0.55, 0);
-    group.add(screwHead);
+    // 侧向立柱锁紧螺钉
+    const postLockKnob = new THREE.Mesh(createKnurledBand(0.0048, 0.006), this.chrome);
+    postLockKnob.rotation.z = Math.PI / 2;
+    postLockKnob.position.set(0.015, this.railHeight + shoeH + 0.014, 0);
+    group.add(postLockKnob);
 
-    // 4. 精密镜面 316L 不锈钢升降立柱导杆
-    const rodRadius = 0.0070;
-    const rodGeo = new THREE.CylinderGeometry(rodRadius, rodRadius, rodHeight, 32);
-    const rod = new THREE.Mesh(rodGeo, chromeRodMat);
-    rod.position.set(0, this.railHeight + baseH + rodHeight * 0.5, 0);
+    // 精研 316L 液态铬导杆立柱
+    const rod = new THREE.Mesh(createGuideShaftGeometry(rodHeight, 0.0075), this.chrome);
+    rod.position.set(0, this.railHeight + shoeH + rodHeight * 0.5, 0);
     rod.castShadow = true;
     group.add(rod);
 
@@ -513,34 +561,18 @@ export class OpticalPolarizationApparatusMesh {
   ): { group: THREE.Group; rotatingKnob: THREE.Mesh; hoverCue: THREE.Mesh } {
     const group = new THREE.Group();
 
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.26,
-      roughness: 0.38,
-    });
-    const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.78,
-      roughness: 0.12,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.45,
-      roughness: 0.24,
-    });
-
     // a. 固定游标套筒 (Fixed Vernier Barrel Sleeve)
     const sleeveGeo = new THREE.CylinderGeometry(0.0072, 0.0072, 0.014, 32);
     sleeveGeo.rotateX(Math.PI / 2);
-    const sleeveMesh = new THREE.Mesh(sleeveGeo, chromeRodMat);
+    const sleeveMesh = new THREE.Mesh(sleeveGeo, this.silverMat);
     sleeveMesh.position.set(0, 0, 0.007);
     sleeveMesh.userData = { interactiveId };
     group.add(sleeveMesh);
 
-    // 套筒根部香槟金六角锁紧螺母
+    // 套筒根部液态高光铬六角锁紧螺母
     const locknutGeo = new THREE.CylinderGeometry(0.0088, 0.0088, 0.0035, 6);
     locknutGeo.rotateX(Math.PI / 2);
-    const locknut = new THREE.Mesh(locknutGeo, brassMat);
+    const locknut = new THREE.Mesh(locknutGeo, this.chrome);
     locknut.position.set(0, 0, 0.0018);
     locknut.userData = { interactiveId };
     group.add(locknut);
@@ -548,7 +580,7 @@ export class OpticalPolarizationApparatusMesh {
     // 套筒毫米分度刻线
     for (let i = 0; i <= 4; i++) {
       const tickGeo = new THREE.BoxGeometry(0.0026, 0.0004, 0.0005);
-      const tick = new THREE.Mesh(tickGeo, titaniumSlateMat);
+      const tick = new THREE.Mesh(tickGeo, this.datumLineMat);
       tick.position.set(0, 0.0073, 0.003 + i * 0.0022);
       tick.userData = { interactiveId };
       group.add(tick);
@@ -557,7 +589,7 @@ export class OpticalPolarizationApparatusMesh {
     // b. 可旋转精密测微微分筒 (Rotating Thimble Knob Assembly)
     const knobGeo = new THREE.CylinderGeometry(0.0088, 0.0088, 0.015, 32);
     knobGeo.rotateX(Math.PI / 2);
-    const rotatingKnob = new THREE.Mesh(knobGeo, brassMat);
+    const rotatingKnob = new THREE.Mesh(knobGeo, this.titaniumSlate);
     rotatingKnob.name = knobName;
     rotatingKnob.position.set(0, 0, 0.017);
     rotatingKnob.userData = { interactiveId };
@@ -565,7 +597,7 @@ export class OpticalPolarizationApparatusMesh {
     // 读数端 45° 精密倒角游标环
     const bevelGeo = new THREE.CylinderGeometry(0.0074, 0.0088, 0.004, 32);
     bevelGeo.rotateX(Math.PI / 2);
-    const bevelCollar = new THREE.Mesh(bevelGeo, chromeRodMat);
+    const bevelCollar = new THREE.Mesh(bevelGeo, this.chrome);
     bevelCollar.position.set(0, 0, -0.0095);
     bevelCollar.userData = { interactiveId };
     rotatingKnob.add(bevelCollar);
@@ -574,7 +606,7 @@ export class OpticalPolarizationApparatusMesh {
     for (let i = 0; i < 24; i++) {
       const kAngle = (i / 24) * Math.PI * 2;
       const ribGeo = new THREE.BoxGeometry(0.0006, 0.0006, 0.014);
-      const rib = new THREE.Mesh(ribGeo, brassMat);
+      const rib = new THREE.Mesh(ribGeo, this.silverMat);
       rib.position.set(Math.cos(kAngle) * 0.0089, Math.sin(kAngle) * 0.0089, 0);
       rib.rotation.z = kAngle;
       rib.userData = { interactiveId };
@@ -583,14 +615,14 @@ export class OpticalPolarizationApparatusMesh {
 
     const neckGeo = new THREE.CylinderGeometry(0.0052, 0.0052, 0.004, 24);
     neckGeo.rotateX(Math.PI / 2);
-    const neckMesh = new THREE.Mesh(neckGeo, chromeRodMat);
+    const neckMesh = new THREE.Mesh(neckGeo, this.chrome);
     neckMesh.position.set(0, 0, 0.0095);
     neckMesh.userData = { interactiveId };
     rotatingKnob.add(neckMesh);
 
     const ratchetGeo = new THREE.CylinderGeometry(0.0058, 0.0058, 0.007, 24);
     ratchetGeo.rotateX(Math.PI / 2);
-    const ratchetKnob = new THREE.Mesh(ratchetGeo, brassMat);
+    const ratchetKnob = new THREE.Mesh(ratchetGeo, this.chrome);
     ratchetKnob.position.set(0, 0, 0.014);
     ratchetKnob.userData = { interactiveId };
     rotatingKnob.add(ratchetKnob);
@@ -661,26 +693,6 @@ export class OpticalPolarizationApparatusMesh {
     const saddleData = this.createSliderSaddle(this.emitterX, 'UnpolarizedEmitterGroup', 0.122, 0.074);
     this.emitterGroup = saddleData.saddleGroup;
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.38,
-      roughness: 0.25,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x2c3e50,
-      metalness: 0.24,
-      roughness: 0.40,
-    });
-    const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.75,
-      roughness: 0.14,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.44,
-      roughness: 0.24,
-    });
     const cableMat = new THREE.MeshStandardMaterial({
       color: 0x334155,
       roughness: 0.65,
@@ -689,21 +701,21 @@ export class OpticalPolarizationApparatusMesh {
 
     // 1. 双环调心架底部承载横梁平台
     const cradleGeo = createChamferedBlockGeometry(0.132, 0.013, 0.064, 0.0014);
-    const cradle = new THREE.Mesh(cradleGeo, titaniumSlateMat);
+    const cradle = new THREE.Mesh(cradleGeo, this.titaniumSlate);
     cradle.position.set(0, this.beamCenterY - 0.042, 0);
     cradle.castShadow = true;
     this.emitterGroup.add(cradle);
 
-    // 2. 前后两座 CNC 精铣万向调心圆环架 + 6 枚 120° 径向香槟金调心顶丝
+    // 2. 前后两座 CNC 精铣万向调心圆环架 + 6 枚 120° 径向液态铬调心顶丝
     [-0.042, 0.032].forEach((rx) => {
       const supportGeo = createChamferedBlockGeometry(0.012, 0.018, 0.026, 0.001);
-      const support = new THREE.Mesh(supportGeo, satinSilverMat);
+      const support = new THREE.Mesh(supportGeo, this.satin);
       support.position.set(rx, this.beamCenterY - 0.030, 0);
       this.emitterGroup.add(support);
 
       const ringGeo = new THREE.TorusGeometry(0.029, 0.0042, 16, 36);
       ringGeo.rotateY(Math.PI / 2);
-      const ringMesh = new THREE.Mesh(ringGeo, titaniumSlateMat);
+      const ringMesh = new THREE.Mesh(ringGeo, this.titaniumSlate);
       ringMesh.position.set(rx, this.beamCenterY, 0);
       ringMesh.castShadow = true;
       this.emitterGroup.add(ringMesh);
@@ -718,11 +730,11 @@ export class OpticalPolarizationApparatusMesh {
 
         const shaft = new THREE.Mesh(
           new THREE.CylinderGeometry(0.0020, 0.0020, 0.012, 12),
-          chromeRodMat
+          this.chrome
         );
         const head = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.0045, 0.0045, 0.0055, 18),
-          brassMat
+          createKnurledBand(0.0045, 0.0055),
+          this.chrome
         );
         head.position.set(0, 0.007, 0);
         screwGroup.add(shaft);
@@ -731,12 +743,12 @@ export class OpticalPolarizationApparatusMesh {
       });
     });
 
-    // 3. 中央圆筒形非偏振自然光/激光谐振腔管体 (航天级喷砂银铝主筒 + 8道环形散热鳍片 + 香槟金铭牌环)
+    // 3. 中央圆筒形非偏振自然光/激光谐振腔管体 (航天级喷砂银铝主筒 + 8道环形散热鳍片 + 缎面银铝铭牌环)
     const barrelLen = 0.142;
     const barrelRadius = 0.020;
     const barrelGeo = new THREE.CylinderGeometry(barrelRadius, barrelRadius, barrelLen, 36);
     barrelGeo.rotateZ(Math.PI / 2);
-    const barrel = new THREE.Mesh(barrelGeo, satinSilverMat);
+    const barrel = new THREE.Mesh(barrelGeo, this.satin);
     barrel.position.set(0, this.beamCenterY, 0);
     barrel.castShadow = true;
     this.emitterGroup.add(barrel);
@@ -744,22 +756,22 @@ export class OpticalPolarizationApparatusMesh {
     for (let i = 0; i < 8; i++) {
       const finGeo = new THREE.CylinderGeometry(barrelRadius + 0.0026, barrelRadius + 0.0026, 0.003, 36);
       finGeo.rotateZ(Math.PI / 2);
-      const fin = new THREE.Mesh(finGeo, titaniumSlateMat);
+      const fin = new THREE.Mesh(finGeo, this.titaniumSlate);
       fin.position.set(-0.056 + i * 0.0065, this.beamCenterY, 0);
       this.emitterGroup.add(fin);
     }
 
     const bandGeo = new THREE.CylinderGeometry(barrelRadius + 0.0008, barrelRadius + 0.0008, 0.016, 36);
     bandGeo.rotateZ(Math.PI / 2);
-    const band = new THREE.Mesh(bandGeo, brassMat);
+    const band = new THREE.Mesh(bandGeo, this.silverMat);
     band.position.set(0.004, this.beamCenterY, 0);
     this.emitterGroup.add(band);
 
-    // 4. 前置科研级精密激光/非偏振光准直扩束物镜筒与香槟金光阑压圈 (+X 端)
+    // 4. 前置科研级精密激光/非偏振光准直扩束物镜筒与液态高光铬光阑压圈 (+X 端)
     // 4.1 镜筒过渡阶梯环 (航天级喷砂银铝，与主筒精密衔接)
     const collarGeo = createHollowRingFrameGeometry(barrelRadius + 0.0012, 0.0140, 0.0035, 0.0006, 36);
     collarGeo.rotateY(Math.PI / 2);
-    const collar = new THREE.Mesh(collarGeo, satinSilverMat);
+    const collar = new THREE.Mesh(collarGeo, this.satin);
     collar.position.set(barrelLen * 0.5 + 0.0015, this.beamCenterY, 0);
     this.emitterGroup.add(collar);
 
@@ -776,7 +788,7 @@ export class OpticalPolarizationApparatusMesh {
       true
     );
     nozzleGeo.rotateZ(Math.PI / 2);
-    const nozzle = new THREE.Mesh(nozzleGeo, titaniumSlateMat);
+    const nozzle = new THREE.Mesh(nozzleGeo, this.titaniumSlate);
     nozzle.position.set(barrelLen * 0.5 + 0.008, this.beamCenterY, 0);
     nozzle.castShadow = true;
     this.emitterGroup.add(nozzle);
@@ -784,17 +796,17 @@ export class OpticalPolarizationApparatusMesh {
     // 4.3 筒内消杂散光微孔光阑环 (深色哑光发黑内壁)
     const baffleGeo = createHollowRingFrameGeometry(0.0150, 0.0090, 0.0015, 0.0003, 32);
     baffleGeo.rotateY(Math.PI / 2);
-    const baffle = new THREE.Mesh(baffleGeo, titaniumSlateMat);
+    const baffle = new THREE.Mesh(baffleGeo, this.titaniumSlate);
     baffle.position.set(barrelLen * 0.5 + 0.006, this.beamCenterY, 0);
     this.emitterGroup.add(baffle);
 
-    // 4.4 前置香槟金精密镜头锁紧压圈 (带倒角机械锁紧外圈与内光阑通孔)
+    // 4.4 前置液态高光铬精密镜头锁紧压圈 (带倒角机械锁紧外圈与内光阑通孔)
     const bezelOuterR = 0.0168;
     const bezelInnerR = 0.0108;
     const bezelDepth = 0.0030;
     const bezelGeo = createHollowRingFrameGeometry(bezelOuterR, bezelInnerR, bezelDepth, 0.0006, 36);
     bezelGeo.rotateY(Math.PI / 2);
-    const brassBezel = new THREE.Mesh(bezelGeo, brassMat);
+    const brassBezel = new THREE.Mesh(bezelGeo, this.chrome);
     brassBezel.position.set(barrelLen * 0.5 + 0.0125, this.beamCenterY, 0);
     brassBezel.castShadow = true;
     this.emitterGroup.add(brassBezel);
@@ -803,7 +815,7 @@ export class OpticalPolarizationApparatusMesh {
     for (let sIdx = 0; sIdx < 4; sIdx++) {
       const sAng = (sIdx * Math.PI) / 2;
       const slotGeo = createChamferedBlockGeometry(0.0012, 0.0015, 0.0008, 0.0002);
-      const slot = new THREE.Mesh(slotGeo, titaniumSlateMat);
+      const slot = new THREE.Mesh(slotGeo, this.titaniumSlate);
       slot.position.set(
         barrelLen * 0.5 + 0.0142,
         this.beamCenterY + Math.sin(sAng) * (bezelInnerR + 0.0022),
@@ -817,7 +829,7 @@ export class OpticalPolarizationApparatusMesh {
       const kAng = (kIdx * Math.PI) / 4;
       const knurlGeo = new THREE.CylinderGeometry(0.0004, 0.0004, bezelDepth * 0.85, 8);
       knurlGeo.rotateZ(Math.PI / 2);
-      const knurl = new THREE.Mesh(knurlGeo, brassMat);
+      const knurl = new THREE.Mesh(knurlGeo, this.silverMat);
       knurl.position.set(
         barrelLen * 0.5 + 0.0125,
         this.beamCenterY + Math.sin(kAng) * (bezelOuterR + 0.0002),
@@ -873,10 +885,10 @@ export class OpticalPolarizationApparatusMesh {
     this.laserApertureRingMesh.position.set(barrelLen * 0.5 + 0.0138, this.beamCenterY, 0);
     this.emitterGroup.add(this.laserApertureRingMesh);
 
-    // 5. 尾部香槟金航空锁紧接头与柔性同轴电源线
+    // 5. 尾部液态高光铬航空锁紧接头与柔性同轴电源线
     const rearCapGeo = new THREE.CylinderGeometry(0.011, 0.014, 0.012, 24);
     rearCapGeo.rotateZ(Math.PI / 2);
-    const rearCap = new THREE.Mesh(rearCapGeo, brassMat);
+    const rearCap = new THREE.Mesh(rearCapGeo, this.silverMat);
     rearCap.position.set(-barrelLen * 0.5 - 0.006, this.beamCenterY, 0);
     this.emitterGroup.add(rearCap);
 
@@ -896,13 +908,13 @@ export class OpticalPolarizationApparatusMesh {
     this.emitterGroup.add(consoleGroup);
 
     const panelGeo = createChamferedBlockGeometry(0.112, 0.008, 0.026, 0.0012);
-    const panelMesh = new THREE.Mesh(panelGeo, titaniumSlateMat);
+    const panelMesh = new THREE.Mesh(panelGeo, this.titaniumSlate);
     consoleGroup.add(panelMesh);
 
     // 红色翘板电源开关
     const switchBase = new THREE.Mesh(
       createChamferedBlockGeometry(0.018, 0.004, 0.012, 0.0005),
-      satinSilverMat
+      this.satin
     );
     switchBase.position.set(-0.038, 0.005, 0);
     consoleGroup.add(switchBase);
@@ -939,10 +951,10 @@ export class OpticalPolarizationApparatusMesh {
       this.wlButtons[wl] = btnMesh;
     });
 
-    // 右侧复合白光轻触键 (带香槟金底座环)
+    // 右侧复合白光轻触键 (带液态高光铬底座环)
     const whiteRim = new THREE.Mesh(
       new THREE.CylinderGeometry(0.0064, 0.0068, 0.004, 24),
-      brassMat
+      this.chrome
     );
     whiteRim.position.set(0.041, 0.005, 0);
     whiteRim.userData = { interactiveId: 'source_white' };
@@ -966,25 +978,9 @@ export class OpticalPolarizationApparatusMesh {
     this.brewsterGroup.name = 'BrewsterPolarizerGroup';
     this.brewsterGroup.position.set(this.brewsterCenterX, 0, 0);
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.38,
-      roughness: 0.25,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x334155,
-      metalness: 0.28,
-      roughness: 0.38,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.46,
-      roughness: 0.22,
-    });
-
     // 1. 低剖面导轨固定滑座与正前方切入旋钮
     const baseGeo = createChamferedBlockGeometry(0.040, 0.018, 0.076, 0.0014);
-    const baseMesh = new THREE.Mesh(baseGeo, titaniumSlateMat);
+    const baseMesh = new THREE.Mesh(baseGeo, this.titaniumSlate);
     baseMesh.position.set(0, this.railHeight + 0.009, 0);
     this.brewsterGroup.add(baseMesh);
 
@@ -1002,8 +998,8 @@ export class OpticalPolarizationApparatusMesh {
 
     const postH = this.beamCenterY - (this.railHeight + 0.018);
     const postMesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.0055, 0.0055, postH, 24),
-      satinSilverMat
+      createGuideShaftGeometry(postH, 0.0055),
+      this.chrome
     );
     postMesh.position.set(0, postH * 0.5, 0);
     this.brewsterPivotArm.add(postMesh);
@@ -1033,7 +1029,7 @@ export class OpticalPolarizationApparatusMesh {
     for (const endSide of [-1, 1]) {
       const clip = new THREE.Mesh(
         createChamferedBlockGeometry(0.005, 0.009, 0.036, 0.0006),
-        brassMat
+        this.chrome
       );
       clip.position.set(endSide * 0.024, 0, 0);
       plateHolderGroup.add(clip);
@@ -1049,21 +1045,21 @@ export class OpticalPolarizationApparatusMesh {
 
     const strutMesh = new THREE.Mesh(
       createChamferedBlockGeometry(0.007, armLen, 0.006, 0.0008),
-      satinSilverMat
+      this.satin
     );
     strutMesh.position.set(0, armLen * 0.5, 0);
     cArmGroup.add(strutMesh);
 
     const sensorHead = new THREE.Mesh(
       new THREE.CylinderGeometry(0.009, 0.011, 0.016, 24),
-      titaniumSlateMat
+      this.titaniumSlate
     );
     sensorHead.position.set(0, armLen, 0.016);
     cArmGroup.add(sensorHead);
 
     const sensorRing = new THREE.Mesh(
       new THREE.TorusGeometry(0.009, 0.0016, 12, 24),
-      brassMat
+      this.chrome
     );
     sensorRing.rotation.x = Math.PI / 2;
     sensorRing.position.set(0, armLen - 0.008, 0.016);
@@ -1105,17 +1101,6 @@ export class OpticalPolarizationApparatusMesh {
     this.analyzerFrontPointer = built.frontPointer;
     this.analyzerHoverCue = built.hoverCue;
 
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x2c3e50,
-      metalness: 0.26,
-      roughness: 0.38,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.45,
-      roughness: 0.24,
-    });
-
     // 在检偏器滑鞍正面 (+Z) 安装一座 24° 倾斜式精密快捷定位按键面板：0°(平行最亮)、45°(半透射)、90°(正交消光)
     const presetConsole = new THREE.Group();
     presetConsole.position.set(0, this.railHeight + 0.022, 0.038);
@@ -1124,14 +1109,14 @@ export class OpticalPolarizationApparatusMesh {
 
     const consolePlate = new THREE.Mesh(
       createChamferedBlockGeometry(0.062, 0.006, 0.020, 0.001),
-      titaniumSlateMat
+      this.titaniumSlate
     );
     presetConsole.add(consolePlate);
 
     const createPresetBtn = (xOff: number, colorHex: number, name: string, interactiveId: string) => {
       const rim = new THREE.Mesh(
         new THREE.CylinderGeometry(0.0054, 0.0058, 0.0035, 20),
-        brassMat
+        this.chrome
       );
       rim.position.set(xOff, 0.004, 0);
       rim.userData = { interactiveId };
@@ -1186,29 +1171,13 @@ export class OpticalPolarizationApparatusMesh {
     const interactiveRotorId = role === 'polarizer' ? 'polarizer_rotor' : 'analyzer_rotor';
     const interactiveKnobId = role === 'polarizer' ? 'polarizer_micrometer' : 'analyzer_micrometer';
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.38,
-      roughness: 0.25,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.26,
-      roughness: 0.40,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.45,
-      roughness: 0.24,
-    });
-
     const outerR = 0.048;
     const innerR = 0.035;
 
     // 1. 底部 U 型半圆托架支座 (衔接镜面不锈钢立柱与圆形光学镜架)
     const yokeBase = new THREE.Mesh(
       createChamferedBlockGeometry(0.016, 0.014, 0.054, 0.0012),
-      titaniumSlateMat
+      this.titaniumSlate
     );
     yokeBase.position.set(0, this.beamCenterY - outerR - 0.005, 0);
     stageGroup.add(yokeBase);
@@ -1221,7 +1190,7 @@ export class OpticalPolarizationApparatusMesh {
 
     const statorGeo = createHollowRingFrameGeometry(outerR, innerR, 0.014, 0.0014, 64);
     statorGeo.rotateY(Math.PI / 2);
-    const statorMesh = new THREE.Mesh(statorGeo, satinSilverMat);
+    const statorMesh = new THREE.Mesh(statorGeo, this.satin);
     statorMesh.castShadow = true;
     housingPivot.add(statorMesh);
 
@@ -1245,15 +1214,15 @@ export class OpticalPolarizationApparatusMesh {
       housingPivot.add(dialBack);
     }
 
-    // 顶部香槟金精密止动锁紧螺钉
+    // 顶部液态高光铬微米滚花精密止动锁紧螺钉
     const topLock = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.0055, 0.0055, 0.012, 24),
-      brassMat
+      createKnurledBand(0.0055, 0.012),
+      this.chrome
     );
     topLock.position.set(0, outerR + 0.006, 0);
     housingPivot.add(topLock);
 
-    // 3. 沿光轴旋转的内转子总成 (包含香槟金压圈、二向色性微纳线栅晶片与发光透振轴双向箭头)
+    // 3. 沿光轴旋转的内转子总成 (包含液态铬压圈、二向色性微纳线栅晶片与发光透振轴双向箭头)
     const rotorGroup = new THREE.Group();
     rotorGroup.name = role === 'polarizer' ? 'PolarizerRotorGroup' : 'AnalyzerRotorGroup';
     rotorGroup.userData = { interactiveId: interactiveRotorId };
@@ -1261,7 +1230,7 @@ export class OpticalPolarizationApparatusMesh {
 
     const innerBezelGeo = new THREE.TorusGeometry(innerR - 0.0005, 0.0024, 16, 56);
     innerBezelGeo.rotateY(Math.PI / 2);
-    const innerBezel = new THREE.Mesh(innerBezelGeo, brassMat);
+    const innerBezel = new THREE.Mesh(innerBezelGeo, this.chrome);
     innerBezel.userData = { interactiveId: interactiveRotorId };
     rotorGroup.add(innerBezel);
 
@@ -1365,34 +1334,13 @@ export class OpticalPolarizationApparatusMesh {
     );
     this.sampleStageGroup = saddleData.saddleGroup;
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.38,
-      roughness: 0.25,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.26,
-      roughness: 0.40,
-    });
-    const chromeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.80,
-      roughness: 0.12,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.45,
-      roughness: 0.24,
-    });
-
     const outerR = 0.048;
     const innerR = 0.035;
 
     // 1. 底部 U 型半圆托架支座
     const yokeBase = new THREE.Mesh(
       createChamferedBlockGeometry(0.016, 0.014, 0.056, 0.0012),
-      titaniumSlateMat
+      this.titaniumSlate
     );
     yokeBase.position.set(0, this.beamCenterY - outerR - 0.005, 0);
     this.sampleStageGroup.add(yokeBase);
@@ -1405,7 +1353,7 @@ export class OpticalPolarizationApparatusMesh {
 
     const centerRingGeo = createHollowRingFrameGeometry(outerR, innerR, 0.014, 0.0014, 64);
     centerRingGeo.rotateY(Math.PI / 2);
-    const centerRing = new THREE.Mesh(centerRingGeo, satinSilverMat);
+    const centerRing = new THREE.Mesh(centerRingGeo, this.satin);
     centerRing.castShadow = true;
     centerHousing.add(centerRing);
 
@@ -1419,7 +1367,7 @@ export class OpticalPolarizationApparatusMesh {
       centerHousing.add(dialFront);
     }
 
-    // 3. 后侧 (-Z)：精密香槟金 16 槽滚花五档转换轮与弹簧定位钢珠 (彻底取代廉价五色圆点风车造型)
+    // 3. 后侧 (-Z)：精密 16 槽微米滚花五档转换轮与弹簧定位钢珠
     this.sampleTurretWheel = new THREE.Group();
     this.sampleTurretWheel.name = 'SampleTurretWheel';
     this.sampleTurretWheel.userData = { interactiveId: 'sample_turret' };
@@ -1427,7 +1375,7 @@ export class OpticalPolarizationApparatusMesh {
 
     const wheelGeo = new THREE.CylinderGeometry(0.0145, 0.0145, 0.013, 32);
     wheelGeo.rotateX(Math.PI / 2);
-    const wheelMesh = new THREE.Mesh(wheelGeo, brassMat);
+    const wheelMesh = new THREE.Mesh(wheelGeo, this.titaniumSlate);
     wheelMesh.userData = { interactiveId: 'sample_turret' };
     this.sampleTurretWheel.add(wheelMesh);
 
@@ -1435,7 +1383,7 @@ export class OpticalPolarizationApparatusMesh {
       const fAngle = (f / 16) * Math.PI * 2;
       const fluteGeo = new THREE.CylinderGeometry(0.0014, 0.0014, 0.0132, 8);
       fluteGeo.rotateX(Math.PI / 2);
-      const flute = new THREE.Mesh(fluteGeo, brassMat);
+      const flute = new THREE.Mesh(fluteGeo, this.silverMat);
       flute.position.set(Math.cos(fAngle) * 0.0142, Math.sin(fAngle) * 0.0142, 0);
       flute.userData = { interactiveId: 'sample_turret' };
       this.sampleTurretWheel.add(flute);
@@ -1443,7 +1391,7 @@ export class OpticalPolarizationApparatusMesh {
 
     const wheelCapGeo = new THREE.CylinderGeometry(0.0078, 0.0078, 0.015, 24);
     wheelCapGeo.rotateX(Math.PI / 2);
-    const wheelCap = new THREE.Mesh(wheelCapGeo, chromeMat);
+    const wheelCap = new THREE.Mesh(wheelCapGeo, this.chrome);
     wheelCap.userData = { interactiveId: 'sample_turret' };
     this.sampleTurretWheel.add(wheelCap);
 
@@ -1452,7 +1400,7 @@ export class OpticalPolarizationApparatusMesh {
       const ang = (s / 5) * Math.PI * 2;
       const tick = new THREE.Mesh(
         new THREE.BoxGeometry(0.0008, 0.0038, 0.0006),
-        titaniumSlateMat
+        this.satin
       );
       tick.position.set(Math.cos(ang) * 0.0105, Math.sin(ang) * 0.0105, 0.0068);
       tick.rotation.z = ang;
@@ -1461,7 +1409,7 @@ export class OpticalPolarizationApparatusMesh {
     this.sampleStageGroup.add(this.sampleTurretWheel);
 
     // 顶部机械弹簧钢珠定位销
-    const detentPin = new THREE.Mesh(new THREE.SphereGeometry(0.0028, 16, 16), chromeMat);
+    const detentPin = new THREE.Mesh(new THREE.SphereGeometry(0.0028, 16, 16), this.chrome);
     detentPin.position.set(0, this.beamCenterY - 0.024 + 0.015, -outerR - 0.012);
     this.sampleStageGroup.add(detentPin);
 
@@ -1489,7 +1437,7 @@ export class OpticalPolarizationApparatusMesh {
 
     const wpBezel = new THREE.Mesh(
       new THREE.TorusGeometry(innerR - 0.0005, 0.0024, 16, 48),
-      brassMat
+      this.chrome
     );
     wpBezel.rotation.y = Math.PI / 2;
     this.waveplateMountGroup.add(wpBezel);
@@ -1523,7 +1471,7 @@ export class OpticalPolarizationApparatusMesh {
     slowAxisGeo.rotateX(Math.PI / 2);
     const slowAxisBar = new THREE.Mesh(
       slowAxisGeo,
-      new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.72, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.72, depthWrite: false })
     );
     slowAxisBar.userData = { interactiveId: 'waveplate_knob' };
     this.waveplateCrystalMesh.add(slowAxisBar);
@@ -1552,7 +1500,7 @@ export class OpticalPolarizationApparatusMesh {
     for (const ySign of [-1, 1]) {
       const cap = new THREE.Mesh(
         createChamferedBlockGeometry(0.048, 0.004, 0.040, 0.0008),
-        brassMat
+        this.chrome
       );
       cap.position.set(ySign * 0.0055, ySign * 0.0235, 0);
       this.calciteCrystalMesh.add(cap);
@@ -1563,10 +1511,10 @@ export class OpticalPolarizationApparatusMesh {
     this.photoelasticFrameGroup.name = 'PhotoelasticStressFrameGroup';
     centerHousing.add(this.photoelasticFrameGroup);
 
-    // 顶部香槟金应力加载测微螺杆手轮 (镶嵌在圆环顶端)
+    // 顶部液态高光铬滚花应力加载测微螺杆手轮
     this.stressLoadScrewKnob = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.012, 0.012, 0.012, 28),
-      brassMat
+      createKnurledBand(0.012, 0.012),
+      this.chrome
     );
     this.stressLoadScrewKnob.name = 'StressLoadScrewKnob';
     this.stressLoadScrewKnob.userData = { interactiveId: 'stress_screw' };
@@ -1575,7 +1523,7 @@ export class OpticalPolarizationApparatusMesh {
 
     const screwStem = new THREE.Mesh(
       new THREE.CylinderGeometry(0.004, 0.004, 0.024, 16),
-      chromeMat
+      this.chrome
     );
     screwStem.position.set(0, outerR - 0.002, 0);
     this.photoelasticFrameGroup.add(screwStem);
@@ -1583,7 +1531,7 @@ export class OpticalPolarizationApparatusMesh {
     // 压头块 (Anvil)
     this.stressAnvilMesh = new THREE.Mesh(
       createChamferedBlockGeometry(0.012, 0.008, 0.018, 0.0008),
-      brassMat
+      this.titaniumSlate
     );
     this.stressAnvilMesh.position.set(0, 0.029, 0);
     this.photoelasticFrameGroup.add(this.stressAnvilMesh);
@@ -1641,27 +1589,6 @@ export class OpticalPolarizationApparatusMesh {
     this.screenCarrierGroup = saddleData.saddleGroup;
     this.screenCarrierGroup.userData = { interactiveId: 'screen_handle' };
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.38,
-      roughness: 0.25,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.26,
-      roughness: 0.40,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.44,
-      roughness: 0.24,
-    });
-    const chromeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.78,
-      roughness: 0.12,
-    });
-
     this.screenPanelGroup = new THREE.Group();
     this.screenPanelGroup.name = 'ScreenPanelGroup';
     this.screenPanelGroup.position.set(0, this.beamCenterY + 0.010, 0);
@@ -1671,18 +1598,18 @@ export class OpticalPolarizationApparatusMesh {
     const screenH = 0.205;
     const housingDepth = 0.014;
 
-    // 1. 底部立柱连接座与香槟金锁紧手轮
+    // 1. 底部立柱连接座与液态高光铬锁紧手轮
     const neckY = -screenH * 0.5 - 0.016;
     const mountMesh = new THREE.Mesh(
       createChamferedBlockGeometry(0.036, 0.020, 0.022, 0.0014),
-      titaniumSlateMat
+      this.titaniumSlate
     );
     mountMesh.position.set(0, neckY, 0);
     this.screenPanelGroup.add(mountMesh);
 
-    const mountKnobGeo = new THREE.CylinderGeometry(0.0058, 0.0058, 0.010, 18);
+    const mountKnobGeo = createKnurledBand(0.0058, 0.010);
     mountKnobGeo.rotateZ(Math.PI / 2);
-    const mountKnob = new THREE.Mesh(mountKnobGeo, brassMat);
+    const mountKnob = new THREE.Mesh(mountKnobGeo, this.chrome);
     mountKnob.position.set(0.022, neckY, 0);
     this.screenPanelGroup.add(mountKnob);
 
@@ -1690,21 +1617,21 @@ export class OpticalPolarizationApparatusMesh {
     const totalBezelW = screenW + 0.044;
     const totalBezelH = screenH + 0.022;
     const bezelGeo = createChamferedBlockGeometry(totalBezelW, totalBezelH, housingDepth, 0.0022);
-    const bezel = new THREE.Mesh(bezelGeo, satinSilverMat);
+    const bezel = new THREE.Mesh(bezelGeo, this.satin);
     bezel.name = 'ScreenBoardMesh';
     bezel.position.set(0.012, 0, 0);
     bezel.castShadow = true;
     bezel.userData = { interactiveId: 'screen_handle' };
     this.screenPanelGroup.add(bezel);
 
-    // 四角镜面铬内六角紧固螺栓与香槟金垫圈
+    // 四角镜面铬内六角紧固螺栓与垫圈
     const cornerX = [-screenW * 0.5 - 0.003, screenW * 0.5 + 0.027];
     const cornerY = [-screenH * 0.5 - 0.003, screenH * 0.5 + 0.003];
     for (const cx of cornerX) {
       for (const cy of cornerY) {
-        const boltGeo = new THREE.CylinderGeometry(0.0032, 0.0032, housingDepth + 0.003, 6);
+        const boltGeo = createChamferedHexNut(0.0032, housingDepth + 0.002);
         boltGeo.rotateX(Math.PI / 2);
-        const bolt = new THREE.Mesh(boltGeo, chromeMat);
+        const bolt = new THREE.Mesh(boltGeo, this.chrome);
         bolt.position.set(cx, cy, 0.001);
         this.screenPanelGroup.add(bolt);
       }
@@ -1739,17 +1666,17 @@ export class OpticalPolarizationApparatusMesh {
     );
     this.photodiodeGroup.add(meterStrip);
 
-    // 顶部香槟金镶边积分球光电采样窗
+    // 顶部液态高光铬积分球光电采样窗
     const sphereSensor = new THREE.Mesh(
       new THREE.SphereGeometry(0.0075, 20, 20),
-      chromeMat
+      this.chrome
     );
     sphereSensor.position.set(0, screenH * 0.40, 0.002);
     this.photodiodeGroup.add(sphereSensor);
 
     const sensorRing = new THREE.Mesh(
       new THREE.TorusGeometry(0.0082, 0.0014, 12, 24),
-      brassMat
+      this.chrome
     );
     sensorRing.position.set(0, screenH * 0.40, 0.002);
     this.photodiodeGroup.add(sensorRing);
@@ -1956,7 +1883,7 @@ export class OpticalPolarizationApparatusMesh {
     slowGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((compSegs + 1) * 3), 3));
     this.slowComponentLineMesh = new THREE.Line(
       slowGeo,
-      new THREE.LineBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.55, depthWrite: false })
+      new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.55, depthWrite: false })
     );
     this.modulatedWaveGroup.add(this.slowComponentLineMesh);
 
@@ -2404,8 +2331,13 @@ export class OpticalPolarizationApparatusMesh {
     }
     setMeshColorAndOpacity(this.polarizedRibbonMesh, beamColor, 0.92);
     setMeshColorAndOpacity(this.modulatedRibbonMesh, beamColor, 0.92);
+    for (const mesh of [this.calciteOWaveRibbonMesh, this.calciteEWaveRibbonMesh,
+      this.transmittedCalciteORibbonMesh, this.transmittedCalciteERibbonMesh]) {
+      setMeshColorAndOpacity(mesh, beamColor, 0.92);
+    }
 
-    const transOpacity = Math.max(0.03, 0.12 + analysis.transmittedIntensity * 0.86);
+    // Intensity is encoded by field amplitude (sqrt(I)), without a second opacity attenuation.
+    const transOpacity = 0.92;
     setMeshColorAndOpacity(this.transmittedRibbonMesh, beamColor, transOpacity);
 
     if (this.rejectedOrthogonalBeamMesh) {
@@ -2646,7 +2578,7 @@ export class OpticalPolarizationApparatusMesh {
       for (let i = 0; i <= modSegs; i++) {
         const t = i / modSegs;
         const x = xStart3 + t * len3;
-        const phiX = kWave * (x - xStart2) - phase;
+        const phiX = kWave * (x - this.polarizerX) - phase;
         const cosPhi = Math.cos(phiX);
         const sinPhi = Math.sin(phiX);
 
@@ -2687,7 +2619,7 @@ export class OpticalPolarizationApparatusMesh {
       for (let i = 0; i < modVecCount; i++) {
         const t = (i + 0.5) / modVecCount;
         const x = xStart3 + t * len3;
-        const phiX = kWave * (x - xStart2) - phase;
+        const phiX = kWave * (x - this.polarizerX) - phase;
         const ey = (analysis.eyRe * Math.cos(phiX) - analysis.eyIm * Math.sin(phiX)) * maxAmp;
         const ez = (analysis.ezRe * Math.cos(phiX) - analysis.ezIm * Math.sin(phiX)) * maxAmp;
 
@@ -2724,11 +2656,11 @@ export class OpticalPolarizationApparatusMesh {
       locusAttr.needsUpdate = true;
 
       if (this.rotatingEVectorArrowGroup) {
-        const midPhi = kWave * (xMid - xStart2) - phase;
+        const midPhi = kWave * (xMid - this.polarizerX) - phase;
         const curEy = analysis.eyRe * Math.cos(midPhi) - analysis.eyIm * Math.sin(midPhi);
         const curEz = analysis.ezRe * Math.cos(midPhi) - analysis.ezIm * Math.sin(midPhi);
         const instAngle = Math.atan2(curEz, curEy);
-        const instMag = Math.max(0.15, Math.sqrt(curEy * curEy + curEz * curEz));
+        const instMag = Math.sqrt(curEy * curEy + curEz * curEz);
         this.rotatingEVectorArrowGroup.position.set(xMid, beamY, 0);
         this.rotatingEVectorArrowGroup.rotation.x = instAngle;
         this.rotatingEVectorArrowGroup.scale.set(1, instMag * 0.72, 1);
@@ -2736,8 +2668,10 @@ export class OpticalPolarizationApparatusMesh {
     } else {
       const oAngleRad = THREE.MathUtils.degToRad(this.waveplateFastAxisDeg + 90.0);
       const eAngleRad = THREE.MathUtils.degToRad(this.waveplateFastAxisDeg);
-      const oAmp = maxAmp * Math.sqrt(analysis.calciteORayBeforeAnalyzer);
-      const eAmp = maxAmp * Math.sqrt(analysis.calciteERayBeforeAnalyzer);
+      // Keep signed field projections; squaring them would discard a pi phase shift.
+      const beta = thetaPRad - THREE.MathUtils.degToRad(this.waveplateFastAxisDeg);
+      const oAmp = maxAmp * Math.sin(beta);
+      const eAmp = maxAmp * Math.cos(beta);
       const walkOffY = 0.013;
 
       this.fillLinearWaveRibbonAndVectors(
@@ -2764,7 +2698,7 @@ export class OpticalPolarizationApparatusMesh {
         Math.sin(eAngleRad),
         eAmp,
         kWave,
-        phase + 0.8,
+        phase,
         48,
         28
       );
@@ -2778,13 +2712,17 @@ export class OpticalPolarizationApparatusMesh {
     const cosA = Math.cos(thetaARad);
     const sinA = Math.sin(thetaARad);
 
-    this.transmittedRibbonMesh.visible = !isCalcite && !analysis.isExtinction;
-    this.transmittedVectorsMesh.visible = !isCalcite && !analysis.isExtinction;
-    this.transmittedCalciteORibbonMesh.visible = isCalcite && analysis.calciteORayTransmitted > 0.005;
-    this.transmittedCalciteERibbonMesh.visible = isCalcite && analysis.calciteERayTransmitted > 0.005;
+    this.transmittedRibbonMesh.visible = !isCalcite && analysis.transmittedIntensity > 1e-8;
+    this.transmittedVectorsMesh.visible = !isCalcite && analysis.transmittedIntensity > 1e-8;
+    this.transmittedCalciteORibbonMesh.visible = isCalcite && analysis.calciteORayTransmitted > 1e-8;
+    this.transmittedCalciteERibbonMesh.visible = isCalcite && analysis.calciteERayTransmitted > 1e-8;
 
     if (!isCalcite) {
       const transAmp = maxAmp * Math.sqrt(analysis.transmittedIntensity);
+      // Re[(E dot a) exp(i(kx-wt))]: retain the analyzer projection phase.
+      const projectionRe = analysis.eyRe * cosA + analysis.ezRe * sinA;
+      const projectionIm = analysis.eyIm * cosA + analysis.ezIm * sinA;
+      const transmittedPhase = phase - Math.atan2(projectionIm, projectionRe);
       this.fillLinearWaveRibbonAndVectors(
         this.transmittedRibbonMesh,
         this.transmittedVectorsMesh,
@@ -2795,14 +2733,17 @@ export class OpticalPolarizationApparatusMesh {
         sinA,
         transAmp,
         kWave,
-        phase,
+        transmittedPhase,
         48,
         32
       );
     } else {
       const walkOffY = 0.013;
-      const oTransAmp = maxAmp * Math.sqrt(analysis.calciteORayTransmitted);
-      const eTransAmp = maxAmp * Math.sqrt(analysis.calciteERayTransmitted);
+      const thetaWP = THREE.MathUtils.degToRad(this.waveplateFastAxisDeg);
+      const beta = thetaPRad - thetaWP;
+      const analyzerRelative = thetaARad - thetaWP;
+      const oTransAmp = maxAmp * Math.sin(beta) * Math.sin(analyzerRelative);
+      const eTransAmp = maxAmp * Math.cos(beta) * Math.cos(analyzerRelative);
       this.fillLinearWaveRibbonAndVectors(
         this.transmittedCalciteORibbonMesh,
         null,
@@ -2827,7 +2768,7 @@ export class OpticalPolarizationApparatusMesh {
         sinA,
         eTransAmp,
         kWave,
-        phase + 0.8,
+        phase,
         40,
         0
       );
@@ -2851,13 +2792,14 @@ export class OpticalPolarizationApparatusMesh {
     const posAttr = ribbonMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
     const arr = posAttr.array as Float32Array;
     const halfThick = 0.0014;
-    const ny = -sinAngle * halfThick;
-    const nz = cosAngle * halfThick;
+    // Give the field centerline a visible stroke facing the operator (+Z).
+    const ny = halfThick;
+    const nz = 0;
 
     for (let i = 0; i <= ribbonSegments; i++) {
       const t = i / ribbonSegments;
       const x = xStart + t * length;
-      const wVal = Math.sin(kWave * (x - this.polarizerX) - phase) * amplitude;
+      const wVal = Math.cos(kWave * (x - this.polarizerX) - phase) * amplitude;
       const dy = wVal * cosAngle;
       const dz = wVal * sinAngle;
 
@@ -2878,7 +2820,7 @@ export class OpticalPolarizationApparatusMesh {
       for (let i = 0; i < vectorCount; i++) {
         const t = (i + 0.5) / vectorCount;
         const x = xStart + t * length;
-        const wVal = Math.sin(kWave * (x - this.polarizerX) - phase) * amplitude;
+        const wVal = Math.cos(kWave * (x - this.polarizerX) - phase) * amplitude;
         const idx = i * 6;
         vecArr[idx] = x;
         vecArr[idx + 1] = centerY;
@@ -2941,7 +2883,7 @@ export class OpticalPolarizationApparatusMesh {
     } else if (this.sampleMode === 'calcite_birefringence') {
       this.renderCalciteTwinSpotsOnCanvas(ctx, centerX, spotCenterY, analysis);
     } else {
-      this.renderPolarizedSpotAndEllipseOnCanvas(ctx, centerX, spotCenterY, analysis);
+      this.renderPostAnalyzerSpotOnCanvas(ctx, centerX, spotCenterY, analysis);
     }
 
     this.renderMalusTransmissionCurveStrip(ctx, analysis);
@@ -2949,75 +2891,70 @@ export class OpticalPolarizationApparatusMesh {
     this.screenTexture.needsUpdate = true;
   }
 
-  private renderPolarizedSpotAndEllipseOnCanvas(
+  /** Detector footprint: fixed spatial profile, intensity controls luminance only. */
+  private renderReceivedSpot(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    intensity: number,
+    radius: number
+  ): void {
+    if (intensity <= 1e-8) return;
+    const c = this.getActiveBeamColor();
+    const rgb = [c.r, c.g, c.b].map(v => Math.min(255, Math.round(Math.pow(v, 0.55) * 255)));
+    // Display gamma makes weak light visible; the numerical reading remains linear.
+    const luminance = Math.pow(intensity, 0.58);
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    for (const [position, alpha] of [[0, 0.96], [0.3, 0.72], [0.65, 0.22], [1, 0]]) {
+      gradient.addColorStop(position, `rgba(${rgb.join(',')}, ${alpha * luminance})`);
+    }
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /** After an ideal linear analyzer, every transmitted mode is linearly polarized. */
+  private renderOutputPolarizationTrace(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    intensity: number,
+    scale: number
+  ): void {
+    if (intensity <= 1e-8) return;
+    const angle = THREE.MathUtils.degToRad(this.analyzerAngleDeg);
+    const amplitude = Math.sqrt(intensity) * scale;
+    const dx = Math.sin(angle) * amplitude;
+    const dy = -Math.cos(angle) * amplitude;
+    ctx.strokeStyle = '#67e8f9';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx - dx, cy - dy);
+    ctx.lineTo(cx + dx, cy + dy);
+    ctx.stroke();
+  }
+
+  private renderPostAnalyzerSpotOnCanvas(
     ctx: CanvasRenderingContext2D,
     cx: number,
     cy: number,
     analysis: PolarizationAnalysisResult
   ): void {
-    const c = this.getActiveBeamColor();
-    const rCol = Math.min(255, Math.round(Math.pow(c.r, 0.55) * 255));
-    const gCol = Math.min(255, Math.round(Math.pow(c.g, 0.55) * 255));
-    const bCol = Math.min(255, Math.round(Math.pow(c.b, 0.55) * 255));
-
-    const transI = analysis.transmittedIntensity;
-    const maxRadius = 240;
-
-    if (this.sampleMode === 'quarter_waveplate' || this.sampleMode === 'half_waveplate') {
-      for (let ring = 1; ring <= 4; ring++) {
-        const rr = ring * 52;
-        ctx.strokeStyle = `rgba(${rCol}, ${gCol}, ${bCol}, ${(0.14 + transI * 0.18).toFixed(3)})`;
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.arc(cx, cy, rr, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-    }
-
-    if (transI > 0.002) {
-      const gammaI = Math.pow(transI, 0.58);
-      const spotR = 75 + gammaI * maxRadius;
-      for (let rStep = Math.floor(spotR); rStep >= 2; rStep -= 4) {
-        const normR = rStep / spotR;
-        const falloff = Math.exp(-normR * normR * 2.6) * gammaI;
-        if (falloff < 0.008) continue;
-        const coreMix = Math.max(0, (falloff - 0.55) / 0.45);
-        const rr = Math.min(255, Math.round(rCol + (255 - rCol) * coreMix));
-        const gg = Math.min(255, Math.round(gCol + (255 - gCol) * coreMix));
-        const bb = Math.min(255, Math.round(bCol + (255 - bCol) * coreMix));
-
-        ctx.fillStyle = `rgba(${rr}, ${gg}, ${bb}, ${(falloff * 0.14).toFixed(3)})`;
-        ctx.beginPath();
-        ctx.arc(cx, cy, rStep, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    const locusScale = 165;
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
-    ctx.lineWidth = 4.5;
-    ctx.beginPath();
-    for (let s = 0; s <= 72; s++) {
-      const ang = (s / 72) * Math.PI * 2;
-      const ez = (analysis.ezRe * Math.cos(ang) - analysis.ezIm * Math.sin(ang)) * locusScale;
-      const ey = (analysis.eyRe * Math.cos(ang) - analysis.eyIm * Math.sin(ang)) * locusScale;
-      if (s === 0) ctx.moveTo(cx + ez, cy - ey);
-      else ctx.lineTo(cx + ez, cy - ey);
-    }
-    ctx.closePath();
-    ctx.stroke();
+    this.renderReceivedSpot(ctx, cx, cy, analysis.transmittedIntensity, 245);
 
     const thetaARad = THREE.MathUtils.degToRad(this.analyzerAngleDeg);
-    const axisDirX = Math.sin(thetaARad);
-    const axisDirY = -Math.cos(thetaARad);
+    const dx = Math.sin(thetaARad) * 190;
+    const dy = -Math.cos(thetaARad) * 190;
     ctx.strokeStyle = 'rgba(251, 191, 36, 0.65)';
     ctx.lineWidth = 2.8;
     ctx.setLineDash([10, 8]);
     ctx.beginPath();
-    ctx.moveTo(cx - axisDirX * 210, cy - axisDirY * 210);
-    ctx.lineTo(cx + axisDirX * 210, cy + axisDirY * 210);
+    ctx.moveTo(cx - dx, cy - dy);
+    ctx.lineTo(cx + dx, cy + dy);
     ctx.stroke();
     ctx.setLineDash([]);
+    this.renderOutputPolarizationTrace(ctx, cx, cy, analysis.transmittedIntensity, 165);
   }
 
   private renderCalciteTwinSpotsOnCanvas(
@@ -3026,61 +2963,15 @@ export class OpticalPolarizationApparatusMesh {
     cy: number,
     analysis: PolarizationAnalysisResult
   ): void {
-    const oSpotY = cy + 95;
-    const eSpotY = cy - 95;
-    const eSpotX = cx + 28;
-
-    const drawBirefringentSpot = (
-      sx: number,
-      sy: number,
-      intensity: number,
-      rBase: number,
-      gBase: number,
-      bBase: number,
-      polAngleDeg: number
-    ) => {
-      if (intensity > 0.003) {
-        const gamma = Math.pow(intensity, 0.55);
-        const maxR = 45 + gamma * 125;
-        for (let r = Math.floor(maxR); r >= 2; r -= 4) {
-          const nr = r / maxR;
-          const alpha = Math.exp(-nr * nr * 2.5) * gamma * 0.18;
-          ctx.fillStyle = `rgba(${rBase}, ${gBase}, ${bBase}, ${alpha.toFixed(3)})`;
-          ctx.beginPath();
-          ctx.arc(sx, sy, r, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      const rad = THREE.MathUtils.degToRad(polAngleDeg);
-      const dx = Math.sin(rad) * 58;
-      const dy = -Math.cos(rad) * 58;
-      ctx.strokeStyle = `rgba(${rBase}, ${gBase}, ${bBase}, ${(0.35 + intensity * 0.65).toFixed(3)})`;
-      ctx.lineWidth = 4.0;
-      ctx.beginPath();
-      ctx.moveTo(sx - dx, sy - dy);
-      ctx.lineTo(sx + dx, sy + dy);
-      ctx.stroke();
-    };
-
-    drawBirefringentSpot(
-      cx - 18,
-      oSpotY,
-      analysis.calciteORayTransmitted,
-      56,
-      189,
-      248,
-      this.waveplateFastAxisDeg + 90
-    );
-
-    drawBirefringentSpot(
-      eSpotX,
-      eSpotY,
-      analysis.calciteERayTransmitted,
-      251,
-      191,
-      36,
-      this.waveplateFastAxisDeg
-    );
+    // Both separated rays retain the source wavelength and share the analyzer axis.
+    const spots = [
+      { y: cy + 140, intensity: analysis.calciteORayTransmitted },
+      { y: cy - 140, intensity: analysis.calciteERayTransmitted },
+    ];
+    for (const spot of spots) {
+      this.renderReceivedSpot(ctx, cx, spot.y, spot.intensity, 125);
+      this.renderOutputPolarizationTrace(ctx, cx, spot.y, spot.intensity, 105);
+    }
   }
 
   private renderPhotoelasticInterferogramOnCanvas(

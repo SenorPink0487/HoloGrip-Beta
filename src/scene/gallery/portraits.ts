@@ -31,7 +31,7 @@ export const SCIENTIST_PORTRAITS: readonly ScientistPortrait[] = [
 
 const PAPER = { warm: '#faf9f5', glacier: '#d4e0e4' } as const;
 const INK = { warm: '#141413', glacier: '#243034' } as const;
-const RULE = { warm: '#d97757', glacier: '#7e9098' } as const;
+const RULE = { warm: '#a89f94', glacier: '#7e9098' } as const;
 
 export function paintNameplate(
   ctx: CanvasRenderingContext2D,

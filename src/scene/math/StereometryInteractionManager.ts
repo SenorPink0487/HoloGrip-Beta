@@ -1,9 +1,10 @@
 import { labPointerNDC } from '../../controls/LabPointerInput.ts';
 import * as THREE from 'three';
-import type { StereometryMesh } from './StereometryMesh.ts';
+import type { StereometryMesh, DrawnSegment } from './StereometryMesh.ts';
 import { GeometrySolver, type KeyPoint } from './GeometrySolver.ts';
 import type { AuxiliaryFace } from './AuxiliaryFaceSolver.ts';
 import type { ExperimentContext } from '../../core/types.ts';
+import { AppleHapticAudio } from './AppleHapticAudio.ts';
 
 export type InteractionMode =
   | 'direct'          // 自然交互 (模型内选点连线，模型外空白旋转)
@@ -47,6 +48,18 @@ type PointerSession =
   | { kind: 'idle' }
   | { kind: 'pinch-zoom'; initialDist: number; initialScale: number }
   | { kind: 'pinch-cooldown' }
+  | {
+      kind: 'segment-long-press';
+      pointerId: number;
+      segment: DrawnSegment;
+      hitPoint3D: THREE.Vector3;
+      downX: number;
+      downY: number;
+      downTime: number;
+      isVision: boolean;
+      isTouch: boolean;
+      completed: boolean;
+    }
   | {
       kind: 'point-gesture';
       pointerId: number;
@@ -145,7 +158,8 @@ export class StereometryInteractionManager {
     return (
       this.session.kind === 'point-gesture' ||
       this.session.kind === 'model-surface' ||
-      this.session.kind === 'orbit-outside'
+      this.session.kind === 'orbit-outside' ||
+      this.session.kind === 'segment-long-press'
     );
   }
 
@@ -288,6 +302,14 @@ export class StereometryInteractionManager {
   }
 
   public clearHover(): void {
+    if (this.session.kind === 'segment-long-press') {
+      if (typeof this.mesh.cancelSegmentLongPress === 'function') {
+        this.mesh.cancelSegmentLongPress();
+      }
+    }
+    if (typeof this.mesh.setHoveredSegment === 'function') {
+      this.mesh.setHoveredSegment(null);
+    }
     this.currentHoveredKp = null;
     this.currentSnapLabel = '';
     this.recentSnapLock = null;
@@ -639,6 +661,55 @@ export class StereometryInteractionManager {
       return true;
     }
 
+    // 优先检测：是否点中或按住了已绘制的辅助线（含其长度数值标牌） -> 触发苹果原生动效长按消除
+    const bounds = this.getViewportBounds(context);
+    const maxSegmentHitPx = isVision ? 44 : isTouch ? 34 : 22;
+    const hitSeg = typeof this.mesh.findClosestDrawnSegment === 'function'
+      ? this.mesh.findClosestDrawnSegment(
+          this.internalRaycaster.ray,
+          event.clientX,
+          event.clientY,
+          context?.camera,
+          bounds,
+          maxSegmentHitPx
+        )
+      : null;
+
+    if (hitSeg && (!resolved.keyPoint || resolved.zone !== 'keypoint')) {
+      if (this.pendingStartPoint) {
+        this.resetSelection(true);
+      }
+      this.currentHoveredKp = null;
+      this.currentSnapLabel = '';
+      this.recentSnapLock = null;
+      this.mesh.setHoveredKeyPoint(null);
+      this.mesh.clearPreviewWire();
+
+      this.session = {
+        kind: 'segment-long-press',
+        pointerId: event.pointerId,
+        segment: hitSeg.segment,
+        hitPoint3D: hitSeg.hitPoint3D,
+        downX: event.clientX,
+        downY: event.clientY,
+        downTime: now,
+        isVision,
+        isTouch,
+        completed: false,
+      };
+
+      if (typeof this.mesh.startSegmentLongPress === 'function') {
+        this.mesh.startSegmentLongPress(hitSeg.segment.id, hitSeg.hitPoint3D);
+      }
+      AppleHapticAudio.playTick();
+      this.callbacks.onGuidanceChange?.(
+        `按住消除辅助线 ${hitSeg.segment.label}...`,
+        'active',
+        0xf43f5e
+      );
+      return true;
+    }
+
     // 分支 B：落在几何体外部空白区 -> 立即终止任何活跃连线，并准备自由顺畅旋转模型
     if (resolved.zone === 'outside') {
       if (this.pendingStartPoint || this.selectedCutPoints.length > 0) {
@@ -711,7 +782,34 @@ export class StereometryInteractionManager {
       return;
     }
 
-    // 2. 模型外部轨道旋转会话
+    // 2. 连线长按会话：位移一旦超出容差 tapSlop，立即取消长按蓄力，平滑转为轨道旋转
+    if (this.session.kind === 'segment-long-press') {
+      const dist = Math.hypot(event.clientX - this.session.downX, event.clientY - this.session.downY);
+      const tapSlop = this.getEffectiveTapSlop(this.session.isVision, this.session.isTouch);
+      if (dist > tapSlop) {
+        if (typeof this.mesh.cancelSegmentLongPress === 'function') {
+          this.mesh.cancelSegmentLongPress();
+        }
+        AppleHapticAudio.playCancel();
+        this.session = {
+          kind: 'model-surface',
+          pointerId: event.pointerId,
+          downX: this.session.downX,
+          downY: this.session.downY,
+          lastX: event.clientX,
+          lastY: event.clientY,
+          downTime: this.session.downTime,
+          movedPastThreshold: true,
+          orbiting: true,
+          isVision: this.session.isVision,
+          isTouch: this.session.isTouch,
+        };
+        this.callbacks.onGuidanceChange?.('已取消消除操作', 'info');
+      }
+      return;
+    }
+
+    // 3. 模型外部轨道旋转会话
     if (this.session.kind === 'orbit-outside') {
       const totalDist = Math.hypot(event.clientX - this.session.downX, event.clientY - this.session.downY);
       const orbitThreshold = this.getOrbitDragThreshold(this.session.isVision, this.session.isTouch);
@@ -898,10 +996,36 @@ export class StereometryInteractionManager {
         snapColor
       );
     } else {
-      this.callbacks.onGuidanceChange?.(
-        '右手在模型上捏合端点/中点/三等分点接线 · 右手在模型外捏合拖拽旋转模型 · 左手长捏合转动视角',
-        'info'
-      );
+      let hoveredSegId: string | null = null;
+      if (!this.pendingStartPoint && context.camera && typeof this.mesh.findClosestDrawnSegment === 'function') {
+        const bounds = this.getViewportBounds(context);
+        const maxSegmentHoverPx = isVision ? 40 : isTouch ? 30 : 20;
+        const hitSeg = this.mesh.findClosestDrawnSegment(
+          this.internalRaycaster.ray,
+          event.clientX,
+          event.clientY,
+          context.camera,
+          bounds,
+          maxSegmentHoverPx
+        );
+        if (hitSeg) {
+          hoveredSegId = hitSeg.segment.id;
+          this.callbacks.onGuidanceChange?.(
+            `辅助线 ${hitSeg.segment.label} · 长按消除`,
+            'info'
+          );
+        }
+      }
+      if (typeof this.mesh.setHoveredSegment === 'function') {
+        this.mesh.setHoveredSegment(hoveredSegId);
+      }
+
+      if (!hoveredSegId) {
+        this.callbacks.onGuidanceChange?.(
+          '右手在模型上捏合端点/中点/三等分点接线 · 长按已连线消除 · 右手在模型外捏合旋转模型',
+          'info'
+        );
+      }
     }
 
     this.currentHoveredKp = hoveredKp;
@@ -917,7 +1041,10 @@ export class StereometryInteractionManager {
       this.mesh.setHoveredKeyPoint(null);
       this.callbacks.onKeyPointHover?.(null);
       if (typeof document !== 'undefined' && document.body?.style) {
-        document.body.style.cursor = 'default';
+        const isHovered = typeof this.mesh.getHoveredSegmentId === 'function'
+          ? Boolean(this.mesh.getHoveredSegmentId())
+          : false;
+        document.body.style.cursor = isHovered ? 'pointer' : 'default';
       }
     }
   }
@@ -948,7 +1075,22 @@ export class StereometryInteractionManager {
     const prevSession = this.session;
     this.session = { kind: 'idle' };
 
-    // 2. 模型外部空白区释放：旋转自然收尾（松手保留丝滑阻尼惯性）
+    // 2. 连线长按释放：未达 520ms 阈值则柔和回弹并取消消除
+    if (prevSession.kind === 'segment-long-press') {
+      if (!prevSession.completed) {
+        if (typeof this.mesh.cancelSegmentLongPress === 'function') {
+          this.mesh.cancelSegmentLongPress();
+        }
+        AppleHapticAudio.playCancel();
+        this.callbacks.onGuidanceChange?.(
+          `长按可消除辅助线 ${prevSession.segment.label}`,
+          'info'
+        );
+      }
+      return;
+    }
+
+    // 3. 模型外部空白区释放：旋转自然收尾（松手保留丝滑阻尼惯性）
     if (prevSession.kind === 'orbit-outside') {
       return;
     }
@@ -1246,6 +1388,24 @@ export class StereometryInteractionManager {
     const dt = Math.max(0, Math.min(delta, 0.1));
     if (dt <= 0) return;
 
+    // 苹果原生辅助线长按蓄力推进 (520ms 触控阈值)
+    if (this.session.kind === 'segment-long-press') {
+      const elapsed = performance.now() - this.session.downTime;
+      const LONG_PRESS_DURATION = 520;
+      const progress = Math.min(1.0, elapsed / LONG_PRESS_DURATION);
+
+      if (typeof this.mesh.updateSegmentLongPress === 'function') {
+        this.mesh.updateSegmentLongPress(this.session.segment.id, progress, this.session.hitPoint3D);
+      }
+
+      if (progress >= 1.0 && !this.session.completed) {
+        this.session.completed = true;
+        const targetSeg = this.session.segment;
+        this.session = { kind: 'idle' };
+        this.executeElimination(targetSeg);
+      }
+    }
+
     if (!this.isOrbitDragging && this.rotationVelocity.lengthSq() > 1e-8) {
       const frameScale = dt * 60;
       this.targetRotationY += this.rotationVelocity.x * frameScale;
@@ -1271,6 +1431,36 @@ export class StereometryInteractionManager {
         -Math.PI * 0.42,
         Math.PI * 0.42
       );
+    }
+  }
+
+  private executeElimination(segment: DrawnSegment): void {
+    const prevFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
+    const finishElimination = () => {
+      this.mesh.removeSegment(segment.id);
+      this.callbacks.onSegmentRemoved?.(segment.label, segment.length);
+      const newFaces = this.mesh.getAuxiliaryFaces ? this.mesh.getAuxiliaryFaces() : [];
+      if (prevFaces.length > newFaces.length) {
+        const removedFace =
+          prevFaces.find((pf) => !newFaces.some((nf) => nf.id === pf.id)) ||
+          prevFaces[prevFaces.length - 1];
+        this.callbacks.onAuxiliaryFaceRemoved?.(removedFace.id);
+        this.callbacks.onGuidanceChange?.(
+          `已消除辅助线 ${segment.label}，并移除关联辅助面 ${removedFace.faceLabel}`,
+          'warn'
+        );
+      } else {
+        this.callbacks.onGuidanceChange?.(
+          `已消除辅助线 ${segment.label}`,
+          'warn'
+        );
+      }
+    };
+
+    if (typeof this.mesh.playSegmentEliminationAnimation === 'function') {
+      this.mesh.playSegmentEliminationAnimation(segment.id, finishElimination);
+    } else {
+      finishElimination();
     }
   }
 

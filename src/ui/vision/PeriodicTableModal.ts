@@ -521,7 +521,10 @@ export class PeriodicTableModal {
       status: '#periodic-mixture-status',
     }, {
       getEngine: () => this.getActiveEngine(),
-      onPoured: () => this.onViewBeaker?.(),
+      onPoured: (mixture) => {
+        const beakerName = this.activeBeakerId === 'left' ? '左侧烧杯' : '右侧烧杯';
+        this.showToast(`已将 ${mixture.name} 注入【${beakerName}】`);
+      },
     });
 
     // 点击半透明遮罩背景关闭弹层
@@ -541,6 +544,10 @@ export class PeriodicTableModal {
         }
       });
     }
+  }
+
+  public destroy(): void {
+    this.mixtureQuery?.destroy();
   }
 }
 

@@ -186,6 +186,55 @@ console.log('=== 光的色散 ===\n');
 }
 
 {
+  const bench = new OpticalDispersionBenchMesh();
+  for (const material of ['quartz', 'crown', 'flint'] as const) {
+    bench.setMaterial(material);
+    for (const angle of [50, 58, 82]) {
+      bench.setIncidentAngle(angle);
+      for (const distance of [0.2, 0.5]) {
+        bench.setScreenDistance(distance);
+        const projection = bench.getProjection();
+        const visible = projection.rays.filter(ray => ray.onScreen);
+        if (visible.length < 2) continue;
+        const fan = bench.group.getObjectByName('DispersionSpectrumFan') as THREE.Mesh;
+        // Production disables pointer picking on light. Use the same geometry and
+        // material with normal raycasting to check actual front-facing coverage.
+        const surface = new THREE.Mesh(fan.geometry, fan.material);
+        const red = visible[0], violet = visible[visible.length - 1];
+        for (const along of [0.25, 0.5, 0.8]) {
+          const centre = red.exit!.clone().lerp(red.hit!, along)
+            .lerp(violet.exit!.clone().lerp(violet.hit!, along), 0.5);
+          for (const height of [-0.9, -0.4, 0, 0.4, 0.9]) {
+            const target = centre.clone();
+            target.y += height * DISPERSION_BENCH.beamHalfDepth;
+            for (const elevation of [-1, 0, 1]) {
+              for (const side of [-1, 1]) {
+                const view = projection.screenTangent.clone().multiplyScalar(side);
+                view.y = elevation;
+                view.normalize();
+                const hits = new THREE.Raycaster(target.clone().addScaledVector(view, 0.3), view.clone().negate())
+                  .intersectObject(surface, false);
+                assert.ok(hits.some(hit => hit.distance < 0.3),
+                  `Continuous light covers every height from both sides and above/below (${material}/${angle}°/${distance}m)`);
+              }
+            }
+          }
+        }
+        for (const ray of visible) {
+          const midpoint = ray.exit!.clone().lerp(ray.hit!, 0.5);
+          assert.ok(!bench.group.getObjectByName('DispersionBeams')!.children.some(object =>
+            object.visible && (object as THREE.Mesh).geometry?.type === 'CylinderGeometry'
+              && object.position.distanceTo(midpoint) < 1e-8),
+          'The filled fan has no superimposed centre-line cylinders');
+        }
+      }
+    }
+  }
+  bench.dispose();
+  console.log('✓ Continuous fan coverage at grazing, elevated and lowered views without a third centre stripe');
+}
+
+{
   assert.strictEqual(metadata.id, 'optics-dispersion');
   assert.strictEqual(metadata.name, '光的色散');
   const entry = PhysicsDisciplineModal.OPTICS_EXPERIMENTS.find((item) => item.id === 'optics-dispersion');

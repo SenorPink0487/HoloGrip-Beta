@@ -1112,11 +1112,15 @@ export class OpticalDispersionBenchMesh {
     this.angleGuide.add(arcLine);
     if (this.lampOn) {
       this.setBeam(new THREE.Vector3(DISPERSION_BENCH.lampX + 0.076, DISPERSION_BENCH.beamY, 0), first.point, 0xffffff, 0.0014, 0.9);
-      for (const ray of this.projection.rays) {
+      for (const [index, ray] of this.projection.rays.entries()) {
         for (let i = 1; i < ray.interfaces.length; i++) {
           this.setBeam(ray.interfaces[i - 1].point, ray.interfaces[i].point, ray.hex, 0.00045, 0.88);
         }
         if (ray.exit && ray.direction) {
+          // The continuous fan already contains these paths. Drawing cylinders through
+          // its centre makes a third stripe when the two horizontal faces are edge-on.
+          const inFan = ray.onScreen && (this.projection.rays[index - 1]?.onScreen || this.projection.rays[index + 1]?.onScreen);
+          if (inFan) continue;
           const end = ray.onScreen ? ray.hit! : ray.exit.clone().addScaledVector(ray.direction, 0.10);
           this.setBeam(ray.exit, end, ray.hex, 0.00065, 0.96);
         }
@@ -1125,23 +1129,46 @@ export class OpticalDispersionBenchMesh {
     const positions: number[] = [], colors: number[] = [];
     const rays = this.projection.rays;
     const halfH = DISPERSION_BENCH.beamHalfDepth;
+    const addQuad = (points: THREE.Vector3[], shades: THREE.Color[], outward: THREE.Vector3) => {
+      // Keep the closed shell outward-facing so only its nearest surface is blended.
+      const normal = points[1].clone().sub(points[0]).cross(points[2].clone().sub(points[0]));
+      const indices = normal.dot(outward) > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
+      for (const index of indices) {
+        const point = points[index], color = shades[index];
+        positions.push(point.x, point.y, point.z);
+        colors.push(color.r, color.g, color.b);
+      }
+    };
+    const raised = (point: THREE.Vector3, side: number) => point.clone().addScaledVector(OpticalDispersionBenchMesh._Y_AXIS, side * halfH);
     if (this.lampOn) for (let i = 0; i < rays.length - 1; i++) {
       const a = rays[i], b = rays[i + 1];
       if (!a.onScreen || !b.onScreen) continue;
       const c1 = new THREE.Color(a.hex), c2 = new THREE.Color(b.hex);
-      // Both coloured boundaries start at their own refracted exit points.
+      // A closed, continuous shell: horizontal faces, entrance/receiver caps and
+      // the two outer spectral walls. No walls between neighbouring colours.
       for (const side of [-1, 1]) {
-        for (const [point, color] of [[a.exit!, c1], [a.hit!, c1], [b.hit!, c2],
-          [a.exit!, c1], [b.hit!, c2], [b.exit!, c2]] as const) {
-          positions.push(point.x, point.y + side * halfH, point.z);
-          colors.push(color.r, color.g, color.b);
-        }
+        addQuad([raised(a.exit!, side), raised(a.hit!, side), raised(b.hit!, side), raised(b.exit!, side)],
+          [c1, c1, c2, c2], new THREE.Vector3(0, side, 0));
+      }
+      addQuad([raised(a.exit!, -1), raised(a.exit!, 1), raised(b.exit!, 1), raised(b.exit!, -1)],
+        [c1, c1, c2, c2], a.interfaces[a.interfaces.length - 1].normal.clone().negate());
+      addQuad([raised(a.hit!, -1), raised(a.hit!, 1), raised(b.hit!, 1), raised(b.hit!, -1)],
+        [c1, c1, c2, c2], this.projection.screenNormal);
+      if (!rays[i - 1]?.onScreen) {
+        const outward = a.exit!.clone().sub(b.exit!).add(a.hit!.clone().sub(b.hit!));
+        addQuad([raised(a.exit!, -1), raised(a.exit!, 1), raised(a.hit!, 1), raised(a.hit!, -1)],
+          [c1, c1, c1, c1], outward);
+      }
+      if (!rays[i + 2]?.onScreen) {
+        const outward = b.exit!.clone().sub(a.exit!).add(b.hit!.clone().sub(a.hit!));
+        addQuad([raised(b.exit!, -1), raised(b.exit!, 1), raised(b.hit!, 1), raised(b.hit!, -1)],
+          [c2, c2, c2, c2], outward);
       }
     }
     if (!this.fanGeo) {
       this.fanGeo = new THREE.BufferGeometry();
       this.fanMesh = new THREE.Mesh(this.fanGeo, new THREE.MeshBasicMaterial({
-        side: THREE.DoubleSide, transparent: true, opacity: 0.6, blending: THREE.NormalBlending,
+        side: THREE.FrontSide, transparent: true, opacity: 0.6, blending: THREE.NormalBlending,
         toneMapped: false, depthWrite: false, vertexColors: true }));
       this.fanMesh.name = 'DispersionSpectrumFan';
       this.fanMesh.renderOrder = 1;

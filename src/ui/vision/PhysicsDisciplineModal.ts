@@ -152,6 +152,21 @@ export class PhysicsDisciplineModal {
 
   public static readonly MECHANICS_EXPERIMENTS: (OpticsExperimentDef & { planned?: boolean })[] = [
     {
+      id: 'mech-lever-pulley',
+      name: '杠杆与滑轮组',
+      category: '力矩平衡、省力与机械功',
+      formula: 'F_1 l_1 = F_2 l_2 · F = G/n · s = nh',
+      iconSvg: `
+        <svg class="apple-sf-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 17L21 12M12 15L9 28H17L12 15Z" stroke-width="1.7"/>
+          <path d="M5 17V23H9V16M19 13V19H23V12" stroke-width="1.4"/>
+          <path d="M25 5H34M29 5V8M25 12V23Q25 29 29 29Q33 29 33 23V12" stroke-width="1.4"/>
+          <circle cx="29" cy="12" r="4" stroke-width="1.7"/>
+          <circle cx="29" cy="23" r="3" stroke-width="1.5"/>
+          <path d="M29 26V31M26 32H32" stroke-width="1.7"/>
+        </svg>`,
+    },
+    {
       id: 'mech-free-fall',
       name: '自由落体与牛顿管实验',
       category: '自由落体与空气阻力对比',

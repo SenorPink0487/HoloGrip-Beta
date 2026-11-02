@@ -97,14 +97,14 @@ export class PortraitGallery {
     this.group.name = 'portrait-gallery';
     const warm = galleryPalette('warm');
     this.frameMat = new THREE.MeshStandardMaterial({
-      color: 0xd97757,
-      roughness: 0.48,
-      metalness: 0.4,
-      envMapIntensity: 0.65,
+      color: warm.metal,
+      roughness: warm.metalRoughness,
+      metalness: warm.metalness,
+      envMapIntensity: warm.metalEnv,
       side: THREE.DoubleSide,
     });
     this.sightMat = new THREE.MeshStandardMaterial({
-      color: 0xc6613f,
+      color: 0x8a8278,
       roughness: 0.52,
       metalness: 0.35,
       envMapIntensity: 0.5,
@@ -197,11 +197,11 @@ export class PortraitGallery {
 
   applyPalette(palette: GalleryPalette): void {
     const warm = palette.id !== 'glacier';
-    this.frameMat.color.set(warm ? 0xd97757 : palette.metal);
-    this.frameMat.roughness = warm ? 0.48 : 0.22;
-    this.frameMat.metalness = warm ? 0.4 : palette.metalness;
-    this.frameMat.envMapIntensity = warm ? 0.65 : palette.metalEnv;
-    this.sightMat.color.set(warm ? 0xc6613f : 0x7e9098);
+    this.frameMat.color.set(palette.metal);
+    this.frameMat.roughness = palette.metalRoughness;
+    this.frameMat.metalness = palette.metalness;
+    this.frameMat.envMapIntensity = palette.metalEnv;
+    this.sightMat.color.set(warm ? 0x8a8278 : 0x7e9098);
     this.sightMat.roughness = warm ? 0.52 : 0.28;
     this.sightMat.metalness = warm ? 0.35 : 0.8;
     this.matMat.color.set(palette.mat);

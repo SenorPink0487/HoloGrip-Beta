@@ -5,6 +5,7 @@ export interface ExperimentStatusCardCallbacks {
   onStir?: () => void;
   onOpenPeriodicTable?: () => void;
   onSelectBeaker?: (beakerId: 'left' | 'right') => void;
+  onSelectCompound?: (component: SoluteComponent | null) => void;
 }
 
 export function formatChemicalFormula(formula: string): string {
@@ -33,6 +34,9 @@ export class ExperimentStatusCard {
   private engineRight?: ChemistryEngine;
   public currentActiveBeakerId: 'left' | 'right' = 'left';
   public compositionMode: 'substance' | 'ion' = 'substance';
+
+  private selectedComponentId: string | null = null;
+  private lastComponents: SoluteComponent[] = [];
 
   private callbacks: ExperimentStatusCardCallbacks;
   private mixtureQuery: MixtureQueryBinding | null = null;
@@ -65,6 +69,7 @@ export class ExperimentStatusCard {
 
   public selectBeaker(beakerId: 'left' | 'right'): void {
     this.currentActiveBeakerId = beakerId;
+    this.clearSelectedCompound();
     const targetEngine = beakerId === 'left' ? this.engineLeft : (this.engineRight || this.engineLeft);
     this.subscribeToEngine(targetEngine);
     this.updateBeakerTabUI();
@@ -268,10 +273,35 @@ export class ExperimentStatusCard {
     }, {
       getEngine: () => this.getCurrentEngine(),
     });
+
+    // 委托监听化合物卡片与成分标签点击，触发三维分子结构呈现
+    const handleToggle = (targetEl: HTMLElement | null) => {
+      if (!targetEl) return;
+      const compEl = targetEl.closest('.apple-solute-card, .legend-chip') as HTMLElement | null;
+      if (!compEl) return;
+      const id = compEl.dataset.componentId;
+      if (!id) return;
+      this.toggleSelectComponent(id);
+    };
+
+    this.element.addEventListener('click', (e) => {
+      handleToggle(e.target as HTMLElement);
+    });
+
+    this.element.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (activeEl && (activeEl.classList.contains('apple-solute-card') || activeEl.classList.contains('legend-chip'))) {
+          e.preventDefault();
+          handleToggle(activeEl);
+        }
+      }
+    });
   }
 
   public setCompositionMode(mode: 'substance' | 'ion'): void {
     this.compositionMode = mode;
+    this.clearSelectedCompound();
     const btnSubstance = this.element.querySelector('#btn-mode-substance');
     const btnIons = this.element.querySelector('#btn-mode-ions');
     const title = this.element.querySelector('#comp-mode-title');
@@ -290,6 +320,15 @@ export class ExperimentStatusCard {
   public updateState(state: ChemistryState): void {
     const engine = this.getCurrentEngine();
     const comp: ChemistryComposition = engine.getCompositionAnalysis(this.compositionMode);
+    this.lastComponents = comp.components;
+
+    // 检查当前选中的化合物是否仍存在于体系中（若被完全消耗或重置则清空）
+    if (this.selectedComponentId && this.selectedComponentId !== 'solvent_H2O') {
+      if (!comp.components.some((c) => c.id === this.selectedComponentId)) {
+        this.selectedComponentId = null;
+        this.callbacks.onSelectCompound?.(null);
+      }
+    }
 
     // 1. 烧杯环境状态胶囊栏：体积、pH 值、温度
     const volSummary = this.element.querySelector('#summary-volume');
@@ -316,8 +355,9 @@ export class ExperimentStatusCard {
         compBar.innerHTML = `<div class="bar-seg" style="width: 100%; background: rgba(100, 210, 255, 0.4);"></div>`;
       }
       if (compLegend) {
+        const isWaterSelected = this.selectedComponentId === 'solvent_H2O';
         compLegend.innerHTML = `
-          <div class="legend-chip">
+          <div class="legend-chip clickable${isWaterSelected ? ' is-selected' : ''}" data-component-id="solvent_H2O" role="button" tabindex="0" title="点击在前方呈现 H₂O 分子结构">
             <span class="chip-dot" style="background: #64d2ff;"></span>
             <span class="chip-name">去离子水 H₂O</span>
             <span class="chip-pct">100%</span>
@@ -334,15 +374,16 @@ export class ExperimentStatusCard {
       }
       if (compLegend) {
         compLegend.innerHTML = comp.components
-          .map(
-            (c) => `
-          <div class="legend-chip">
-            <span class="chip-dot" style="background: ${c.color};"></span>
-            <span class="chip-name">${formatChemicalFormula(c.formula)} ${c.name}</span>
-            <span class="chip-pct">${c.percentage.toFixed(1)}%</span>
-          </div>
-        `
-          )
+          .map((c) => {
+            const isSel = this.selectedComponentId === c.id;
+            return `
+              <div class="legend-chip clickable${isSel ? ' is-selected' : ''}" data-component-id="${c.id}" role="button" tabindex="0" title="点击在前方呈现 3D 分子/晶格模型">
+                <span class="chip-dot" style="background: ${c.color};"></span>
+                <span class="chip-name">${formatChemicalFormula(c.formula)} ${c.name}</span>
+                <span class="chip-pct">${c.percentage.toFixed(1)}%</span>
+              </div>
+            `;
+          })
           .join('');
       }
     }
@@ -420,9 +461,15 @@ export class ExperimentStatusCard {
             const fmtFormula = formatChemicalFormula(c.formula);
             const formulaClass = getFormulaAvatarClass(fmtFormula);
             const statMassLabel = isPrecipitate ? '沉淀质量' : isGas ? '气体质量' : '质量';
+            const isSelected = this.selectedComponentId === c.id;
 
             return `
-              <div class="apple-solute-card" style="--tint: ${c.color}">
+              <div class="apple-solute-card clickable${isSelected ? ' is-selected' : ''}"
+                   data-component-id="${c.id}"
+                   role="button"
+                   tabindex="0"
+                   aria-pressed="${isSelected ? 'true' : 'false'}"
+                   title="点击在前方呈现 3D 分子/晶格模型">
                 <!-- Card Top: Identity & Share -->
                 <div class="card-identity-row">
                   <div class="ion-avatar ${formulaClass}" style="color: ${c.color}; background: ${c.color}1c; border-color: ${c.color}40;" title="${fmtFormula}">
@@ -506,6 +553,72 @@ export class ExperimentStatusCard {
     if (rxCountTag) {
       rxCountTag.textContent = state.recentReactions.length > 0 ? `${state.recentReactions.length} 个反应` : '实时记录';
     }
+  }
+
+  public toggleSelectComponent(id: string): void {
+    if (this.selectedComponentId === id) {
+      this.clearSelectedCompound();
+      return;
+    }
+    this.selectCompoundById(id);
+  }
+
+  public selectCompoundById(id: string | null): void {
+    if (!id) {
+      this.clearSelectedCompound();
+      return;
+    }
+
+    let comp: SoluteComponent | undefined = this.lastComponents.find(
+      (c) => c.id === id || c.formula === id
+    );
+    if (!comp && (id === 'solvent_H2O' || id === 'H2O')) {
+      const vol = this.getCurrentEngine().state.volume;
+      comp = {
+        id: 'solvent_H2O',
+        formula: 'H2O',
+        name: '去离子水',
+        moles: vol / 18,
+        millimoles: (vol / 18) * 1000,
+        percentage: 100,
+        massGrams: vol,
+        molarMass: 18.015,
+        category: 'compound',
+        categoryLabel: '溶剂',
+        color: '#64d2ff',
+      };
+    }
+
+    if (!comp) return;
+
+    this.selectedComponentId = comp.id;
+    this.updateSelectionClasses();
+    this.callbacks.onSelectCompound?.(comp);
+  }
+
+  public clearSelectedCompound(silent = false): void {
+    if (this.selectedComponentId === null) return;
+    this.selectedComponentId = null;
+    this.updateSelectionClasses();
+    if (!silent) {
+      this.callbacks.onSelectCompound?.(null);
+    }
+  }
+
+  public getSelectedComponentId(): string | null {
+    return this.selectedComponentId;
+  }
+
+  private updateSelectionClasses(): void {
+    const cards = this.element.querySelectorAll('.apple-solute-card, .legend-chip');
+    cards.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      const match = htmlEl.dataset.componentId === this.selectedComponentId;
+      htmlEl.classList.toggle('is-selected', match);
+      if (htmlEl.hasAttribute('aria-pressed')) {
+        htmlEl.setAttribute('aria-pressed', match ? 'true' : 'false');
+      }
+    });
   }
 
   public destroy(): void {

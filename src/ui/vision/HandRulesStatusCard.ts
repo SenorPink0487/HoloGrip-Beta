@@ -156,12 +156,12 @@ export class HandRulesStatusCard {
         transition-duration: 0.1s;
       }
 
-      /* 与数学板块完全一致的高亮显示效果 (Sky-blue 10% wash + 1.5px rim + soft glow) */
+      /* 极简磨砂白玻璃高亮选中效果 (12% translucent white + 1.5px frosted rim + soft depth shadow) */
       .math-branch-tile.active {
-        background: rgba(56, 189, 248, 0.10);
-        border: 1.5px solid rgba(56, 189, 248, 0.55);
-        border-top: 1.5px solid rgba(56, 189, 248, 0.85);
-        box-shadow: 0 0 24px rgba(56, 189, 248, 0.20), 0 22px 50px rgba(0, 0, 0, 0.40);
+        background: rgba(255, 255, 255, 0.12);
+        border: 1.5px solid rgba(255, 255, 255, 0.45);
+        border-top: 1.5px solid rgba(255, 255, 255, 0.75);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.20), 0 22px 50px rgba(0, 0, 0, 0.40);
       }
 
       .math-tile-icon-box {

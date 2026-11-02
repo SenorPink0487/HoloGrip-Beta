@@ -69,17 +69,19 @@ export interface OpticalRailFinish {
   scaleAccent: string;
 }
 
-const DEFAULT_RAIL_FINISH: OpticalRailFinish = {
-  satin: 0xe8eef5,
-  skirt: 0xf8fafc,
-  channel: 0xd5dee8,
+export const QUIET_RAIL: OpticalRailFinish = {
+  satin: 0x8a94a0,
+  skirt: 0x6e7884,
+  channel: 0x4f5864,
   chrome: 0xffffff,
-  brass: 0xd97706,
-  scaleBackground: '#f8fafc',
-  scaleEdge: '#cbd5e1',
-  scaleTick: '#334155',
-  scaleAccent: '#b45309',
+  brass: 0xc4cbd4, // 银灰钛金五金，杜绝亮黄
+  scaleBackground: '#f1f5f9',
+  scaleEdge: '#94a3b8',
+  scaleTick: '#1e293b',
+  scaleAccent: '#0284c7', // 纯正科技冷蓝刻度重点
 };
+
+const DEFAULT_RAIL_FINISH: OpticalRailFinish = QUIET_RAIL;
 
 function channelLuma(hex: string): number {
   const h = hex.replace('#', '');

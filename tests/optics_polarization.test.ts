@@ -56,6 +56,9 @@ const createMockElement = (tag = 'div'): any => {
               data: new Uint8ClampedArray(w * h * 4),
             }),
             putImageData: () => {},
+            createRadialGradient: () => ({
+              addColorStop: () => {},
+            }),
             createLinearGradient: () => ({
               addColorStop: () => {},
             }),
@@ -359,6 +362,121 @@ console.log('=== Starting Light Polarization, Jones 3D Helical Waves, Calcite Bi
   console.log('✓ Test 6 passed: Lifecycle, minimalist invariants, modal registration & 60+ FPS verified\n');
 }
 
+// -------------------------------------------------------------
+// Test 7: Rendered electric fields retain Jones phase, output axes and extinction
+// -------------------------------------------------------------
+{
+  console.log('Test 7: Rendered wave phase & post-analyzer screen consistency');
+  const apparatus = new OpticalPolarizationApparatusMesh();
+  const internal = apparatus as any;
+  const amplitude = 0.015;
+  const sampleRibbon = (mesh: THREE.Mesh, index: number) => {
+    const a = mesh.geometry.getAttribute('position').array;
+    const i = index * 6;
+    return { x: a[i], y: (a[i + 1] + a[i + 4]) / 2, z: (a[i + 2] + a[i + 5]) / 2 };
+  };
+  const near = (actual: number, expected: number, message: string) =>
+    assert(Math.abs(actual - expected) < 2e-7, `${message}: ${actual} vs ${expected}`);
+
+  // Check actual mesh vertices, including complex and negative analyzer projections.
+  for (const mode of ['malus_free', 'quarter_waveplate', 'half_waveplate', 'photoelastic_stress'] as const) {
+    apparatus.sampleMode = mode;
+    apparatus.polarizerAngleDeg = 23;
+    apparatus.analyzerAngleDeg = 127;
+    apparatus.waveplateFastAxisDeg = 41;
+    for (const wavelength of [405, 532, 650]) {
+      apparatus.wavelengthNm = wavelength;
+      const k = 2 * Math.PI / (0.040 + (wavelength - 380) / 370 * 0.022);
+      const state = OpticalPhysics.analyzePolarizationState(23, 127, mode, 41, apparatus.stressLoadMPa, wavelength);
+      const analyzerAngle = 127 * Math.PI / 180;
+      const re = state.eyRe * Math.cos(analyzerAngle) + state.ezRe * Math.sin(analyzerAngle);
+      const im = state.eyIm * Math.cos(analyzerAngle) + state.ezIm * Math.sin(analyzerAngle);
+      for (const phase of [0, 1.2, 4.6]) {
+        internal.wavePhase = phase;
+        apparatus.updateOpticalPaths();
+        for (const index of [0, 13, 31, 48]) {
+          const point = sampleRibbon(apparatus.transmittedRibbonMesh, index);
+          const phi = k * (point.x - apparatus.polarizerX) - phase;
+          const field = amplitude * (re * Math.cos(phi) - im * Math.sin(phi));
+          near(point.y - apparatus.beamCenterY, field * Math.cos(analyzerAngle), `${mode}: output Ey`);
+          near(point.z, field * Math.sin(analyzerAngle), `${mode}: output Ez`);
+        }
+        if (mode === 'malus_free') {
+          for (const mesh of [apparatus.polarizedRibbonMesh, apparatus.modulatedRibbonMesh]) {
+            const point = sampleRibbon(mesh, 17);
+            const field = amplitude * Math.cos(k * (point.x - apparatus.polarizerX) - phase);
+            near(point.y - apparatus.beamCenterY, field * Math.cos(23 * Math.PI / 180), 'No artificial phase jump in empty sample stage');
+          }
+        }
+      }
+    }
+  }
+
+  apparatus.sampleMode = 'calcite_birefringence';
+  apparatus.polarizerAngleDeg = 0;
+  apparatus.analyzerAngleDeg = 15;
+  apparatus.waveplateFastAxisDeg = 45;
+  apparatus.wavelengthNm = 532;
+  internal.wavePhase = 1.2;
+  apparatus.updateOpticalPaths();
+  const crystalAxis = Math.PI / 4;
+  const analyzer = Math.PI / 12;
+  const kCalcite = 2 * Math.PI / (0.040 + (532 - 380) / 370 * 0.022);
+  for (const [mesh, signedAmplitude, centerY] of [
+    [apparatus.transmittedCalciteORibbonMesh, Math.sin(-crystalAxis) * Math.sin(analyzer - crystalAxis), apparatus.beamCenterY - 0.0065],
+    [apparatus.transmittedCalciteERibbonMesh, Math.cos(-crystalAxis) * Math.cos(analyzer - crystalAxis), apparatus.beamCenterY + 0.0065],
+  ] as const) {
+    const point = sampleRibbon(mesh, 17);
+    const field = amplitude * signedAmplitude * Math.cos(kCalcite * (point.x - apparatus.polarizerX) - 1.2);
+    near(point.y - centerY, field * Math.cos(analyzer), 'Calcite preserves signed projection Ey');
+    near(point.z, field * Math.sin(analyzer), 'Calcite preserves signed projection Ez');
+    assert((mesh.material as THREE.MeshBasicMaterial).color.equals((apparatus.polarizedRibbonMesh.material as THREE.MeshBasicMaterial).color), 'Calcite rays retain source wavelength');
+  }
+
+  apparatus.sampleMode = 'malus_free';
+  apparatus.polarizerAngleDeg = 0;
+  apparatus.analyzerAngleDeg = 89;
+  apparatus.updateOpticalPaths();
+  assert(apparatus.transmittedRibbonMesh.visible, 'Weak transmission must fade continuously near extinction');
+  apparatus.analyzerAngleDeg = 90;
+  apparatus.updateOpticalPaths();
+  assert(!apparatus.transmittedRibbonMesh.visible, 'Exactly crossed polarizers must have no transmitted field');
+
+  // Capture canvas geometry: the cyan trace must follow the analyzer, even after a quarter-wave plate.
+  const ctx = createMockElement('canvas').getContext('2d');
+  const lines: number[][] = [];
+  let from: number[] = [];
+  ctx.moveTo = (x: number, y: number) => { from = [x, y]; };
+  ctx.lineTo = (x: number, y: number) => { lines.push([...from, x, y]); };
+  apparatus.analyzerAngleDeg = 35;
+  const circular = OpticalPhysics.analyzePolarizationState(0, 35, 'quarter_waveplate', 45);
+  internal.renderPostAnalyzerSpotOnCanvas(ctx, 512, 395, circular);
+  assert.strictEqual(lines.length, 2, 'Only analyzer axis and output line are drawn; no pre-analyzer ellipse');
+  const [x0, y0, x1, y1] = lines[1];
+  near((x1 - x0) / (y0 - y1), Math.tan(35 * Math.PI / 180), 'Screen output direction follows analyzer');
+  near(Math.hypot(x1 - x0, y1 - y0), 330 * Math.sqrt(0.5), 'Screen field length follows sqrt(intensity)');
+  lines.length = 0;
+  internal.renderOutputPolarizationTrace(ctx, 512, 395, 0, 165);
+  assert.strictEqual(lines.length, 0, 'No residual output trace at extinction');
+
+  // Spatial footprint must stay fixed as power changes; only gradient luminance changes.
+  const gradients: { radius: number; stops: string[] }[] = [];
+  ctx.createRadialGradient = (_x0: number, _y0: number, _r0: number, _x1: number, _y1: number, radius: number) => {
+    const gradient = { radius, stops: [] as string[] };
+    gradients.push(gradient);
+    return { addColorStop: (_position: number, color: string) => gradient.stops.push(color) };
+  };
+  internal.renderReceivedSpot(ctx, 512, 395, 1, 245);
+  internal.renderReceivedSpot(ctx, 512, 395, 0.25, 245);
+  internal.renderReceivedSpot(ctx, 512, 395, 0, 245);
+  assert.strictEqual(gradients.length, 2, 'No light footprint is drawn at extinction');
+  assert.strictEqual(gradients[0].radius, gradients[1].radius, 'Polarizer rotation must not resize the beam');
+  assert.notStrictEqual(gradients[0].stops[0], gradients[1].stops[0], 'Lower intensity must reduce brightness');
+
+  apparatus.dispose();
+  console.log('✓ Test 7 passed: Mesh phase, output polarization, extinction & detector luminance verified\n');
+}
+
 console.log('========================================================');
-console.log('All Light Polarization & Birefringence Tests Passed (6/6)!');
+console.log('All Light Polarization & Birefringence Tests Passed (7/7)!');
 console.log('========================================================\n');

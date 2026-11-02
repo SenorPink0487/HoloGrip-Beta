@@ -8,6 +8,7 @@ import {
   type SphereAnalysisResult,
 } from './GeometrySolver.ts';
 import { AuxiliaryFaceSolver, type AuxiliaryFace } from './AuxiliaryFaceSolver.ts';
+import { AppleHapticAudio } from './AppleHapticAudio.ts';
 
 export type { AuxiliaryFace };
 
@@ -82,6 +83,45 @@ export class StereometryMesh {
   private auxiliaryFaces: AuxiliaryFace[] = [];
   private hitEnvelopeMesh: THREE.Mesh | null = null;
   private modelScale = 1.0;
+
+  // 苹果原生连线长按消除交互与粒子消散动效系统
+  private eliminationEffectsGroup = new THREE.Group();
+  private chargingRingGroup = new THREE.Group();
+  private chargingRingSprite: THREE.Sprite | null = null;
+  private chargingRingCanvas: HTMLCanvasElement | null = null;
+  private chargingRingTex: THREE.CanvasTexture | null = null;
+  private chargingProgress = 0;
+  private chargingSpringScale = 0;
+  private chargingTargetScale = 0;
+  private chargingSegmentId: string | null = null;
+  private chargingHitPoint = new THREE.Vector3();
+  private hoveredSegmentId: string | null = null;
+  private eliminatingSegmentIds = new Set<string>();
+
+  private activeEliminations: Array<{
+    id: string;
+    seg: DrawnSegment;
+    posA: THREE.Vector3;
+    posB: THREE.Vector3;
+    pointsMesh?: THREE.Points;
+    particles?: Array<{
+      pos: THREE.Vector3;
+      vel: THREE.Vector3;
+    }>;
+    badgeSprite?: THREE.Sprite;
+    badgeBaseScale?: THREE.Vector3;
+    coreMesh?: THREE.Mesh;
+    lineMesh?: THREE.Line;
+    affectedFaceMeshes?: Array<{
+      mesh: THREE.Mesh;
+      contour?: THREE.LineLoop;
+      origFaceOpacity: number;
+      origContourOpacity: number;
+    }>;
+    progress: number;
+    duration: number;
+    onComplete?: () => void;
+  }> = [];
 
   // 新连线空间线段的动态生长动画
   private activeSegmentAnimations: Array<{
@@ -498,6 +538,10 @@ export class StereometryMesh {
     this.modelContainer.add(this.auxFacesGroup);
     this.segmentBadgesGroup.name = 'segmentBadges';
     this.modelContainer.add(this.segmentBadgesGroup);
+    this.eliminationEffectsGroup.name = 'eliminationEffects';
+    this.modelContainer.add(this.eliminationEffectsGroup);
+    this.chargingRingGroup.name = 'chargingRingGroup';
+    this.modelContainer.add(this.chargingRingGroup);
 
     // 隐形交互碰撞包络体（禁用默认射线命中，避免阻断模型外部空白区域的自由旋转）
     const hitGeo = new THREE.SphereGeometry(1.0, 16, 16);
@@ -515,6 +559,7 @@ export class StereometryMesh {
     this.group.add(this.stagePresentationGroup);
 
     this.createSnapCursor();
+    this.initChargingRing();
     this.buildStagePresentation();
   }
 
@@ -1421,7 +1466,504 @@ export class StereometryMesh {
     }
     this.segmentBadges.clear();
     this.clearGroup(this.segmentBadgesGroup);
+    this.clearGroup(this.eliminationEffectsGroup);
+    this.activeEliminations = [];
+    this.eliminatingSegmentIds.clear();
+    this.cancelSegmentLongPress();
     this.rebuildSegments();
+  }
+
+  public isSegmentEliminating(id: string): boolean {
+    return this.eliminatingSegmentIds.has(id);
+  }
+
+  // -------------------------------------------------------------
+  // 苹果原生连线命中检测与长按消除交互体系
+  // -------------------------------------------------------------
+  public findClosestDrawnSegment(
+    ray: THREE.Ray,
+    clientX?: number,
+    clientY?: number,
+    camera?: THREE.Camera,
+    viewport?: { left: number; top: number; width: number; height: number },
+    maxScreenDistPx: number = 32
+  ): { segment: DrawnSegment; hitPoint3D: THREE.Vector3; screenDistPx: number } | null {
+    if (this.drawnSegments.length === 0) return null;
+
+    let bestSeg: DrawnSegment | null = null;
+    let bestDist = maxScreenDistPx;
+    let bestHitLocal = new THREE.Vector3();
+
+    this.modelContainer.updateMatrixWorld(false);
+    const mWorld = this.modelContainer.matrixWorld;
+
+    const vA = new THREE.Vector3();
+    const vB = new THREE.Vector3();
+    const projA = new THREE.Vector3();
+    const projB = new THREE.Vector3();
+    const bWorld = new THREE.Vector3();
+    const projBadge = new THREE.Vector3();
+
+    for (const seg of this.drawnSegments) {
+      if (this.eliminatingSegmentIds.has(seg.id)) continue;
+      const kpA = this.currentModelDef.keyPoints.find((k) => k.id === seg.pointIdA);
+      const kpB = this.currentModelDef.keyPoints.find((k) => k.id === seg.pointIdB);
+      if (!kpA || !kpB) continue;
+
+      vA.copy(kpA.position).applyMatrix4(mWorld);
+      vB.copy(kpB.position).applyMatrix4(mWorld);
+
+      if (camera && viewport && typeof clientX === 'number' && typeof clientY === 'number') {
+        projA.copy(vA).project(camera);
+        projB.copy(vB).project(camera);
+
+        if (projA.z > 1.0 || projB.z > 1.0) continue;
+
+        const sxA = viewport.left + ((projA.x + 1) * 0.5) * viewport.width;
+        const syA = viewport.top + ((-projA.y + 1) * 0.5) * viewport.height;
+        const sxB = viewport.left + ((projB.x + 1) * 0.5) * viewport.width;
+        const syB = viewport.top + ((-projB.y + 1) * 0.5) * viewport.height;
+
+        const dx = sxB - sxA;
+        const dy = syB - syA;
+        const lenSq = dx * dx + dy * dy;
+        let t = lenSq < 1e-4 ? 0.5 : ((clientX - sxA) * dx + (clientY - syA) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+
+        const cx = sxA + t * dx;
+        const cy = syA + t * dy;
+        let dist = Math.hypot(clientX - cx, clientY - cy);
+
+        // 连线上方标牌 (Sprite) 容差命中检测，使点击标牌也可轻松选中该线
+        const badge = this.segmentBadges.get(seg.id);
+        if (badge && badge.sprite) {
+          bWorld.copy(badge.sprite.position).applyMatrix4(mWorld);
+          projBadge.copy(bWorld).project(camera);
+          if (projBadge.z <= 1.0) {
+            const bx = viewport.left + ((projBadge.x + 1) * 0.5) * viewport.width;
+            const by = viewport.top + ((-projBadge.y + 1) * 0.5) * viewport.height;
+            const badgeDist = Math.hypot(clientX - bx, clientY - by);
+            if (badgeDist < dist) {
+              dist = badgeDist;
+              t = 0.5;
+            }
+          }
+        }
+
+        if (dist <= maxScreenDistPx && dist < bestDist) {
+          bestDist = dist;
+          bestSeg = seg;
+          bestHitLocal.copy(kpA.position).lerp(kpB.position, t);
+        }
+      } else {
+        // 无屏幕信息时退化为三维空间中射线与线段的最短距离判断
+        const segVec = vB.clone().sub(vA);
+        const segLen = segVec.length();
+        if (segLen < 1e-4) continue;
+        const segDir = segVec.clone().normalize();
+        const diff = ray.origin.clone().sub(vA);
+        const a01 = -ray.direction.dot(segDir);
+        const b0 = diff.dot(ray.direction);
+        const b1 = -diff.dot(segDir);
+        const det = Math.abs(1.0 - a01 * a01);
+        let s = 0;
+        let t = 0;
+        if (det >= 1e-4) {
+          s = a01 * b1 - b0;
+          t = a01 * b0 - b1;
+          s /= det;
+          t /= det;
+        } else {
+          s = -b0;
+          t = 0;
+        }
+        s = Math.max(0, s);
+        t = Math.max(0, Math.min(segLen, t));
+        const ptOnRay = ray.origin.clone().addScaledVector(ray.direction, s);
+        const ptOnSeg = vA.clone().addScaledVector(segDir, t);
+        const rayDist = ptOnRay.distanceTo(ptOnSeg);
+        const maxRayDist = 0.045 * this.modelScale;
+        if (rayDist <= maxRayDist) {
+          bestDist = rayDist;
+          bestSeg = seg;
+          const ratio = t / segLen;
+          bestHitLocal.copy(kpA.position).lerp(kpB.position, ratio);
+        }
+      }
+    }
+
+    if (!bestSeg) return null;
+    return {
+      segment: bestSeg,
+      hitPoint3D: bestHitLocal,
+      screenDistPx: bestDist,
+    };
+  }
+
+  public setHoveredSegment(segId: string | null): void {
+    if (this.hoveredSegmentId === segId) return;
+
+    // 复原前一个悬停线段
+    if (this.hoveredSegmentId) {
+      const prevCore = this.segmentsGroup.getObjectByName(`perm_seg_${this.hoveredSegmentId}`) as THREE.Mesh;
+      if (prevCore && (prevCore as any).userData?.baseColor) {
+        prevCore.scale.set(1, 1, 1);
+        (prevCore.material as THREE.MeshBasicMaterial).color.setHex((prevCore as any).userData.baseColor);
+      }
+      const prevBadge = this.segmentBadges.get(this.hoveredSegmentId);
+      if (prevBadge && prevBadge.sprite) {
+        prevBadge.sprite.scale.set(0.240, 0.080, 1);
+      }
+    }
+
+    this.hoveredSegmentId = segId;
+
+    // 应用新悬停线段的苹果微光高亮 (微加粗 1.35x + 荧光紫 0xa855f7)
+    if (segId && !this.eliminatingSegmentIds.has(segId)) {
+      const core = this.segmentsGroup.getObjectByName(`perm_seg_${segId}`) as THREE.Mesh;
+      if (core) {
+        core.scale.set(1.35, 1, 1.35);
+        (core.material as THREE.MeshBasicMaterial).color.setHex(0xa855f7);
+      }
+      const badge = this.segmentBadges.get(segId);
+      if (badge && badge.sprite) {
+        badge.sprite.scale.set(0.260, 0.086, 1);
+      }
+    }
+  }
+
+  public getHoveredSegmentId(): string | null {
+    return this.hoveredSegmentId;
+  }
+
+  public startSegmentLongPress(segmentId: string, hitPoint3D: THREE.Vector3): void {
+    if (this.eliminatingSegmentIds.has(segmentId)) return;
+    this.chargingSegmentId = segmentId;
+    this.chargingHitPoint.copy(hitPoint3D);
+    this.chargingProgress = 0;
+    this.chargingTargetScale = 1.0;
+    this.chargingSpringScale = 0.35;
+
+    if (this.chargingRingSprite) {
+      this.chargingRingSprite.position.copy(hitPoint3D);
+      this.chargingRingSprite.visible = true;
+    }
+    this.renderChargingRingCanvas(0, this.chargingSpringScale);
+
+    // 激发线芯初态微弹触感
+    const core = this.segmentsGroup.getObjectByName(`perm_seg_${segmentId}`) as THREE.Mesh;
+    if (core) {
+      core.scale.set(1.25, 1, 1.25);
+    }
+  }
+
+  public updateSegmentLongPress(segmentId: string, progress: number, hitPoint3D?: THREE.Vector3): void {
+    if (this.eliminatingSegmentIds.has(segmentId)) return;
+    this.chargingSegmentId = segmentId;
+    this.chargingProgress = Math.max(0, Math.min(1.0, progress));
+    if (hitPoint3D) {
+      this.chargingHitPoint.copy(hitPoint3D);
+    }
+
+    // 弹性平滑缩放
+    this.chargingSpringScale += (this.chargingTargetScale - this.chargingSpringScale) * 0.24;
+
+    if (this.chargingRingSprite) {
+      this.chargingRingSprite.position.copy(this.chargingHitPoint);
+      this.chargingRingSprite.visible = true;
+    }
+
+    this.renderChargingRingCanvas(this.chargingProgress, this.chargingSpringScale);
+
+    // 蓄力过程中线芯逐渐加粗增亮至热粉/洋红 (0xf43f5e)
+    const core = this.segmentsGroup.getObjectByName(`perm_seg_${segmentId}`) as THREE.Mesh;
+    if (core) {
+      const thick = 1.0 + 1.25 * Math.pow(this.chargingProgress, 1.1);
+      core.scale.set(thick, 1, thick);
+      const cMat = core.material as THREE.MeshBasicMaterial;
+      const cStart = new THREE.Color(0x7c3aed);
+      const cTarget = new THREE.Color(0xf43f5e);
+      cMat.color.lerpColors(cStart, cTarget, this.chargingProgress);
+    }
+
+    // 标牌微受压缩放 (模拟实体按键下压弹性)
+    const badge = this.segmentBadges.get(segmentId);
+    if (badge && badge.sprite) {
+      const compress = 1.0 - 0.12 * Math.sin(this.chargingProgress * Math.PI * 0.5);
+      badge.sprite.scale.set(0.240 * compress, 0.080 * compress, 1);
+    }
+  }
+
+  public cancelSegmentLongPress(): void {
+    const segId = this.chargingSegmentId;
+    this.chargingTargetScale = 0;
+    this.chargingProgress = 0;
+    this.chargingSegmentId = null;
+
+    if (segId) {
+      const core = this.segmentsGroup.getObjectByName(`perm_seg_${segId}`) as THREE.Mesh;
+      if (core && (core as any).userData?.baseColor) {
+        core.scale.set(1, 1, 1);
+        (core.material as THREE.MeshBasicMaterial).color.setHex((core as any).userData.baseColor);
+      }
+      const badge = this.segmentBadges.get(segId);
+      if (badge && badge.sprite) {
+        badge.sprite.scale.set(0.240, 0.080, 1);
+      }
+    }
+  }
+
+  public playSegmentEliminationAnimation(segmentId: string, onComplete: () => void): void {
+    const seg = this.drawnSegments.find((s) => s.id === segmentId);
+    if (!seg) {
+      onComplete();
+      return;
+    }
+
+    this.eliminatingSegmentIds.add(segmentId);
+    if (this.chargingRingSprite) {
+      this.chargingRingSprite.visible = false;
+    }
+    this.chargingSegmentId = null;
+    this.chargingProgress = 0;
+
+    // 播放苹果原生触感 Pop
+    AppleHapticAudio.playPop();
+
+    const kpA = this.currentModelDef.keyPoints.find((k) => k.id === seg.pointIdA);
+    const kpB = this.currentModelDef.keyPoints.find((k) => k.id === seg.pointIdB);
+    const posA = (kpA ? kpA.position : new THREE.Vector3()).clone();
+    const posB = (kpB ? kpB.position : new THREE.Vector3()).clone();
+
+    // 1. 苹果原生量子微火花粒子消散系统 (36 颗微晶粒子沿线段径向炸开)
+    const count = 36;
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const particleData: Array<{ pos: THREE.Vector3; vel: THREE.Vector3 }> = [];
+
+    const dir = new THREE.Vector3().subVectors(posB, posA);
+    const axis = dir.clone().normalize();
+    const u = new THREE.Vector3();
+    if (Math.abs(axis.y) < 0.9) {
+      u.crossVectors(axis, new THREE.Vector3(0, 1, 0)).normalize();
+    } else {
+      u.crossVectors(axis, new THREE.Vector3(1, 0, 0)).normalize();
+    }
+    const v = new THREE.Vector3().crossVectors(axis, u).normalize();
+
+    const applePalette = [
+      new THREE.Color(0xffffff),
+      new THREE.Color(0xc084fc),
+      new THREE.Color(0x38bdf8),
+      new THREE.Color(0xf43f5e),
+      new THREE.Color(0xa855f7),
+      new THREE.Color(0xfbbf24),
+    ];
+
+    for (let i = 0; i < count; i++) {
+      const t = (i + Math.random() * 0.5) / count;
+      const p = posA.clone().lerp(posB, Math.min(1.0, Math.max(0, t)));
+      p.x += (Math.random() - 0.5) * 0.003;
+      p.y += (Math.random() - 0.5) * 0.003;
+      p.z += (Math.random() - 0.5) * 0.003;
+
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.24 + Math.random() * 0.38;
+      const radial = u.clone().multiplyScalar(Math.cos(angle)).addScaledVector(v, Math.sin(angle));
+      const vel = radial.multiplyScalar(speed).add(new THREE.Vector3(0, 0.06 + Math.random() * 0.04, 0));
+
+      positions[i * 3] = p.x;
+      positions[i * 3 + 1] = p.y;
+      positions[i * 3 + 2] = p.z;
+
+      const col = applePalette[i % applePalette.length];
+      colors[i * 3] = col.r;
+      colors[i * 3 + 1] = col.g;
+      colors[i * 3 + 2] = col.b;
+
+      particleData.push({ pos: p, vel });
+    }
+
+    const pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    pGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const pMat = new THREE.PointsMaterial({
+      size: 0.010,
+      vertexColors: true,
+      transparent: true,
+      opacity: 1.0,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const pointsMesh = new THREE.Points(pGeo, pMat);
+    pointsMesh.renderOrder = 22;
+    pointsMesh.raycast = StereometryMesh.NOOP_RAYCAST;
+    this.eliminationEffectsGroup.add(pointsMesh);
+
+    // 2. 线芯与几何线网格
+    const coreMesh = this.segmentsGroup.getObjectByName(`perm_seg_${segmentId}`) as THREE.Mesh;
+    const lineMesh = this.segmentsGroup.getObjectByName(`perm_seg_line_${segmentId}`) as THREE.Line;
+
+    // 3. 标牌 Sprite
+    const badge = this.segmentBadges.get(segmentId);
+
+    // 4. 关联闭合平面的渐隐解体
+    const affectedFaces: Array<{
+      mesh: THREE.Mesh;
+      contour?: THREE.LineLoop;
+      origFaceOpacity: number;
+      origContourOpacity: number;
+    }> = [];
+
+    for (const face of this.auxiliaryFaces) {
+      if (face.pointIds.includes(seg.pointIdA) && face.pointIds.includes(seg.pointIdB)) {
+        const fMesh = this.auxFacesGroup.getObjectByName(`aux_face_${face.id}`) as THREE.Mesh;
+        const cLoop = this.auxFacesGroup.getObjectByName(`aux_face_contour_${face.id}`) as THREE.LineLoop;
+        if (fMesh) {
+          affectedFaces.push({
+            mesh: fMesh,
+            contour: cLoop,
+            origFaceOpacity: (fMesh.material as THREE.MeshStandardMaterial).opacity || 0.35,
+            origContourOpacity: cLoop ? ((cLoop.material as THREE.LineBasicMaterial).opacity || 0.95) : 0.95,
+          });
+        }
+      }
+    }
+
+    this.activeEliminations.push({
+      id: segmentId,
+      seg,
+      posA,
+      posB,
+      pointsMesh,
+      particles: particleData,
+      badgeSprite: badge?.sprite,
+      badgeBaseScale: badge ? new THREE.Vector3(0.240, 0.080, 1) : undefined,
+      coreMesh,
+      lineMesh,
+      affectedFaceMeshes: affectedFaces,
+      progress: 0,
+      duration: 0.34,
+      onComplete,
+    });
+  }
+
+  private initChargingRing(): void {
+    if (typeof document === 'undefined') return;
+    this.chargingRingCanvas = document.createElement('canvas');
+    this.chargingRingCanvas.width = 512;
+    this.chargingRingCanvas.height = 512;
+    this.chargingRingTex = new THREE.CanvasTexture(this.chargingRingCanvas);
+    this.chargingRingTex.minFilter = THREE.LinearFilter;
+    this.chargingRingTex.magFilter = THREE.LinearFilter;
+
+    const ringMat = new THREE.SpriteMaterial({
+      map: this.chargingRingTex,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.chargingRingSprite = new THREE.Sprite(ringMat);
+    this.chargingRingSprite.name = 'apple_charging_ring';
+    this.chargingRingSprite.scale.set(0.096, 0.096, 1);
+    this.chargingRingSprite.renderOrder = 24;
+    this.chargingRingSprite.raycast = StereometryMesh.NOOP_RAYCAST;
+    this.chargingRingSprite.visible = false;
+    this.chargingRingGroup.add(this.chargingRingSprite);
+  }
+
+  private renderChargingRingCanvas(progress: number, springScale: number): void {
+    if (!this.chargingRingCanvas || !this.chargingRingTex) return;
+    const ctx = this.chargingRingCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = this.chargingRingCanvas.width;
+    const h = this.chargingRingCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (springScale <= 0.01) {
+      this.chargingRingTex.needsUpdate = true;
+      return;
+    }
+
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+    const radius = 135;
+
+    ctx.save();
+    // 弹性平滑缩放与临界高能微震 (Apple Haptic Tension Tremble)
+    const jitter = progress > 0.75 ? (Math.random() - 0.5) * 5.0 * ((progress - 0.75) / 0.25) : 0;
+    ctx.translate(cx + jitter, cy + jitter);
+    ctx.scale(springScale, springScale);
+
+    // 1. 半透明微晶磨砂底盘 (Glassmorphism Disc)
+    ctx.beginPath();
+    ctx.arc(0, 0, radius + 22, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.60)';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.stroke();
+
+    // 2. 待充灰色轨道环
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // 3. 苹果原生荧光蓄力进度弧
+    if (progress > 0.005) {
+      const startAngle = -Math.PI * 0.5;
+      const endAngle = startAngle + progress * Math.PI * 2;
+
+      ctx.save();
+      ctx.shadowColor = progress > 0.8 ? '#f43f5e' : '#c084fc';
+      ctx.shadowBlur = 24 * Math.min(1.0, progress * 1.5);
+
+      const grad = ctx.createLinearGradient(0, -radius, 0, radius);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.35, '#c084fc');
+      grad.addColorStop(1, '#f43f5e');
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, startAngle, endAngle);
+      ctx.lineWidth = 16;
+      ctx.strokeStyle = grad;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+
+      // 弧头高亮光珠 (Leading Light Bead)
+      const leadX = Math.cos(endAngle) * radius;
+      const leadY = Math.sin(endAngle) * radius;
+      ctx.beginPath();
+      ctx.arc(leadX, leadY, 11, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 14;
+      ctx.fill();
+    }
+
+    // 4. 中心极简消除符号（优雅细胶囊横线 "—"）
+    ctx.save();
+    const barLen = 44 * (0.85 + 0.15 * Math.sin(progress * Math.PI));
+    const barHeight = 8;
+    const barRadius = barHeight * 0.5;
+    const barColor = progress > 0.8 ? '#f43f5e' : '#ffffff';
+    ctx.fillStyle = barColor;
+    ctx.shadowColor = barColor;
+    ctx.shadowBlur = 12 * progress;
+
+    ctx.beginPath();
+    ctx.roundRect(-barLen * 0.5, -barHeight * 0.5, barLen, barHeight, barRadius);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+    this.chargingRingTex.needsUpdate = true;
   }
 
   public getSegments(): DrawnSegment[] {
@@ -1474,6 +2016,7 @@ export class StereometryMesh {
       });
       const lineMesh = new THREE.Line(lineGeo, lineMat);
       lineMesh.name = `perm_seg_line_${seg.id}`;
+      lineMesh.userData = { segId: seg.id, baseColor: seg.color };
       lineMesh.renderOrder = 7;
       lineMesh.raycast = StereometryMesh.NOOP_RAYCAST;
       this.segmentsGroup.add(lineMesh);
@@ -1489,6 +2032,7 @@ export class StereometryMesh {
       });
       const core = new THREE.Mesh(coreGeo, coreMat);
       core.name = `perm_seg_${seg.id}`;
+      core.userData = { segId: seg.id, baseColor: seg.color, baseLen: len };
       core.position.copy(mid);
       core.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
       core.renderOrder = 6;
@@ -2785,6 +3329,96 @@ export class StereometryMesh {
         this.activeSegmentAnimations.splice(i, 1);
       }
     }
+
+    // 更新苹果原生连线消散粒子与解体动画
+    for (let i = this.activeEliminations.length - 1; i >= 0; i--) {
+      const anim = this.activeEliminations[i];
+      anim.progress += safeDelta / anim.duration;
+      const p = Math.min(anim.progress, 1.0);
+
+      // 1. 粒子运动与渐隐
+      if (anim.pointsMesh && anim.particles) {
+        const posAttr = anim.pointsMesh.geometry.attributes.position as THREE.BufferAttribute;
+        const positions = posAttr.array as Float32Array;
+        for (let j = 0; j < anim.particles.length; j++) {
+          const pt = anim.particles[j];
+          pt.pos.addScaledVector(pt.vel, safeDelta);
+          pt.vel.multiplyScalar(0.91); // 柔性空气阻力
+          positions[j * 3] = pt.pos.x;
+          positions[j * 3 + 1] = pt.pos.y;
+          positions[j * 3 + 2] = pt.pos.z;
+        }
+        posAttr.needsUpdate = true;
+        const pMat = anim.pointsMesh.material as THREE.PointsMaterial;
+        pMat.opacity = Math.max(0, 1.0 - Math.pow(p, 1.6));
+      }
+
+      // 2. 线芯膨胀后急速回缩
+      if (anim.coreMesh && anim.lineMesh) {
+        if (p < 0.16) {
+          const pop = 1.0 + (p / 0.16) * 0.45;
+          anim.coreMesh.scale.set(pop, 1.0, pop);
+        } else {
+          const collapse = 1.45 * (1.0 - (p - 0.16) / 0.84);
+          const lenShrink = Math.max(0.001, 1.0 - Math.pow((p - 0.16) / 0.84, 2));
+          anim.coreMesh.scale.set(Math.max(0, collapse), lenShrink, Math.max(0, collapse));
+          const op = Math.max(0, 1.0 - (p - 0.16) / 0.84);
+          (anim.coreMesh.material as THREE.MeshBasicMaterial).opacity = op;
+          (anim.lineMesh.material as THREE.LineBasicMaterial).opacity = op;
+        }
+      }
+
+      // 3. 标牌 Sprite 弹跳消散
+      if (anim.badgeSprite && anim.badgeBaseScale) {
+        let s = 1.0;
+        if (p < 0.18) {
+          s = 1.0 + (p / 0.18) * 0.35;
+        } else {
+          s = 1.35 * Math.max(0, 1.0 - (p - 0.18) / 0.82);
+        }
+        anim.badgeSprite.scale.set(anim.badgeBaseScale.x * s, anim.badgeBaseScale.y * s, 1);
+        (anim.badgeSprite.material as THREE.SpriteMaterial).opacity = Math.max(0, 1.0 - p * 1.5);
+        (anim.badgeSprite.material as THREE.SpriteMaterial).rotation += safeDelta * 3.2;
+      }
+
+      // 4. 关联辅助面平滑晶体解体
+      if (anim.affectedFaceMeshes) {
+        for (const aff of anim.affectedFaceMeshes) {
+          const fMat = aff.mesh.material as THREE.MeshStandardMaterial;
+          fMat.emissiveIntensity = THREE.MathUtils.lerp(0.65, 0.0, p);
+          fMat.opacity = THREE.MathUtils.lerp(aff.origFaceOpacity, 0.0, Math.pow(p, 1.5));
+          if (aff.contour) {
+            const cMat = aff.contour.material as THREE.LineBasicMaterial;
+            cMat.opacity = THREE.MathUtils.lerp(aff.origContourOpacity, 0.0, p);
+          }
+        }
+      }
+
+      // 5. 动画完成收尾
+      if (p >= 1.0) {
+        if (anim.pointsMesh) {
+          this.eliminationEffectsGroup.remove(anim.pointsMesh);
+          anim.pointsMesh.geometry.dispose();
+          (anim.pointsMesh.material as THREE.Material).dispose();
+        }
+        this.activeEliminations.splice(i, 1);
+        this.eliminatingSegmentIds.delete(anim.id);
+        anim.onComplete?.();
+      }
+    }
+
+    // 更新长按蓄力环的弹性平滑淡出
+    if (!this.chargingSegmentId && this.chargingSpringScale > 0.001) {
+      this.chargingSpringScale += (0 - this.chargingSpringScale) * 0.26;
+      if (this.chargingSpringScale <= 0.01) {
+        this.chargingSpringScale = 0;
+        if (this.chargingRingSprite) {
+          this.chargingRingSprite.visible = false;
+        }
+      } else {
+        this.renderChargingRingCanvas(0, this.chargingSpringScale);
+      }
+    }
   }
 
   public dispose(): void {
@@ -2792,6 +3426,14 @@ export class StereometryMesh {
     this.clearGroup(this.modelContainer);
     this.clearGroup(this.stagePresentationGroup);
     this.clearGroup(this.auxFacesGroup);
+    this.clearGroup(this.eliminationEffectsGroup);
+    this.clearGroup(this.chargingRingGroup);
+    if (this.chargingRingSprite) {
+      this.chargingRingSprite.material.dispose();
+    }
+    if (this.chargingRingTex) {
+      this.chargingRingTex.dispose();
+    }
     this.auxiliaryFaces = [];
     for (const badge of this.segmentBadges.values()) {
       badge.material.dispose();

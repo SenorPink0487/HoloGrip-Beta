@@ -3436,16 +3436,16 @@ textarea:focus::placeholder {
 
 .math-ar-spatial-pin-tag:hover .math-ar-pin-pill {
   background: rgba(28, 28, 35, 0.88);
-  border-color: rgba(56, 189, 248, 0.6);
+  border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(-1px);
 }
 
 .math-ar-spatial-pin-tag.active .math-ar-pin-pill {
-  background: rgba(14, 28, 48, 0.88);
-  border-color: rgba(56, 189, 248, 0.9);
+  background: rgba(28, 28, 35, 0.95);
+  border-color: rgba(255, 255, 255, 0.7);
   box-shadow: 
     0 10px 28px rgba(0, 0, 0, 0.45),
-    0 0 0 2px rgba(56, 189, 248, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
@@ -3586,8 +3586,9 @@ textarea:focus::placeholder {
 }
 
 .math-ar-tray-card.active {
-  background: rgba(56, 189, 248, 0.18);
-  border-color: rgba(56, 189, 248, 0.7);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .math-ar-tray-thumb {

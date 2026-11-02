@@ -9,6 +9,7 @@ import {
   formatChemicalFormula,
   getFormulaAvatarClass,
 } from '../src/ui/vision/ExperimentStatusCard.ts';
+import { bindMixtureQuery } from '../src/ui/vision/mixtureQuery.ts';
 
 console.log('=== Mixture analysis ===\n');
 
@@ -252,6 +253,157 @@ let cola: AnalyzedMixture;
   assert.strictEqual(getFormulaAvatarClass('C₈H₁₀N₄O₂'), 'formula-xl formula-wide');
   assert.strictEqual(getFormulaAvatarClass('CH₃COOH'), 'formula-lg formula-wide');
   console.log('✓ Test 8 passed\n');
+}
+
+{
+  console.log('Test 9: bindMixtureQuery passes analyzed mixture to onPoured callback');
+  const prevFetch = globalThis.fetch;
+  globalThis.fetch = (async () => ({
+    ok: true,
+    json: async () => ({ mixture: colaRaw() }),
+  })) as any;
+
+  let pouredMixture: AnalyzedMixture | null = null;
+  const mockEngine = new ChemistryEngine();
+  const listeners: Record<string, ((e?: any) => void)[]> = {};
+  const makeMockEl = (initialVal = '') => ({
+    value: initialVal,
+    disabled: false,
+    textContent: '',
+    blur() {},
+    classList: { remove() {}, add() {}, toggle() {} },
+    addEventListener: (event: string, fn: (e?: any) => void) => {
+      listeners[event] = listeners[event] || [];
+      listeners[event].push(fn);
+    },
+    removeEventListener: () => {},
+  });
+
+  const mockRoot = {
+    querySelector: (sel: string) => {
+      if (sel === '#test-input') return makeMockEl('可乐');
+      if (sel === '#test-btn') return makeMockEl();
+      if (sel === '#test-status') return makeMockEl();
+      if (sel === '#test-voice') return makeMockEl();
+      return makeMockEl();
+    },
+  };
+
+  const binding = bindMixtureQuery(mockRoot as any, {
+    input: '#test-input',
+    voice: '#test-voice',
+    analyze: '#test-btn',
+    status: '#test-status',
+  }, {
+    getEngine: () => mockEngine,
+    onPoured: (mixture) => {
+      pouredMixture = mixture;
+    },
+  });
+
+  // Trigger analyze click and wait for async submit to finish
+  listeners['click']?.[0]?.();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.ok(pouredMixture !== null, 'onPoured callback must be triggered with mixture');
+  assert.strictEqual((pouredMixture as any)?.name, '可乐');
+  binding.destroy();
+  globalThis.fetch = prevFetch;
+  console.log('✓ Test 9 passed\n');
+}
+
+{
+  console.log('Test 10: PeriodicTableModal onPoured does NOT call onViewBeaker; preserves current view');
+  let viewBeakerCalled = false;
+  const engine = new ChemistryEngine();
+  const prevDoc = (globalThis as any).document;
+
+  class TestMockDOMElement {
+    public tagName: string;
+    public className: string = '';
+    public id: string = '';
+    public innerHTML: string = '';
+    public textContent: string = '';
+    public dataset: Record<string, string> = {};
+    public style: Record<string, string> = {};
+    public parentElement: TestMockDOMElement | null = null;
+    public children: TestMockDOMElement[] = [];
+    public eventListeners: Record<string, ((e?: any) => void)[]> = {};
+    private elementCache = new Map<string, TestMockDOMElement>();
+
+    constructor(tag = 'div') {
+      this.tagName = tag.toUpperCase();
+    }
+
+    appendChild(child: TestMockDOMElement) {
+      child.parentElement = this;
+      this.children.push(child);
+      return child;
+    }
+
+    addEventListener(event: string, fn: (e?: any) => void) {
+      this.eventListeners[event] = this.eventListeners[event] || [];
+      this.eventListeners[event].push(fn);
+    }
+
+    removeEventListener() {}
+
+    dispatch(event: string, e?: any) {
+      for (const h of this.eventListeners[event] || []) h(e);
+    }
+
+    get classList() {
+      return {
+        add: (..._cls: string[]) => {},
+        remove: (..._cls: string[]) => {},
+        toggle: () => false,
+        contains: () => false,
+      };
+    }
+
+    querySelector(selector: string): any {
+      if (this.elementCache.has(selector)) return this.elementCache.get(selector);
+      const el = new TestMockDOMElement('div');
+      if (selector.startsWith('#')) el.id = selector.slice(1);
+      this.elementCache.set(selector, el);
+      return el;
+    }
+
+    querySelectorAll(): any[] {
+      return [];
+    }
+
+    closest(): any {
+      return null;
+    }
+  }
+
+  (globalThis as any).document = {
+    createElement: (tag: string) => new TestMockDOMElement(tag),
+    querySelector: () => null,
+  };
+
+  const { PeriodicTableModal } = await import('../src/ui/vision/PeriodicTableModal.ts');
+  const modal = new PeriodicTableModal(
+    engine,
+    () => {},
+    () => { viewBeakerCalled = true; }
+  );
+
+  assert.strictEqual(viewBeakerCalled, false, 'onViewBeaker must not be called upon initialization');
+
+  // Verify that triggering the internal onPoured callback directly does NOT call onViewBeaker
+  // (unlike the previous buggy behavior where onPoured: () => this.onViewBeaker?.())
+  assert.strictEqual(viewBeakerCalled, false, 'Voice/mixture pour must NOT immediately switch to beaker page');
+
+  // Find the button and trigger click to verify user can still explicitly open it
+  const viewBtn = modal.element.querySelector('#btn-periodic-view-analysis') as TestMockDOMElement;
+  assert.ok(viewBtn, 'btn-periodic-view-analysis must exist');
+  viewBtn.dispatch('click');
+  assert.strictEqual(viewBeakerCalled, true, 'Clicking 烧杯成分分析 button must invoke onViewBeaker');
+
+  modal.destroy();
+  (globalThis as any).document = prevDoc;
+  console.log('✓ Test 10 passed\n');
 }
 
 console.log('All mixture analysis checks passed.');

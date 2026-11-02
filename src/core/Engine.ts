@@ -35,6 +35,7 @@ import {
   type StreamSample,
 } from '../chemistry/pourKinematics.ts';
 import { VisionModal } from '../ui/vision/VisionModal.ts';
+import { MoleculeHologramStage } from '../scene/chemistry/MoleculeHologramStage.ts';
 import { accountPreferences } from '../account/preferences.ts';
 import { galleryPalette, type GalleryPaletteId } from '../scene/gallery/palette.ts';
 import type { ExperimentContext, IExperiment } from './types.ts';
@@ -64,6 +65,7 @@ export class Engine {
   public css3dRenderer: CSS3DRenderer;
   public css3dScene: THREE.Scene;
   public spatialWindowObject: CSS3DObject;
+  public moleculeStage: MoleculeHologramStage;
   public scene: THREE.Scene;
   public camera: THREE.PerspectiveCamera;
   public composer: EffectComposer;
@@ -188,6 +190,7 @@ export class Engine {
 
     this.initRenderer();
     this.initCSS3DRenderer();
+    this.moleculeStage = new MoleculeHologramStage(this.container);
     this.initScene();
     this.initCamera();
     this.initPostProcessing();
@@ -728,7 +731,7 @@ export class Engine {
   }
 
   public isFreeCursorExperiment(id: string | null): boolean {
-    return id === 'math-stereometry';
+    return id === 'math-stereometry' || id === 'mech-lever-pulley';
   }
 
   public isCurrentExperimentFreeCursor(): boolean {
@@ -873,6 +876,7 @@ export class Engine {
   private initVisionOS(): void {
     this.visionModal = new VisionModal(this.chemistryEngine, {
       onClose: () => {
+        this.moleculeStage?.hide();
         this.spatialWindowObject.visible = false;
         this.inputManager?.touch?.setVisionModalOpen(false);
         this.inputManager.player.allowPointerLock = !this.isFreeCursorExperiment(this.currentExperimentId);
@@ -932,6 +936,13 @@ export class Engine {
       },
       onSelectBeaker: (beakerId) => {
         this.activeBeakerId = beakerId;
+      },
+      onSelectCompound: (component) => {
+        if (component) {
+          this.moleculeStage?.showCompound(component);
+        } else {
+          this.moleculeStage?.hide();
+        }
       },
       // 电磁学霍尔效应回调
       onHallMagFieldChange: (bTesla: number) => {
@@ -1434,7 +1445,7 @@ export class Engine {
   public async switchExperiment(id: string): Promise<void> {
     this.cancelLabInteraction();
     const requestId = ++this.currentSwitchRequestId;
-    this.hud.showTransition(true, '全息粒子解聚与参数重构...');
+    this.hud.showTransition(id !== 'mech-lever-pulley', '全息粒子解聚与参数重构...');
 
     // 确保全息舞台处于活动状态，并为 3D 设备清理实验台表面
     this.holoStage.setStageVisible(true);
@@ -1467,7 +1478,7 @@ export class Engine {
         this.currentContext,
         (status) => {
           if (requestId === this.currentSwitchRequestId) {
-            this.hud.showTransition(true, status);
+            this.hud.showTransition(id !== 'mech-lever-pulley', status);
           }
         }
       );
@@ -2390,6 +2401,8 @@ export class Engine {
       this.lastCss3dCamPos.set(Infinity, Infinity, Infinity);
     }
 
+    this.moleculeStage?.resize(width, height);
+
     if (this.renderer.shadowMap.enabled) {
       this.renderer.shadowMap.needsUpdate = true;
     }
@@ -2634,6 +2647,7 @@ export class Engine {
         this.crosshair.setVisible(true);
       }
     } else if (this.isWhiteboardMode) {
+      this.moleculeStage?.hide();
       if (this.crosshair) {
         this.crosshair.setVisible(false);
       }
@@ -2677,6 +2691,22 @@ export class Engine {
 
     if (this.spatialWindowObject && isModalOpen) {
       this.updateSpatialWindowTransform(delta, false);
+    }
+
+    const allowMolecule = Boolean(
+      isModalOpen &&
+      this.visionModal?.currentTab === 'beaker' &&
+      this.spatialWindowObject?.visible
+    );
+    if (this.moleculeStage) {
+      this.moleculeStage.update(
+        delta,
+        elapsed,
+        this.camera,
+        this.spatialWindowObject,
+        this.visionModal?.scale ?? 1.0,
+        allowMolecule
+      );
     }
 
     if (this.holoTable) {

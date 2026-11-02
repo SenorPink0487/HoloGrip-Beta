@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { OpticalPhysics } from './OpticalPhysics.ts';
-import { buildPrecisionOpticalRail } from './OpticalBenchRail.ts';
+import { buildPrecisionOpticalRail, QUIET_RAIL } from './OpticalBenchRail.ts';
+import {
+  createChamferedHexNut,
+  createGuideShaftGeometry,
+  createKnurledBand,
+} from '../em/conductorRod.ts';
 
 export type LightSourceMode = 'monochromatic' | 'white';
 
@@ -211,6 +216,46 @@ export class OpticalDoubleSlitBenchMesh {
   private isScreenDirty = true;
   private lastRenderHash = '';
 
+  // 旗舰级精工科研材质系统 (以光的色散实验器材建模材质为基准)
+  private titaniumSlate = new THREE.MeshStandardMaterial({
+    color: 0x243242,
+    metalness: 0.30,
+    roughness: 0.40,
+  });
+  private satin = new THREE.MeshStandardMaterial({
+    color: 0xdde3ea,
+    metalness: 0.35,
+    roughness: 0.28,
+  });
+  private chrome = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    metalness: 0.92,
+    roughness: 0.12,
+  });
+  private silverMat = new THREE.MeshStandardMaterial({
+    color: 0xc8d1dc,
+    metalness: 0.45,
+    roughness: 0.22,
+  });
+  private satinSilverMat = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    metalness: 0.35,
+    roughness: 0.28,
+  });
+  private bluedSteelMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    metalness: 0.52,
+    roughness: 0.30,
+  });
+  private groundEdgeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    metalness: 0.90,
+    roughness: 0.08,
+  });
+  private datumLineMat = new THREE.MeshBasicMaterial({
+    color: 0xd9383a,
+  });
+
   constructor(options: OpticalDoubleSlitOptions = {}) {
     this.group.name = 'OpticalDoubleSlitBenchMesh';
 
@@ -250,7 +295,7 @@ export class OpticalDoubleSlitBenchMesh {
     this.buildOpticalBeams();
   }
 
-  // ==================== 通用航天银铝与深空钛灰双色精密滑鞍构造助手 ====================
+  // ==================== 通用航天银铝与深空钛灰双色精密滑鞍构造助手 (以光的色散实验器材为基准) ====================
   private createSliderSaddle(
     xPos: number,
     name: string,
@@ -260,82 +305,84 @@ export class OpticalDoubleSlitBenchMesh {
     group.name = name;
     group.position.set(xPos, 0, 0);
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.35,
-      roughness: 0.28,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x334155,
-      metalness: 0.25,
-      roughness: 0.40,
-    });
-    const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.72,
-      roughness: 0.14,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.42,
-      roughness: 0.26,
-    });
+    // 1. CNC 精密倒角滑座靴 (深空钛晶灰蓝阳极氧化铝)
+    const shoeW = 0.074;
+    const shoeH = 0.020;
+    const shoeD = 0.082;
+    const shoe = new THREE.Mesh(
+      createChamferedBlockGeometry(shoeW, shoeH, shoeD, 0.002),
+      this.titaniumSlate
+    );
+    shoe.position.set(0, this.railHeight + shoeH * 0.5, 0);
+    shoe.castShadow = true;
+    shoe.receiveShadow = true;
+    group.add(shoe);
 
-    // 1. 滑鞍主体基座 (航天级喷砂银铝精铣滑座 + 深空钛灰下卡爪)
-    const baseW = 0.072;
-    const baseH = 0.022;
-    const baseD = 0.080;
-    const baseGeo = createChamferedBlockGeometry(baseW, baseH, baseD, 0.0016);
-    const base = new THREE.Mesh(baseGeo, satinSilverMat);
-    base.position.set(0, this.railHeight + baseH * 0.5, 0);
-    base.castShadow = true;
-    base.receiveShadow = true;
-    group.add(base);
+    // 四角紧固内六角螺栓 (液态铬精车内六角)
+    const boltCornerX = shoeW * 0.5 - 0.007;
+    const boltCornerZ = shoeD * 0.5 - 0.007;
+    const boltCorners = [
+      [-boltCornerX, -boltCornerZ],
+      [boltCornerX, -boltCornerZ],
+      [-boltCornerX, boltCornerZ],
+      [boltCornerX, boltCornerZ],
+    ];
+    for (const [bx, bz] of boltCorners) {
+      const bolt = new THREE.Mesh(createChamferedHexNut(0.0024, 0.002), this.chrome);
+      bolt.position.set(bx, this.railHeight + shoeH + 0.001, bz);
+      group.add(bolt);
+    }
 
-    // 顶部深空钛灰装饰压板
-    const topPlateGeo = createChamferedBlockGeometry(baseW * 0.86, 0.004, baseD * 0.86, 0.0008);
-    const topPlate = new THREE.Mesh(topPlateGeo, titaniumSlateMat);
-    topPlate.position.set(0, this.railHeight + baseH + 0.002, 0);
-    group.add(topPlate);
+    // 正面光学标尺读数游标板 (缎面银铝底板 + 激光蚀刻极细红色基准线)
+    const indexPlate = new THREE.Mesh(
+      createChamferedBlockGeometry(0.018, 0.012, 0.0015, 0.0004),
+      this.satin
+    );
+    indexPlate.position.set(0, this.railHeight + 0.006, shoeD * 0.5 + 0.0008);
+    group.add(indexPlate);
 
-    // 正面香槟金游标对齐读数指针 (对准下方毫米刻度尺)
-    const indexLineGeo = new THREE.BoxGeometry(0.0024, 0.018, 0.0025);
-    const indexLine = new THREE.Mesh(indexLineGeo, brassMat);
-    indexLine.position.set(0, this.railHeight + 0.005, baseD * 0.502);
-    group.add(indexLine);
+    const indexHairline = new THREE.Mesh(
+      new THREE.BoxGeometry(0.0006, 0.009, 0.0004),
+      this.datumLineMat
+    );
+    indexHairline.position.set(0, this.railHeight + 0.006, shoeD * 0.5 + 0.0016);
+    group.add(indexHairline);
 
-    // 2. 中央立柱锁紧套筒 (六角底座法兰 + 香槟金精密锁紧套筒)
-    const flangeGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.005, 6);
-    const flange = new THREE.Mesh(flangeGeo, titaniumSlateMat);
-    flange.position.set(0, this.railHeight + baseH + 0.004, 0);
-    group.add(flange);
+    // 侧向燕尾槽锁紧手轮 (液态铬短轴 + 微米滚花手轮)
+    const lockShaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.003, 0.003, 0.008, 16),
+      this.chrome
+    );
+    lockShaft.rotation.z = Math.PI / 2;
+    lockShaft.position.set(shoeW * 0.5 + 0.004, this.railHeight + shoeH * 0.45, 0);
+    group.add(lockShaft);
 
-    const collarRadius = 0.011;
-    const collarH = 0.032;
-    const collarGeo = new THREE.CylinderGeometry(collarRadius, collarRadius, collarH, 28);
-    const collar = new THREE.Mesh(collarGeo, brassMat);
-    collar.position.set(0, this.railHeight + baseH + collarH * 0.5, 0);
-    collar.castShadow = true;
+    const lockWheel = new THREE.Mesh(createKnurledBand(0.0065, 0.008), this.chrome);
+    lockWheel.rotation.z = Math.PI / 2;
+    lockWheel.position.set(shoeW * 0.5 + 0.010, this.railHeight + shoeH * 0.45, 0);
+    group.add(lockWheel);
+
+    // 立柱法兰套筒与滚花锁圈
+    const collar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.011, 0.012, 0.014, 24),
+      this.titaniumSlate
+    );
+    collar.position.set(0, this.railHeight + shoeH + 0.007, 0);
     group.add(collar);
 
-    // 3. 套筒右侧滚花锁紧手轮
-    const screwShaftGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.008, 16);
-    screwShaftGeo.rotateZ(Math.PI / 2);
-    const screwShaft = new THREE.Mesh(screwShaftGeo, chromeRodMat);
-    screwShaft.position.set(collarRadius + 0.004, this.railHeight + baseH + collarH * 0.55, 0);
-    group.add(screwShaft);
+    const knurledRing = new THREE.Mesh(createKnurledBand(0.012, 0.006), this.silverMat);
+    knurledRing.position.set(0, this.railHeight + shoeH + 0.014, 0);
+    group.add(knurledRing);
 
-    const screwHeadGeo = new THREE.CylinderGeometry(0.0075, 0.0075, 0.014, 24);
-    screwHeadGeo.rotateZ(Math.PI / 2);
-    const screwHead = new THREE.Mesh(screwHeadGeo, brassMat);
-    screwHead.position.set(collarRadius + 0.015, this.railHeight + baseH + collarH * 0.55, 0);
-    group.add(screwHead);
+    // 侧向立柱锁紧螺钉
+    const postLockKnob = new THREE.Mesh(createKnurledBand(0.0048, 0.006), this.chrome);
+    postLockKnob.rotation.z = Math.PI / 2;
+    postLockKnob.position.set(0.015, this.railHeight + shoeH + 0.014, 0);
+    group.add(postLockKnob);
 
-    // 4. 精密镜面 316L 不锈钢升降立柱导杆
-    const rodRadius = 0.0072;
-    const rodGeo = new THREE.CylinderGeometry(rodRadius, rodRadius, rodHeight, 32);
-    const rod = new THREE.Mesh(rodGeo, chromeRodMat);
-    rod.position.set(0, this.railHeight + baseH + rodHeight * 0.5, 0);
+    // 精研 316L 液态铬导杆立柱
+    const rod = new THREE.Mesh(createGuideShaftGeometry(rodHeight, 0.0075), this.chrome);
+    rod.position.set(0, this.railHeight + shoeH + rodHeight * 0.5, 0);
     rod.castShadow = true;
     group.add(rod);
 
@@ -362,26 +409,6 @@ export class OpticalDoubleSlitBenchMesh {
     this.laserGroup = saddleData.saddleGroup;
     this.laserGroup.name = 'LaserGroup';
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.38,
-      roughness: 0.25,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x2c3e50,
-      metalness: 0.24,
-      roughness: 0.40,
-    });
-    const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.72,
-      roughness: 0.14,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.42,
-      roughness: 0.26,
-    });
     const cableMat = new THREE.MeshStandardMaterial({
       color: 0x334155,
       roughness: 0.65,
@@ -391,29 +418,29 @@ export class OpticalDoubleSlitBenchMesh {
     // 1. 双环调心架底部U型承载横梁平台 (长 0.136m, 高 0.014m, 宽 0.068m)
     const cradleW = 0.136;
     const cradleGeo = createChamferedBlockGeometry(cradleW, 0.014, 0.068, 0.0015);
-    const cradle = new THREE.Mesh(cradleGeo, titaniumSlateMat);
+    const cradle = new THREE.Mesh(cradleGeo, this.titaniumSlate);
     cradle.position.set(-0.008, this.beamHeightY - 0.044, 0);
     cradle.castShadow = true;
     this.laserGroup.add(cradle);
 
-    // 2. 前后两座 CNC 精铣八角万向调心圆环架 + 6 枚 120° 径向香槟金调心顶丝
+    // 2. 前后两座 CNC 精铣八角万向调心圆环架 + 6 枚 120° 径向液态铬调心顶丝
     const ringXPositions = [-0.048, 0.028];
     ringXPositions.forEach((rx) => {
       // 调心环立柱支座
       const pillarGeo = createChamferedBlockGeometry(0.012, 0.020, 0.028, 0.001);
-      const pillar = new THREE.Mesh(pillarGeo, satinSilverMat);
+      const pillar = new THREE.Mesh(pillarGeo, this.satin);
       pillar.position.set(rx, this.beamHeightY - 0.032, 0);
       this.laserGroup.add(pillar);
 
       // CNC 精密调心外圆环
       const ringGeo = new THREE.TorusGeometry(0.031, 0.0045, 16, 36);
       ringGeo.rotateY(Math.PI / 2);
-      const ringMesh = new THREE.Mesh(ringGeo, titaniumSlateMat);
+      const ringMesh = new THREE.Mesh(ringGeo, this.titaniumSlate);
       ringMesh.position.set(rx, this.beamHeightY, 0);
       ringMesh.castShadow = true;
       this.laserGroup.add(ringMesh);
 
-      // 3 枚 120° 均布径向香槟金滚花调心顶丝螺钉
+      // 3 枚 120° 均布径向液态铬微米滚花调心顶丝螺钉
       const angles = [Math.PI * 0.5, Math.PI * (0.5 + 2 / 3), Math.PI * (0.5 + 4 / 3)];
       angles.forEach((ang) => {
         const yOff = Math.sin(ang);
@@ -423,11 +450,11 @@ export class OpticalDoubleSlitBenchMesh {
         screwGroup.rotation.x = Math.atan2(zOff, yOff);
 
         const shaftGeo = new THREE.CylinderGeometry(0.0022, 0.0022, 0.014, 12);
-        const shaft = new THREE.Mesh(shaftGeo, chromeRodMat);
+        const shaft = new THREE.Mesh(shaftGeo, this.chrome);
         screwGroup.add(shaft);
 
-        const headGeo = new THREE.CylinderGeometry(0.0048, 0.0048, 0.006, 18);
-        const head = new THREE.Mesh(headGeo, brassMat);
+        const headGeo = createKnurledBand(0.0048, 0.006);
+        const head = new THREE.Mesh(headGeo, this.chrome);
         head.position.set(0, 0.008, 0);
         screwGroup.add(head);
 
@@ -440,7 +467,7 @@ export class OpticalDoubleSlitBenchMesh {
     const barrelRadius = 0.021;
     const barrelGeo = new THREE.CylinderGeometry(barrelRadius, barrelRadius, barrelLen, 36);
     barrelGeo.rotateZ(Math.PI / 2);
-    const laserBarrel = new THREE.Mesh(barrelGeo, satinSilverMat);
+    const laserBarrel = new THREE.Mesh(barrelGeo, this.satin);
     laserBarrel.position.set(-0.010, this.beamHeightY, 0);
     laserBarrel.castShadow = true;
     this.laserGroup.add(laserBarrel);
@@ -449,28 +476,28 @@ export class OpticalDoubleSlitBenchMesh {
     for (let i = 0; i < 8; i++) {
       const finGeo = new THREE.CylinderGeometry(barrelRadius + 0.0028, barrelRadius + 0.0028, 0.0032, 36);
       finGeo.rotateZ(Math.PI / 2);
-      const fin = new THREE.Mesh(finGeo, titaniumSlateMat);
+      const fin = new THREE.Mesh(finGeo, this.titaniumSlate);
       fin.position.set(-0.068 + i * 0.0068, this.beamHeightY, 0);
       this.laserGroup.add(fin);
     }
 
-    // 管体中段香槟金激光安全铭牌环
+    // 管体中段阳极银铝激光安全铭牌环
     const bandGeo = new THREE.CylinderGeometry(barrelRadius + 0.0008, barrelRadius + 0.0008, 0.018, 36);
     bandGeo.rotateZ(Math.PI / 2);
-    const band = new THREE.Mesh(bandGeo, brassMat);
+    const band = new THREE.Mesh(bandGeo, this.silverMat);
     band.position.set(-0.002, this.beamHeightY, 0);
     this.laserGroup.add(band);
 
-    // 4. 前置多阶扩束准直光学物镜筒与香槟金出光压圈 (+X 端)
+    // 4. 前置多阶扩束准直光学物镜筒与液态高光铬出光压圈 (+X 端)
     const nozzleGeo = new THREE.CylinderGeometry(0.017, 0.020, 0.018, 32);
     nozzleGeo.rotateZ(Math.PI / 2);
-    const nozzle = new THREE.Mesh(nozzleGeo, titaniumSlateMat);
+    const nozzle = new THREE.Mesh(nozzleGeo, this.titaniumSlate);
     nozzle.position.set(barrelLen * 0.5 - 0.004, this.beamHeightY, 0);
     this.laserGroup.add(nozzle);
 
     const brassRingGeo = new THREE.TorusGeometry(0.0155, 0.0030, 16, 32);
     brassRingGeo.rotateY(Math.PI / 2);
-    const brassRing = new THREE.Mesh(brassRingGeo, brassMat);
+    const brassRing = new THREE.Mesh(brassRingGeo, this.chrome);
     brassRing.position.set(barrelLen * 0.5 + 0.005, this.beamHeightY, 0);
     this.laserGroup.add(brassRing);
 
@@ -486,10 +513,10 @@ export class OpticalDoubleSlitBenchMesh {
     this.laserLedMesh.position.set(barrelLen * 0.5 + 0.006, this.beamHeightY, 0);
     this.laserGroup.add(this.laserLedMesh);
 
-    // 5. 尾部香槟金航空高压锁紧接头与悬垂柔性同轴电源线
+    // 5. 尾部液态高光铬航空高压锁紧接头与悬垂柔性同轴电源线
     const rearCapGeo = new THREE.CylinderGeometry(0.012, 0.015, 0.012, 24);
     rearCapGeo.rotateZ(Math.PI / 2);
-    const rearCap = new THREE.Mesh(rearCapGeo, brassMat);
+    const rearCap = new THREE.Mesh(rearCapGeo, this.silverMat);
     rearCap.position.set(-barrelLen * 0.5 - 0.014, this.beamHeightY, 0);
     this.laserGroup.add(rearCap);
 
@@ -516,12 +543,12 @@ export class OpticalDoubleSlitBenchMesh {
     this.laserGroup.add(consoleGroup);
 
     const panelGeo = createChamferedBlockGeometry(0.116, 0.008, 0.028, 0.0012);
-    const panelMesh = new THREE.Mesh(panelGeo, titaniumSlateMat);
+    const panelMesh = new THREE.Mesh(panelGeo, this.titaniumSlate);
     consoleGroup.add(panelMesh);
 
     // 左侧机械红色翘板电源开关
     const switchBaseGeo = createChamferedBlockGeometry(0.020, 0.005, 0.014, 0.0006);
-    const switchBase = new THREE.Mesh(switchBaseGeo, satinSilverMat);
+    const switchBase = new THREE.Mesh(switchBaseGeo, this.satin);
     switchBase.position.set(-0.038, 0.005, 0);
     consoleGroup.add(switchBase);
 
@@ -559,9 +586,9 @@ export class OpticalDoubleSlitBenchMesh {
       this.wlButtons[wl] = btnMesh;
     });
 
-    // 右侧复合白光模式精密轻触键 (带香槟金底座环与暖白发光顶面)
+    // 右侧复合白光模式精密轻触键 (带液态高光铬底座环与暖白发光顶面)
     const whiteRimGeo = new THREE.CylinderGeometry(0.0068, 0.0072, 0.004, 24);
-    const whiteRim = new THREE.Mesh(whiteRimGeo, brassMat);
+    const whiteRim = new THREE.Mesh(whiteRimGeo, this.chrome);
     whiteRim.position.set(0.044, 0.005, 0);
     whiteRim.userData = { interactiveId: 'laser_white_light' };
     consoleGroup.add(whiteRim);
@@ -591,35 +618,9 @@ export class OpticalDoubleSlitBenchMesh {
     this.slitStageGroup.name = 'AdjustableDoubleSlitStage';
     this.turretGroup = this.slitStageGroup;
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.38,
-      roughness: 0.25,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.24,
-      roughness: 0.42,
-    });
-    const titaniumMat = new THREE.MeshStandardMaterial({
-      color: 0xd4d4d8,
-      metalness: 0.35,
-      roughness: 0.24,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.42,
-      roughness: 0.26,
-    });
-    const chromeRodMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.72,
-      roughness: 0.14,
-    });
-
     // 1. 底部半圆形U型托架支座 (与光の衍射八角板截然不同的精密圆形万向光学镜架造型)
     const yokeBaseGeo = createChamferedBlockGeometry(0.016, 0.014, 0.056, 0.0012);
-    const yokeBase = new THREE.Mesh(yokeBaseGeo, titaniumSlateMat);
+    const yokeBase = new THREE.Mesh(yokeBaseGeo, this.titaniumSlate);
     yokeBase.position.set(0, this.beamHeightY - 0.052, 0);
     this.slitStageGroup.add(yokeBase);
 
@@ -627,7 +628,7 @@ export class OpticalDoubleSlitBenchMesh {
     const outerRingRadius = 0.046;
     const outerRingGeo = new THREE.CylinderGeometry(outerRingRadius, outerRingRadius, 0.012, 48);
     outerRingGeo.rotateZ(Math.PI / 2);
-    const outerRing = new THREE.Mesh(outerRingGeo, satinSilverMat);
+    const outerRing = new THREE.Mesh(outerRingGeo, this.satin);
     outerRing.position.set(0, this.beamHeightY, 0);
     outerRing.castShadow = true;
     this.slitStageGroup.add(outerRing);
@@ -642,7 +643,7 @@ export class OpticalDoubleSlitBenchMesh {
         ctx.arc(256, 256, 250, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = '#f59e0b';
+        ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.arc(256, 256, 242, 0, Math.PI * 2);
@@ -676,16 +677,16 @@ export class OpticalDoubleSlitBenchMesh {
       this.slitStageGroup.add(dialBack);
     }
 
-    // 中心香槟金光学压圈
+    // 中心镜面液态铬光学压圈
     const innerBezelGeo = new THREE.TorusGeometry(0.030, 0.0022, 16, 40);
     innerBezelGeo.rotateY(Math.PI / 2);
-    const innerBezel = new THREE.Mesh(innerBezelGeo, brassMat);
+    const innerBezel = new THREE.Mesh(innerBezelGeo, this.chrome);
     innerBezel.position.set(0.0065, this.beamHeightY, 0);
     this.slitStageGroup.add(innerBezel);
 
-    // 顶部精细锁紧香槟金滚花旋钮
-    const topLockGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.014, 24);
-    const topLock = new THREE.Mesh(topLockGeo, brassMat);
+    // 顶部精细锁紧微米滚花旋钮 (液态铬)
+    const topLockGeo = createKnurledBand(0.006, 0.014);
+    const topLock = new THREE.Mesh(topLockGeo, this.chrome);
     topLock.position.set(0, this.beamHeightY + outerRingRadius + 0.007, 0);
     this.slitStageGroup.add(topLock);
 
@@ -698,7 +699,7 @@ export class OpticalDoubleSlitBenchMesh {
 
     const wheelGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.013, 32);
     wheelGeo.rotateX(Math.PI / 2);
-    const wheelMesh = new THREE.Mesh(wheelGeo, brassMat);
+    const wheelMesh = new THREE.Mesh(wheelGeo, this.titaniumSlate);
     wheelMesh.name = 'SlitTurretWheelMesh';
     wheelMesh.userData = { interactiveId: 'slit_turret' };
     this.turretWheel.add(wheelMesh);
@@ -707,7 +708,7 @@ export class OpticalDoubleSlitBenchMesh {
       const fAngle = (f / 16) * Math.PI * 2;
       const fluteGeo = new THREE.CylinderGeometry(0.0014, 0.0014, 0.0132, 8);
       fluteGeo.rotateX(Math.PI / 2);
-      const flute = new THREE.Mesh(fluteGeo, brassMat);
+      const flute = new THREE.Mesh(fluteGeo, this.silverMat);
       flute.position.set(Math.cos(fAngle) * 0.0138, Math.sin(fAngle) * 0.0138, 0);
       flute.userData = { interactiveId: 'slit_turret' };
       this.turretWheel.add(flute);
@@ -715,7 +716,7 @@ export class OpticalDoubleSlitBenchMesh {
 
     const wheelCapGeo = new THREE.CylinderGeometry(0.0075, 0.0075, 0.015, 24);
     wheelCapGeo.rotateX(Math.PI / 2);
-    const wheelCap = new THREE.Mesh(wheelCapGeo, chromeRodMat);
+    const wheelCap = new THREE.Mesh(wheelCapGeo, this.chrome);
     wheelCap.userData = { interactiveId: 'slit_turret' };
     this.turretWheel.add(wheelCap);
 
@@ -729,7 +730,7 @@ export class OpticalDoubleSlitBenchMesh {
     quadrantOffsets.forEach(({ angle, count }) => {
       for (let i = 0; i < count; i++) {
         const tickGeo = new THREE.BoxGeometry(0.0006, 0.0035, 0.0004);
-        const tick = new THREE.Mesh(tickGeo, titaniumSlateMat);
+        const tick = new THREE.Mesh(tickGeo, this.satin);
         const offset = (i - (count - 1) * 0.5) * 0.0015;
         tick.position.set(Math.cos(angle) * 0.0095 + offset, Math.sin(angle) * 0.0095, 0.0068);
         this.turretWheel.add(tick);
@@ -741,7 +742,7 @@ export class OpticalDoubleSlitBenchMesh {
 
     // 转换轮顶部机械弹簧钢珠定位销
     const detentPinGeo = new THREE.SphereGeometry(0.0028, 16, 16);
-    const detentPin = new THREE.Mesh(detentPinGeo, chromeRodMat);
+    const detentPin = new THREE.Mesh(detentPinGeo, this.chrome);
     detentPin.position.set(0, this.beamHeightY - 0.026 + 0.0145, -outerRingRadius - 0.012);
     // this.slitStageGroup.add(detentPin);
 
@@ -760,25 +761,25 @@ export class OpticalDoubleSlitBenchMesh {
     this.turretHoverCue.visible = false;
     // this.slitStageGroup.add(this.turretHoverCue);
 
-    // 4. 中心精密杨氏双缝微米刀口与双相干透光狭缝 (S1 & S2 + 中央钛合金隔桥 + 左右外侧研磨刀口)
+    // 4. 中心精密杨氏双缝微米刀口与双相干透光狭缝 (S1 & S2 + 中央发蓝钢隔桥 + 左右外侧研磨刀口)
     const jawHeight = 0.038;
     const jawThickX = 0.014;
     const jawDepthZ = 0.012;
     const jawGeo = createChamferedBlockGeometry(jawThickX, jawHeight, jawDepthZ, 0.0004);
 
-    this.leftJawMesh = new THREE.Mesh(jawGeo, titaniumMat);
+    this.leftJawMesh = new THREE.Mesh(jawGeo, this.bluedSteelMat);
     this.leftJawMesh.name = 'SlitLeftJaw';
     this.leftJawMesh.position.set(0, this.beamHeightY, -0.010);
     this.slitStageGroup.add(this.leftJawMesh);
 
-    this.rightJawMesh = new THREE.Mesh(jawGeo, titaniumMat);
+    this.rightJawMesh = new THREE.Mesh(jawGeo, this.bluedSteelMat);
     this.rightJawMesh.name = 'SlitRightJaw';
     this.rightJawMesh.position.set(0, this.beamHeightY, 0.010);
     this.slitStageGroup.add(this.rightJawMesh);
 
-    // 中央微米双缝分隔钛桥 (分隔左狭缝 S1 与右狭缝 S2)
+    // 中央微米双缝分隔发蓝钢桥 (分隔左狭缝 S1 与右狭缝 S2)
     const bridgeGeo = new THREE.BoxGeometry(jawThickX * 1.04, jawHeight, 0.0020);
-    this.centerBridgeMesh = new THREE.Mesh(bridgeGeo, titaniumMat);
+    this.centerBridgeMesh = new THREE.Mesh(bridgeGeo, this.bluedSteelMat);
     this.centerBridgeMesh.name = 'DoubleSlitCenterBridge';
     this.centerBridgeMesh.position.set(0, this.beamHeightY, 0);
     this.slitStageGroup.add(this.centerBridgeMesh);
@@ -807,28 +808,28 @@ export class OpticalDoubleSlitBenchMesh {
     // a. 基座精密刻度固定套筒与锁母 (Fixed Vernier Barrel Sleeve & Hex Locknut)
     const locknutGeo = new THREE.CylinderGeometry(0.0145, 0.0145, 0.0022, 32);
     locknutGeo.rotateX(Math.PI / 2);
-    const locknut = new THREE.Mesh(locknutGeo, brassMat);
+    const locknut = new THREE.Mesh(locknutGeo, this.chrome);
     locknut.position.set(0, 0, 0.0011);
     locknut.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerThimbleGroup.add(locknut);
 
     const sleeveGeo = new THREE.CylinderGeometry(0.0135, 0.0135, 0.0042, 32);
     sleeveGeo.rotateX(Math.PI / 2);
-    const sleeveMesh = new THREE.Mesh(sleeveGeo, chromeRodMat);
+    const sleeveMesh = new THREE.Mesh(sleeveGeo, this.silverMat);
     sleeveMesh.position.set(0, 0, 0.0028);
     sleeveMesh.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerThimbleGroup.add(sleeveMesh);
 
     // 套筒基准读数水平基线与微米分度刻线
     const datumGeo = new THREE.BoxGeometry(0.0006, 0.0004, 0.0036);
-    const datumMesh = new THREE.Mesh(datumGeo, titaniumSlateMat);
+    const datumMesh = new THREE.Mesh(datumGeo, this.datumLineMat);
     datumMesh.position.set(0, 0.0136, 0.0028);
     datumMesh.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerThimbleGroup.add(datumMesh);
 
     for (let i = 0; i <= 3; i++) {
       const tickGeo = new THREE.BoxGeometry(0.0024, 0.0004, 0.0004);
-      const tick = new THREE.Mesh(tickGeo, titaniumSlateMat);
+      const tick = new THREE.Mesh(tickGeo, this.datumLineMat);
       tick.position.set(0, 0.0136, 0.0014 + i * 0.0009);
       tick.userData = { interactiveId: 'slit_micrometer' };
       this.micrometerThimbleGroup.add(tick);
@@ -840,7 +841,7 @@ export class OpticalDoubleSlitBenchMesh {
     const knobLength = 0.0080;
     const knobGeo = new THREE.CylinderGeometry(knobRadius, knobRadius, knobLength, 36);
     knobGeo.rotateX(Math.PI / 2);
-    this.micrometerKnob = new THREE.Mesh(knobGeo, brassMat);
+    this.micrometerKnob = new THREE.Mesh(knobGeo, this.titaniumSlate);
     this.micrometerKnob.name = 'SlitMicrometerKnob';
     this.micrometerKnob.position.set(0, 0, 0.0068);
     this.micrometerKnob.userData = { interactiveId: 'slit_micrometer' };
@@ -848,7 +849,7 @@ export class OpticalDoubleSlitBenchMesh {
     // 读数端精密 45° 倒角游标环
     const bevelGeo = new THREE.CylinderGeometry(0.0138, knobRadius, 0.0024, 36);
     bevelGeo.rotateX(Math.PI / 2);
-    const bevelCollar = new THREE.Mesh(bevelGeo, chromeRodMat);
+    const bevelCollar = new THREE.Mesh(bevelGeo, this.chrome);
     bevelCollar.position.set(0, 0, -knobLength * 0.5 - 0.0010);
     bevelCollar.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(bevelCollar);
@@ -856,7 +857,7 @@ export class OpticalDoubleSlitBenchMesh {
     for (let i = 0; i < 12; i++) {
       const vAngle = (i / 12) * Math.PI * 2;
       const vTickGeo = new THREE.BoxGeometry(0.0005, 0.0018, 0.0022);
-      const vTick = new THREE.Mesh(vTickGeo, titaniumSlateMat);
+      const vTick = new THREE.Mesh(vTickGeo, this.datumLineMat);
       vTick.position.set(Math.cos(vAngle) * 0.0152, Math.sin(vAngle) * 0.0152, -knobLength * 0.5 - 0.0010);
       vTick.rotation.z = vAngle;
       vTick.userData = { interactiveId: 'slit_micrometer' };
@@ -867,7 +868,7 @@ export class OpticalDoubleSlitBenchMesh {
     for (let i = 0; i < 32; i++) {
       const kAngle = (i / 32) * Math.PI * 2;
       const ribGeo = new THREE.BoxGeometry(0.0007, 0.0007, knobLength - 0.0006);
-      const rib = new THREE.Mesh(ribGeo, brassMat);
+      const rib = new THREE.Mesh(ribGeo, this.silverMat);
       rib.position.set(Math.cos(kAngle) * (knobRadius + 0.0001), Math.sin(kAngle) * (knobRadius + 0.0001), 0);
       rib.rotation.z = kAngle;
       rib.userData = { interactiveId: 'slit_micrometer' };
@@ -877,14 +878,14 @@ export class OpticalDoubleSlitBenchMesh {
     // 滚花鼓轮两端高光镜面滚边倒角
     const rimFrontGeo = new THREE.CylinderGeometry(knobRadius + 0.0001, knobRadius + 0.0001, 0.0006, 36);
     rimFrontGeo.rotateX(Math.PI / 2);
-    const rimFront = new THREE.Mesh(rimFrontGeo, chromeRodMat);
+    const rimFront = new THREE.Mesh(rimFrontGeo, this.chrome);
     rimFront.position.set(0, 0, knobLength * 0.5 - 0.0003);
     rimFront.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(rimFront);
 
     const rimBackGeo = new THREE.CylinderGeometry(knobRadius + 0.0001, knobRadius + 0.0001, 0.0006, 36);
     rimBackGeo.rotateX(Math.PI / 2);
-    const rimBack = new THREE.Mesh(rimBackGeo, chromeRodMat);
+    const rimBack = new THREE.Mesh(rimBackGeo, this.chrome);
     rimBack.position.set(0, 0, -knobLength * 0.5 + 0.0003);
     rimBack.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(rimBack);
@@ -892,27 +893,27 @@ export class OpticalDoubleSlitBenchMesh {
     // 正面精致同心倒角阶梯端面
     const frontBevelGeo = new THREE.CylinderGeometry(0.0150, knobRadius, 0.0014, 36);
     frontBevelGeo.rotateX(Math.PI / 2);
-    const frontBevel = new THREE.Mesh(frontBevelGeo, brassMat);
+    const frontBevel = new THREE.Mesh(frontBevelGeo, this.silverMat);
     frontBevel.position.set(0, 0, knobLength * 0.5 + 0.0007);
     frontBevel.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(frontBevel);
 
     const stepRingGeo = new THREE.CylinderGeometry(0.0110, 0.0110, 0.0010, 32);
     stepRingGeo.rotateX(Math.PI / 2);
-    const stepRing = new THREE.Mesh(stepRingGeo, chromeRodMat);
+    const stepRing = new THREE.Mesh(stepRingGeo, this.chrome);
     stepRing.position.set(0, 0, knobLength * 0.5 + 0.0012);
     stepRing.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(stepRing);
 
     const centerHubGeo = new THREE.CylinderGeometry(0.0070, 0.0070, 0.0014, 24);
     centerHubGeo.rotateX(Math.PI / 2);
-    const centerHub = new THREE.Mesh(centerHubGeo, brassMat);
+    const centerHub = new THREE.Mesh(centerHubGeo, this.titaniumSlate);
     centerHub.position.set(0, 0, knobLength * 0.5 + 0.0018);
     centerHub.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(centerHub);
 
     const dimpleGeo = new THREE.SphereGeometry(0.0022, 16, 16);
-    const dimple = new THREE.Mesh(dimpleGeo, titaniumSlateMat);
+    const dimple = new THREE.Mesh(dimpleGeo, this.chrome);
     dimple.position.set(0, 0, knobLength * 0.5 + 0.0022);
     dimple.userData = { interactiveId: 'slit_micrometer' };
     this.micrometerKnob.add(dimple);
@@ -972,27 +973,6 @@ export class OpticalDoubleSlitBenchMesh {
     this.screenCarrierGroup.name = 'ScreenCarrierGroup';
     this.screenCarrierGroup.userData = { interactiveId: 'screen_handle' };
 
-    const satinSilverMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.38,
-      roughness: 0.25,
-    });
-    const titaniumSlateMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.26,
-      roughness: 0.40,
-    });
-    const brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.42,
-      roughness: 0.26,
-    });
-    const chromeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.75,
-      roughness: 0.14,
-    });
-
     // 1. 圆形干涉观察头总成 (正对操作者视界，微偏转迎向左侧入射相干光锥)
     this.screenPanelGroup = new THREE.Group();
     this.screenPanelGroup.name = 'ScreenPanelGroup';
@@ -1006,7 +986,7 @@ export class OpticalDoubleSlitBenchMesh {
     // 2. 航天级阳极氧化喷砂银铝大口径圆形观察头主壳体 (彻底区别于衍射实验的矩形平板屏)
     const boardGeo = new THREE.CylinderGeometry(outerRadius, outerRadius, housingDepth, 64);
     boardGeo.rotateX(Math.PI / 2);
-    const screenBoard = new THREE.Mesh(boardGeo, satinSilverMat);
+    const screenBoard = new THREE.Mesh(boardGeo, this.satin);
     screenBoard.castShadow = true;
     screenBoard.name = 'ScreenBoardMesh';
     screenBoard.userData = { interactiveId: 'screen_handle' };
@@ -1014,14 +994,14 @@ export class OpticalDoubleSlitBenchMesh {
 
     // 外圈深空钛晶灰蓝防杂散光环形遮光罩檐 (Circular Optical Hood Visor)
     const hoodRingGeo = new THREE.TorusGeometry(outerRadius - 0.004, 0.0065, 20, 64);
-    const hoodRing = new THREE.Mesh(hoodRingGeo, titaniumSlateMat);
+    const hoodRing = new THREE.Mesh(hoodRingGeo, this.titaniumSlate);
     hoodRing.position.set(0, 0, housingDepth * 0.5 + 0.003);
     hoodRing.userData = { interactiveId: 'screen_handle' };
     this.screenPanelGroup.add(hoodRing);
 
-    // 内圈香槟金精密光学压圈 (Champagne Brass Aperture Retaining Ring)
+    // 内圈液态高光铬精密光学压圈
     const brassRetainerGeo = new THREE.TorusGeometry(innerRadius + 0.002, 0.0032, 16, 64);
-    const brassRetainer = new THREE.Mesh(brassRetainerGeo, brassMat);
+    const brassRetainer = new THREE.Mesh(brassRetainerGeo, this.chrome);
     brassRetainer.position.set(0, 0, housingDepth * 0.5 + 0.002);
     brassRetainer.userData = { interactiveId: 'screen_handle' };
     this.screenPanelGroup.add(brassRetainer);
@@ -1033,28 +1013,28 @@ export class OpticalDoubleSlitBenchMesh {
       const ly = Math.sin(ang) * (outerRadius + 0.004);
       const lugGeo = new THREE.CylinderGeometry(0.008, 0.008, housingDepth * 0.85, 20);
       lugGeo.rotateX(Math.PI / 2);
-      const lug = new THREE.Mesh(lugGeo, satinSilverMat);
+      const lug = new THREE.Mesh(lugGeo, this.satin);
       lug.position.set(lx, ly, 0);
       lug.userData = { interactiveId: 'screen_handle' };
       this.screenPanelGroup.add(lug);
 
-      const boltGeo = new THREE.CylinderGeometry(0.0038, 0.0038, housingDepth + 0.003, 6);
+      const boltGeo = createChamferedHexNut(0.0036, housingDepth + 0.002);
       boltGeo.rotateX(Math.PI / 2);
-      const bolt = new THREE.Mesh(boltGeo, chromeMat);
+      const bolt = new THREE.Mesh(boltGeo, this.chrome);
       bolt.position.set(lx, ly, 0.001);
       this.screenPanelGroup.add(bolt);
     });
 
-    // 底部立柱颈部连接座与香槟金锁紧手轮
+    // 底部立柱颈部连接座与液态铬锁紧手轮
     const neckY = -outerRadius - 0.010;
     const mountGeo = createChamferedBlockGeometry(0.038, 0.022, 0.022, 0.0014);
-    const mountMesh = new THREE.Mesh(mountGeo, titaniumSlateMat);
+    const mountMesh = new THREE.Mesh(mountGeo, this.titaniumSlate);
     mountMesh.position.set(0, neckY, 0);
     this.screenPanelGroup.add(mountMesh);
 
-    const mountKnobGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.010, 18);
+    const mountKnobGeo = createKnurledBand(0.006, 0.010);
     mountKnobGeo.rotateZ(Math.PI / 2);
-    const mountKnob = new THREE.Mesh(mountKnobGeo, brassMat);
+    const mountKnob = new THREE.Mesh(mountKnobGeo, this.chrome);
     mountKnob.position.set(0.023, neckY, 0);
     this.screenPanelGroup.add(mountKnob);
 
@@ -1062,7 +1042,7 @@ export class OpticalDoubleSlitBenchMesh {
     const caliperBarY = -outerRadius + 0.006;
     const caliperBarW = 0.220;
     const rulerHousingGeo = createChamferedBlockGeometry(caliperBarW, 0.020, 0.016, 0.0012);
-    const rulerHousing = new THREE.Mesh(rulerHousingGeo, titaniumSlateMat);
+    const rulerHousing = new THREE.Mesh(rulerHousingGeo, this.titaniumSlate);
     rulerHousing.position.set(0, caliperBarY, housingDepth * 0.5 + 0.006);
     rulerHousing.userData = { interactiveId: 'screen_handle' };
     this.screenPanelGroup.add(rulerHousing);
@@ -1070,14 +1050,14 @@ export class OpticalDoubleSlitBenchMesh {
     // 贯通横向镜面液态铬精密测微丝杠
     const leadScrewGeo = new THREE.CylinderGeometry(0.0024, 0.0024, caliperBarW + 0.020, 20);
     leadScrewGeo.rotateZ(Math.PI / 2);
-    const leadScrew = new THREE.Mesh(leadScrewGeo, chromeMat);
+    const leadScrew = new THREE.Mesh(leadScrewGeo, this.chrome);
     leadScrew.position.set(0, caliperBarY - 0.003, housingDepth * 0.5 + 0.015);
     this.screenPanelGroup.add(leadScrew);
 
-    // 右端测量头香槟金滚花微分手轮 (随条纹间距同步旋转)
-    const handwheelGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.018, 28);
+    // 右端测量头液态铬滚花微分手轮 (随条纹间距同步旋转)
+    const handwheelGeo = createKnurledBand(0.010, 0.018);
     handwheelGeo.rotateZ(Math.PI / 2);
-    this.caliperHandwheelMesh = new THREE.Mesh(handwheelGeo, brassMat);
+    this.caliperHandwheelMesh = new THREE.Mesh(handwheelGeo, this.chrome);
     this.caliperHandwheelMesh.position.set(caliperBarW * 0.5 + 0.012, caliperBarY, housingDepth * 0.5 + 0.009);
     this.caliperHandwheelMesh.userData = { interactiveId: 'screen_handle' };
     this.screenPanelGroup.add(this.caliperHandwheelMesh);
@@ -1085,7 +1065,7 @@ export class OpticalDoubleSlitBenchMesh {
     // 微分手轮液态铬倒角读数环
     const hwCollarGeo = new THREE.CylinderGeometry(0.0082, 0.010, 0.005, 28);
     hwCollarGeo.rotateZ(Math.PI / 2);
-    const hwCollar = new THREE.Mesh(hwCollarGeo, chromeMat);
+    const hwCollar = new THREE.Mesh(hwCollarGeo, this.satin);
     hwCollar.position.set(-0.010, 0, 0);
     this.caliperHandwheelMesh.add(hwCollar);
 
@@ -1119,19 +1099,19 @@ export class OpticalDoubleSlitBenchMesh {
       this.screenPanelGroup.add(scalePlane);
     }
 
-    // 中央 k=0 基准银色游标针与左右 k=±1 香槟金游标测微针
+    // 中央 k=0 基准银色游标针与左右 k=±1 缎面银钛游标测微针
     const needleGeo = new THREE.ConeGeometry(0.0026, 0.012, 12);
-    this.centerCaliperMesh = new THREE.Mesh(needleGeo, chromeMat);
+    this.centerCaliperMesh = new THREE.Mesh(needleGeo, this.chrome);
     this.centerCaliperMesh.name = 'CenterCaliperPointer';
     this.centerCaliperMesh.position.set(0, caliperBarY + 0.014, housingDepth * 0.5 + 0.012);
     this.screenPanelGroup.add(this.centerCaliperMesh);
 
-    this.leftOrder1CaliperMesh = new THREE.Mesh(needleGeo, brassMat);
+    this.leftOrder1CaliperMesh = new THREE.Mesh(needleGeo, this.silverMat);
     this.leftOrder1CaliperMesh.name = 'LeftOrder1CaliperPointer';
     this.leftOrder1CaliperMesh.position.set(-0.015, caliperBarY + 0.014, housingDepth * 0.5 + 0.012);
     this.screenPanelGroup.add(this.leftOrder1CaliperMesh);
 
-    this.rightOrder1CaliperMesh = new THREE.Mesh(needleGeo, brassMat);
+    this.rightOrder1CaliperMesh = new THREE.Mesh(needleGeo, this.silverMat);
     this.rightOrder1CaliperMesh.name = 'RightOrder1CaliperPointer';
     this.rightOrder1CaliperMesh.position.set(0.015, caliperBarY + 0.014, housingDepth * 0.5 + 0.012);
     this.screenPanelGroup.add(this.rightOrder1CaliperMesh);
@@ -2099,7 +2079,7 @@ export class OpticalDoubleSlitBenchMesh {
     const opdGeo = new THREE.CylinderGeometry(0.0009, 0.0009, opdLen, 8);
     opdGeo.rotateZ(Math.PI / 2);
     const opdMat = new THREE.MeshBasicMaterial({
-      color: 0xf59e0b, // 香槟金高对比醒目标记
+      color: 0x38bdf8, // 荧光青蓝高对比醒目标记
       transparent: true,
       opacity: 0.95,
     });

@@ -36,7 +36,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: 'mechanics',
     name: '经典力学',
     icon: 'physics',
-    description: '伽利略理想斜面实验与惯性定律高精度3D实验台',
+    description: '自由落体、斜面惯性、重心、作用力与反作用力、杠杆力矩和滑轮组高精度3D实验台',
   },
   {
     id: 'math',

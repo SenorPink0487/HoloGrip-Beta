@@ -1,5 +1,6 @@
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import { requestMixtureAnalysis } from '../../chemistry/analyzeMixture.ts';
+import type { AnalyzedMixture } from '../../chemistry/mixtureAnalysis.ts';
 
 interface SpeechResult {
   isFinal: boolean;
@@ -24,7 +25,7 @@ export interface MixtureQueryBinding {
 export function bindMixtureQuery(
   root: ParentNode,
   selectors: { input: string; voice: string; analyze: string; status: string },
-  options: { getEngine: () => ChemistryEngine; onPoured?: () => void },
+  options: { getEngine: () => ChemistryEngine; onPoured?: (mixture: AnalyzedMixture) => void },
 ): MixtureQueryBinding {
   let analyzing = false;
   let voice: SpeechRecognitionLike | null = null;
@@ -76,7 +77,7 @@ export function bindMixtureQuery(
         ? `，并发生${reaction.title}`
         : '';
       setStatus(`${mixture.name}：${names}${reacted}`);
-      options.onPoured?.();
+      options.onPoured?.(mixture);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : '成分分析失败', true);
     } finally {

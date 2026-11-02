@@ -173,10 +173,10 @@ assert.strictEqual(plaster.color.getHex(), warmPlaster);
 lab.applyPalette('glacier');
 assert.strictEqual(plaster.color.getHex(), galleryPalette('glacier').plaster);
 const frameMat = (qianRail.material as THREE.MeshStandardMaterial);
-assert.ok(frameMat.color.getHex() !== 0xd97757, 'Glacier frames leave the warm clay molding');
+assert.strictEqual(frameMat.color.getHex(), galleryPalette('glacier').metal, 'Glacier frames use glacier metal');
 lab.applyPalette('warm');
 assert.strictEqual(plaster.color.getHex(), warmPlaster);
-assert.strictEqual(frameMat.color.getHex(), 0xd97757);
+assert.strictEqual(frameMat.color.getHex(), galleryPalette('warm').metal, 'Warm frames use warm metal without red clay molding');
 
 wallTransmission = false;
 lab.group.traverse(child => {

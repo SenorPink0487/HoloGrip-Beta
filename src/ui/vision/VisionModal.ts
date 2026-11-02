@@ -13,7 +13,7 @@ import { FourierStatusCard } from './FourierStatusCard.ts';
 import type { FourierRodMaterialId } from '../../physics/thermo/fourierConductionSolver.ts';
 import type { SwitchPosition } from '../../physics/em/capacitorDischarge.ts';
 import type { HandRuleMode } from '../../physics/em/handRulesSolver.ts';
-import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
+import type { ChemistryEngine, SoluteComponent } from '../../chemistry/ChemistryEngine.ts';
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 import { blurActiveInput, isTextInputActive } from '../../core/focus.ts';
@@ -29,6 +29,7 @@ export interface VisionModalCallbacks {
   onRecenter?: () => void;
   onScaleChange?: (scaleMultiplier: number) => void;
   onSelectBeaker?: (beakerId: 'left' | 'right') => void;
+  onSelectCompound?: (component: SoluteComponent | null) => void;
   // 霍尔效应回调函数
   onHallMagFieldChange?: (tesla: number) => void;
   onHallCurrentChange?: (ma: number) => void;
@@ -328,6 +329,9 @@ export class VisionModal {
       },
       onSelectBeaker: (beakerId) => {
         this.setActiveBeaker(beakerId);
+      },
+      onSelectCompound: (component) => {
+        this.callbacks.onSelectCompound?.(component);
       },
     });
 
@@ -680,6 +684,9 @@ export class VisionModal {
   }
 
   public switchTab(tab: VisionTab): void {
+    if (tab !== 'beaker') {
+      this.statusCard?.clearSelectedCompound();
+    }
     this.periodicTableModal?.closeElementPopover();
     this.element.querySelector('.vision-window-frame')?.classList.remove('has-modal-popover');
     this.activeTab = tab;
@@ -800,6 +807,7 @@ export class VisionModal {
   }
 
   public close(): void {
+    this.statusCard?.clearSelectedCompound();
     this.periodicTableModal?.closeElementPopover();
     this.element.querySelector('.vision-window-frame')?.classList.remove('has-modal-popover');
     blurActiveInput(true);
