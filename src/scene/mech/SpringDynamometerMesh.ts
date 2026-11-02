@@ -13,7 +13,13 @@
  */
 
 import * as THREE from 'three';
-import { disposeObjectTree, mechMetal } from './mechKit.ts';
+import {
+  createChampagneBrassMaterial,
+  createKnurledBand,
+  createLiquidChromeMaterial,
+  disposeObjectTree,
+  mechMetal,
+} from './mechKit.ts';
 
 export interface SpringDynamometerOptions {
   label?: string;                                // 标识名 (例如 'DynamometerA', 'DynamometerB', 'SoloDynamometer')
@@ -166,40 +172,34 @@ export class SpringDynamometerMesh {
   }
 
   /**
-   * 初始化科研级物理材质体系
+   * 初始化科研级物理材质体系 (光学科研级：316L 镜面液态铬、香槟金黄铜、高透光学亚克力)
    */
   private initMaterials(options: SpringDynamometerOptions): void {
     // 1. 镜面液态铬不锈钢 (316L liquid chrome)
-    this.chromeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.98,
-      roughness: 0.08,
-    });
+    this.chromeMat = createLiquidChromeMaterial(0xffffff, 0.98, 0.06);
 
     // 2. 香槟金精密黄铜 (Champagne brass)
-    this.brassMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.88,
-      roughness: 0.22,
-    });
+    this.brassMat = createChampagneBrassMaterial(0xf59e0b, 0.90, 0.20);
 
     // 3. 航空级阳极氧化喷砂金属端盖
     this.capMat = new THREE.MeshStandardMaterial({
       color: options.casingColor ?? 0x0d8275,
-      metalness: 0.35,
-      roughness: 0.28,
+      metalness: 0.65,
+      roughness: 0.24,
     });
 
-    // 4. 高透明光学亚克力玻璃管
+    // 4. 高透明光学级纯净物理玻璃套管 (菲涅尔反射 + 高透光)
     this.glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
+      color: 0xf8fafc,
       metalness: 0.0,
-      roughness: 0.03,
-      transmission: 0.95,
+      roughness: 0.04,
+      transmission: 0.92,
       thickness: 0.003,
       transparent: true,
-      opacity: 0.25,
+      opacity: 0.20,
       ior: 1.49,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
       depthWrite: false,
     });
 
@@ -225,15 +225,13 @@ export class SpringDynamometerMesh {
     this.casingGroup.add(this.glassTubeMesh);
 
     // 2. 端盖与提环装配
-    // vertical: 提环在顶部 (+halfLen)，导套在底部 (-halfLen)
-    // horizontal_pair: 提环在底侧 (-halfLen)，导套在顶侧 (+halfLen)
     const ringAtTop = this.orientation === 'vertical';
 
     // 提环端盖总成
     const ringCapGroup = new THREE.Group();
     ringCapGroup.position.y = ringAtTop ? halfLen : -halfLen;
     if (!ringAtTop) {
-      ringCapGroup.rotation.z = Math.PI; // 提环朝外开口
+      ringCapGroup.rotation.z = Math.PI;
     }
 
     const capHeight = 0.022;
@@ -243,11 +241,10 @@ export class SpringDynamometerMesh {
     ringCapMesh.position.y = capHeight * 0.5;
     ringCapGroup.add(ringCapMesh);
 
-    // 倒角滚花环
-    const knurlRingGeo = new THREE.TorusGeometry(r * 1.05, 0.0016, 12, 48);
+    // 精密香槟金滚花环
+    const knurlRingGeo = createKnurledBand(r * 1.065, 0.004);
     const knurlRing = new THREE.Mesh(knurlRingGeo, this.brassMat);
-    knurlRing.rotation.x = Math.PI / 2;
-    knurlRing.position.y = 0.002;
+    knurlRing.position.y = 0.003;
     ringCapGroup.add(knurlRing);
 
     // 阶梯阶台
@@ -308,8 +305,7 @@ export class SpringDynamometerMesh {
     hookCapGroup.add(hookCapMesh);
 
     const btmKnurlRing = new THREE.Mesh(knurlRingGeo, this.brassMat);
-    btmKnurlRing.rotation.x = Math.PI / 2;
-    btmKnurlRing.position.y = -0.002;
+    btmKnurlRing.position.y = -0.003;
     hookCapGroup.add(btmKnurlRing);
 
     // 黄铜中心导管

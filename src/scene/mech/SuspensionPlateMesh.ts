@@ -93,17 +93,18 @@ export class SuspensionPlateMesh {
     const plateGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
     plateGeo.translate(0, 0, -0.0025);
 
-    // 优质高透微蓝丙烯酸亚克力塑料物理材质
+    // 优质光学级微蓝透光有机玻璃 (PMMA Acrylic) 物理材质
     this.plateMaterial = new THREE.MeshPhysicalMaterial({
       color: 0x38bdf8,
       transparent: true,
-      opacity: 0.85,
-      transmission: 0.50,
-      roughness: 0.15,
-      metalness: 0.04,
-      clearcoat: 0.95,
-      clearcoatRoughness: 0.08,
-      reflectivity: 0.90,
+      opacity: 0.72,
+      transmission: 0.70,
+      roughness: 0.08,
+      metalness: 0.02,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
+      reflectivity: 0.92,
+      ior: 1.49,
       side: THREE.DoubleSide,
     });
 

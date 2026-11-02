@@ -11,7 +11,7 @@ import { metadata } from './meta.ts';
 
 export default class MechGalileoExperiment extends BaseExperiment {
   public readonly metadata = metadata;
-  public override targetScale = 1.8;
+  public override targetScale = 1.45;
   public override hideCenterEmitter = true;
 
   private bench!: GalileoBenchMesh;
@@ -34,8 +34,8 @@ export default class MechGalileoExperiment extends BaseExperiment {
   private lastApexTriggered = false;
 
   public init(context: ExperimentContext): void {
-    // 将实验根节点放置于实验台操作区域 (Y=0.12, Z=1.55)
-    this.rootGroup.position.set(0, 0.12, 1.55);
+    // 将实验根节点放置于实验台操作区域中央 (Y=0.114, Z=1.05，稳固坐落于圆桌台面中心，远离桌边)
+    this.rootGroup.position.set(0, 0.114, 1.05);
 
     // 实例化 3D 实验台模型
     this.bench = new GalileoBenchMesh();

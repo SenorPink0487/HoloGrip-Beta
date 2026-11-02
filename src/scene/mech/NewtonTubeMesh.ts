@@ -1,6 +1,15 @@
 /** Precision Newton tube: machined aluminum, optical glass and a rotary vacuum union. */
 import * as THREE from 'three';
-import { mechMetal, disposeObjectTree } from './mechKit.ts';
+import {
+  createChampagneBrassMaterial,
+  createLevelingPadMaterial,
+  createLiquidChromeMaterial,
+  createOceanicSapphireMaterial,
+  createSatinSilverMaterial,
+  createTitaniumSlateMaterial,
+  disposeObjectTree,
+  mechMetal,
+} from './mechKit.ts';
 
 /** Closed, chamfered cross section of a turned component. */
 function turned(profile: number[][], segments = 48): THREE.LatheGeometry {
@@ -101,22 +110,22 @@ export class NewtonTubeMesh {
 
   private initMaterials(): void {
     this.glassMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xe8f7fa, roughness: 0.065, metalness: 0, clearcoat: 1,
-      clearcoatRoughness: 0.04, reflectivity: 0.7,
-      transparent: true, opacity: 0.09, depthWrite: false, side: THREE.FrontSide,
+      color: 0xf8fafc, roughness: 0.05, metalness: 0, clearcoat: 1.0,
+      clearcoatRoughness: 0.04, reflectivity: 0.88,
+      transparent: true, opacity: 0.14, depthWrite: false, side: THREE.FrontSide,
     });
     this.innerGlassMaterial = new THREE.MeshStandardMaterial({ visible: false });
-    this.chromeMaterial = mechMetal(0xf1f5f9, 0.88, 0.16);
-    this.precisionSlateMaterial = mechMetal(0xe2e8f0, 0.52, 0.32);
-    this.sapphireDisplayMaterial = mechMetal(0x0a192f, 0.15, 0.34);
-    this.pumpMotorMaterial = mechMetal(0x8bafbc, 0.48, 0.36);
-    this.switchBoxMaterial = mechMetal(0xbac8d1, 0.45, 0.34);
-    this.darkSiliconeMaterial = mechMetal(0x70808b, 0.02, 0.85);
-    this.brassMaterial = mechMetal(0xc6a46a, 0.72, 0.3);
+    this.chromeMaterial = createLiquidChromeMaterial(0xffffff, 0.98, 0.08);
+    this.precisionSlateMaterial = createSatinSilverMaterial(0xe2e8f0, 0.68, 0.26);
+    this.sapphireDisplayMaterial = createOceanicSapphireMaterial(0x0a192f, 0.25, 0.30);
+    this.pumpMotorMaterial = createSatinSilverMaterial(0x8da2b5, 0.55, 0.30);
+    this.switchBoxMaterial = createSatinSilverMaterial(0xcbd5e1, 0.60, 0.25);
+    this.darkSiliconeMaterial = createLevelingPadMaterial(0x475569, 0.85);
+    this.brassMaterial = createChampagneBrassMaterial(0xf59e0b, 0.90, 0.20);
     this.siliconeMaterial = new THREE.MeshStandardMaterial({ color: 0xc5d9dc, roughness: 0.65 });
     this.featherMaterial = new THREE.MeshStandardMaterial({ color: 0xf5eee0, roughness: 0.8, side: THREE.DoubleSide });
     this.featherQuillMaterial = mechMetal(0xcbbd9d, 0.04, 0.7);
-    this.coinMaterial = mechMetal(0xc8d2dc, 0.76, 0.3);
+    this.coinMaterial = createLiquidChromeMaterial(0xf1f5f9, 0.92, 0.15);
     this.corkMaterial = mechMetal(0xb38b5b, 0, 0.95);
     this.buttonGlowMaterial = new THREE.MeshStandardMaterial({ color: 0x72b6c4, emissive: 0x407f94, emissiveIntensity: 0.16, roughness: 0.4 });
     this.ledMaterial = new THREE.MeshStandardMaterial({ color: 0x85c4af, emissive: 0x55b991, emissiveIntensity: 0.4 });
