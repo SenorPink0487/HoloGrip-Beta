@@ -33,10 +33,10 @@ export class HandTrackingHUD {
   // 缓存的 DOM 节点集合
   private logSectionEl!: HTMLElement;
   private logListEl!: HTMLElement;
-  private logCountBadge!: HTMLElement;
+  private logCountBadge: HTMLElement | null = null;
   private logCountHeader!: HTMLElement;
   private logAvgStat!: HTMLElement;
-  private logToggleBtn!: HTMLButtonElement;
+  private logToggleBtn: HTMLButtonElement | null = null;
   private leftDurationVal!: HTMLElement;
   private rightDurationVal!: HTMLElement;
 
@@ -104,16 +104,8 @@ export class HandTrackingHUD {
             </svg>
           </div>
           <span class="vp-modal-title">双手手势跟踪</span>
-          <span class="vp-offline-tag"><span class="vp-tag-dot"></span>离线 MediaPipe</span>
         </div>
         <div class="vp-modal-header-actions">
-          <button class="vp-modal-action-btn vp-modal-log-toggle-btn active" title="显示/收起捏合时长记录">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
-            <span class="vp-log-badge">0</span>
-          </button>
           <button class="vp-modal-action-btn vp-modal-fullscreen-btn" title="全屏显示镜头">
             <svg class="vp-icon-fullscreen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path>
@@ -202,10 +194,10 @@ export class HandTrackingHUD {
     // 预先缓存 DOM 节点以保证极致性能
     this.logSectionEl = this.previewModalEl.querySelector('.vp-pinch-log-section') as HTMLElement;
     this.logListEl = this.previewModalEl.querySelector('.vp-pinch-log-list') as HTMLElement;
-    this.logCountBadge = this.previewModalEl.querySelector('.vp-log-badge') as HTMLElement;
+    this.logCountBadge = this.previewModalEl.querySelector('.vp-log-badge') as HTMLElement | null;
     this.logCountHeader = this.previewModalEl.querySelector('.vp-pinch-log-count') as HTMLElement;
     this.logAvgStat = this.previewModalEl.querySelector('.vp-pinch-avg-stat') as HTMLElement;
-    this.logToggleBtn = this.previewModalEl.querySelector('.vp-modal-log-toggle-btn') as HTMLButtonElement;
+    this.logToggleBtn = this.previewModalEl.querySelector('.vp-modal-log-toggle-btn') as HTMLButtonElement | null;
     this.leftDurationVal = this.previewModalEl.querySelector('.vp-left-duration-val') as HTMLElement;
     this.rightDurationVal = this.previewModalEl.querySelector('.vp-right-duration-val') as HTMLElement;
 
@@ -1202,7 +1194,7 @@ export class HandTrackingHUD {
       this.togglePreview(false);
     });
 
-    this.logToggleBtn.addEventListener('click', (e) => {
+    this.logToggleBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.toggleLogPanel();
     });
@@ -1692,21 +1684,17 @@ export class HandTrackingHUD {
 
     const handsToRender: {
       data: SingleHandData;
-      boneColor: string;
-      jointColor: string;
-      pinchLineColor: string;
       label: string;
       handKey: string;
+      accentDotColor: string;
     }[] = [];
 
-    if (frame.leftHand && frame.leftHand.landmarks) {
+    if (frame.leftHand && frame.leftHand.landmarks && frame.leftHand.landmarks.length >= 21) {
       handsToRender.push({
         data: frame.leftHand,
-        boneColor: 'rgba(255, 255, 255, 0.45)',
-        jointColor: '#ffffff',
-        pinchLineColor: frame.leftHand.isPinching ? '#ffffff' : 'rgba(255, 255, 255, 0.7)',
         label: '左手',
         handKey: 'left',
+        accentDotColor: '#ff9f0a', // Apple systemOrange
       });
     } else {
       this.prevHandLandmarks.delete('left');
@@ -1715,20 +1703,32 @@ export class HandTrackingHUD {
       this.smoothedPinchRadius.delete('left');
     }
 
-    if (frame.rightHand && frame.rightHand.landmarks) {
+    if (frame.rightHand && frame.rightHand.landmarks && frame.rightHand.landmarks.length >= 21) {
       handsToRender.push({
         data: frame.rightHand,
-        boneColor: 'rgba(255, 255, 255, 0.45)',
-        jointColor: '#ffffff',
-        pinchLineColor: frame.rightHand.isPinching ? '#ffffff' : 'rgba(255, 255, 255, 0.7)',
         label: '右手',
         handKey: 'right',
+        accentDotColor: '#30d158', // Apple systemGreen
       });
     } else {
       this.prevHandLandmarks.delete('right');
       this.targetHandLandmarks.delete('right');
       this.smoothedHandLandmarks.delete('right');
       this.smoothedPinchRadius.delete('right');
+    }
+
+    // 兜底保障：当单手未分离到 leftHand/rightHand，但 frame.landmarks 包含有效骨骼关键点时
+    if (handsToRender.length === 0 && frame.landmarks && frame.landmarks.length >= 21) {
+      handsToRender.push({
+        data: {
+          landmarks: frame.landmarks,
+          isPinching: frame.isPinching,
+          interactionPointNorm: frame.interactionPointNorm ?? frame.midpointNorm ?? undefined,
+        } as any,
+        label: '右手',
+        handKey: 'primary',
+        accentDotColor: '#30d158',
+      });
     }
 
     if (handsToRender.length === 0) {
@@ -1751,16 +1751,21 @@ export class HandTrackingHUD {
 
     const isFs = this.isFullscreen;
     const scale = isFs ? Math.max(1.3, Math.min(3.0, w / 540)) : 1.0;
-    const isAppleVision = this.service.isAppleVision();
+    const isAppleVision = Boolean(
+      typeof this.service.isAppleVision === 'function'
+        ? this.service.isAppleVision()
+        : this.service.getTelemetry?.()?.isAppleVision
+    );
     const latencyCompensationMs = isAppleVision
-      ? Math.min(Math.max(this.service.getTelemetry().latencyMs, 2), 10)
-      : Math.min(Math.max(this.service.getTelemetry().latencyMs, 10), 50);
+      ? Math.min(Math.max(this.service.getTelemetry?.()?.latencyMs ?? 4, 2), 10)
+      : Math.min(Math.max(this.service.getTelemetry?.()?.latencyMs ?? 15, 10), 50);
 
     const isValidHudPoint = (p: NormalizedLandmark | undefined | null): boolean => {
       if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
-      if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) return false;
-      if (p.visibility !== undefined && p.visibility <= 0) return false;
+      // 适度放宽视口边界容差至 [-0.25, 1.25]，防止手掌贴近镜头时边缘手腕与指尖被误过滤
+      if (p.x < -0.25 || p.x > 1.25 || p.y < -0.25 || p.y > 1.25) return false;
       if ((p.x === 0 && p.y === 0) || (p.x === 1 && p.y === 0)) return false;
+      if (p.x === -1 && p.y === -1) return false;
       return true;
     };
 
@@ -1787,8 +1792,8 @@ export class HandTrackingHUD {
             const vx = (p.x - prevP.x) * factor;
             const vy = (p.y - prevP.y) * factor;
             return {
-              x: Math.max(0.005, Math.min(0.995, p.x + vx)),
-              y: Math.max(0.005, Math.min(0.995, p.y + vy)),
+              x: Math.max(-0.2, Math.min(1.2, p.x + vx)),
+              y: Math.max(-0.2, Math.min(1.2, p.y + vy)),
               z: p.z,
               visibility: p.visibility,
             };
@@ -1833,97 +1838,250 @@ export class HandTrackingHUD {
       }
       this.smoothedHandLandmarks.set(hand.handKey, lms);
 
-      // 1. 在单一批量路径中绘制手部骨骼连线（自动跳过任何缺失或跨屏异常线段）
-      ctx.lineWidth = Math.round(2 * scale);
-      ctx.strokeStyle = hand.boneColor;
+      // 1. 经典 Apple Vision 极简素雅珍珠白骨骼连线（柔和暗影景深 + 纯净透亮珍珠白核心）
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // 1.1 柔和暗影底层（在强光与复杂背景下提供自然的光学景深反差）
+      ctx.lineWidth = Math.round(3.2 * scale);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.36)';
       ctx.beginPath();
       for (let c = 0; c < CONNECTIONS.length; c++) {
         const [i, j] = CONNECTIONS[c];
         const p1 = lms[i];
         const p2 = lms[j];
         if (!isValidHudPoint(p1) || !isValidHudPoint(p2)) continue;
-        if (Math.hypot(p1.x - p2.x, p1.y - p2.y) > 0.45) continue;
-        ctx.moveTo((1.0 - p1.x) * w, p1.y * h);
-        ctx.lineTo((1.0 - p2.x) * w, p2.y * h);
+        if (Math.hypot(p1.x - p2.x, p1.y - p2.y) > 0.85) continue;
+        const x1 = Math.max(0, Math.min(w, (1.0 - p1.x) * w));
+        const y1 = Math.max(0, Math.min(h, p1.y * h));
+        const x2 = Math.max(0, Math.min(w, (1.0 - p2.x) * w));
+        const y2 = Math.max(0, Math.min(h, p2.y * h));
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
       }
       ctx.stroke();
 
-      // 2. 绘制拇指 (4) 与食指 (8) 之间的捏合指示连线
+      // 1.2 苹果原生素雅半透珍珠白核心骨骼线
+      ctx.lineWidth = Math.round(1.8 * scale);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.88)';
+      ctx.beginPath();
+      for (let c = 0; c < CONNECTIONS.length; c++) {
+        const [i, j] = CONNECTIONS[c];
+        const p1 = lms[i];
+        const p2 = lms[j];
+        if (!isValidHudPoint(p1) || !isValidHudPoint(p2)) continue;
+        if (Math.hypot(p1.x - p2.x, p1.y - p2.y) > 0.85) continue;
+        const x1 = Math.max(0, Math.min(w, (1.0 - p1.x) * w));
+        const y1 = Math.max(0, Math.min(h, p1.y * h));
+        const x2 = Math.max(0, Math.min(w, (1.0 - p2.x) * w));
+        const y2 = Math.max(0, Math.min(h, p2.y * h));
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.stroke();
+
+      // 2. 绘制拇指 (4) 与食指 (8) 之间的动态捏合指示（苹果 visionOS 标准反馈）
       const thumb = lms[4];
       const index = lms[8];
       if (isValidHudPoint(thumb) && isValidHudPoint(index)) {
-        const tx = (1.0 - thumb.x) * w;
-        const ty = thumb.y * h;
-        const ix = (1.0 - index.x) * w;
-        const iy = index.y * h;
+        const tx = Math.max(0, Math.min(w, (1.0 - thumb.x) * w));
+        const ty = Math.max(0, Math.min(h, thumb.y * h));
+        const ix = Math.max(0, Math.min(w, (1.0 - index.x) * w));
+        const iy = Math.max(0, Math.min(h, index.y * h));
 
-        ctx.beginPath();
-        ctx.lineWidth = Math.round((hand.data.isPinching ? 3.5 : 2) * scale);
-        ctx.strokeStyle = hand.pinchLineColor;
-        ctx.moveTo(tx, ty);
-        ctx.lineTo(ix, iy);
-        ctx.stroke();
+        if (hand.data.isPinching) {
+          // 捏合态：苹果系统绿 (#30d158) 光晕与核心激光线
+          ctx.beginPath();
+          ctx.lineWidth = Math.round(4.0 * scale);
+          ctx.strokeStyle = 'rgba(48, 209, 88, 0.38)';
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(ix, iy);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.lineWidth = Math.round(2.2 * scale);
+          ctx.strokeStyle = '#30d158';
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(ix, iy);
+          ctx.stroke();
+        } else {
+          // 未捏合态：优雅半透明微白导线
+          ctx.beginPath();
+          ctx.lineWidth = Math.round(2.6 * scale);
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.28)';
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(ix, iy);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.lineWidth = Math.round(1.4 * scale);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(ix, iy);
+          ctx.stroke();
+        }
       }
 
-      // 3. 批量绘制标准关节点（白色外环）
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      // 3. 批量绘制标准关节点（苹果 visionOS 珍珠光感微盘）
+      const rJointDepth = 3.2 * scale;
+      const rJointFrosted = 2.4 * scale;
+      const rJointCore = 1.5 * scale;
+
+      // 3.1 柔和暗影层
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
       ctx.beginPath();
-      const rJoint = 2.5 * scale;
       for (let i = 0; i < lms.length; i++) {
         if (i !== 4 && i !== 8 && isValidHudPoint(lms[i])) {
-          const px = (1.0 - lms[i].x) * w;
-          const py = lms[i].y * h;
-          ctx.moveTo(px + rJoint, py);
-          ctx.arc(px, py, rJoint, 0, 2 * Math.PI);
+          const px = Math.max(0, Math.min(w, (1.0 - lms[i].x) * w));
+          const py = Math.max(0, Math.min(h, lms[i].y * h));
+          ctx.moveTo(px + rJointDepth, py);
+          ctx.arc(px, py, rJointDepth, 0, 2 * Math.PI);
         }
       }
       ctx.fill();
 
-      // 4. 批量绘制关键指尖节点（大拇指与食指）
+      // 3.2 毛玻璃半透光圈
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.38)';
+      ctx.beginPath();
+      for (let i = 0; i < lms.length; i++) {
+        if (i !== 4 && i !== 8 && isValidHudPoint(lms[i])) {
+          const px = Math.max(0, Math.min(w, (1.0 - lms[i].x) * w));
+          const py = Math.max(0, Math.min(h, lms[i].y * h));
+          ctx.moveTo(px + rJointFrosted, py);
+          ctx.arc(px, py, rJointFrosted, 0, 2 * Math.PI);
+        }
+      }
+      ctx.fill();
+
+      // 3.3 纯白高光微核
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      for (let i = 0; i < lms.length; i++) {
+        if (i !== 4 && i !== 8 && isValidHudPoint(lms[i])) {
+          const px = Math.max(0, Math.min(w, (1.0 - lms[i].x) * w));
+          const py = Math.max(0, Math.min(h, lms[i].y * h));
+          ctx.moveTo(px + rJointCore, py);
+          ctx.arc(px, py, rJointCore, 0, 2 * Math.PI);
+        }
+      }
+      ctx.fill();
+
+      // 4. 批量绘制关键指尖交互末端（拇指与食指）
       if (isValidHudPoint(thumb) && isValidHudPoint(index)) {
-        ctx.fillStyle = hand.data.isPinching ? '#30d158' : hand.jointColor;
-        ctx.beginPath();
-        const rTip = 4.5 * scale;
-        const tpx = (1.0 - thumb.x) * w;
-        const tpy = thumb.y * h;
-        ctx.moveTo(tpx + rTip, tpy);
-        ctx.arc(tpx, tpy, rTip, 0, 2 * Math.PI);
+        const tpx = Math.max(0, Math.min(w, (1.0 - thumb.x) * w));
+        const tpy = Math.max(0, Math.min(h, thumb.y * h));
+        const ipx = Math.max(0, Math.min(w, (1.0 - index.x) * w));
+        const ipy = Math.max(0, Math.min(h, index.y * h));
 
-        const ipx = (1.0 - index.x) * w;
-        const ipy = index.y * h;
-        ctx.moveTo(ipx + rTip, ipy);
-        ctx.arc(ipx, ipy, rTip, 0, 2 * Math.PI);
-        ctx.fill();
+        if (hand.data.isPinching) {
+          // 捏合激活：Apple 系统绿视觉反馈
+          const rTipHalo = 5.4 * scale;
+          const rTipCore = 3.6 * scale;
+          const rTipSpecular = 1.4 * scale;
+
+          ctx.fillStyle = 'rgba(48, 209, 88, 0.42)';
+          ctx.beginPath();
+          ctx.moveTo(tpx + rTipHalo, tpy);
+          ctx.arc(tpx, tpy, rTipHalo, 0, 2 * Math.PI);
+          ctx.moveTo(ipx + rTipHalo, ipy);
+          ctx.arc(ipx, ipy, rTipHalo, 0, 2 * Math.PI);
+          ctx.fill();
+
+          ctx.fillStyle = '#30d158';
+          ctx.beginPath();
+          ctx.moveTo(tpx + rTipCore, tpy);
+          ctx.arc(tpx, tpy, rTipCore, 0, 2 * Math.PI);
+          ctx.moveTo(ipx + rTipCore, ipy);
+          ctx.arc(ipx, ipy, rTipCore, 0, 2 * Math.PI);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.moveTo(tpx + rTipSpecular, tpy);
+          ctx.arc(tpx, tpy, rTipSpecular, 0, 2 * Math.PI);
+          ctx.moveTo(ipx + rTipSpecular, ipy);
+          ctx.arc(ipx, ipy, rTipSpecular, 0, 2 * Math.PI);
+          ctx.fill();
+        } else {
+          // 悬停就绪：素雅透亮珍珠圆盘
+          const rTipDepth = 4.4 * scale;
+          const rTipFrosted = 3.4 * scale;
+          const rTipCore = 2.0 * scale;
+
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
+          ctx.beginPath();
+          ctx.moveTo(tpx + rTipDepth, tpy);
+          ctx.arc(tpx, tpy, rTipDepth, 0, 2 * Math.PI);
+          ctx.moveTo(ipx + rTipDepth, ipy);
+          ctx.arc(ipx, ipy, rTipDepth, 0, 2 * Math.PI);
+          ctx.fill();
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.beginPath();
+          ctx.moveTo(tpx + rTipFrosted, tpy);
+          ctx.arc(tpx, tpy, rTipFrosted, 0, 2 * Math.PI);
+          ctx.moveTo(ipx + rTipFrosted, ipy);
+          ctx.arc(ipx, ipy, rTipFrosted, 0, 2 * Math.PI);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.moveTo(tpx + rTipCore, tpy);
+          ctx.arc(tpx, tpy, rTipCore, 0, 2 * Math.PI);
+          ctx.moveTo(ipx + rTipCore, ipy);
+          ctx.arc(ipx, ipy, rTipCore, 0, 2 * Math.PI);
+          ctx.fill();
+        }
       }
 
-      // 5. 绘制大拇指上方交互锚点标记与状态反馈圆环（捏合圆环半径以 60 FPS 阻尼插值过渡）
-      const anchorNorm = hand.data.interactionPointNorm ?? hand.data.midpointNorm;
-      if (isValidHudPoint(anchorNorm)) {
-        const mx = (1.0 - anchorNorm.x) * w;
-        const my = anchorNorm.y * h;
-        const targetRadius = (hand.data.isPinching ? 6 : 9) * scale;
-        const prevRadius = this.smoothedPinchRadius.get(hand.handKey) ?? targetRadius;
-        const radiusLerp = dtSec > 0 ? 1 - Math.exp(-24 * dtSec) : 1.0;
-        const pinchRadius = prevRadius + (targetRadius - prevRadius) * radiusLerp;
-        this.smoothedPinchRadius.set(hand.handKey, pinchRadius);
+      // 5. 苹果 visionOS 极简毛玻璃药丸徽标（手腕基准点，SF Pro 字体）
+      const wrist = lms[0];
+      const middleMcp = lms[9];
+      const anchor = isValidHudPoint(wrist) ? wrist : isValidHudPoint(middleMcp) ? middleMcp : null;
+      if (anchor) {
+        const lx = Math.max(28 * scale, Math.min(w - 28 * scale, (1.0 - anchor.x) * w));
+        const ly = Math.max(16 * scale, Math.min(h - 10 * scale, anchor.y * h + 18 * scale));
 
+        ctx.save();
+        ctx.font = `500 ${Math.round(10 * scale)}px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif`;
+        const textW = ctx.measureText(hand.label).width;
+        const dotR = 2.2 * scale;
+        const dotGap = 5 * scale;
+        const padX = 8 * scale;
+        const padY = 3.5 * scale;
+        const contentW = dotR * 2 + dotGap + textW;
+        const badgeW = contentW + padX * 2;
+        const badgeH = 15 * scale + padY * 2;
+        const badgeX = lx - badgeW / 2;
+        const badgeY = ly - badgeH / 2;
+
+        // 苹果极薄深色材质底衬（Apple dark materials capsule）
+        ctx.fillStyle = 'rgba(28, 28, 30, 0.72)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+        ctx.lineWidth = 0.5 * scale;
         ctx.beginPath();
-        ctx.arc(mx, my, pinchRadius, 0, 2 * Math.PI);
-        ctx.fillStyle = hand.data.isPinching ? hand.pinchLineColor : 'rgba(255, 255, 255, 0.2)';
+        if (typeof (ctx as any).roundRect === 'function') {
+          (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 7 * scale);
+        } else {
+          ctx.rect(badgeX, badgeY, badgeW, badgeH);
+        }
         ctx.fill();
-        ctx.lineWidth = 1.5 * scale;
-        ctx.strokeStyle = hand.jointColor;
         ctx.stroke();
-      }
 
-      // 6. 在手腕上方绘制手势左右手标识
-      if (isValidHudPoint(lms[0])) {
-        const wristX = (1.0 - lms[0].x) * w;
-        const wristY = lms[0].y * h;
-        ctx.fillStyle = hand.jointColor;
-        ctx.font = `bold ${Math.round(10 * scale)}px -apple-system, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText(hand.label, wristX, Math.min(h - 6 * scale, wristY + 14 * scale));
+        // 状态指示圆点
+        const dotX = badgeX + padX + dotR;
+        const dotY = ly;
+        ctx.fillStyle = hand.data.isPinching ? '#30d158' : hand.accentDotColor;
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, dotR, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // 标签文字（SF Pro Text 纯净柔白）
+        ctx.fillStyle = '#f5f5f7';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(hand.label, dotX + dotR + dotGap, ly);
+        ctx.restore();
       }
     }
 
@@ -1944,12 +2102,19 @@ export class HandTrackingHUD {
 
   public toggleLogPanel(force?: boolean): void {
     this.isLogPanelOpen = force !== undefined ? force : !this.isLogPanelOpen;
-    if (this.isLogPanelOpen) {
-      this.logSectionEl.classList.remove('collapsed');
-      this.logToggleBtn.classList.add('active');
-    } else {
-      this.logSectionEl.classList.add('collapsed');
-      this.logToggleBtn.classList.remove('active');
+    if (this.logSectionEl) {
+      if (this.isLogPanelOpen) {
+        this.logSectionEl.classList.remove('collapsed');
+      } else {
+        this.logSectionEl.classList.add('collapsed');
+      }
+    }
+    if (this.logToggleBtn) {
+      if (this.isLogPanelOpen) {
+        this.logToggleBtn.classList.add('active');
+      } else {
+        this.logToggleBtn.classList.remove('active');
+      }
     }
   }
 

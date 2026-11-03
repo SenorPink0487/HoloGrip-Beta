@@ -86,7 +86,7 @@ export function extractHandKinematics(landmarks: NormalizedLandmark[]): {
   const thumbRaw: Vec3 = {
     x: (pts[4].x - pts[2].x) * 0.7 + (pts[4].x - pts[1].x) * 0.3,
     y: (pts[4].y - pts[2].y) * 0.7 + (pts[4].y - pts[1].y) * 0.3,
-    z: (pts[4].z - pts[2].z) * 0.35, // 抑制单目深度 Z 噪声，强化 XY 主平面指向精度
+    z: (pts[4].z - pts[2].z) * 0.70, // 真实三维深度感知，防止向前指镜头时虚假判定为向上对齐导线
   };
   const thumbDir = normalizeVec3(thumbRaw);
 
@@ -103,25 +103,29 @@ export function extractHandKinematics(landmarks: NormalizedLandmark[]): {
   for (const [mcpIdx, tipIdx] of fingerPairs) {
     fx += pts[tipIdx].x - pts[mcpIdx].x;
     fy += pts[tipIdx].y - pts[mcpIdx].y;
-    fz += (pts[tipIdx].z - pts[mcpIdx].z) * 0.35;
+    fz += (pts[tipIdx].z - pts[mcpIdx].z) * 0.70;
   }
   const fourFingersDir = normalizeVec3({ x: fx, y: fy, z: fz });
 
-  // 3. 四指弯曲程度（通过指尖到掌心基部距离与掌骨长度的比值计算）
+  // 3. 四指弯曲程度（基于三维真实欧氏距离：指尖至掌指关节距离与掌骨基准尺寸之比）
   const wrist = pts[0];
   const palmScale = Math.max(
     0.05,
-    Math.hypot(pts[9].x - wrist.x, pts[9].y - wrist.y),
-    Math.hypot(pts[5].x - pts[17].x, pts[5].y - pts[17].y)
+    Math.hypot(pts[9].x - wrist.x, pts[9].y - wrist.y, pts[9].z - wrist.z),
+    Math.hypot(pts[5].x - pts[17].x, pts[5].y - pts[17].y, pts[5].z - pts[17].z)
   );
 
   let totalExtension = 0;
   for (const [mcpIdx, tipIdx] of fingerPairs) {
-    const tipToMcp = Math.hypot(pts[tipIdx].x - pts[mcpIdx].x, pts[tipIdx].y - pts[mcpIdx].y);
+    const tipToMcp = Math.hypot(
+      pts[tipIdx].x - pts[mcpIdx].x,
+      pts[tipIdx].y - pts[mcpIdx].y,
+      pts[tipIdx].z - pts[mcpIdx].z
+    );
     totalExtension += tipToMcp / palmScale;
   }
   const avgExtension = totalExtension / 4; // 伸直时约 0.85~1.25，握拳时约 0.15~0.45
-  const fingerCurlRatio = Math.max(0, Math.min(1, (0.95 - avgExtension) / 0.55));
+  const fingerCurlRatio = Math.max(0, Math.min(1, (0.88 - avgExtension) / 0.45));
 
   return {
     thumbDir,
@@ -343,13 +347,20 @@ export function evaluateHandRuleFrame(
   const { thumbDir, fourFingersDir, fingerCurlRatio } = extractHandKinematics(targetHandData.landmarks);
 
   if (config.mode === 'right-hand-screw') {
-    // 右手螺旋定则：大拇指与电流 I 方向一致，且四指弯曲环绕
+    // 右手螺旋法则（安培定则）：遵循直导线核心物理规则，只要右手大拇指朝向与电流 I 一致即可精准触发
     const thumbDot = dotVec3(thumbDir, targetVectorDir); // [-1, 1]
-    const dirScore = Math.max(0, Math.min(1, (thumbDot - 0.15) / 0.55));
-    // 兼顾弯曲四指（握姿加分，即便微弯也允许通过）
-    const curlBonus = fingerCurlRatio >= 0.18 ? 1.0 : 0.65 + (fingerCurlRatio / 0.18) * 0.35;
-    const alignmentScore = dirScore * curlBonus;
-    const isMatched = thumbDot >= 0.45 && fingerCurlRatio >= 0.15;
+    const alignmentScore = Math.max(0, Math.min(1, (thumbDot - 0.10) / 0.70));
+    // 聚焦判定大拇指朝向：沿电流方向 (+Y 或 -Y) 在有效角锥内即判定成功；横向偏转或反向则拒绝匹配
+    const isMatched = thumbDot >= 0.35;
+
+    let statusLabel: string;
+    if (isMatched) {
+      statusLabel = '右手螺旋匹配成功：环绕磁场 B 已点亮';
+    } else if (thumbDot < -0.15) {
+      statusLabel = `大拇指方向相反，请使大拇指指向电流 (${targetVectorDir.y > 0 ? '向上' : '向下'})`;
+    } else {
+      statusLabel = `请伸出右手，使大拇指指向电流方向 (${targetVectorDir.y > 0 ? '向上' : '向下'})`;
+    }
 
     return {
       mode: config.mode,
@@ -366,9 +377,7 @@ export function evaluateHandRuleFrame(
       thumbDir,
       fourFingersDir,
       fingerCurlRatio,
-      statusLabel: isMatched
-        ? `右手螺旋匹配成功：环绕磁场 B 已点亮`
-        : `请用右手弯曲四指，大拇指指向电流 I (${targetVectorDir.y > 0 ? '向上' : '向下'})`,
+      statusLabel,
     };
   }
 

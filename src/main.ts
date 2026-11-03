@@ -1,4 +1,5 @@
 import './ui/demonstration.css';
+import './ui/vision/tutorial.css';
 import { Engine } from './core/Engine';
 import { WhiteboardApp } from './whiteboard/WhiteboardApp';
 import { preloadAccountAssets } from './whiteboard/AccountModal';

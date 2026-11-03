@@ -126,9 +126,13 @@ export class VisionProCursor {
       }
 
       #vision-pro-hand-cursor.hidden,
-      #vision-pro-left-reticle.hidden {
-        opacity: 0;
-        visibility: hidden;
+      #vision-pro-left-reticle.hidden,
+      #vision-pro-hand-cursor.in-preview-modal,
+      #vision-pro-left-reticle.in-preview-modal {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        display: none !important;
       }
 
       #vision-pro-hand-cursor.visible,
@@ -394,6 +398,14 @@ export class VisionProCursor {
       this.currentRightY = this.renderRightY;
       this.rightContainer.style.transform = `translate3d(${this.renderRightX.toFixed(2)}px, ${this.renderRightY.toFixed(2)}px, 0)`;
 
+      // 手势追踪窗口内严禁显示光标
+      const isRightOverModal = this.isOverPreviewModal(this.renderRightX, this.renderRightY);
+      if (isRightOverModal) {
+        this.rightContainer.classList.add('in-preview-modal');
+      } else {
+        this.rightContainer.classList.remove('in-preview-modal');
+      }
+
       // 在处于长按拖拽（调节滑块、拖拽烧杯）或悬停瞄准状态时，在 60 FPS 渲染帧中持续派发平滑指针事件
       if (this.isRightPinching && this.dragTarget) {
         if (Math.hypot(this.renderRightX - this.lastDispatchedX, this.renderRightY - this.lastDispatchedY) >= 0.5) {
@@ -428,7 +440,33 @@ export class VisionProCursor {
       this.currentLeftX = this.renderLeftX;
       this.currentLeftY = this.renderLeftY;
       this.leftContainer.style.transform = `translate3d(${this.renderLeftX.toFixed(2)}px, ${this.renderLeftY.toFixed(2)}px, 0)`;
+
+      // 手势追踪窗口内严禁显示光标
+      const isLeftOverModal = this.isOverPreviewModal(this.renderLeftX, this.renderLeftY);
+      if (isLeftOverModal) {
+        this.leftContainer.classList.add('in-preview-modal');
+      } else {
+        this.leftContainer.classList.remove('in-preview-modal');
+      }
     }
+  }
+
+  /**
+   * 检查指定屏幕像素坐标是否位于双手手势追踪画中画窗口区域内。
+   * 用户规则要求：手势追踪窗口中专注呈现高精度手部骨骼拓扑结构，此窗口中严禁显示任何浮动光标。
+   */
+  public isOverPreviewModal(x: number, y: number): boolean {
+    if (typeof document === 'undefined') return false;
+    const modal = document.querySelector('.vp-hud-preview-modal:not(.hidden)');
+    if (!modal) return false;
+    const rect = modal.getBoundingClientRect();
+    // 预留 6px 吸附屏蔽边距，避免边缘悬停时微颤
+    return (
+      x >= rect.left - 6 &&
+      x <= rect.right + 6 &&
+      y >= rect.top - 6 &&
+      y <= rect.bottom + 6
+    );
   }
 
   public getRightPosition(): { x: number; y: number } {
@@ -523,6 +561,13 @@ export class VisionProCursor {
     this.isDomHovered = isInteractive;
     this.setHovered(this.isDomHovered || this.isSpatialSnapped);
 
+    const isOverModal = this.isOverPreviewModal(hand.screenX, hand.screenY);
+    if (isOverModal) {
+      this.rightContainer.classList.add('in-preview-modal');
+    } else {
+      this.rightContainer.classList.remove('in-preview-modal');
+    }
+
     if (!hand.isPinching && hand.pinchStrength > 0.1) {
       const coreScale = 1.0 + hand.pinchStrength * 0.6;
       this.rightCore.style.transform = `scale(${coreScale})`;
@@ -558,6 +603,13 @@ export class VisionProCursor {
       this.currentLeftX = leftHand.screenX;
       this.currentLeftY = leftHand.screenY;
       this.leftContainer.style.transform = `translate3d(${leftHand.screenX}px, ${leftHand.screenY}px, 0)`;
+    }
+
+    const isLeftOverModal = this.isOverPreviewModal(leftHand.screenX, leftHand.screenY);
+    if (isLeftOverModal) {
+      this.leftContainer.classList.add('in-preview-modal');
+    } else {
+      this.leftContainer.classList.remove('in-preview-modal');
     }
 
     if (!leftHand.isPinching && leftHand.pinchStrength > 0.1) {
@@ -654,6 +706,17 @@ export class VisionProCursor {
     if (this.isDualPinching) {
       if (this.isRightPinching || this.dragTarget) {
         this.releasePinch(x, y, currentElement);
+      }
+      return;
+    }
+
+    // 位于手势追踪画中画窗口上方时，抑制手势模拟点击与浮动光标，防误触并保持手部纯净
+    const isOverModal =
+      this.isOverPreviewModal(x, y) ||
+      Boolean(currentElement?.closest('.vp-hud-preview-modal'));
+    if (isOverModal && !this.dragTarget) {
+      if (this.lastHoverTarget) {
+        this.clearHover();
       }
       return;
     }

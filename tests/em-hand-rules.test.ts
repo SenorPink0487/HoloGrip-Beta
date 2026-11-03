@@ -636,6 +636,110 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   console.log('✓ Test 9 passed: Right-Hand Rule Single Conductor Rod & Directional Vectors verified');
 }
 
+// Test 10: Strict Directional Verification for Right-Hand Screw Rule (聚焦拇指朝向，反向/横向/前向均不触发，同向顺畅触发)
+{
+  const configUp: HandRuleConfig = {
+    mode: 'right-hand-screw',
+    currentPolarity: 1,
+    fieldPolarity: 1,
+    motionPolarity: 1,
+    gestureEnabled: true,
+  };
+
+  // 1. 正确姿势：大拇指指向电流 (+Y 向上)，不论四指紧握或自然微屈，均精准判别成功
+  const thumbUpFrame = wrapSingleHandFrame(
+    'right',
+    buildMockLandmarks({
+      thumbDirWorld: { x: 0, y: 1 },
+      fingersDirWorld: { x: -1, y: 0 },
+      curled: false, // 遵循用户要求：只要拇指朝向正确即可顺畅判别
+    })
+  );
+  const evalUp = evaluateHandRuleFrame(configUp, thumbUpFrame);
+  assert.strictEqual(evalUp.isMatched, true, 'Thumb pointing along current MUST match right-hand screw rule');
+  assert.strictEqual(evalUp.status, 'matched');
+
+  // 2. 拇指横指 (+X 水平向右 90°)：与电流垂直，严禁触发
+  const thumbSideFrame = wrapSingleHandFrame(
+    'right',
+    buildMockLandmarks({
+      thumbDirWorld: { x: 1, y: 0 },
+      fingersDirWorld: { x: 0, y: 1 },
+      curled: true,
+    })
+  );
+  const evalSide = evaluateHandRuleFrame(configUp, thumbSideFrame);
+  assert.strictEqual(evalSide.isMatched, false, 'Horizontal sideways thumb MUST NOT match vertical current');
+
+  // 3. 拇指前指 (+Z 指向摄像头)：深度感知生效，严禁误判为垂直向上对齐
+  const forwardThumbFrame = wrapSingleHandFrame(
+    'right',
+    buildMockLandmarks({
+      thumbDirWorld: { x: 0, y: 0.1, z: 1 },
+      fingersDirWorld: { x: -1, y: 0 },
+      curled: true,
+    })
+  );
+  const evalForward = evaluateHandRuleFrame(configUp, forwardThumbFrame);
+  assert.strictEqual(evalForward.isMatched, false, 'Thumb pointing towards camera MUST NOT match vertical wire');
+
+  // 4. 拇指向下 (-Y)：与电流完全反向，严禁触发
+  const thumbDownFrame = wrapSingleHandFrame(
+    'right',
+    buildMockLandmarks({
+      thumbDirWorld: { x: 0, y: -1 },
+      fingersDirWorld: { x: 1, y: 0 },
+      curled: true,
+    })
+  );
+  const evalDown = evaluateHandRuleFrame(configUp, thumbDownFrame);
+  assert.strictEqual(evalDown.isMatched, false, 'Inverted thumb pointing opposite to current MUST NOT match');
+
+  // 5. 电流向下 (-Y) 时：拇指向下必须成功匹配，拇指向上严禁匹配
+  const configDown: HandRuleConfig = { ...configUp, currentPolarity: -1 };
+  assert.strictEqual(evaluateHandRuleFrame(configDown, thumbDownFrame).isMatched, true);
+  assert.strictEqual(evaluateHandRuleFrame(configDown, thumbUpFrame).isMatched, false);
+
+  console.log('✓ Test 10 passed: Strict Directional Verification for Right-Hand Screw Rule verified');
+}
+
+// Test 11: Single Right Hand in Left Half of Screen (screenX <= 0.45) correctly matches Right-Hand Screw Rule
+{
+  const { HandGestureService } = await import('../src/vision/HandGestureService.ts');
+  const service = new HandGestureService();
+
+  // 用户在屏幕中左侧（未镜像 rawX = 0.60 -> 镜像后 screenX = 0.40 <= 0.45）伸出右手比划定则
+  // 模型预测 categoryName: 'Left' (未镜像相机下真实右手)
+  const lms = buildMockLandmarks({
+    thumbDirWorld: { x: 0, y: 1 },
+    fingersDirWorld: { x: -1, y: 0 },
+    curled: true,
+  });
+  // 将关键点整体偏移至屏幕中左侧 (screenX ≈ 0.40)
+  for (const p of lms) {
+    p.x += 0.10; // 偏移后镜像 screenX = 1 - 0.60 = 0.40
+  }
+
+  const frame = service.processMultiHands([lms], [[{ categoryName: 'Left', score: 0.95 }]], 5000);
+  assert(frame.hasHand, 'Must detect hand');
+  assert(frame.rightHand !== null, 'Right hand at screenX <= 0.45 MUST be recognized as rightHand (not forced to leftHand)');
+  assert.strictEqual(frame.leftHand, null, 'Must NOT be falsely assigned to leftHand');
+
+  const evalRes = evaluateHandRuleFrame(
+    {
+      mode: 'right-hand-screw',
+      currentPolarity: 1,
+      fieldPolarity: 1,
+      motionPolarity: 1,
+      gestureEnabled: true,
+    },
+    frame
+  );
+  assert.strictEqual(evalRes.isMatched, true, 'Right hand in center-left position MUST successfully match right-hand screw rule');
+
+  console.log('✓ Test 11 passed: Single Right Hand in Left Half of Screen (screenX <= 0.45) matches Right-Hand Screw Rule');
+}
+
 console.log('========================================================');
-console.log('All Electromagnetism Hand Rules Tests Passed (9/9)!');
+console.log('All Electromagnetism Hand Rules Tests Passed (11/11)!');
 console.log('========================================================\n');

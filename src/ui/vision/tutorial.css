@@ -1,0 +1,141 @@
+#tutorial-launcher {
+  position: fixed;
+  top: calc(74px + env(safe-area-inset-top, 0px));
+  right: calc(18px + env(safe-area-inset-right, 0px));
+  z-index: 8490;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid #ffffff42;
+  border-radius: 24px;
+  color: #24364b;
+  background: linear-gradient(155deg, #f6fbffe0, #e2ecf4b8);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: inset 0 1px 0 #ffffff26, 0 4px 18px #07132220;
+  font: 500 13px -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', sans-serif;
+  letter-spacing: -0.01em;
+  font-feature-settings: 'cv02', 'tnum';
+  -webkit-font-smoothing: antialiased;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background .25s, border-color .25s, transform .32s cubic-bezier(.16,1,.3,1), opacity .25s, box-shadow .25s;
+}
+
+#tutorial-launcher span,
+.vision-window-btn.btn-tutorial span,
+.vision-window-title {
+  display: inline-block;
+  will-change: opacity, filter, transform;
+}
+
+body:not(.lab-active) #tutorial-launcher,
+body.lab-returning #tutorial-launcher {
+  display: none;
+}
+
+#tutorial-launcher:hover { background: #f5fafff2; border-color: #ffffff70; transform: translateY(-1px); }
+#tutorial-launcher:active { transform: scale(.96); }
+#tutorial-launcher[aria-pressed='true'] { background: #d9edfff0; color: #165b9d; border-color: #fff9; }
+
+.vision-window-btn.btn-tutorial {
+  width: auto;
+  padding: 0 12px;
+  gap: 7px;
+  border-radius: 18px;
+  font: 500 12px -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+.vision-window-btn.btn-tutorial[aria-pressed='true'] { color: #a9d7ff; background: #68acff1a; border-color: #8cc6ff38; }
+.vision-spatial-window .vision-window-header > .header-center { position: absolute; left: 50%; transform: translateX(-50%); }
+.vision-spatial-window .vision-window-header > .header-right { margin-left: auto; }
+
+.tutorial-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  color: #f0f4fa;
+  background: radial-gradient(ellipse at 80% 0%, #74b7ff09, transparent 60%);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'PingFang SC', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv02', 'tnum';
+  text-align: left;
+}
+.tutorial-panel[hidden], .tutorial-panel [hidden] { display: none !important; }
+.tutorial-panel * { box-sizing: border-box; }
+.tutorial-directory { flex: 1; min-height: 0; padding: 16px 22px; overflow: hidden; display: flex; flex-direction: column; }
+.tutorial-directory .vision-physics-discipline { flex: 1; min-height: 0; }
+.tutorial-directory .physics-level-container { margin: 0 auto; }
+.tutorial-directory .ios-nav-push, .tutorial-directory .ios-nav-pop,
+.tutorial-directory .optics-card, .tutorial-directory .physics-branch-tile,
+.tutorial-directory .discipline-card { animation: none !important; }
+.tutorial-detail { position: relative; flex: 1; min-height: 0; overflow-y: auto; padding: 30px 54px 40px; scrollbar-width: thin; scrollbar-color: #ffffff30 transparent; }
+.tutorial-intro { margin-bottom: 20px; }
+.tutorial-eyebrow { display: flex; align-items: center; gap: 9px; color: #8cc3f8; font-size: 12px; font-weight: 600; letter-spacing: .06em; }
+.tutorial-eyebrow > span { color: #ffffff30; }
+.tutorial-intro h2 { margin: 13px 0 10px; color: #f7faff; font-size: 32px; font-weight: 650; line-height: 1.3; letter-spacing: -.026em; }
+.tutorial-intro > p { margin: 0; color: #b9cbe1; font-size: 16px; line-height: 1.7; }
+.tutorial-sections { display: inline-flex; gap: 3px; padding: 4px; border: 1px solid #ffffff0f; border-radius: 13px; background: #bedaff07; }
+.tutorial-sections button { min-height: 36px; padding: 6px 20px; border: 0; border-radius: 9px; color: #c5d9ee; background: transparent; font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer; }
+.tutorial-sections button:hover { background: #c6dfff12; color: #fff; }
+.tutorial-detail section { margin-top: 30px; }
+.tutorial-detail section > h3 { margin: 0 0 16px; font-size: 20px; line-height: 1.4; font-weight: 600; letter-spacing: -.02em; color: #edf5ff; }
+.tutorial-detail p, .tutorial-observations li { color: #c5d3e5; font-size: 16px; line-height: 1.9; letter-spacing: -.01em; }
+.tutorial-detail p { margin: 0 0 14px; }
+.tutorial-purpose { padding: 19px 23px; border: 1px solid #aecfff17; border-radius: 16px; background: #b0d3ff06; }
+.tutorial-purpose > h3 { margin-bottom: 7px !important; font-size: 16px !important; color: #9cc8f6 !important; }
+.tutorial-purpose > p { margin: 0; }
+.tutorial-principle-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 32px; align-items: start; }
+.tutorial-prose p:last-child { margin-bottom: 0; }
+.tutorial-figure { min-width: 0; margin: 3px 0 0; }
+.tutorial-illustration { position: relative; aspect-ratio: 560 / 310; border: 1px solid #c3dfff17; border-radius: 20px; background: radial-gradient(ellipse at 50% 40%, #72a7eb13, transparent 70%), linear-gradient(160deg, #f0f6ff05, #accbff03); overflow: hidden; }
+.tutorial-illustration > svg { display: block; width: 100%; height: 100%; }
+.tutorial-apparatus { fill: none; stroke: #c0d0e4; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tutorial-apparatus .tutorial-glass { fill: #8dbaff12; stroke: #a8c4e8; }
+.tutorial-apparatus .tutorial-brass { fill: #eac08320; stroke: #e6c28c; }
+.tutorial-apparatus .tutorial-ray { stroke: #82d6ec; stroke-width: 2.2; }
+.tutorial-apparatus .tutorial-dashed { stroke: #9fb4d680; stroke-dasharray: 5 6; stroke-width: 1.5; }
+.tutorial-apparatus .tutorial-light { fill: #b3d3ff8c; stroke: none; }
+.tutorial-apparatus text { fill: #bcd2eb; stroke: none; font: 13px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; }
+.tutorial-hotspot { position: absolute; display: grid; place-items: center; width: 29px; height: 29px; padding: 0; transform: translate(-50%, -50%); border: 1px solid #c3ddff60; border-radius: 50%; color: #e6f0ff; background: #203a57; font: 600 12px -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer; transition: background .2s, color .2s; }
+.tutorial-hotspot.is-active { color: #144c7d; background: #d8edff; border-color: #fff; box-shadow: 0 0 0 5px #9acaff18; }
+.tutorial-hotspot:hover { background: #6096bd; color: #fff; }
+.tutorial-figure figcaption { margin-top: 12px; color: #91a8c1; font-size: 11px; line-height: 1.6; text-align: center; }
+.tutorial-equations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 23px 0 0; }
+.tutorial-equations > div { padding: 18px 20px; border-radius: 14px; border: 1px solid #b5d8ff13; background: #b7d7ff07; }
+.tutorial-equations dt { color: #d5eaff; font-size: 17px; font-weight: 550; line-height: 1.8; overflow-wrap: anywhere; }
+.tutorial-equations dd { margin: 9px 0 0; color: #a8bdd5; font-size: 14px; line-height: 1.8; }
+.tutorial-preparation, .tutorial-record { padding: 0 0 0 18px; border-left: 2px solid #91bcea4d; }
+.tutorial-detail h4 { margin: 0 0 7px; color: #a9c9ed; font-size: 14px; font-weight: 600; }
+.tutorial-steps { list-style: none; margin: 17px 0 22px; padding: 0; }
+.tutorial-step { padding: 15px 18px; margin: 8px 0; border: 1px solid transparent; border-radius: 14px; }
+.tutorial-step.is-active { background: #afcfff07; border-color: #bddeff1f; }
+.tutorial-step > button { display: flex; align-items: center; gap: 15px; width: 100%; padding: 0; border: 0; color: #e0eaf7; background: transparent; text-align: left; font: 600 16px/1.6 -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; cursor: pointer; }
+.tutorial-step-number { color: #8fbceb; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tutorial-step > p { margin: 7px 0 0 32px; }
+.tutorial-observations ul { margin: 0 0 15px; padding-left: 22px; }
+.tutorial-observations li { margin: 9px 0; }
+.tutorial-takeaway { padding: 16px 21px; border-radius: 13px; border: 1px solid #e1c5921c; background: #e1c59208; color: #e5d9c2 !important; }
+.tutorial-conditions { border-top: 1px solid #ffffff0f; padding-top: 23px; }
+.tutorial-reference { margin-top: 23px; border-top: 1px solid #ffffff0f; }
+.tutorial-reference summary { display: flex; align-items: center; gap: 10px; padding: 18px 0; color: #c2d1e4; font-size: 15px; cursor: pointer; list-style: none; }
+.tutorial-reference summary::-webkit-details-marker { display: none; }
+.tutorial-reference summary > span:first-child { color: #93a8c1; font-size: 12px; }
+.tutorial-reference summary > span:last-child { margin-left: auto; font-size: 18px; }
+.tutorial-reference[open] summary > span:last-child { transform: rotate(45deg); }
+.tutorial-reference dl { margin: 0; }
+.tutorial-reference dl > div { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(0, 2fr); gap: 20px; padding: 15px 0; border-top: 1px solid #ffffff08; }
+.tutorial-reference dt { color: #d4dfed; font-size: 15px; line-height: 1.8; }
+.tutorial-reference dd { margin: 0; color: #a9bbd1; font-size: 14px; line-height: 1.8; }
+.tutorial-options { display: block; margin-top: 4px; color: #85a7ce; }
+#tutorial-launcher:focus-visible, .tutorial-panel button:focus-visible, .tutorial-reference summary:focus-visible { outline: 2px solid #a5d6ff; outline-offset: 3px; }
+@media (pointer: coarse) and (min-width: 768px) { #tutorial-launcher { top: calc(84px + env(safe-area-inset-top, 0px)); right: calc(40px + env(safe-area-inset-right, 0px)); } }
+@media (prefers-reduced-motion: reduce) {
+  #tutorial-launcher, .tutorial-panel *, .vision-spatial-window.is-tutorial, .vision-spatial-window.is-tutorial .vision-window-frame { transition: none !important; animation: none !important; }
+}

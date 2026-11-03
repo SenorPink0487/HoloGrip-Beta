@@ -1009,6 +1009,7 @@ export class Engine {
         this.holoTable?.hideHologram();
         this.holoStage.clearExperiment(this.currentContext);
         this.currentExperimentId = null;
+        this.visionModal.setCurrentExperimentId('chemistry');
         this.hud.clearActiveExperiment();
         if (this.isLiteLaboratory) { this.frameLiteChemistry(); this.positionWindowDefault(true); }
         this.beakerLeft?.setVisible(true, true);
@@ -1676,6 +1677,7 @@ export class Engine {
     this.reactionEffectsLeft?.reset();
     this.reactionEffectsRight?.reset();
     this.currentExperimentId = null;
+    this.visionModal?.setCurrentExperimentId('');
     this.inputManager?.touch?.setVisionLauncherVisible(true);
     this.holoTable?.hideHologram(true);
     this.hud?.clearActiveExperiment();

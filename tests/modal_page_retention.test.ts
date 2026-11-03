@@ -173,10 +173,12 @@ console.log('=== Starting Modal Page Retention Verification ===\n');
 
 const engine = new ChemistryEngine();
 let selectedExpId = '';
+let chemistrySelections = 0;
 
 const visionModal = new VisionModal(engine, {
   onOpen: () => {},
   onClose: () => {},
+  onSelectChemistry: () => { chemistrySelections++; },
   onSelectPhysicsExperiment: async (id: string) => {
     selectedExpId = id;
   },
@@ -342,6 +344,136 @@ const visionModal = new VisionModal(engine, {
   console.log('✓ Test 7 passed: Galileo experiment opens mechanics catalog without status card\n');
 }
 
+// Help must preserve the mounted controls and never select a background experiment.
+{
+  visionModal.setCurrentExperimentId('em-hall');
+  visionModal.open();
+  const modal = visionModal as any;
+  const mountedControls = [...modal.bodyContainer.children];
+  const selectedBeforeHelp = selectedExpId;
+  visionModal.setTutorialEnabled(true);
+  assert.strictEqual(visionModal.currentTab, 'tutorial');
+  assert.strictEqual(visionModal.visible, true);
+  assert.strictEqual(modal.tutorialPanel.selectedId, 'em-hall');
+  assert.strictEqual(modal.bodyContainer.style.display, 'none');
+  modal.tutorialPanel.selectGuide('optics-double-slit');
+  assert.strictEqual(selectedExpId, selectedBeforeHelp, 'Browsing help must not load experiments');
+  assert.strictEqual(modal.currentExperimentId, 'em-hall');
+  visionModal.close();
+  visionModal.open();
+  assert.strictEqual(modal.tutorialPanel.selectedId, 'optics-double-slit', 'Reopening help preserves the guide');
+  visionModal.setTutorialEnabled(false);
+  assert.strictEqual(visionModal.currentTab, 'em');
+  assert.strictEqual(modal.bodyContainer.style.display, '');
+  assert.deepStrictEqual(modal.bodyContainer.children, mountedControls, 'Help must preserve mounted controls');
+  assert.strictEqual(visionModal.hallCard.element.classList.contains('hidden'), false, 'Controls must become visible after reopening help');
+  console.log('✓ Test 8 passed: Contextual help preserves experiment, controls and navigation\n');
+}
+
+{
+  visionModal.switchTab('chemistry');
+  const selectionsBeforeHelp = chemistrySelections;
+  visionModal.setCurrentExperimentId('chemistry');
+  visionModal.setTutorialEnabled(true);
+  assert.strictEqual((visionModal as any).tutorialPanel.selectedId, 'chemistry');
+  visionModal.setTutorialEnabled(false);
+  assert.strictEqual(chemistrySelections, selectionsBeforeHelp, 'Exiting help must not reinitialize chemistry');
+  assert.strictEqual(visionModal.currentTab, 'chemistry');
+  // Explicit navigation takes precedence over the help mode.
+  visionModal.setTutorialEnabled(true);
+  visionModal.open('disciplines');
+  assert.strictEqual(visionModal.isTutorialEnabled, false);
+  assert.strictEqual(visionModal.currentTab, 'disciplines');
+  visionModal.close();
+  visionModal.setCurrentExperimentId('mech-free-fall');
+  visionModal.setTutorialEnabled(true);
+  assert.strictEqual(visionModal.visible, true, 'Help opens even when the spatial window is closed');
+  assert.strictEqual((visionModal as any).tutorialPanel.page, 'physics', 'Help retains the currently viewed card directory');
+  assert.strictEqual((visionModal as any).tutorialPanel.directory.getCurrentDiscipline(), 'mechanics');
+  visionModal.setTutorialEnabled(false);
+  visionModal.close();
+  console.log('✓ Test 9 passed: Chemistry state, explicit navigation and closed-window help work\n');
+}
+
+{
+  const modal = visionModal as any;
+  let animations = 0;
+  let cancellations = 0;
+  const text = new MockDOMElement('p');
+  (text as any).animate = (frames: any[]) => {
+    assert.ok(frames.every(frame => !frame.transform.includes('scale')), 'Text transitions must not scale');
+    animations++;
+    return { cancel: () => { cancellations++; } };
+  };
+  const windowElement = modal.element;
+  const frame = modal.element.querySelector('.vision-window-frame');
+  const frameStyle = { ...frame.style };
+  const windowScale = visionModal.scale;
+  frame.animate = () => assert.fail('The holographic frame must never animate during tutorial switches');
+  modal.bodyContainer.animate = () => assert.fail('The whole content area must not animate');
+  modal.tutorialPanel.element.animate = () => assert.fail('The whole tutorial area must not animate');
+  modal.bodyContainer.querySelectorAll = () => [text];
+  modal.tutorialPanel.element.querySelectorAll = () => [text];
+  (window as any).matchMedia = () => ({ matches: true });
+  visionModal.setTutorialEnabled(true);
+  visionModal.setTutorialEnabled(false);
+  assert.strictEqual(animations, 0, 'Reduced motion must skip tutorial animations');
+  (window as any).matchMedia = () => ({ matches: false });
+  visionModal.setTutorialEnabled(true);
+  visionModal.setTutorialEnabled(false);
+  assert.strictEqual(animations, 2, 'Each mode change animates text only');
+  assert.strictEqual(cancellations, 1, 'Rapid toggles cancel the previous text animation');
+  assert.strictEqual(modal.element, windowElement, 'Both modes use the same holographic window');
+  assert.deepStrictEqual(frame.style, frameStyle, 'Switches preserve window dimensions and transform');
+  assert.strictEqual(visionModal.scale, windowScale, 'Switches preserve window scale');
+  visionModal.close();
+  assert.strictEqual(cancellations, 2, 'Closing cancels pending text animations');
+  console.log('✓ Test 10 passed: Text-only transitions preserve the same window, dimensions and scale\n');
+}
+
+// The screenshot case: a math experiment remains mounted while browsing mechanics.
+{
+  visionModal.setCurrentExperimentId('math-stereometry');
+  const modal = visionModal as any;
+  modal.physicsModal.showLevel2('mechanics');
+  visionModal.open('physics');
+  const selectedBefore = selectedExpId;
+  visionModal.setTutorialEnabled(true);
+  const panel = modal.tutorialPanel;
+  assert.strictEqual(panel.page, 'physics');
+  assert.strictEqual(panel.directory.getCurrentLevel(), 2);
+  assert.strictEqual(panel.directory.getCurrentDiscipline(), 'mechanics');
+  const deck = panel.directory.element.querySelector('.optics-exp-deck');
+  deck.scrollTop = 84;
+  await panel.directory.callbacks.onSelectExperiment('mech-free-fall');
+  assert.strictEqual(panel.page, 'guide', 'The existing experiment card opens its introduction');
+  assert.strictEqual(panel.selectedId, 'mech-free-fall');
+  assert.strictEqual(selectedExpId, selectedBefore, 'Reading the introduction must not load another apparatus');
+  assert.strictEqual(modal.currentExperimentId, 'math-stereometry');
+  for (const heading of ['实验目的', '实验原理', '操作步骤', '现象与结论', '实验条件']) {
+    assert.ok(panel.detail.innerHTML.includes(heading), `Missing lesson section: ${heading}`);
+  }
+  assert.ok(panel.detail.innerHTML.includes('h = ½gt²'));
+  assert.ok(!panel.element.innerHTML.includes('tutorial-sidebar'), 'Lessons must not contain a sidebar');
+  modal.btnBack.dispatch('click');
+  assert.strictEqual(panel.page, 'physics');
+  assert.strictEqual(panel.directory.getCurrentDiscipline(), 'mechanics');
+  assert.strictEqual(deck.scrollTop, 84, 'Returning preserves the directory scroll position');
+  modal.btnBack.dispatch('click');
+  assert.strictEqual(panel.directory.getCurrentLevel(), 1);
+  modal.btnBack.dispatch('click');
+  assert.strictEqual(panel.page, 'subjects');
+  panel.subjects.callbacks.onSelectChemistry();
+  assert.strictEqual(panel.selectedId, 'chemistry');
+  panel.goBack();
+  assert.strictEqual(panel.page, 'subjects');
+  visionModal.setTutorialEnabled(false);
+  assert.strictEqual(visionModal.currentTab, 'physics');
+  assert.strictEqual(modal.physicsModal.getCurrentDiscipline(), 'mechanics');
+  visionModal.close();
+  console.log('✓ Test 11 passed: Card → introduction → original catalog; background experiment preserved\n');
+}
+
 console.log('========================================================');
-console.log('All Modal Page Retention Tests Passed (7/7)!');
+console.log('All Modal Page Retention Tests Passed (11/11)!');
 console.log('========================================================\n');

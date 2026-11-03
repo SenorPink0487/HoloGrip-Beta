@@ -17,6 +17,8 @@ import type { ChemistryEngine, SoluteComponent } from '../../chemistry/Chemistry
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 import { blurActiveInput, isTextInputActive } from '../../core/focus.ts';
+import { TutorialPanel, TUTORIAL_ICON } from './TutorialPanel.ts';
+import { animateTutorialText, animateTextSwap, TUTORIAL_TEXT_SELECTOR } from './tutorialMotion.ts';
 
 export type VisionTab = 'disciplines' | 'chemistry' | 'beaker' | 'physics' | 'math' | 'em' | 'mechanics' | 'thermo';
 
@@ -125,6 +127,11 @@ export class VisionModal {
   private carnotStatusCard: CarnotStatusCard;
   private fourierStatusCard: FourierStatusCard;
   private currentExperimentId = '';
+  private tutorialPanel: TutorialPanel;
+  private tutorialEnabled = false;
+  private tutorialLauncher: HTMLButtonElement;
+  private tutorialAnimations: Animation[] = [];
+  private savedWindowTitle = '';
 
   private bodyContainer: HTMLElement;
   private statusCardSlot: HTMLElement;
@@ -199,6 +206,30 @@ export class VisionModal {
     this.statusCardSlot = this.element.querySelector('#vision-status-slot') as HTMLElement;
     this.btnBack = this.element.querySelector('#btn-window-back');
     this.scaleIndicatorEl = this.element.querySelector('#vision-scale-indicator');
+
+    this.tutorialPanel = new TutorialPanel((title, canGoBack) => {
+      if (!this.tutorialEnabled) return;
+      animateTextSwap(this.element.querySelector('#vision-window-title'), title);
+      this.btnBack?.classList.toggle('hidden', !canGoBack);
+    });
+    this.tutorialPanel.element.hidden = true;
+    this.element.querySelector('.vision-window-frame')!.appendChild(this.tutorialPanel.element);
+    this.tutorialLauncher = document.createElement('button');
+    this.tutorialLauncher.id = 'tutorial-launcher';
+    this.tutorialLauncher.className = 'hud-interactive';
+    this.tutorialLauncher.type = 'button';
+    this.tutorialLauncher.setAttribute('aria-pressed', 'false');
+    this.tutorialLauncher.setAttribute('aria-controls', 'vision-spatial-window');
+    this.tutorialLauncher.innerHTML = `${TUTORIAL_ICON}<span>使用教程</span>`;
+    for (const type of ['pointerdown', 'mousedown', 'touchstart', 'keydown']) {
+      this.tutorialLauncher.addEventListener(type, event => event.stopPropagation());
+    }
+    this.tutorialLauncher.addEventListener('click', event => {
+      event.stopPropagation();
+      this.setTutorialEnabled(!this.tutorialEnabled);
+      if (!this.isOpen) this.open();
+    });
+    document.body.appendChild(this.tutorialLauncher);
 
     // iPad 与触控设备的多指双指捏合缩放视窗交互
     let touchInitialDist = 0;
@@ -366,7 +397,7 @@ export class VisionModal {
       },
       onLevelChange: (level, title) => {
         const titleEl = this.element.querySelector('#vision-window-title');
-        if (titleEl && this.activeTab === 'physics') {
+        if (titleEl && this.activeTab === 'physics' && !this.tutorialEnabled) {
           titleEl.textContent = level === 2 && title ? title : '物理学';
         }
       },
@@ -499,6 +530,10 @@ export class VisionModal {
     );
 
     this.btnBack?.addEventListener('click', () => {
+      if (this.tutorialEnabled) {
+        this.tutorialPanel.goBack();
+        return;
+      }
       if (this.activeTab === 'physics') {
         if (this.physicsModal.canGoBack()) {
           this.physicsModal.goBack();
@@ -564,7 +599,7 @@ export class VisionModal {
           e.key === ']'
         ) {
           e.preventDefault();
-          if (this.activeTab === 'math') {
+          if (this.activeTab === 'math' && !this.tutorialEnabled) {
             this.callbacks.onMathZoom?.(1);
           } else {
             this.zoomIn();
@@ -578,14 +613,14 @@ export class VisionModal {
           e.key === '['
         ) {
           e.preventDefault();
-          if (this.activeTab === 'math') {
+          if (this.activeTab === 'math' && !this.tutorialEnabled) {
             this.callbacks.onMathZoom?.(-1);
           } else {
             this.zoomOut();
           }
         } else if (e.code === 'Digit0' || e.code === 'Numpad0' || e.key === '0') {
           e.preventDefault();
-          if (this.activeTab === 'math') {
+          if (this.activeTab === 'math' && !this.tutorialEnabled) {
             this.callbacks.onMathResetScale?.();
           } else {
             this.resetScale();
@@ -652,6 +687,7 @@ export class VisionModal {
 
   public setCurrentExperimentId(id: string): void {
     this.currentExperimentId = id;
+    if (this.tutorialEnabled) this.tutorialPanel.setActiveExperiment(id);
     if (id === 'math-stereometry') {
       this.activeTab = 'math';
     } else if (id.startsWith('em-')) {
@@ -683,7 +719,19 @@ export class VisionModal {
     }
   }
 
+  private setStatusCardsVisible(tab: VisionTab | null): void {
+    this.stereometryStatusCard?.setVisible(tab === 'math');
+    this.hallStatusCard?.setVisible(tab === 'em' && !['em-field', 'em-capacitor-discharge', 'em-hand-rules'].includes(this.currentExperimentId));
+    this.fieldStatusCard?.setVisible(tab === 'em' && this.currentExperimentId === 'em-field');
+    this.capacitorStatusCard?.setVisible(tab === 'em' && this.currentExperimentId === 'em-capacitor-discharge');
+    this.handRulesStatusCard?.setVisible(tab === 'em' && this.currentExperimentId === 'em-hand-rules');
+    this.newtonStatusCard?.setVisible(tab === 'mechanics');
+    this.carnotStatusCard?.setVisible(tab === 'thermo' && this.currentExperimentId !== 'thermo-fourier');
+    this.fourierStatusCard?.setVisible(tab === 'thermo' && this.currentExperimentId === 'thermo-fourier');
+  }
+
   public switchTab(tab: VisionTab): void {
+    if (this.tutorialEnabled) this.setTutorialEnabled(false);
     if (tab !== 'beaker') {
       this.statusCard?.clearSelectedCompound();
     }
@@ -748,17 +796,7 @@ export class VisionModal {
     this.statusCardSlot.innerHTML = '';
     this.statusCardSlot.style.display = 'none';
 
-    if (this.stereometryStatusCard) {
-      this.stereometryStatusCard.setVisible(tab === 'math');
-    }
-    if (this.hallStatusCard) this.hallStatusCard.setVisible(false);
-    if (this.fieldStatusCard) this.fieldStatusCard.setVisible(false);
-    if (this.capacitorStatusCard) this.capacitorStatusCard.setVisible(false);
-    if (this.handRulesStatusCard) this.handRulesStatusCard.setVisible(false);
-    if (this.newtonStatusCard) this.newtonStatusCard.setVisible(tab === 'mechanics');
-    if (this.carnotStatusCard) this.carnotStatusCard.setVisible(false);
-    if (this.fourierStatusCard) this.fourierStatusCard.setVisible(false);
-    if (tab === 'em' && emId !== 'em-capacitor-discharge') emCard.setVisible(true);
+    this.setStatusCardsVisible(tab);
 
     if (tab === 'disciplines') {
       this.bodyContainer.appendChild(this.disciplineSelector.element);
@@ -773,19 +811,15 @@ export class VisionModal {
         this.currentExperimentId = 'math-stereometry';
         this.callbacks.onSelectPhysicsExperiment?.('math-stereometry');
       }
-      this.stereometryStatusCard.setVisible(true);
       this.bodyContainer.appendChild(this.stereometryStatusCard.element);
     } else if (tab === 'beaker') {
       this.bodyContainer.appendChild(this.statusCard.element);
       this.callbacks.onSelectChemistry?.();
     } else if (tab === 'em') {
-      emCard.setVisible(true);
       this.bodyContainer.appendChild(emCard.element);
     } else if (tab === 'mechanics') {
-      this.newtonStatusCard.setVisible(true);
       this.bodyContainer.appendChild(this.newtonStatusCard.element);
     } else if (tab === 'thermo') {
-      thermoCard.setVisible(true);
       this.bodyContainer.appendChild(thermoCard.element);
     }
   }
@@ -793,7 +827,8 @@ export class VisionModal {
   public open(tab?: VisionTab, beakerId?: 'left' | 'right'): void {
     const targetTab = tab || this.activeTab || 'disciplines';
 
-    this.switchTab(targetTab);
+    // Reopening help keeps its selected guide; explicit navigation exits help.
+    if (!this.tutorialEnabled || tab) this.switchTab(targetTab);
 
     if (beakerId) {
       this.setActiveBeaker(beakerId);
@@ -807,6 +842,9 @@ export class VisionModal {
   }
 
   public close(): void {
+    this.tutorialPanel.cancelTextAnimations();
+    this.tutorialAnimations.forEach(animation => animation.cancel());
+    this.tutorialAnimations = [];
     this.statusCard?.clearSelectedCompound();
     this.periodicTableModal?.closeElementPopover();
     this.element.querySelector('.vision-window-frame')?.classList.remove('has-modal-popover');
@@ -821,21 +859,57 @@ export class VisionModal {
     this.element.setAttribute('aria-hidden', 'true');
     this.element.setAttribute('inert', '');
     (this.element as any).inert = true;
-    this.stereometryStatusCard?.setVisible(false);
-    this.hallStatusCard?.setVisible(false);
-    this.fieldStatusCard?.setVisible(false);
-    this.capacitorStatusCard?.setVisible(false);
-    this.handRulesStatusCard?.setVisible(false);
-    this.newtonStatusCard?.setVisible(false);
+    this.setStatusCardsVisible(null);
     this.callbacks.onClose();
+    if (this.tutorialEnabled) this.tutorialLauncher.focus?.({ preventScroll: true });
   }
 
   public get visible(): boolean {
     return this.isOpen;
   }
 
-  public get currentTab(): VisionTab {
-    return this.activeTab;
+  public get currentTab(): VisionTab | 'tutorial' {
+    return this.tutorialEnabled ? 'tutorial' : this.activeTab;
+  }
+
+  public get isTutorialEnabled(): boolean {
+    return this.tutorialEnabled;
+  }
+
+  public setTutorialEnabled(enabled: boolean): void {
+    if (enabled === this.tutorialEnabled) return;
+    this.periodicTableModal?.closeElementPopover();
+    this.element.querySelector('.vision-window-frame')?.classList.remove('has-modal-popover');
+    blurActiveInput(true);
+    const title = this.element.querySelector('#vision-window-title');
+    if (enabled) this.savedWindowTitle = title?.textContent || '实验视窗';
+    this.tutorialEnabled = enabled;
+    this.element.classList.toggle('is-tutorial', enabled);
+    this.bodyContainer.style.display = enabled ? 'none' : '';
+    this.tutorialPanel.element.hidden = !enabled;
+    this.setStatusCardsVisible(enabled || !this.isOpen ? null : this.activeTab);
+    this.btnBack?.classList.toggle('hidden', enabled || this.activeTab === 'disciplines');
+    if (title) animateTextSwap(title as HTMLElement, enabled ? '使用教程' : this.savedWindowTitle);
+    if (enabled) this.tutorialPanel.openContext({
+      tab: this.activeTab,
+      experimentId: this.currentExperimentId,
+      physicsLevel: this.physicsModal.getCurrentLevel(),
+      discipline: this.physicsModal.getCurrentDiscipline(),
+    });
+    this.tutorialLauncher?.setAttribute('aria-pressed', String(enabled));
+    this.tutorialLauncher?.setAttribute('title', enabled ? '退出使用教程' : '使用教程');
+    const label = this.tutorialLauncher?.querySelector<HTMLElement>('span');
+    if (label) animateTextSwap(label, enabled ? '退出教程' : '使用教程');
+    if (enabled && !this.isOpen) this.open();
+    this.tutorialPanel.cancelTextAnimations();
+    this.tutorialAnimations.forEach(animation => animation.cancel());
+    this.tutorialAnimations = [];
+    if (this.isOpen) {
+      const content = enabled ? this.tutorialPanel.element : this.bodyContainer;
+      this.tutorialAnimations = animateTutorialText(content.querySelectorAll<HTMLElement>(
+        enabled ? TUTORIAL_TEXT_SELECTOR : 'h1, h2, h3, p, label, button > span'
+      ));
+    }
   }
 
   public zoomIn(step = this.SCALE_STEP): void {

@@ -1362,9 +1362,14 @@ export class HandGestureService {
           isLeft = false;
         } else if (distToLeft <= leftMaxStep && distToLeft < distToRight) {
           isLeft = true;
-        } else if (det.screenX >= 0.55) {
-          // 新进入视野且显著位于屏幕右半区
+        } else if (det.label === 'right') {
+          // 新进入视野或无近距手腕轨迹时：若模型手性明确判定为右手，即使位于屏幕中线或左半区（screenX <= 0.45）也识别为右手
           isLeft = false;
+        } else if (det.screenX >= 0.55) {
+          // 新进入视野且显著位于屏幕右半区，作为右手空间兜底
+          isLeft = false;
+        } else if (det.label === 'left') {
+          isLeft = true;
         } else if (det.screenX <= 0.45) {
           // 新进入视野且显著位于屏幕左半区
           isLeft = true;

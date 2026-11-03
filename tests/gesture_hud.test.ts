@@ -202,6 +202,9 @@ console.log('=== Starting Active Gesture HUD & MediaPipe Integration Verificatio
   const previewModal = container.querySelector('.vp-hud-preview-modal');
   assert.ok(previewModal, 'Must contain .vp-hud-preview-modal');
   assert.strictEqual(previewModal.classList.contains('hidden'), true, 'Modal is initially hidden');
+  assert.strictEqual(previewModal.innerHTML.includes('vp-offline-tag'), false, 'Must NOT contain .vp-offline-tag');
+  assert.strictEqual(previewModal.innerHTML.includes('离线 MediaPipe'), false, 'Must NOT contain 离线 MediaPipe text');
+  assert.strictEqual(previewModal.innerHTML.includes('vp-modal-log-toggle-btn'), false, 'Must NOT contain .vp-modal-log-toggle-btn');
 
   // Verify setVisible
   hud.setVisible(false);
@@ -297,6 +300,7 @@ await (async () => {
     getVideoElement: () => null,
     getLastFrameImage: () => currentNativeSrc,
     getTelemetry: () => ({ isAppleVision: true, latencyMs: 4.0 }),
+    isAppleVision: () => true,
     stop: () => {},
   };
 
@@ -370,8 +374,112 @@ await (async () => {
   hud.destroy();
   (globalThis as any).Image = prevImage;
   console.log('✓ Test 3 passed: Double-buffered async JPEG decode completely eliminates 20-30Hz dark-frame flicker\n');
+
+  // Test 4: Hand Skeleton Topology Rendering & In-Preview-Modal Cursor Suppression
+  console.log('Test 4: Hand Skeleton Topology Rendering & In-Preview-Modal Cursor Suppression');
+  const hud4 = new HandTrackingHUD(mockService, mockParent as any);
+  (hud4 as any).previewCanvas.width = 380;
+  (hud4 as any).previewCanvas.height = 240;
+
+  let strokeCount = 0;
+  let lineToCount = 0;
+  let arcCount = 0;
+  let fillCount = 0;
+
+  (hud4 as any).previewCtx = {
+    clearRect: () => {},
+    fillRect: () => {},
+    fillText: () => {},
+    measureText: () => ({ width: 24 }),
+    translate: () => {},
+    scale: () => {},
+    drawImage: () => {},
+    save: () => {},
+    restore: () => {},
+    beginPath: () => {},
+    moveTo: () => {},
+    lineTo: () => {
+      lineToCount++;
+    },
+    stroke: () => {
+      strokeCount++;
+    },
+    arc: () => {
+      arcCount++;
+    },
+    fill: () => {
+      fillCount++;
+    },
+    roundRect: () => {},
+    rect: () => {},
+  };
+
+  // 构造模拟 MediaPipe HandLandmarker 输出的 21 个手部关键点（visibility 为 0）
+  const mockLandmarks = Array.from({ length: 21 }, (_, i) => ({
+    x: 0.2 + (i % 5) * 0.08,
+    y: 0.3 + Math.floor(i / 5) * 0.1,
+    z: 0,
+    visibility: 0, // MediaPipe 典型值，必须能正常渲染
+  }));
+
+  const mockFrame = {
+    hasHand: true,
+    timestamp: 1000,
+    leftHand: null,
+    rightHand: {
+      handedness: 'right' as const,
+      confidence: 0.95,
+      landmarks: mockLandmarks,
+      thumbTip: mockLandmarks[4],
+      indexTip: mockLandmarks[8],
+      midpointNorm: { x: 0.4, y: 0.4, z: 0 },
+      interactionPointNorm: { x: 0.4, y: 0.4, z: 0 },
+      screenX: 300,
+      screenY: 200,
+      rawDistance: 0.05,
+      handScale: 0.2,
+      pinchRatio: 0.25,
+      pinchStrength: 0,
+      isPinching: false,
+      justPinchStarted: false,
+      justPinchEnded: false,
+      pinchDuration: 0,
+      isLongPinch: false,
+    },
+    leftHandQuickPinch: false,
+    leftHandCameraDelta: null,
+    landmarks: mockLandmarks,
+    thumbTip: mockLandmarks[4],
+    indexTip: mockLandmarks[8],
+    midpointNorm: { x: 0.4, y: 0.4, z: 0 },
+    interactionPointNorm: { x: 0.4, y: 0.4, z: 0 },
+    screenX: 300,
+    screenY: 200,
+    rawDistance: 0.05,
+    handScale: 0.2,
+    pinchRatio: 0.25,
+    pinchStrength: 0,
+    isPinching: false,
+    justPinchStarted: false,
+    justPinchEnded: false,
+  };
+
+  (hud4 as any).renderPreviewCanvas(mockFrame, 0.016);
+
+  assert(lineToCount >= 20, `Hand skeleton bone connections must be drawn (got ${lineToCount} lineTo calls)`);
+  assert(strokeCount >= 2, `Hand skeleton strokes must be executed (got ${strokeCount} stroke calls)`);
+  assert(arcCount >= 21, `Hand joints must be rendered as arcs (got ${arcCount} arc calls)`);
+  assert(fillCount >= 2, `Hand joints must be filled (got ${fillCount} fill calls)`);
+
+  // 验证 VisionProCursor 在手势追踪窗口上方时自动隐藏且不派发手势点击
+  const cursorCode = fs.readFileSync(path.join(rootDir, 'src', 'vision', 'VisionProCursor.ts'), 'utf-8');
+  assert(cursorCode.includes('in-preview-modal'), 'VisionProCursor must include in-preview-modal suppression class');
+  assert(cursorCode.includes('isOverPreviewModal'), 'VisionProCursor must implement isOverPreviewModal detection');
+
+  hud4.destroy();
+  console.log('✓ Test 4 passed: Hand skeleton topology rendered cleanly with MediaPipe zero-visibility coordinates & cursor suppressed\n');
 })();
 
 console.log('========================================================');
-console.log('All Active Gesture HUD & MediaPipe Tests Passed (3/3)!');
+console.log('All Active Gesture HUD & MediaPipe Tests Passed (4/4)!');
 console.log('========================================================\n');
