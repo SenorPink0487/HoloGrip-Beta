@@ -426,7 +426,36 @@ console.log('=== Starting Physics Discipline Two-Level Menu Verification ===\n')
   console.log('✓ Test 8 passed: Electromagnetism branch presents Hall Effect, Electrostatic Field & Capacitor Discharge\n');
 }
 
+// Test 9: All physics disciplines render circular action buttons and CSS invariants prevent elliptical distortion
+{
+  console.log('Test 9: Verifying circular optics-card-action buttons across all disciplines and CSS invariants');
+  const { readFileSync } = await import('node:fs');
+  const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf-8');
+
+  // Verify CSS invariants for .optics-card-action in index.html
+  assert(indexHtml.includes('.optics-card-action'), 'index.html must define .optics-card-action');
+  const actionMatch = indexHtml.match(/\.optics-card-action\s*\{([^}]+)\}/);
+  assert.ok(actionMatch, '.optics-card-action block must exist in index.html');
+  const actionCss = actionMatch[1];
+  assert(actionCss.includes('border-radius: 50%'), '.optics-card-action must have border-radius: 50%');
+  assert(actionCss.includes('flex-shrink: 0'), '.optics-card-action must have flex-shrink: 0 to prevent squashing');
+  assert(actionCss.includes('aspect-ratio: 1 / 1'), '.optics-card-action must have aspect-ratio: 1 / 1');
+  assert(actionCss.includes('width: 34px') && actionCss.includes('height: 34px'), '.optics-card-action must have 34px dimensions');
+
+  // Verify that all 4 disciplines (optics, mechanics, thermo, em) render optics-card-action on active cards
+  const disciplines: ('optics' | 'mechanics' | 'thermo' | 'em')[] = ['optics', 'mechanics', 'thermo', 'em'];
+  for (const disc of disciplines) {
+    const modal = new PhysicsDisciplineModal({ onBackToDisciplines: () => {} });
+    modal.showLevel2(disc);
+    const html = modal.element.innerHTML;
+    assert(html.includes('optics-card-action'), `${disc} Level 2 must contain optics-card-action buttons`);
+    assert(html.includes('action-arrow'), `${disc} Level 2 must contain action-arrow chevrons`);
+  }
+
+  console.log('✓ Test 9 passed: Circular enter UI invariants verified across all disciplines\n');
+}
+
 console.log('========================================================');
-console.log('All Physics Discipline Modal Tests Passed (8/8)!');
+console.log('All Physics Discipline Modal Tests Passed (9/9)!');
 console.log('========================================================\n');
 

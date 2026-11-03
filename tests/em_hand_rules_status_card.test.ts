@@ -50,7 +50,7 @@ class MockElement {
 
   private getOrCreateTabs(): MockElement[] {
     if (!this.tabsCache) {
-      const modes = ['right-hand-screw', 'right-hand-rule'];
+      const modes = ['right-hand-screw', 'left-hand-rule', 'right-hand-rule'];
       this.tabsCache = modes.map(mode => {
         const el = new MockElement('button');
         el.className = 'hr-apple-seg-btn hr-mode-tab';
@@ -62,8 +62,11 @@ class MockElement {
   }
 
   querySelector(selector: string): MockElement | null {
-    if (selector.includes('data-mode="right-hand-rule"')) {
+    if (selector.includes('data-mode="left-hand-rule"')) {
       return this.getOrCreateTabs()[1];
+    }
+    if (selector.includes('data-mode="right-hand-rule"')) {
+      return this.getOrCreateTabs()[2];
     }
     if (selector.includes('data-mode="right-hand-screw"')) {
       return this.getOrCreateTabs()[0];
@@ -147,7 +150,12 @@ console.log('✓ Test 1 passed: HandRulesStatusCard instantiated with VisionOS l
 // Test 2: Mode switching via segmented buttons
 console.log('Test 2: Apple Segmented Control Tab Navigation');
 const tabs = card.element.querySelectorAll('.hr-mode-tab');
-assert.strictEqual(tabs.length, 2, 'Must contain 2 mode tabs');
+assert.strictEqual(tabs.length, 3, 'Must contain 3 mode tabs');
+
+const leftHandTab = card.element.querySelector('.hr-mode-tab[data-mode="left-hand-rule"]') as any;
+assert(leftHandTab !== null, 'Left hand rule tab must exist');
+leftHandTab.click();
+assert.strictEqual(selectedMode, 'left-hand-rule', 'Clicking tab must trigger onSelectMode callback');
 
 const rightHandTab = card.element.querySelector('.hr-mode-tab[data-mode="right-hand-rule"]') as any;
 assert(rightHandTab !== null, 'Right hand rule tab must exist');
@@ -226,6 +234,27 @@ card.updateFromTelemetry({
 assert(formulaBadge?.textContent?.includes('右手定则'), 'Formula badge must reflect right hand rule');
 assert.strictEqual(chiralBadge?.textContent, '伸出右手', 'Must require right hand');
 assert.strictEqual(statusBadge?.textContent, '待机', 'Status badge must display 待机');
+
+// 4. Left-hand rule telemetry
+card.updateFromTelemetry({
+  mode: 'left-hand-rule',
+  currentPolarity: 1,
+  fieldPolarity: 1,
+  motionPolarity: 1,
+  gestureEnabled: true,
+  requiredHand: 'left',
+  detectedHand: 'left',
+  status: 'matched',
+  alignmentScore: 0.92,
+  isMatched: true,
+  statusLabel: '左手定则判定正确：安培力 F 驱动导体向右运动',
+});
+
+assert(formulaBadge?.textContent?.includes('左手定则'), 'Formula badge must reflect left hand rule');
+assert.strictEqual(chiralBadge?.textContent, '伸出左手', 'Must require left hand');
+assert(chiralBadge?.classList.contains('is-left'), 'Must have is-left class');
+assert.strictEqual(statusBadge?.textContent, '定则吻合', 'Status badge must display 定则吻合');
+assert(statusBadge?.classList.contains('matched'), 'Status badge must have matched class');
 console.log('✓ Test 3 passed: Telemetry updates across modes verified\n');
 
 // Test 4: Direction buttons & action toolbar

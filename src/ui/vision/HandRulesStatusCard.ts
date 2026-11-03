@@ -233,7 +233,28 @@ export class HandRulesStatusCard {
             <h3 class="math-tile-name">右手螺旋法则</h3>
           </div>
 
-          <!-- 2. 右手定则 -->
+          <!-- 2. 左手定则 -->
+          <div class="math-branch-tile hr-branch-tile hr-mode-tab" data-mode="left-hand-rule" role="button" tabindex="0" aria-label="左手定则">
+            <div class="math-tile-icon-box hr-tile-icon-box">
+              <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <!-- Dual Guide Rails -->
+                <line x1="6" y1="28" x2="38" y2="28" stroke-width="2.0" stroke-opacity="0.5"/>
+                <!-- Vertical Conductor Wire with Current Arrow I -->
+                <line x1="20" y1="6" x2="20" y2="38" stroke-width="2.2"/>
+                <polyline points="15 11 20 6 25 11" stroke-width="2.2"/>
+                <!-- Horizontal Ampere Force Arrow F -->
+                <line x1="20" y1="20" x2="36" y2="20" stroke-width="2.2"/>
+                <polyline points="30 15 36 20 30 25" stroke-width="2.2"/>
+                <!-- Magnetic flux entering crosses -->
+                <circle cx="11" cy="14" r="3" stroke-width="1.6" stroke-opacity="0.6"/>
+                <line x1="9.5" y1="14" x2="12.5" y2="14" stroke-width="1.6" stroke-opacity="0.6"/>
+                <line x1="11" y1="12.5" x2="11" y2="15.5" stroke-width="1.6" stroke-opacity="0.6"/>
+              </svg>
+            </div>
+            <h3 class="math-tile-name">左手定则</h3>
+          </div>
+
+          <!-- 3. 右手定则 -->
           <div class="math-branch-tile hr-branch-tile hr-mode-tab" data-mode="right-hand-rule" role="button" tabindex="0" aria-label="右手定则">
             <div class="math-tile-icon-box hr-tile-icon-box">
               <svg class="math-tile-svg" viewBox="0 0 44 44" width="50" height="50" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -381,6 +402,8 @@ export class HandRulesStatusCard {
       this.formulaBadgeEl.textContent =
         d.mode === 'right-hand-screw'
           ? '安培定则 (右手螺旋)'
+          : d.mode === 'left-hand-rule'
+          ? '左手定则 (安培力)'
           : '右手定则 (电磁感应)';
     }
 

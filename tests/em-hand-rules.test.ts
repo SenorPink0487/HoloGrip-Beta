@@ -740,6 +740,145 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   console.log('✓ Test 11 passed: Single Right Hand in Left Half of Screen (screenX <= 0.45) matches Right-Hand Screw Rule');
 }
 
+// Test 12: Left-Hand Rule (Ampere Force F) Physics Evaluation
+{
+  const config: HandRuleConfig = {
+    mode: 'left-hand-rule',
+    currentPolarity: 1, // Current UP (+Y)
+    fieldPolarity: 1,   // Field INTO screen (-Z)
+    motionPolarity: 1,
+    gestureEnabled: true,
+  };
+
+  // 1. Wrong hand test: user extends right hand instead of left hand
+  const rightHandFrame = wrapSingleHandFrame(
+    'right',
+    buildMockLandmarks({
+      thumbDirWorld: { x: -1, y: 0 },
+      fingersDirWorld: { x: 0, y: 1 },
+      curled: false,
+    })
+  );
+  const wrongHandEval = evaluateHandRuleFrame(config, rightHandFrame);
+  assert.strictEqual(wrongHandEval.status, 'wrong-hand', 'Extending right hand in left-hand rule must trigger wrong-hand');
+  assert.strictEqual(wrongHandEval.isMatched, false);
+  assert.strictEqual(wrongHandEval.requiredHand, 'left');
+
+  // 2. Correct left hand test:
+  // With I = (0, 1, 0), B = (0, 0, -1):
+  // F = I x B = (1 * (-1), 0, 0) = (-1, 0, 0) (Ampere force to the left -X)
+  const leftMatchFrame = wrapSingleHandFrame(
+    'left',
+    buildMockLandmarks({
+      thumbDirWorld: { x: -1, y: 0 },
+      fingersDirWorld: { x: 0, y: 1 },
+      curled: false,
+    })
+  );
+  const matchedEval = evaluateHandRuleFrame(config, leftMatchFrame);
+  assert.strictEqual(matchedEval.status, 'matched', 'Correct left hand pose must match');
+  assert.strictEqual(matchedEval.isMatched, true);
+  assert.strictEqual(matchedEval.targetVectorDir.x, -1, 'Ampere force must point in -X direction');
+
+  // 3. Reverse current: currentPolarity = -1 (Current DOWN -Y)
+  // F = (-1) * (-1) = +1 (Ampere force to the right +X)
+  config.currentPolarity = -1;
+  const oppositeEval = evaluateHandRuleFrame(config, leftMatchFrame);
+  assert.strictEqual(oppositeEval.isMatched, false, 'Opposite current direction must not match previous hand pose');
+
+  const leftReversedFrame = wrapSingleHandFrame(
+    'left',
+    buildMockLandmarks({
+      thumbDirWorld: { x: 1, y: 0 },
+      fingersDirWorld: { x: 0, y: -1 },
+      curled: false,
+    })
+  );
+  const matchedReversed = evaluateHandRuleFrame(config, leftReversedFrame);
+  assert.strictEqual(matchedReversed.isMatched, true, 'Reversed pose must match when current is reversed');
+  assert.strictEqual(matchedReversed.targetVectorDir.x, 1, 'Ampere force must point in +X direction');
+
+  // 4. Reverse field: fieldPolarity = -1 (Field OUT OF screen +Z)
+  // F = (-1) * (+1) = -1 (Ampere force back to -X)
+  config.fieldPolarity = -1;
+  const fieldReversedEval = evaluateHandRuleFrame(config, leftMatchFrame);
+  assert.strictEqual(fieldReversedEval.isMatched, true, 'Reversing field must flip force back to -X');
+  assert.strictEqual(fieldReversedEval.targetVectorDir.x, -1);
+
+  console.log('✓ Test 12 passed: Left-Hand Rule physics solver & directional evaluation verified');
+}
+
+// Test 13: Left-Hand Rule 3D Apparatus, Direct Manipulation & Dynamics on Chrome Rails
+{
+  const exp = new EmHandRulesExperiment();
+  exp.init({} as any);
+  exp.setRuleMode('left-hand-rule');
+  assert.strictEqual(exp.getRuleMode(), 'left-hand-rule', 'Rule mode must be left-hand-rule');
+
+  const bench = (exp as any).bench;
+  const leftRuleGroup = bench.group.getObjectByName('LeftHandRuleApparatus') as THREE.Group;
+  assert(leftRuleGroup, 'LeftHandRuleApparatus must exist in bench');
+  assert.strictEqual(leftRuleGroup.visible, true, 'LeftHandRuleApparatus must be visible');
+  assert.strictEqual((bench as any).screwGroup.visible, false, 'Screw group must be hidden in left-hand-rule');
+  assert.strictEqual((bench as any).rightRuleGroup.visible, false, 'Right-hand-rule group must be hidden in left-hand-rule');
+
+  const leftRodMesh = bench.group.getObjectByName('LeftConductorRod');
+  assert(leftRodMesh, 'LeftConductorRod must exist');
+
+  const leftCurrentArrow = (bench as any).leftCurrentArrow as THREE.Group;
+  const leftForceArrow = (bench as any).leftForceArrow as THREE.Group;
+  const leftCurrentLabel = (bench as any).leftCurrentLabel as THREE.Mesh;
+  const leftForceLabel = (bench as any).leftForceLabel as THREE.Mesh;
+
+  assert(leftCurrentArrow, 'LeftCurrentArrow must exist');
+  assert(leftForceArrow, 'AmpereForceArrow must exist');
+  assert(leftCurrentLabel, 'Left current label must exist');
+  assert(leftForceLabel, 'Ampere force label must exist');
+
+  // Labels must not overlap in Y
+  assert(
+    Math.abs(leftCurrentLabel.position.y - leftForceLabel.position.y) > 0.02,
+    'Current label and force label must be separated in Y to prevent overlap'
+  );
+
+  // Initial config: currentPolarity = 1, fieldPolarity = 1 -> Fx = -1 (-X direction)
+  exp.update(0.016, 0.1, {} as any);
+  const fTipInitial = new THREE.Vector3(0, 1, 0).applyQuaternion(leftForceArrow.quaternion);
+  assert(
+    fTipInitial.x < -0.95 && Math.abs(fTipInitial.y) < 0.05,
+    `Ampere force arrow must point in -X direction! Got (${fTipInitial.x}, ${fTipInitial.y})`
+  );
+
+  // Reverse current: currentPolarity = -1 -> Fx = +1 (+X direction)
+  exp.reverseCurrent();
+  exp.update(0.016, 0.2, {} as any);
+  const fTipReversed = new THREE.Vector3(0, 1, 0).applyQuaternion(leftForceArrow.quaternion);
+  assert(
+    fTipReversed.x > 0.95 && Math.abs(fTipReversed.y) < 0.05,
+    `Ampere force arrow must point in +X direction! Got (${fTipReversed.x}, ${fTipReversed.y})`
+  );
+
+  // Clicking LeftConductorRod triggers simulated hand match
+  const tap = { pointerId: 1, clientX: 500, clientY: 300, button: 0 } as PointerEvent;
+  const handled = exp.onPointerDown(tap, { object: leftRodMesh, point: new THREE.Vector3() } as any, {} as any);
+  assert.strictEqual(handled, true, 'Clicking LeftConductorRod must handle interaction');
+
+  for (let i = 0; i < 20; i++) exp.update(0.016, 0.3 + i * 0.016, {} as any);
+  const telem = exp.getTelemetryData();
+  assert.strictEqual(telem.isMatched, true, 'Simulated hand must match left-hand rule');
+  assert.strictEqual(telem.requiredHand, 'left', 'Telemetry must report requiredHand = left');
+  assert((bench as any).leftForceMat.emissiveIntensity > 0.9, 'Ampere force arrow must glow brightly upon match');
+
+  // Verify smooth gliding displacement along rails
+  assert(
+    Math.abs((bench as any).leftRodGroup.position.x) > 0.01,
+    'Conductor rod must slide along rails under Ampere force'
+  );
+
+  exp.dispose({} as any);
+  console.log('✓ Test 13 passed: Left-Hand Rule 3D Apparatus, Direct Manipulation & Dynamics on Chrome Rails verified');
+}
+
 console.log('========================================================');
-console.log('All Electromagnetism Hand Rules Tests Passed (11/11)!');
+console.log('All Electromagnetism Hand Rules Tests Passed (13/13)!');
 console.log('========================================================\n');

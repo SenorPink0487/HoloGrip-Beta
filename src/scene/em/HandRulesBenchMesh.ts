@@ -232,6 +232,71 @@ function createInducedCurrentLabelTexture(): THREE.CanvasTexture {
   });
 }
 
+/**
+ * 生成正对操作者的清晰 "安培力 F" 标识纹理
+ */
+function createAmpereForceLabelTexture(): THREE.CanvasTexture {
+  return paintTexture(512, 256, (ctx: any, w, h) => {
+    if (typeof ctx.clearRect === 'function') ctx.clearRect(0, 0, w, h);
+    if (typeof ctx.fillText !== 'function') return;
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    const cy = h * 0.5;
+
+    // 白色高对比度衬底微光描边，确保在任何 3D 背景及视角下均清晰无眩光
+    if (typeof ctx.strokeText === 'function') {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = 12;
+      ctx.font = '900 82px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.strokeText('安培力', 28, cy);
+      ctx.font = 'italic 900 110px "Times New Roman", STSong, Georgia, serif';
+      ctx.strokeText('F', 286, cy - 3);
+    }
+
+    // 翠绿饱和主题色
+    ctx.fillStyle = '#059669';
+    ctx.font = '900 82px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('安培力', 28, cy);
+
+    ctx.font = 'italic 900 110px "Times New Roman", STSong, Georgia, serif';
+    ctx.fillText('F', 286, cy - 3);
+  });
+}
+
+/**
+ * 生成正对操作者的清晰 "磁场 B" 标识纹理
+ */
+function createFieldBLabelTexture(): THREE.CanvasTexture {
+  return paintTexture(512, 256, (ctx: any, w, h) => {
+    if (typeof ctx.clearRect === 'function') ctx.clearRect(0, 0, w, h);
+    if (typeof ctx.fillText !== 'function') return;
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    const cy = h * 0.5;
+
+    if (typeof ctx.strokeText === 'function') {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = 12;
+      ctx.font = '900 88px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.strokeText('磁场', 36, cy);
+      ctx.font = 'italic 900 112px "Times New Roman", STSong, Georgia, serif';
+      ctx.strokeText('B', 246, cy - 3);
+    }
+
+    // 冰海青主题色
+    ctx.fillStyle = '#0284c7';
+    ctx.font = '900 88px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('磁场', 36, cy);
+
+    ctx.font = 'italic 900 112px "Times New Roman", STSong, Georgia, serif';
+    ctx.fillText('B', 246, cy - 3);
+  });
+}
+
 const _UP = new THREE.Vector3(0, 1, 0);
 const _QUAT = new THREE.Quaternion();
 
@@ -245,6 +310,7 @@ export class HandRulesBenchMesh {
 
   // 定则独立 3D 机械总成
   private get screwGroup(): THREE.Group { return this.floatingConductor.group; }
+  private readonly leftRuleGroup = new THREE.Group();
   private readonly rightRuleGroup = new THREE.Group();
 
   // 导体周围发光目标引导区域
@@ -255,7 +321,22 @@ export class HandRulesBenchMesh {
   public readonly floatingConductor = new FloatingConductorMesh();
   private readonly isolationBase = new THREE.Group();
 
-  // 2. 右手定则组件：严格遵循极简纯净物理台面规范，只保留运动导体棒与矢量指示
+  // 2. 左手定则组件：精密平行铬导轨、滑行导体棒与安培力矢量指示
+  private leftRodGroup = new THREE.Group();
+  private leftCurrentArrow!: THREE.Group;
+  private leftCurrentLabel!: THREE.Mesh;
+  private leftCurrentMat!: THREE.MeshStandardMaterial;
+  private leftForceArrow!: THREE.Group;
+  private leftForceLabel!: THREE.Mesh;
+  private leftForceMat!: THREE.MeshStandardMaterial;
+  private leftFieldGroup!: THREE.Group;
+  private leftFieldArrows: THREE.Group[] = [];
+  private leftFieldLabel!: THREE.Mesh;
+  private leftFieldMat!: THREE.MeshStandardMaterial;
+  private leftCurrent!: AxialChargeFlow;
+  private leftGlidePhase = 0;
+
+  // 3. 右手定则组件：严格遵循极简纯净物理台面规范，只保留运动导体棒与矢量指示
   private rightRodGroup = new THREE.Group();
   private rightMotionArrow!: THREE.Group;
   private rightMotionLabel!: THREE.Mesh;
@@ -295,6 +376,7 @@ export class HandRulesBenchMesh {
     this.buildIsolationBase();
     this.buildTargetGuidanceZone();
     this.buildRightHandScrewApparatus();
+    this.buildLeftHandRuleApparatus();
     this.buildRightHandRuleApparatus();
 
     this.handSkeleton = new ArticulatedHandSkeletonMesh();
@@ -421,6 +503,210 @@ export class HandRulesBenchMesh {
   }
 
   /**
+   * 构建「左手定则（通电导体在磁场中受安培力）」3D 独立装置总成
+   * 严格遵循物理台面规范：双精密镜面铬合金平行导轨、滑行导体棒与高辨识度物理矢量指示
+   */
+  private buildLeftHandRuleApparatus(): void {
+    this.leftRuleGroup.name = 'LeftHandRuleApparatus';
+
+    // 1) 沿 X 轴水平舒展的双精密镜面铬合金平行导轨（全长 0.44m，间距 0.048m）
+    const railLength = 0.44;
+    const railRadius = 0.0042;
+    const railZDist = 0.048;
+
+    for (const rz of [-railZDist * 0.5, railZDist * 0.5]) {
+      const railGeo = createPrecisionRodGeometry(railLength, railRadius);
+      railGeo.rotateZ(Math.PI / 2);
+      const railMesh = new THREE.Mesh(railGeo, this.liquidChromeMat);
+      railMesh.position.set(0, 0.038, rz);
+      railMesh.castShadow = true;
+      railMesh.receiveShadow = true;
+      this.leftRuleGroup.add(railMesh);
+
+      // 导轨两端精密车削钛金限位缓冲端块
+      for (const endSign of [-1, 1] as const) {
+        const bumper = new THREE.Mesh(
+          new THREE.CylinderGeometry(railRadius * 1.5, railRadius * 1.5, 0.012, 24),
+          this.champagneBrassMat
+        );
+        bumper.rotation.z = Math.PI / 2;
+        bumper.position.set(endSign * (railLength * 0.5 - 0.006), 0.038, rz);
+        bumper.castShadow = true;
+        this.leftRuleGroup.add(bumper);
+      }
+    }
+
+    // 导轨下方的绝缘支撑立柱
+    for (const sx of [-railLength * 0.42, railLength * 0.42]) {
+      for (const sz of [-railZDist * 0.5, railZDist * 0.5]) {
+        const post = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.0075, 0.0095, 0.038, 24),
+          this.satinSilverMat
+        );
+        post.position.set(sx, 0.019, sz);
+        post.castShadow = true;
+        this.leftRuleGroup.add(post);
+      }
+    }
+
+    // 2) 竖直航天银铝运动导体棒（全长 0.38m，半径 0.0092m）
+    const rodRadius = 0.0092;
+    const rodLength = 0.38;
+    const half = rodLength * 0.5;
+
+    const shankGeo = createPrecisionRodGeometry(rodLength, rodRadius);
+    const vRodMesh = new THREE.Mesh(shankGeo, this.satinSilverMat);
+    vRodMesh.castShadow = true;
+    vRodMesh.receiveShadow = true;
+    vRodMesh.name = 'LeftConductorRod';
+    this.leftRodGroup.add(vRodMesh);
+
+    // 导体棒两端精密车削端盖
+    for (const sign of [-1, 1] as const) {
+      const cap = new THREE.Group();
+      cap.position.y = sign * (half - 0.006);
+      if (sign < 0) cap.rotation.x = Math.PI;
+
+      const collar = new THREE.Mesh(
+        new THREE.CylinderGeometry(rodRadius * 1.05, rodRadius * 1.05, 0.010, 32),
+        this.champagneBrassMat
+      );
+      collar.castShadow = true;
+
+      const endCap = new THREE.Mesh(
+        new THREE.CylinderGeometry(rodRadius * 0.88, rodRadius * 1.02, 0.004, 32),
+        this.satinSilverMat
+      );
+      endCap.position.y = 0.007;
+      endCap.castShadow = true;
+
+      cap.add(collar, endCap);
+      this.leftRodGroup.add(cap);
+    }
+
+    // 导体棒底部跨接在导轨上的双黄铜接触滑靴
+    for (const rz of [-railZDist * 0.5, railZDist * 0.5]) {
+      const shoe = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.008, 0.018, 24),
+        this.champagneBrassMat
+      );
+      shoe.rotation.x = Math.PI / 2;
+      shoe.position.set(0, -half + 0.038, rz);
+      shoe.castShadow = true;
+      this.leftRodGroup.add(shoe);
+    }
+
+    // 导体内电荷流动模拟通道（沿直导线 Y 轴）
+    this.leftCurrent = new AxialChargeFlow({ travel: 0.32, axis: 'y', radial: 0.0098, speed: 0.32 });
+    this.leftCurrent.bed.visible = false;
+    this.leftCurrent.setFlowVisible(true);
+    this.leftRodGroup.add(this.leftCurrent.group);
+
+    // 3) 矢量指示系统
+    const arrowGeo = createScrewStyleArrowGeometry(0.026, 0.0020, 0.016, 0.0055);
+
+    // 电流方向矢量指示箭头 I
+    this.leftCurrentMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444,
+      emissive: 0xdc2626,
+      emissiveIntensity: 0.85,
+      metalness: 0.15,
+      roughness: 0.22,
+      opacity: 1.0,
+    });
+    this.leftCurrentArrow = new THREE.Group();
+    this.leftCurrentArrow.name = 'LeftCurrentArrow';
+    const iArrowMesh = new THREE.Mesh(arrowGeo, this.leftCurrentMat);
+    iArrowMesh.castShadow = true;
+    this.leftCurrentArrow.add(iArrowMesh);
+    this.leftRodGroup.add(this.leftCurrentArrow);
+
+    // 独立 3D "电流 I" 标识看板
+    const iTex = createInducedCurrentLabelTexture();
+    const iLabelMat = new THREE.MeshBasicMaterial({
+      map: iTex,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      opacity: 1.0,
+    });
+    this.leftCurrentLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.029), iLabelMat);
+    this.leftCurrentLabel.position.set(-0.052, 0.065, rodRadius + 0.0035);
+    this.leftRodGroup.add(this.leftCurrentLabel);
+
+    // 安培力矢量指示箭头 F
+    this.leftForceMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981,
+      emissive: 0x059669,
+      emissiveIntensity: 0.85,
+      metalness: 0.15,
+      roughness: 0.22,
+      opacity: 1.0,
+    });
+    this.leftForceArrow = new THREE.Group();
+    this.leftForceArrow.name = 'AmpereForceArrow';
+    const fArrowMesh = new THREE.Mesh(arrowGeo, this.leftForceMat);
+    fArrowMesh.castShadow = true;
+    this.leftForceArrow.add(fArrowMesh);
+    this.leftRodGroup.add(this.leftForceArrow);
+
+    // 独立 3D "安培力 F" 标识看板
+    const fTex = createAmpereForceLabelTexture();
+    const fLabelMat = new THREE.MeshBasicMaterial({
+      map: fTex,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      opacity: 1.0,
+    });
+    this.leftForceLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.029), fLabelMat);
+    this.leftForceLabel.position.set(0.052, 0.028, rodRadius + 0.0035);
+    this.leftRodGroup.add(this.leftForceLabel);
+
+    // 4) 匀强磁场 B 指示系统
+    this.leftFieldGroup = new THREE.Group();
+    this.leftFieldGroup.name = 'LeftFieldIndicators';
+
+    this.leftFieldMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.85,
+      metalness: 0.15,
+      roughness: 0.22,
+      opacity: 1.0,
+    });
+
+    const bTex = createFieldBLabelTexture();
+    const bLabelMat = new THREE.MeshBasicMaterial({
+      map: bTex,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      opacity: 1.0,
+    });
+    this.leftFieldLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.029), bLabelMat);
+    this.leftFieldLabel.position.set(0, 0.28, 0.075);
+    this.leftRuleGroup.add(this.leftFieldLabel);
+
+    // 磁场指示箭头阵列
+    for (const [bx, by] of [[-0.12, 0.15], [0.12, 0.15], [-0.12, 0.27], [0.12, 0.27]] as const) {
+      const bArrow = new THREE.Group();
+      const bMesh = new THREE.Mesh(arrowGeo, this.leftFieldMat);
+      bArrow.add(bMesh);
+      bArrow.position.set(bx, by, 0);
+      this.leftFieldArrows.push(bArrow);
+      this.leftFieldGroup.add(bArrow);
+    }
+    this.leftRuleGroup.add(this.leftFieldGroup);
+
+    this.leftRodGroup.name = 'LeftConductorRodAssembly';
+    this.leftRodGroup.position.set(0, 0.22, 0);
+    this.leftRuleGroup.add(this.leftRodGroup);
+
+    this.group.add(this.leftRuleGroup);
+  }
+
+  /**
    * 2. 构建「右手定则（电磁感应切割磁感线）」独立导体棒总成
    * 严格遵循极简纯净物理台面规范：只保留导体棒，删除所有磁极板、底座、看板与额外器材
    */
@@ -493,16 +779,14 @@ export class HandRulesBenchMesh {
     this.rightMotionLabel.position.set(0.052, 0.028, rodRadius + 0.0035);
     this.rightRodGroup.add(this.rightMotionLabel);
 
-    // 所求的电流方向高精度矢量箭头 I（与右手螺旋法则保持完全一致的红箭造型与材质）
+    // 所求的电流方向高精度矢量箭头 I（与右手螺旋法则保持完全一致的鲜艳红箭造型与材质）
     this.rightInducedMat = new THREE.MeshStandardMaterial({
       color: 0xef4444,
       emissive: 0xdc2626,
       emissiveIntensity: 0.85,
       metalness: 0.15,
       roughness: 0.22,
-      transparent: true,
-      opacity: 0.15,
-      depthWrite: false,
+      opacity: 1.0,
     });
     this.rightInducedArrow = new THREE.Group();
     this.rightInducedArrow.name = 'InducedCurrentArrow';
@@ -519,7 +803,7 @@ export class HandRulesBenchMesh {
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
-      opacity: 0.15,
+      opacity: 1.0,
     });
     this.rightInducedLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.029), this.rightInducedLabelMat);
     this.rightInducedLabel.position.set(-0.052, 0.065, rodRadius + 0.0035);
@@ -534,6 +818,7 @@ export class HandRulesBenchMesh {
 
   public setMode(mode: HandRuleMode): void {
     this.screwGroup.visible = mode === 'right-hand-screw';
+    this.leftRuleGroup.visible = mode === 'left-hand-rule';
     this.rightRuleGroup.visible = mode === 'right-hand-rule';
 
     this.isolationBase.visible = false;
@@ -542,6 +827,10 @@ export class HandRulesBenchMesh {
 
     if (mode === 'right-hand-screw') {
       this.targetZoneGroup.position.set(0, 0.30, 0);
+    } else if (mode === 'left-hand-rule') {
+      this.targetZoneGroup.position.set(0, 0.22, 0);
+      this.targetZoneGroup.rotation.set(0, 0, 0);
+      this.leftGlidePhase = 0;
     } else {
       this.targetZoneGroup.position.set(0, 0.22, 0);
       this.targetZoneGroup.rotation.set(0, 0, 0);
@@ -550,6 +839,7 @@ export class HandRulesBenchMesh {
   }
 
   public resetMotion(): void {
+    this.leftGlidePhase = 0;
     this.rightCutPhase = 0;
     this.floatingConductor.reset();
   }
@@ -598,7 +888,10 @@ export class HandRulesBenchMesh {
     if (config.mode === 'right-hand-screw') {
       this.updateRightHandScrew(dt, config.currentPolarity, evaluation);
       const rod = this.floatingConductor.assembly.position;
-      this.handSkeleton.group.position.set(rod.x, rod.y - 0.25, rod.z);
+      this.handSkeleton.group.position.set(rod.x, rod.y - 0.30, rod.z);
+    } else if (config.mode === 'left-hand-rule') {
+      this.handSkeleton.group.position.set(0, 0, 0);
+      this.updateLeftHandRule(dt, config, evaluation);
     } else {
       this.handSkeleton.group.position.set(0, 0, 0);
       this.updateRightHandRule(dt, config, evaluation);
@@ -611,6 +904,65 @@ export class HandRulesBenchMesh {
     evaluation: HandRuleEvaluation
   ): void {
     this.floatingConductor.update(dt, currentPolarity, evaluation);
+  }
+
+  private updateLeftHandRule(
+    dt: number,
+    config: HandRuleConfig,
+    evaluation: HandRuleEvaluation
+  ): void {
+    const iy = config.currentPolarity;
+    const bz = -config.fieldPolarity;
+    const fx = (iy * bz) as Polarity;
+
+    // 1) 磁场方向 B (沿 Z 轴穿入 -Z 或穿出 +Z)
+    _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(0, 0, bz));
+    for (const bArrow of this.leftFieldArrows) {
+      bArrow.quaternion.copy(_QUAT);
+    }
+    if (this.leftFieldLabel) {
+      this.leftFieldLabel.position.set(0, 0.32, bz > 0 ? 0.08 : -0.08);
+    }
+
+    // 2) 电流方向 I (沿导线棒 +Y 向上 或 -Y 向下)
+    _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(0, iy, 0));
+    this.leftCurrentArrow.quaternion.copy(_QUAT);
+    this.leftCurrentArrow.position.set(-fx * 0.018, iy * 0.065, 0.0092 + 0.0025);
+
+    if (this.leftCurrentLabel) {
+      this.leftCurrentLabel.position.set(-fx * 0.052, iy * 0.065, 0.0092 + 0.0035);
+    }
+    this.leftCurrent.update(dt, iy);
+
+    // 3) 安培力方向 F (沿导轨水平 +X 向右 或 -X 向左)
+    _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(fx, 0, 0));
+    this.leftForceArrow.quaternion.copy(_QUAT);
+    this.leftForceArrow.position.set(fx * 0.042, 0, 0.0092 + 0.0025);
+
+    if (this.leftForceLabel) {
+      this.leftForceLabel.position.set(fx * 0.052, 0.028, 0.0092 + 0.0035);
+    }
+
+    const isCorrect = evaluation.isMatched;
+    const targetEmissive = isCorrect ? 1.35 : 0.85;
+    this.leftForceMat.emissiveIntensity +=
+      (targetEmissive - this.leftForceMat.emissiveIntensity) * Math.min(1, dt * 8);
+
+    // 4) 导线棒物理滑行动力学：在安培力 F 作用下加速滑动
+    const strokeLimit = 0.12;
+    this.leftGlidePhase = (this.leftGlidePhase + dt / 2.5) % 1;
+    let u: number;
+    if (this.leftGlidePhase < 0.82) {
+      const tNorm = this.leftGlidePhase / 0.82;
+      u = tNorm * tNorm;
+    } else {
+      const r = (this.leftGlidePhase - 0.82) / 0.18;
+      u = 1 - 0.5 * (1 - Math.cos(r * Math.PI));
+    }
+
+    const strokeStart = -fx * strokeLimit;
+    const strokeEnd = fx * strokeLimit;
+    this.leftRodGroup.position.x = strokeStart + u * (strokeEnd - strokeStart);
   }
 
   private updateRightHandRule(
@@ -657,12 +1009,12 @@ export class HandRulesBenchMesh {
     }
 
     const isCorrect = evaluation.isMatched;
-    const targetIndOpacity = isCorrect
-      ? 0.96
-      : 0.15 + evaluation.alignmentScore * 0.45;
-    this.rightInducedMat.opacity += (targetIndOpacity - this.rightInducedMat.opacity) * Math.min(1, dt * 8);
-    this.rightInducedLabelMat.opacity = this.rightInducedMat.opacity;
-    this.rightCurrent.setFlowVisible(isCorrect && this.rightInducedMat.opacity > 0.3);
+    const targetEmissive = isCorrect ? 1.35 : 0.85;
+    this.rightInducedMat.emissiveIntensity +=
+      (targetEmissive - this.rightInducedMat.emissiveIntensity) * Math.min(1, dt * 8);
+    this.rightInducedMat.opacity = 1.0;
+    this.rightInducedLabelMat.opacity = 1.0;
+    this.rightCurrent.setFlowVisible(isCorrect);
     if (isCorrect) {
       this.rightCurrent.update(dt, indY);
     }

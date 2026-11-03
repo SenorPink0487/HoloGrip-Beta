@@ -20,6 +20,14 @@ export default class EmHandRulesExperiment extends BaseExperiment {
   public override targetScale = 3.6;
   public override hideCenterEmitter = true;
 
+  public readonly initialCameraPose = {
+    x: 0,
+    y: 1.30,
+    z: 3.90,
+    yaw: 0,
+    pitch: -0.05,
+  };
+
   private bench!: HandRulesBenchMesh;
 
   private config: HandRuleConfig = {
@@ -162,6 +170,16 @@ export default class EmHandRulesExperiment extends BaseExperiment {
         curled: true,
       });
       return wrapSyntheticHandFrame('right', lms);
+    } else if (this.config.mode === 'left-hand-rule') {
+      const bz = -this.config.fieldPolarity;
+      const iy = this.config.currentPolarity;
+      const fx = iy * bz;
+      const lms = buildSyntheticHandLandmarks({
+        thumbDirWorld: { x: fx > 0 ? 1 : -1, y: 0 },
+        fingersDirWorld: { x: 0, y: iy > 0 ? 1 : -1 },
+        curled: false,
+      });
+      return wrapSyntheticHandFrame('left', lms);
     } else {
       const vx = this.config.motionPolarity;
       const indY = this.config.motionPolarity * this.config.fieldPolarity;
@@ -200,6 +218,18 @@ export default class EmHandRulesExperiment extends BaseExperiment {
         this.dragOffset.subVectors(conductor.assembly.position, point);
       }
       return true;
+    }
+
+    if (this.config.mode === 'left-hand-rule') {
+      let obj: THREE.Object3D | null = hit.object;
+      while (obj && obj !== this.rootGroup) {
+        if (obj.name === 'LeftConductorRod') {
+          this.toggleDesktopField();
+          return true;
+        }
+        obj = obj.parent;
+      }
+      return false;
     }
 
     if (this.config.mode === 'right-hand-rule') {
@@ -283,6 +313,19 @@ export default class EmHandRulesExperiment extends BaseExperiment {
       for (const hit of raycaster.intersectObject(this.bench.floatingConductor.group, true)) {
         const action = this.bench.floatingConductor.actionFor(hit.object);
         if (action) return { id: action, label: '', cursor: action === 'conductor' ? 'grab' : 'pointer' };
+      }
+      return null;
+    }
+    if (this.config.mode === 'left-hand-rule') {
+      const hits = raycaster.intersectObject(this.bench.group, true);
+      for (const hit of hits) {
+        let obj: THREE.Object3D | null = hit.object;
+        while (obj && obj !== this.bench.group) {
+          if (obj.name === 'LeftConductorRod') {
+            return { id: 'left-rod', label: '', cursor: 'pointer' };
+          }
+          obj = obj.parent;
+        }
       }
       return null;
     }

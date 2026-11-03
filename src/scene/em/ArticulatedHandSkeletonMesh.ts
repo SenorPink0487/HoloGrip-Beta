@@ -321,6 +321,7 @@ export class ArticulatedHandSkeletonMesh {
 
   constructor() {
     this.group.name = 'ArticulatedHandSkeletonMesh';
+    this.group.scale.setScalar(0.70);
 
     // 1. 主体 CNC 精加工拉丝不锈钢材质 (Machined Brushed Stainless Steel)
     this.machinedSteelMat = new THREE.MeshPhysicalMaterial({
@@ -836,7 +837,7 @@ export class ArticulatedHandSkeletonMesh {
       Math.hypot(middleMcp.x - wrist.x, middleMcp.y - wrist.y),
       Math.hypot(indexMcp.x - pinkyMcp.x, indexMcp.y - pinkyMcp.y)
     );
-    const targetHandSpan = 0.112 / rawScale;
+    const targetHandSpan = 0.105 / rawScale;
 
     const palmCenterX = (wrist.x + middleMcp.x) * 0.5;
     const palmCenterY = (wrist.y + middleMcp.y) * 0.5;
@@ -846,44 +847,31 @@ export class ArticulatedHandSkeletonMesh {
     const normX = 0.5 - palmCenterX;
     const normY = 0.5 - palmCenterY;
 
-    // VR 第一人称操作者视角：手部从操作者身前 (+Z 前景) 伸向实验台器材内部 (-Z 纵深，朝里包握，手背朝向操作者)
-    const anchorBaseY = mode === 'right-hand-screw' ? 0.23 : 0.22;
-    // 导体棒位于 Z ≈ 0 轴线上，掌心锚定在近侧 Z ≈ 0.035，手腕位于更靠近操作者的 +Z (Z ≈ 0.08~0.10)
+    // VR 台前操作者视界：机械手基准高度与导轨导线棒自然对齐
+    // 在 group.scale = 0.70 缩放下，anchorBaseY = 0.29 (螺旋定则 0.38) 使机械手掌心与导线棒中上部精准重合，
+    // 既具备极佳的细节呈现与适中手掌体量，又完整露出腕部与前臂总成，指尖自然位于视线黄金舒适区
+    const anchorBaseY = mode === 'right-hand-screw' ? 0.38 : 0.29;
     const anchorBaseZ = mode === 'right-hand-screw' ? 0.035 : 0.045;
 
-    const handWorldCenterX = THREE.MathUtils.clamp(normX * 0.30, -0.16, 0.16);
-    const handWorldCenterY = THREE.MathUtils.clamp(anchorBaseY + normY * 0.20, 0.12, 0.38);
+    const handWorldCenterX = THREE.MathUtils.clamp(normX * 0.32, -0.16, 0.16);
+    const handWorldCenterY = THREE.MathUtils.clamp(anchorBaseY + normY * 0.35, anchorBaseY - 0.10, anchorBaseY + 0.12);
     const handWorldCenterZ = anchorBaseZ;
-
-    const pDirX = wrist.x - middleMcp.x;
-    const pDirY = wrist.y - middleMcp.y;
-    const pLen = Math.hypot(pDirX, pDirY) || 1;
-    const ux = pDirX / pLen;
-    const uy = pDirY / pLen;
-    const lx = -uy;
-    const ly = ux;
 
     for (let i = 0; i < 21; i++) {
       const lm = lms[i];
+      // 1. 水平 X：镜像坐标映射（用户右移 -> +X，用户左移 -> -X）
       const dx = palmCenterX - lm.x;
+      // 2. 纵向 Y：垂直高度映射（用户指尖向上 -> +Y，向下 -> -Y）
       const dy = palmCenterY - lm.y;
+      // 3. 纵深 Z：严格使用 MediaPipe 真实三维相对深度（靠近摄像头为负，远离为正）
+      // 映射到 Three.js 视界：朝向操作者/前景为 +Z，向台面深处延伸为 -Z。
+      // 去除原先人造的 -alongPalm * 0.65 强制倾斜与 acrossPalm 压窄，
+      // 使大拇指及四指的 3D 关节屈曲 (flexion)、对掌内收 (adduction) 与指尖各向弯曲形态真实、精准再现
+      const dz = (palmCenterZ - lm.z) * 1.35;
 
-      const alongPalm = dx * ux + dy * uy;
-      const acrossPalm = (dx * lx + dy * ly) * 0.76;
-
-      const regDx = alongPalm * ux + acrossPalm * lx;
-      const regDy = alongPalm * uy + acrossPalm * ly;
-
-      // 1. 水平 X：保持与操作者真实手臂及四指包握方向完全一致（右臂在右侧 +X，四指向左 -X 包裹导线）
-      const localX = regDx * targetHandSpan;
-      // 2. 纵向 Y：指尖朝上/朝下保持一致 (+Y 为向上)
-      const localY = regDy * targetHandSpan;
-      // 3. 纵深 Z：VR 机械臂朝里伸展：
-      // alongPalm < 0 为手腕端（更靠近操作者 +Z 前景）；alongPalm > 0 为指尖端（深入台面内部 -Z 纵深）
-      const reachZ = -alongPalm * targetHandSpan * 0.65;
-      // 弯曲/抓握时的纵深内卷（手指包绕导体朝里弯曲）
-      const curlZ = (palmCenterZ - lm.z) * targetHandSpan * 0.60;
-      const localZ = reachZ - curlZ;
+      const localX = dx * targetHandSpan;
+      const localY = dy * targetHandSpan;
+      const localZ = dz * targetHandSpan;
 
       this.targetPoints[i].set(
         handWorldCenterX + localX,
@@ -993,6 +981,11 @@ export class ArticulatedHandSkeletonMesh {
       _PALM_X.set(1, 0, 0);
     }
     _PALM_Z.crossVectors(_PALM_X, _PALM_Y).normalize();
+    // 确保掌心法向在用户正对摄像头亮出手心时统一朝向操作者视线 (+Z)
+    if (_PALM_Z.z < 0) {
+      _PALM_Z.negate();
+      _PALM_X.crossVectors(_PALM_Y, _PALM_Z).normalize();
+    }
 
     // 2. 计算腕部桥架上的 4 个掌骨液压缸基座锚点
     const mcpNodes = [indexMcpPt, midMcpPt, ringMcpPt, pinkyMcpPt];
@@ -1040,21 +1033,41 @@ export class ArticulatedHandSkeletonMesh {
       } else if (bone.category === 'palm') {
         bone.barrelGroup.scale.set(1, dist * 0.92, 1);
       } else if (bone.isThumbHousing) {
-        const shellLen = Math.max(0.018, dist * 0.88);
+        // 拇指根部宽体大鱼际金属装甲
+        const shellLen = Math.max(0.018, dist * 0.92);
         bone.barrelGroup.scale.set(1, shellLen * 0.9, 1);
         bone.sidePlatesGroup.scale.set(1, shellLen, 1);
       } else if (bone.startIdx === 0 && bone.endIdx === 1) {
+        // 腕部至拇指基座连杆：平滑锚定于手腕金属箍环拇指侧边缘
         _START
           .copy(wristPt)
-          .addScaledVector(_PALM_X, _DIR.subVectors(indexMcpPt, wristPt).dot(_PALM_X) * 0.68);
-        const tDist = Math.max(0.008, _START.distanceTo(pB));
+          .lerp(pB, 0.35)
+          .addScaledVector(_PALM_Y, -0.004);
+        const tDist = Math.max(0.010, _START.distanceTo(pB));
         _MID.addVectors(_START, pB).multiplyScalar(0.5);
         bone.group.position.copy(_MID);
         _DIR.subVectors(pB, _START).divideScalar(tDist);
         this.setMechanicalBasisQuaternion(bone.group.quaternion, _DIR, _PALM_X, _PALM_Z);
 
-        bone.barrelGroup.scale.set(1, tDist * 0.78, 1);
-        bone.sidePlatesGroup.scale.set(1, tDist * 0.82, 1);
+        bone.barrelGroup.scale.set(1, tDist * 0.82, 1);
+        bone.sidePlatesGroup.scale.set(1, tDist * 0.86, 1);
+      } else if (bone.startIdx === 2 && bone.endIdx === 3) {
+        // 拇指近节指骨：独立精密机械推杆构造，确保大拇指屈曲与伸直时骨节尺寸恒定可信
+        const spanLen = Math.max(0.016, dist * 0.90);
+        bone.barrelGroup.scale.set(1, spanLen * 0.65, 1);
+        bone.barrelGroup.position.set(0, -spanLen * 0.12, 0);
+
+        bone.pistonGroup.scale.set(1, spanLen * 0.55, 1);
+        bone.pistonGroup.position.set(0, spanLen * 0.20, 0);
+
+        bone.sidePlatesGroup.scale.set(1, spanLen * 0.95, 1);
+      } else if (bone.startIdx === 3 && bone.endIdx === 4) {
+        // 拇指远节机械爪尖：独立调校爪尖开合与斜切爪瓣比例
+        const clawLen = Math.max(0.016, dist * 1.10);
+        bone.barrelGroup.scale.set(1, clawLen, 1);
+        bone.barrelGroup.position.set(0, clawLen * 0.05, 0);
+        bone.sidePlatesGroup.scale.set(1, clawLen, 1);
+        bone.sidePlatesGroup.position.set(0, clawLen * 0.05, 0);
       } else if (bone.isDistalClaw) {
         const clawLen = Math.max(0.014, dist * 1.12);
         bone.barrelGroup.scale.set(1, clawLen, 1);

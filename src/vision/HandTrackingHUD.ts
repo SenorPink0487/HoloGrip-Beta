@@ -64,6 +64,7 @@ export class HandTrackingHUD {
   private lastPreviewRenderAt = 0;
   private isDestroyed = false;
   private bodyObserver: MutationObserver | null = null;
+  private pillResizeObserver: ResizeObserver | null = null;
 
   constructor(serviceOrParent?: any, maybeParent?: HTMLElement) {
     const isEl = (typeof HTMLElement !== 'undefined' && serviceOrParent instanceof HTMLElement) ||
@@ -204,6 +205,22 @@ export class HandTrackingHUD {
     this.bindEvents();
     this.listenToService();
     this.initEnvironmentObserver();
+
+    if (typeof window !== 'undefined' && typeof ResizeObserver !== 'undefined') {
+      try {
+        this.pillResizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const w = Math.round(entry.borderBoxSize?.[0]?.inlineSize || this.pillEl.offsetWidth || 0);
+            if (w > 0) {
+              document.documentElement.style.setProperty('--vp-hud-pill-width', `${w}px`);
+            }
+          }
+        });
+        this.pillResizeObserver.observe(this.pillEl);
+      } catch (_) {
+        // Fallback safely in mock/test environments
+      }
+    }
   }
 
   private injectStyles(): void {
@@ -213,11 +230,11 @@ export class HandTrackingHUD {
         top: calc(16px + env(safe-area-inset-top, 0px));
         right: calc(18px + env(safe-area-inset-right, 0px));
         z-index: 8500;
-        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
         user-select: none;
         -webkit-user-select: none;
         pointer-events: auto;
-        opacity: 0.94;
+        opacity: 1;
         transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
                     transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
                     visibility 0.25s ease;
@@ -233,7 +250,7 @@ export class HandTrackingHUD {
         opacity: 0 !important;
         pointer-events: none !important;
         visibility: hidden !important;
-        transform: translateY(-16px) scale(0.92) !important;
+        transform: translateY(-12px) scale(0.94) !important;
       }
 
       .vp-hud-pill {
@@ -242,18 +259,20 @@ export class HandTrackingHUD {
         gap: 8px;
         height: 44px;
         border-radius: 22px;
-        padding: 0 6px 0 14px;
-        background: rgba(255, 255, 255, 0.72);
-        border: 0.5px solid rgba(0, 0, 0, 0.12);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
-                    inset 0 1px 1px rgba(255, 255, 255, 0.85);
+        padding: 0 7px 0 14px;
+        box-sizing: border-box;
+        background: rgba(255, 255, 255, 0.76);
+        border: 0.5px solid rgba(255, 255, 255, 0.85);
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06),
+                    0 1px 2px rgba(0, 0, 0, 0.04),
+                    inset 0 1px 1px rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(28px) saturate(180%);
         -webkit-backdrop-filter: blur(28px) saturate(180%);
-        color: #000000;
-        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+        color: #1d1d1f;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
         cursor: default;
-        transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                    transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+        transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
                     background 0.2s ease,
                     border-color 0.2s ease,
                     box-shadow 0.2s ease,
@@ -262,70 +281,85 @@ export class HandTrackingHUD {
       }
 
       .vp-hud-pill:hover {
-        opacity: 0.98;
-        background: rgba(255, 255, 255, 0.85);
-        border-color: rgba(0, 0, 0, 0.18);
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16),
-                    inset 0 1px 1px rgba(255, 255, 255, 0.95);
-        color: #000000;
+        background: rgba(255, 255, 255, 0.88);
+        border-color: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.08),
+                    0 2px 4px rgba(0, 0, 0, 0.03),
+                    inset 0 1px 1px #ffffff;
+        color: #1d1d1f;
+        transform: translateY(-0.5px);
+      }
+
+      .vp-hud-pill:active {
+        transform: scale(0.985);
       }
 
       .vp-pill-status-dot {
         width: 7px;
         height: 7px;
         border-radius: 50%;
-        background: rgba(0, 0, 0, 0.35);
+        background: #8e8e93;
+        box-shadow: 0 0 0 1.5px rgba(142, 142, 147, 0.25);
         flex-shrink: 0;
         transition: background-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
       }
 
       .vp-pill-status-dot.active {
-        background: #30d158;
-        box-shadow: 0 0 10px rgba(48, 209, 88, 0.7);
-        transform: scale(1.1);
+        background: #34c759;
+        box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.25), 0 0 10px rgba(52, 199, 89, 0.65);
+        transform: scale(1.08);
+        animation: vp-halo-breathe 2.4s ease-in-out infinite;
+      }
+
+      @keyframes vp-halo-breathe {
+        0%, 100% {
+          box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.25), 0 0 8px rgba(52, 199, 89, 0.55);
+        }
+        50% {
+          box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.35), 0 0 12px rgba(52, 199, 89, 0.85);
+        }
       }
 
       .vp-pill-status-dot.loading {
         background: #ff9f0a;
-        box-shadow: 0 0 10px rgba(255, 159, 10, 0.7);
+        box-shadow: 0 0 0 2px rgba(255, 159, 10, 0.25), 0 0 10px rgba(255, 159, 10, 0.65);
         animation: vp-pulse-loading 1.2s ease-in-out infinite;
       }
 
       @keyframes vp-pulse-loading {
-        0%, 100% { opacity: 0.6; transform: scale(0.9); }
+        0%, 100% { opacity: 0.65; transform: scale(0.92); }
         50% { opacity: 1; transform: scale(1.15); }
       }
 
       .vp-pill-status-dot.error {
-        background: #ff453a;
-        box-shadow: 0 0 10px rgba(255, 69, 58, 0.7);
+        background: #ff3b30;
+        box-shadow: 0 0 0 2px rgba(255, 59, 48, 0.25), 0 0 10px rgba(255, 59, 48, 0.65);
       }
 
       .vp-pill-title {
-        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", sans-serif !important;
         font-size: 13px;
-        font-weight: 500;
+        font-weight: 550;
         letter-spacing: -0.15px;
         line-height: 1;
         white-space: nowrap;
-        color: #000000;
+        color: #1d1d1f;
       }
 
       .vp-pill-divider {
         width: 0.5px;
-        height: 18px;
-        background: rgba(0, 0, 0, 0.15);
+        height: 16px;
+        background: rgba(0, 0, 0, 0.08);
         pointer-events: none;
         flex-shrink: 0;
-        margin: 0 2px;
+        margin: 0 1px;
       }
 
       .vp-pill-btn {
-        background: rgba(0, 0, 0, 0.05);
-        border: 0.5px solid rgba(0, 0, 0, 0.12);
-        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3);
-        color: #000000;
-        height: 32px;
+        background: rgba(0, 0, 0, 0.04);
+        border: 0.5px solid rgba(0, 0, 0, 0.06);
+        color: #1d1d1f;
+        height: 28px;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
@@ -336,30 +370,30 @@ export class HandTrackingHUD {
         user-select: none;
         -webkit-user-select: none;
         -webkit-tap-highlight-color: transparent;
-        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s cubic-bezier(0.16, 1, 0.3, 1);
       }
 
       .vp-pill-btn:hover {
-        background: rgba(0, 0, 0, 0.09);
-        border-color: rgba(0, 0, 0, 0.2);
+        background: rgba(0, 0, 0, 0.08);
+        border-color: rgba(0, 0, 0, 0.1);
         color: #000000;
-        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4), 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       }
 
       .vp-pill-btn:active {
-        transform: scale(0.92);
+        transform: scale(0.94);
       }
 
       .vp-pill-cam-btn {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        color: #000000;
+        width: 28px;
+        height: 28px;
+        border-radius: 14px;
+        color: #48484a;
       }
 
       .vp-pill-cam-btn svg {
         flex-shrink: 0;
-        color: #000000;
+        color: currentColor;
         stroke: currentColor;
         transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       }
@@ -370,10 +404,10 @@ export class HandTrackingHUD {
 
       .vp-pill-cam-btn.active,
       .vp-pill-cam-btn.is-open {
-        background: rgba(10, 132, 255, 0.15);
-        border-color: rgba(10, 132, 255, 0.4);
+        background: rgba(0, 122, 255, 0.12);
+        border-color: rgba(0, 122, 255, 0.28);
         color: #0071e3;
-        box-shadow: 0 0 12px rgba(10, 132, 255, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+        box-shadow: 0 0 10px rgba(0, 122, 255, 0.2);
       }
 
       .vp-pill-cam-btn.active svg,
@@ -382,20 +416,29 @@ export class HandTrackingHUD {
       }
 
       .vp-pill-toggle-btn {
-        padding: 0 13px;
-        border-radius: 16px;
-        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", "SF Pro Display", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
-        font-size: 13px;
-        font-weight: 500;
+        padding: 0 12px;
+        border-radius: 14px;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", sans-serif !important;
+        font-size: 12px;
+        font-weight: 550;
         letter-spacing: -0.1px;
-        color: #000000;
+        color: #1d1d1f;
+      }
+
+      .vp-pill-toggle-btn:hover {
+        transform: translateY(-0.5px);
       }
 
       .vp-pill-toggle-btn.active {
-        background: rgba(48, 209, 88, 0.18);
-        color: #000000;
-        border-color: rgba(48, 209, 88, 0.45);
-        box-shadow: 0 0 12px rgba(48, 209, 88, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+        background: rgba(52, 199, 89, 0.16);
+        color: #15803d;
+        border-color: rgba(52, 199, 89, 0.35);
+        box-shadow: 0 1px 3px rgba(52, 199, 89, 0.15);
+      }
+
+      .vp-pill-toggle-btn.active:hover {
+        background: rgba(52, 199, 89, 0.24);
+        color: #15803d;
       }
 
       /* 响应式：iPad / 大屏适配，与右下角 touch-controls 严格对齐 */
@@ -405,37 +448,57 @@ export class HandTrackingHUD {
           right: calc(40px + env(safe-area-inset-right, 0px));
         }
         .vp-hud-pill {
-          height: 48px;
-          border-radius: 24px;
+          height: 46px;
+          border-radius: 23px;
           padding: 0 8px 0 16px;
-          gap: 10px;
+          gap: 9px;
         }
         .vp-pill-title {
-          font-size: 14px;
+          font-size: 13.5px;
         }
         .vp-pill-divider {
-          height: 20px;
-          margin: 0 3px;
+          height: 18px;
+          margin: 0 2px;
         }
         .vp-pill-btn {
-          height: 36px;
+          height: 30px;
         }
         .vp-pill-cam-btn {
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
+          width: 30px;
+          height: 30px;
+          border-radius: 15px;
         }
         .vp-pill-toggle-btn {
-          padding: 0 15px;
-          border-radius: 18px;
-          font-size: 13px;
+          padding: 0 13px;
+          border-radius: 15px;
+          font-size: 12.5px;
         }
       }
 
       @media (max-width: 768px) {
         #vision-pro-tracking-hud {
           top: calc(14px + env(safe-area-inset-top, 0px));
-          right: calc(20px + env(safe-area-inset-right, 0px));
+          right: calc(16px + env(safe-area-inset-right, 0px));
+        }
+        .vp-hud-pill {
+          height: 40px;
+          border-radius: 20px;
+          padding: 0 6px 0 11px;
+          gap: 6px;
+        }
+        .vp-pill-title {
+          font-size: 12px;
+        }
+        .vp-pill-cam-btn {
+          width: 26px;
+          height: 26px;
+          border-radius: 13px;
+        }
+        .vp-pill-toggle-btn {
+          height: 26px;
+          padding: 0 10px;
+          border-radius: 13px;
+          font-size: 11.5px;
         }
       }
 
@@ -2262,6 +2325,10 @@ export class HandTrackingHUD {
     this.isDestroyed = true;
     this.stopPreviewRenderLoop();
     this.resetNativePreviewBuffer();
+    if (this.pillResizeObserver) {
+      this.pillResizeObserver.disconnect();
+      this.pillResizeObserver = null;
+    }
     if (this.bodyObserver) {
       this.bodyObserver.disconnect();
       this.bodyObserver = null;
