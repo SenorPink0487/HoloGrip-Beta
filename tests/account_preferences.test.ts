@@ -113,11 +113,11 @@ assert.deepEqual(themeSaves.at(-1), { galleryPortraits: true, galleryPalette: 'w
 
 let indicatorCount = 0;
 let appliedScale = 0;
-const modal = {
+const modal = Object.assign(Object.create(VisionModal.prototype), {
   MIN_SCALE: 0.5, MAX_SCALE: 2, currentScale: 1,
   callbacks: { onScaleChange: (scale: number) => { appliedScale = scale; } },
   showScaleIndicator: () => { indicatorCount++; },
-};
+});
 VisionModal.prototype.setScale.call(modal as any, 1.4, false);
 assert.equal(appliedScale, 1.4);
 assert.equal(indicatorCount, 0, 'restoring preferences is silent');

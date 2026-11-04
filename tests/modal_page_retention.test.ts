@@ -60,6 +60,11 @@ class MockDOMElement {
     }
   }
 
+  contains(element: MockDOMElement | null): boolean {
+    for (let node = element; node; node = node.parentElement) if (node === this) return true;
+    return false;
+  }
+
   blur(): void {}
 
   closest(selector: string): any {
@@ -115,6 +120,7 @@ class MockDOMElement {
       if (this.innerHTML.includes(`id="${id}"`)) {
         const el = new MockDOMElement('div');
         el.id = id;
+        el.parentElement = this;
         this.elementCache.set(selector, el);
         return el;
       }
@@ -130,6 +136,7 @@ class MockDOMElement {
       if (this.innerHTML.includes(`class="`) && this.innerHTML.includes(cls)) {
         const el = new MockDOMElement('div');
         el.className = cls;
+        el.parentElement = this;
         this.elementCache.set(selector, el);
         return el;
       }
@@ -149,17 +156,27 @@ class MockDOMElement {
   }
 }
 
+const documentListeners = new Map<string, ((event: any) => void)[]>();
+const windowListeners = new Map<string, ((event: any) => void)[]>();
+const listen = (store: Map<string, ((event: any) => void)[]>, type: string, callback: (event: any) => void) => {
+  store.set(type, [...(store.get(type) ?? []), callback]);
+};
+let hitElement: MockDOMElement | null = null;
 const mockDoc = {
   createElement: (tag: string) => new MockDOMElement(tag),
   body: new MockDOMElement('body'),
-  addEventListener: () => {},
+  documentElement: new MockDOMElement('html'),
+  hidden: false,
+  addEventListener: (type: string, callback: (event: any) => void) => listen(documentListeners, type, callback),
   removeEventListener: () => {},
   querySelector: () => null,
+  elementFromPoint: () => hitElement,
 };
 
+(globalThis as any).Element = MockDOMElement;
 (globalThis as any).document = mockDoc;
 (globalThis as any).window = {
-  addEventListener: () => {},
+  addEventListener: (type: string, callback: (event: any) => void) => listen(windowListeners, type, callback),
   removeEventListener: () => {},
   innerWidth: 1920,
   innerHeight: 1080,
@@ -474,6 +491,81 @@ const visionModal = new VisionModal(engine, {
   console.log('✓ Test 11 passed: Card → introduction → original catalog; background experiment preserved\n');
 }
 
+// Outside short presses must follow exactly the same navigation as the existing back button.
+{
+  const physics = (visionModal as any).physicsModal;
+  const background = new MockDOMElement('canvas');
+  const container = new MockDOMElement(); container.id = 'webgl-container'; container.appendChild(background);
+  const button = new MockDOMElement('button');
+  const preview = new MockDOMElement('canvas');
+  const inside = visionModal.element.querySelector('#vision-body-content') as unknown as MockDOMElement;
+  let clock = 1000;
+  const dispatch = (type: string, overrides: Record<string, any> = {}) => {
+    const event = { pointerId: 1, button: 0, isPrimary: true, clientX: 100, clientY: 100,
+      timeStamp: clock, target: background, ...overrides };
+    for (const callback of documentListeners.get(type) ?? []) callback(event);
+  };
+  const press = (duration = 100, target: MockDOMElement = background) => {
+    hitElement = target; dispatch('pointerdown', { target }); clock += duration;
+    dispatch('pointerup', { target }); clock += 100;
+  };
+  const showList = () => {
+    visionModal.open('physics'); physics.showLevel2('em');
+    visionModal.setGestureNavigationEnabled(true); hitElement = background;
+  };
+  showList(); press();
+  assert.strictEqual(physics.getCurrentLevel(), 1, 'One outside short press pops just one physics level');
+  assert.strictEqual(visionModal.currentTab, 'physics');
+  dispatch('click'); dispatch('click');
+  assert.strictEqual(visionModal.currentTab, 'physics', 'Synthetic follow-up clicks cannot pop a second page');
+  press(); assert.strictEqual(visionModal.currentTab, 'disciplines');
+  press(); assert.strictEqual(visionModal.currentTab, 'disciplines', 'The root menu has no previous page');
+  assert.strictEqual(visionModal.visible, true, 'Outside back does not close the menu');
+
+  for (const tab of ['em', 'mechanics', 'thermo', 'beaker', 'chemistry'] as const) {
+    visionModal.open(tab);
+    (visionModal.element.querySelector('#btn-window-back') as any).dispatch('click');
+    const expected = [visionModal.currentTab, physics.getCurrentLevel(), physics.getCurrentDiscipline()];
+    visionModal.open(tab); press();
+    assert.deepStrictEqual([visionModal.currentTab, physics.getCurrentLevel(), physics.getCurrentDiscipline()], expected,
+      `${tab}: outside back and the header button must perform the same navigation`);
+  }
+  showList(); visionModal.setGestureNavigationEnabled(false); press();
+  assert.strictEqual(physics.getCurrentLevel(), 2, 'Ordinary mouse mode must not enable the shortcut');
+  showList(); press(250);
+  assert.strictEqual(physics.getCurrentLevel(), 2, 'Long presses must not navigate');
+  showList(); press(100, inside);
+  assert.strictEqual(physics.getCurrentLevel(), 2, 'Blank areas inside the menu must not navigate');
+  for (const target of [button, preview]) {
+    showList(); press(100, target);
+    assert.strictEqual(physics.getCurrentLevel(), 2, 'Buttons and the camera preview are not outside blank space');
+  }
+  showList(); dispatch('pointerdown'); clock += 20; dispatch('pointermove', { clientX: 140 });
+  clock += 20; dispatch('pointermove'); clock += 20; dispatch('pointerup');
+  assert.strictEqual(physics.getCurrentLevel(), 2, 'Dragging out and back cannot become a short press');
+  showList(); dispatch('pointerdown'); hitElement = inside; clock += 100; dispatch('pointerup');
+  assert.strictEqual(physics.getCurrentLevel(), 2, 'A captured canvas pointer ending inside the menu cannot navigate');
+  showList(); dispatch('pointerdown'); hitElement = null; clock += 100; dispatch('pointerup');
+  assert.strictEqual(physics.getCurrentLevel(), 2, 'Releasing outside the viewport cannot navigate');
+  showList(); dispatch('pointerdown', { target: inside }); clock += 100; dispatch('pointerup');
+  assert.strictEqual(physics.getCurrentLevel(), 2, 'A press starting inside the menu cannot become an outside press');
+
+  for (const cancel of [
+    () => dispatch('pointercancel'),
+    () => dispatch('pointerdown', { pointerId: 2, isPrimary: false }),
+    () => visionModal.cancelOutsideBackPress(),
+    () => visionModal.setGestureNavigationEnabled(false),
+    () => visionModal.setScale(1, false),
+    () => { for (const callback of windowListeners.get('blur') ?? []) callback({}); },
+    () => { mockDoc.hidden = true; for (const callback of documentListeners.get('visibilitychange') ?? []) callback({}); mockDoc.hidden = false; },
+    () => { visionModal.close(); visionModal.open(); },
+  ]) {
+    showList(); dispatch('pointerdown'); clock += 50; cancel(); clock += 50; dispatch('pointerup');
+    assert.strictEqual(physics.getCurrentLevel(), 2, 'Cancellation, scaling, mode changes and loss of focus must not navigate');
+  }
+  console.log('✓ Test 12 passed: Outside-menu gesture back, shared hierarchy, single-step navigation, drag, UI hits, cancellation and mode gating');
+}
+
 console.log('========================================================');
-console.log('All Modal Page Retention Tests Passed (11/11)!');
+console.log('All Modal Page Retention Tests Passed (12/12)!');
 console.log('========================================================\n');

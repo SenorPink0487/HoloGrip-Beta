@@ -138,6 +138,8 @@ export class VisionModal {
   private btnBack: HTMLElement | null = null;
   private scaleIndicatorEl: HTMLElement | null = null;
   private scaleIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
+  private gestureNavigationEnabled = false;
+  private outsideBackPress: { pointerId: number; x: number; y: number; startedAt: number } | null = null;
 
   private engine: ChemistryEngine;
   private callbacks: VisionModalCallbacks;
@@ -151,6 +153,7 @@ export class VisionModal {
     this.callbacks = callbacks;
     this.createUI();
     this.bindKeyboardShortcuts();
+    this.bindOutsideGestureNavigation();
   }
 
   private createUI(): void {
@@ -529,34 +532,7 @@ export class VisionModal {
       true
     );
 
-    this.btnBack?.addEventListener('click', () => {
-      if (this.tutorialEnabled) {
-        this.tutorialPanel.goBack();
-        return;
-      }
-      if (this.activeTab === 'physics') {
-        if (this.physicsModal.canGoBack()) {
-          this.physicsModal.goBack();
-          return;
-        }
-        this.switchTab('disciplines');
-      } else if (this.activeTab === 'em') {
-        this.physicsModal.showLevel2('em');
-        this.switchTab('physics');
-      } else if (this.activeTab === 'mechanics') {
-        this.physicsModal.showLevel2('mechanics');
-        this.switchTab('physics');
-      } else if (this.activeTab === 'thermo') {
-        this.physicsModal.showLevel2('thermo');
-        this.switchTab('physics');
-      } else if (this.activeTab === 'chemistry' || this.activeTab === 'math') {
-        this.switchTab('disciplines');
-      } else if (this.activeTab === 'beaker') {
-        this.switchTab('chemistry');
-      } else {
-        this.switchTab('disciplines');
-      }
-    });
+    this.btnBack?.addEventListener('click', () => this.goBack());
 
     this.element.querySelector('#vision-window-mover-bar')?.addEventListener('click', () => {
       this.callbacks.onRecenter?.();
@@ -565,6 +541,93 @@ export class VisionModal {
     this.element.querySelector('#btn-window-close')?.addEventListener('click', () => {
       this.close();
     });
+  }
+
+  /** 标题栏返回与屏外短按共用同一套分层导航。 */
+  public goBack(): void {
+    this.cancelOutsideBackPress();
+    if (this.periodicTableModal?.isPopoverOpen?.()) {
+      this.periodicTableModal.closeElementPopover();
+      return;
+    }
+    if (this.tutorialEnabled) {
+      this.tutorialPanel.goBack();
+      return;
+    }
+    if (this.activeTab === 'physics') {
+      if (this.physicsModal.canGoBack()) {
+        this.physicsModal.goBack();
+        return;
+      }
+      this.switchTab('disciplines');
+    } else if (this.activeTab === 'em') {
+      this.physicsModal.showLevel2('em');
+      this.switchTab('physics');
+    } else if (this.activeTab === 'mechanics') {
+      this.physicsModal.showLevel2('mechanics');
+      this.switchTab('physics');
+    } else if (this.activeTab === 'thermo') {
+      this.physicsModal.showLevel2('thermo');
+      this.switchTab('physics');
+    } else if (this.activeTab === 'chemistry' || this.activeTab === 'math') {
+      this.switchTab('disciplines');
+    } else if (this.activeTab === 'beaker') {
+      this.switchTab('chemistry');
+    } else {
+      this.switchTab('disciplines');
+    }
+  }
+
+  public setGestureNavigationEnabled(enabled: boolean): void {
+    this.gestureNavigationEnabled = enabled;
+    if (!enabled) this.cancelOutsideBackPress();
+  }
+
+  public cancelOutsideBackPress(): void {
+    this.outsideBackPress = null;
+  }
+
+  private canNavigateFromOutside(): boolean {
+    return this.gestureNavigationEnabled && this.isOpen && Boolean(this.btnBack && !this.btnBack.classList.contains('hidden'));
+  }
+
+  private isOutsideMenuBlank(event: PointerEvent): boolean {
+    const isBlank = (target: EventTarget | null): boolean => {
+      if (!(target instanceof Element) || this.element.contains(target)) return false;
+      return target === document.body || target === document.documentElement ||
+        target.id === 'webgl-container' || target.id === 'webgl-canvas' ||
+        (target.tagName === 'CANVAS' && target.parentElement?.id === 'webgl-container');
+    };
+    // 手势拖拽会把事件目标锁定在按下处，松开时还需重新命中测试，防止拖进菜单后误返回。
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    return isBlank(event.target) && isBlank(hit);
+  }
+
+  private bindOutsideGestureNavigation(): void {
+    document.addEventListener('pointerdown', event => {
+      this.cancelOutsideBackPress();
+      if (!this.canNavigateFromOutside() || event.button !== 0 || event.isPrimary === false || !this.isOutsideMenuBlank(event)) return;
+      this.outsideBackPress = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, startedAt: event.timeStamp };
+    }, true);
+    document.addEventListener('pointermove', event => {
+      const press = this.outsideBackPress;
+      if (press && event.pointerId === press.pointerId &&
+        (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 20 || !this.isOutsideMenuBlank(event))) {
+        this.cancelOutsideBackPress();
+      }
+    }, true);
+    document.addEventListener('pointerup', event => {
+      const press = this.outsideBackPress;
+      this.cancelOutsideBackPress();
+      if (!press || event.pointerId !== press.pointerId || !this.canNavigateFromOutside()) return;
+      const duration = event.timeStamp - press.startedAt;
+      if (duration >= 0 && duration <= 200 && Math.hypot(event.clientX - press.x, event.clientY - press.y) <= 20 && this.isOutsideMenuBlank(event)) {
+        this.goBack();
+      }
+    }, true);
+    document.addEventListener('pointercancel', () => this.cancelOutsideBackPress(), true);
+    window.addEventListener('blur', () => this.cancelOutsideBackPress());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.cancelOutsideBackPress(); });
   }
 
   private bindKeyboardShortcuts(): void {
@@ -731,6 +794,7 @@ export class VisionModal {
   }
 
   public switchTab(tab: VisionTab): void {
+    this.cancelOutsideBackPress();
     if (this.tutorialEnabled) this.setTutorialEnabled(false);
     if (tab !== 'beaker') {
       this.statusCard?.clearSelectedCompound();
@@ -825,6 +889,7 @@ export class VisionModal {
   }
 
   public open(tab?: VisionTab, beakerId?: 'left' | 'right'): void {
+    this.cancelOutsideBackPress();
     const targetTab = tab || this.activeTab || 'disciplines';
 
     // Reopening help keeps its selected guide; explicit navigation exits help.
@@ -842,6 +907,7 @@ export class VisionModal {
   }
 
   public close(): void {
+    this.cancelOutsideBackPress();
     this.tutorialPanel.cancelTextAnimations();
     this.tutorialAnimations.forEach(animation => animation.cancel());
     this.tutorialAnimations = [];
@@ -877,6 +943,7 @@ export class VisionModal {
   }
 
   public setTutorialEnabled(enabled: boolean): void {
+    this.cancelOutsideBackPress();
     if (enabled === this.tutorialEnabled) return;
     this.periodicTableModal?.closeElementPopover();
     this.element.querySelector('.vision-window-frame')?.classList.remove('has-modal-popover');
@@ -925,6 +992,7 @@ export class VisionModal {
   }
 
   public setScale(scale: number, showIndicator = true): void {
+    this.cancelOutsideBackPress();
     if (!Number.isFinite(scale)) return;
     const clamped = Math.min(this.MAX_SCALE, Math.max(this.MIN_SCALE, scale));
     this.currentScale = Math.round(clamped * 100) / 100;

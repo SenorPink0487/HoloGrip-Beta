@@ -1918,7 +1918,11 @@ export class Engine {
 
     // 将手势追踪与 Vision Pro 光标及准星可见性同步
     this.handGestureService.onFrame((frame) => {
-      if (this.currentExperimentId === 'em-hand-rules') {
+      // 丢手或双手缩放产生的模拟松开不属于短按返回。
+      if (!frame.hasHand || frame.isDualPinching || (!frame.rightHand && frame.leftHand)) {
+        this.visionModal?.cancelOutsideBackPress();
+      }
+      if (this.currentExperimentId === 'em-hand-rules' && !this.visionModal?.visible) {
         // 电磁定则手势板块：隐藏 2D 白色圆环光标，改由 3D 场景内的 21 节点素雅手部骨骼实时驱动
         this.visionProCursor?.setRightVisible(false);
         this.visionProCursor?.setLeftVisible(false);
@@ -2053,6 +2057,7 @@ export class Engine {
 
     this.handGestureService.onStatusChange((telemetry) => {
       const isRunning = telemetry.status === 'running';
+      this.visionModal?.setGestureNavigationEnabled(isRunning);
       if (typeof document !== 'undefined' && document.body) {
         document.body.classList.toggle('hand-tracking-active', isRunning);
       }
@@ -2063,7 +2068,7 @@ export class Engine {
       if (this.currentExperimentId === 'em-hand-rules') {
         const exp = this.holoStage?.activeExperiment as any;
         exp?.setGestureEnabled?.(isRunning);
-        if (isRunning) {
+        if (isRunning && !this.visionModal?.visible) {
           this.visionProCursor?.setRightVisible(false);
           this.visionProCursor?.setLeftVisible(false);
         }
