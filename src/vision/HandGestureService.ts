@@ -1,5 +1,6 @@
 import { PointFilter2D } from './OneEuroFilter.ts';
 import { AppleVisionTracker } from './AppleVisionTracker.ts';
+import { detectAnatomicalChirality } from '../physics/em/handRulesSolver.ts';
 import type {
   DualHandPinchEvent,
   HandGestureFrame,
@@ -1296,7 +1297,11 @@ export class HandGestureService {
       const screenX = this.config.mirrorX ? 1.0 - midX : midX;
 
       let label: 'left' | 'right';
-      if (rawCategory) {
+      // 优先通过 3D 骨骼解剖学手性不变量校准（防止握拳比划时 MediaPipe 2D 分类头单帧误判）
+      const anatomical = detectAnatomicalChirality(lms);
+      if (anatomical) {
+        label = anatomical;
+      } else if (rawCategory) {
         if (this.isAppleVisionMode) {
           // Apple Vision 模式下，原生 Swift 已精确映射解剖学手性：Right 即真实右手，Left 即真实左手
           label = rawCategory === 'Right' ? 'right' : 'left';
@@ -1349,8 +1354,8 @@ export class HandGestureService {
           timestamp >= this.leftTracker.lastSeenAt &&
           timestamp - this.leftTracker.lastSeenAt < 650;
 
-        const rightMaxStep = this.rightTracker.isPinching ? 0.34 : 0.24;
-        const leftMaxStep = this.leftTracker.isPinching ? 0.34 : 0.24;
+        const rightMaxStep = this.rightTracker.isPinching ? 0.38 : 0.30;
+        const leftMaxStep = this.leftTracker.isPinching ? 0.38 : 0.30;
         const distToRight = rightRecent && this.rightTracker.lastWrist
           ? Math.hypot(det.wrist.x - this.rightTracker.lastWrist.x, det.wrist.y - this.rightTracker.lastWrist.y)
           : Infinity;
@@ -1361,21 +1366,32 @@ export class HandGestureService {
         if (distToRight <= rightMaxStep && distToRight < distToLeft) {
           isLeft = false;
         } else if (distToLeft <= leftMaxStep && distToLeft < distToRight) {
+          // 如果轨迹虽然接近上一帧左手，但当前帧经 3D 解剖学或分类器明确为右手且位于中线及右侧，立即纠偏为右手
+          if (det.label === 'right' && det.screenX >= 0.38) {
+            isLeft = false;
+          } else {
+            isLeft = true;
+          }
+        } else if (rightRecent && det.screenX >= 0.44) {
+          // 连续操作惯性：刚刚一直在使用右手且当前仍处于屏幕中线偏右，延续右手识别（防止握拳比划时单帧手性翻转）
+          isLeft = false;
+        } else if (leftRecent && det.screenX <= 0.48) {
+          // 连续操作惯性：刚刚一直在使用左手且当前仍处于屏幕中线偏左，延续左手识别
           isLeft = true;
         } else if (det.label === 'right') {
-          // 新进入视野或无近距手腕轨迹时：若模型手性明确判定为右手，即使位于屏幕中线或左半区（screenX <= 0.45）也识别为右手
+          // 新进入视野或无近距手腕轨迹时：若模型手性明确判定为右手，即使位于屏幕中线或左半区也识别为右手
           isLeft = false;
-        } else if (det.screenX >= 0.55) {
-          // 新进入视野且显著位于屏幕右半区，作为右手空间兜底
+        } else if (det.screenX >= 0.48) {
+          // 新进入视野且位于屏幕中线偏右（镜像坐标），作为右手空间兜底
           isLeft = false;
         } else if (det.label === 'left') {
           isLeft = true;
-        } else if (det.screenX <= 0.45) {
+        } else if (det.screenX <= 0.42) {
           // 新进入视野且显著位于屏幕左半区
           isLeft = true;
-        } else if (Number.isFinite(this.rightTracker.lastSeenAt) && timestamp - this.rightTracker.lastSeenAt < 800) {
+        } else if (Number.isFinite(this.rightTracker.lastSeenAt) && timestamp - this.rightTracker.lastSeenAt < 1000) {
           isLeft = false;
-        } else if (Number.isFinite(this.leftTracker.lastSeenAt) && timestamp - this.leftTracker.lastSeenAt < 800) {
+        } else if (Number.isFinite(this.leftTracker.lastSeenAt) && timestamp - this.leftTracker.lastSeenAt < 1000) {
           isLeft = true;
         } else {
           isLeft = det.label === 'left';

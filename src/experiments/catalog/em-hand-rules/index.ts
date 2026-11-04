@@ -20,14 +20,6 @@ export default class EmHandRulesExperiment extends BaseExperiment {
   public override targetScale = 3.6;
   public override hideCenterEmitter = true;
 
-  public readonly initialCameraPose = {
-    x: 0,
-    y: 1.30,
-    z: 3.90,
-    yaw: 0,
-    pitch: -0.05,
-  };
-
   private bench!: HandRulesBenchMesh;
 
   private config: HandRuleConfig = {

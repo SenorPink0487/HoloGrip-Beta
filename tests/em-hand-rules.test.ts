@@ -646,18 +646,43 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
     gestureEnabled: true,
   };
 
-  // 1. 正确姿势：大拇指指向电流 (+Y 向上)，不论四指紧握或自然微屈，均精准判别成功
+  // 1. 正确姿势：大拇指指向电流 (+Y 向上)，四指握持导线 (Thumbs-up)，精准判别成功
   const thumbUpFrame = wrapSingleHandFrame(
     'right',
     buildMockLandmarks({
       thumbDirWorld: { x: 0, y: 1 },
       fingersDirWorld: { x: -1, y: 0 },
-      curled: false, // 遵循用户要求：只要拇指朝向正确即可顺畅判别
+      curled: true,
     })
   );
   const evalUp = evaluateHandRuleFrame(configUp, thumbUpFrame);
-  assert.strictEqual(evalUp.isMatched, true, 'Thumb pointing along current MUST match right-hand screw rule');
+  assert.strictEqual(evalUp.isMatched, true, 'Proper thumbs-up pointing along current MUST match right-hand screw rule');
   assert.strictEqual(evalUp.status, 'matched');
+
+  // 1b. 开掌平展/击掌手势（如用户截图3：五指大张开，四指朝上，拇指朝右）：严禁误判触发磁场
+  const openPalmFrame = wrapSingleHandFrame(
+    'right',
+    buildMockLandmarks({
+      thumbDirWorld: { x: 1, y: 0.4 },
+      fingersDirWorld: { x: 0, y: 1 },
+      curled: false,
+    })
+  );
+  const evalOpenPalm = evaluateHandRuleFrame(configUp, openPalmFrame);
+  assert.strictEqual(evalOpenPalm.isMatched, false, 'Open palm with fingers pointing up MUST NOT match right-hand screw rule');
+  assert(evalOpenPalm.statusLabel.includes('避免全张开手掌'));
+
+  // 1c. 侧向平展手掌（四指完全伸平）：严禁误判
+  const flatHandFrame = wrapSingleHandFrame(
+    'right',
+    buildMockLandmarks({
+      thumbDirWorld: { x: 0, y: 1 },
+      fingersDirWorld: { x: -1, y: 0 },
+      curled: false,
+    })
+  );
+  const evalFlatHand = evaluateHandRuleFrame(configUp, flatHandFrame);
+  assert.strictEqual(evalFlatHand.isMatched, false, 'Flat open hand without curl MUST NOT match');
 
   // 2. 拇指横指 (+X 水平向右 90°)：与电流垂直，严禁触发
   const thumbSideFrame = wrapSingleHandFrame(
@@ -879,6 +904,217 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   console.log('✓ Test 13 passed: Left-Hand Rule 3D Apparatus, Direct Manipulation & Dynamics on Chrome Rails verified');
 }
 
+// Test 14: Strict Camera Viewpoint Stability Invariant (No jarring camera pose shift on opening)
+{
+  const exp = new EmHandRulesExperiment();
+  assert.strictEqual(
+    (exp as any).initialCameraPose,
+    undefined,
+    'EmHandRulesExperiment must not define initialCameraPose so the camera viewpoint remains stable on module open'
+  );
+  console.log('✓ Test 14 passed: Camera viewpoint stability verified (zero forced initial camera jump)');
+}
+
+// Test 15: Real-Life Hand Pose Invariant (User Report Bug Reproduction & Verification)
+// In Right-Hand Screw Rule, an open hand with four fingers pointing straight UP and thumb pointing HORIZONTALLY RIGHT
+// MUST NOT match (it was an unphysical false-positive). But in Right-Hand Rule (v = +X, I_ind = +Y), it matches.
+{
+  const realLms: NormalizedLandmark[] = [];
+  for (let i = 0; i < 21; i++) realLms.push({ x: 0.5, y: 0.5, z: 0 });
+  realLms[0] = { x: 0.5, y: 0.65, z: 0 }; // Wrist
+  realLms[5] = { x: 0.46, y: 0.52, z: 0 }; // Index MCP
+  realLms[9] = { x: 0.50, y: 0.50, z: 0 }; // Middle MCP
+  realLms[13] = { x: 0.54, y: 0.52, z: 0 }; // Ring MCP
+  realLms[17] = { x: 0.58, y: 0.54, z: 0 }; // Pinky MCP
+
+  // Thumb extended horizontally to the right (+X)
+  realLms[1] = { x: 0.47, y: 0.60, z: 0 };
+  realLms[2] = { x: 0.44, y: 0.58, z: 0 };
+  realLms[3] = { x: 0.40, y: 0.58, z: 0 };
+  realLms[4] = { x: 0.35, y: 0.58, z: 0 };
+
+  // Four fingers extended vertically straight UP (+Y)
+  realLms[6] = { x: 0.46, y: 0.45, z: 0 };
+  realLms[7] = { x: 0.46, y: 0.40, z: 0 };
+  realLms[8] = { x: 0.46, y: 0.35, z: 0 };
+  realLms[10] = { x: 0.50, y: 0.43, z: 0 };
+  realLms[11] = { x: 0.50, y: 0.38, z: 0 };
+  realLms[12] = { x: 0.50, y: 0.33, z: 0 };
+  realLms[14] = { x: 0.54, y: 0.45, z: 0 };
+  realLms[15] = { x: 0.54, y: 0.40, z: 0 };
+  realLms[16] = { x: 0.54, y: 0.35, z: 0 };
+  realLms[18] = { x: 0.58, y: 0.48, z: 0 };
+  realLms[19] = { x: 0.58, y: 0.44, z: 0 };
+  realLms[20] = { x: 0.58, y: 0.40, z: 0 };
+
+  const userFrame = wrapSingleHandFrame('right', realLms);
+
+  // Case A: Right-Hand Screw Rule (current UP) -> MUST NOT MATCH!
+  const screwConfig: HandRuleConfig = {
+    mode: 'right-hand-screw',
+    currentPolarity: 1,
+    fieldPolarity: 1,
+    motionPolarity: 1,
+    gestureEnabled: true,
+  };
+  const screwEval = evaluateHandRuleFrame(screwConfig, userFrame);
+  assert.strictEqual(
+    screwEval.isMatched,
+    false,
+    'Open palm with four fingers pointing UP and thumb pointing right MUST NOT match Right-Hand Screw Rule'
+  );
+  assert(
+    screwEval.statusLabel.includes('避免全张开手掌') || screwEval.statusLabel.includes('握住导线'),
+    `Status label must guide user to grip the wire. Got: ${screwEval.statusLabel}`
+  );
+
+  // Case B: Right-Hand Rule (motion +X, field -Z -> induced current +Y) -> MATCHES!
+  const rhrConfig: HandRuleConfig = {
+    mode: 'right-hand-rule',
+    currentPolarity: 1,
+    fieldPolarity: 1,
+    motionPolarity: 1,
+    gestureEnabled: true,
+  };
+  const rhrEval = evaluateHandRuleFrame(rhrConfig, userFrame);
+  assert.strictEqual(
+    rhrEval.isMatched,
+    true,
+    'Open palm with four fingers pointing UP and thumb pointing right MUST match Right-Hand Rule (induction)'
+  );
+
+  console.log('✓ Test 15 passed: User hand pose physical distinction (Screw Rule vs Induction Rule) verified');
+}
+
+// Test 16: Thumb Orientation Primacy for Screw Rule & 3D Anatomical Chirality Invariant Auto-Correction
+{
+  const { detectAnatomicalChirality } = await import('../src/physics/em/handRulesSolver.ts');
+
+  // 1. 真实 3D 握拳竖大拇指姿态（指关节在掌面 palmar 侧，大拇指坚决竖直向上）
+  // 即使 MediaPipe 2D 分类头单帧误判为 "Left"，3D 标量三重积严格保证判定为解剖学右手
+  const rightThumbsUp3D: NormalizedLandmark[] = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+  rightThumbsUp3D[0] = { x: 0.50, y: 0.60, z: 0 };       // Wrist
+  rightThumbsUp3D[9] = { x: 0.50, y: 0.48, z: 0.005 };    // Middle MCP
+  rightThumbsUp3D[5] = { x: 0.46, y: 0.50, z: 0 };       // Index MCP
+  rightThumbsUp3D[17] = { x: 0.54, y: 0.52, z: 0 };      // Pinky MCP
+  // 大拇指竖直向上，指尖延伸至前方掌侧 (-Z in camera, palmar flexion)
+  rightThumbsUp3D[2] = { x: 0.46, y: 0.46, z: -0.010 };
+  rightThumbsUp3D[3] = { x: 0.46, y: 0.40, z: -0.018 };
+  rightThumbsUp3D[4] = { x: 0.46, y: 0.33, z: -0.025 }; // Thumb Tip points UP
+
+  // 四指在掌心侧握拳屈曲
+  for (const mcp of [5, 9, 13, 17]) {
+    rightThumbsUp3D[mcp + 1] = { x: rightThumbsUp3D[mcp].x, y: 0.48, z: -0.015 };
+    rightThumbsUp3D[mcp + 2] = { x: rightThumbsUp3D[mcp].x, y: 0.51, z: -0.020 };
+    rightThumbsUp3D[mcp + 3] = { x: rightThumbsUp3D[mcp].x, y: 0.54, z: -0.015 };
+  }
+
+  // 验证 3D 解剖学手性：必须精准判定为右手
+  const chirality = detectAnatomicalChirality(rightThumbsUp3D);
+  assert.strictEqual(chirality, 'right', '3D thumbs-up pose MUST be anatomically recognized as right hand');
+
+  // 2. 模拟前端单帧手性分类器翻转（误传入 leftHand）：
+  const frameWithMislabeledHand: HandGestureFrame = {
+    hasHand: true,
+    timestamp: 1000,
+    leftHand: {
+      handedness: 'left', // 误标为左手
+      confidence: 0.85,
+      landmarks: rightThumbsUp3D,
+      thumbTip: rightThumbsUp3D[4],
+      indexTip: rightThumbsUp3D[8],
+      midpointNorm: { x: 0.5, y: 0.5, z: 0 },
+      screenX: 600,
+      screenY: 400,
+      rawDistance: 0.08,
+      handScale: 0.12,
+      pinchRatio: 0.66,
+      pinchStrength: 0,
+      isPinching: false,
+      justPinchStarted: false,
+      justPinchEnded: false,
+      pinchDuration: 0,
+      isLongPinch: false,
+    },
+    rightHand: null,
+    leftHandQuickPinch: false,
+    leftHandCameraDelta: null,
+    landmarks: rightThumbsUp3D,
+    thumbTip: rightThumbsUp3D[4],
+    indexTip: rightThumbsUp3D[8],
+    midpointNorm: { x: 0.5, y: 0.5, z: 0 },
+    screenX: 600,
+    screenY: 400,
+    rawDistance: 0.08,
+    handScale: 0.12,
+    pinchRatio: 0.66,
+    pinchStrength: 0,
+    isPinching: false,
+    justPinchStarted: false,
+    justPinchEnded: false,
+  };
+
+  const screwConfig: HandRuleConfig = {
+    mode: 'right-hand-screw',
+    currentPolarity: 1, // 电流向上 (+Y)
+    fieldPolarity: 1,
+    motionPolarity: 1,
+    gestureEnabled: true,
+  };
+
+  // evaluateHandRuleFrame 必须自动纠偏并将右手大拇指朝向电流判定为匹配成功！
+  const evalResult = evaluateHandRuleFrame(screwConfig, frameWithMislabeledHand);
+  assert.strictEqual(
+    evalResult.isMatched,
+    true,
+    'Thumbs-up pointing along current MUST match right-hand screw rule even if 2D classifier mistagged as left'
+  );
+  assert.strictEqual(evalResult.status, 'matched');
+  assert.strictEqual(evalResult.detectedHand, 'right');
+  assert(evalResult.statusLabel.includes('匹配成功'));
+
+  console.log('✓ Test 16 passed: Thumb Orientation Primacy for Screw Rule & 3D Anatomical Chirality Invariant verified');
+}
+
+// Test 17: Plain Closed Fist (without extending thumb) MUST NOT trigger Right-Hand Screw Rule
+{
+  const screwConfig: HandRuleConfig = {
+    mode: 'right-hand-screw',
+    currentPolarity: 1, // 电流向上 (+Y)
+    fieldPolarity: 1,
+    motionPolarity: 1,
+    gestureEnabled: true,
+  };
+
+  // 构造普通闭合握拳手势（四指握拳，大拇指未竖起，扣在食指/中指外侧）：
+  const plainFistLms = buildMockLandmarks({
+    thumbDirWorld: { x: 0, y: 1 },
+    fingersDirWorld: { x: -1, y: 0 },
+    curled: true,
+  });
+  // 将大拇指修改为扣在拳头上的屈曲状态 (IP关节弯曲，指尖未伸展超出拳面)
+  plainFistLms[2] = { x: 0.48, y: 0.54, z: 0 };
+  plainFistLms[3] = { x: 0.45, y: 0.51, z: 0.015 };
+  plainFistLms[4] = { x: 0.43, y: 0.52, z: 0.020 };
+
+  const fistFrame = wrapSingleHandFrame('right', plainFistLms);
+  const evalResult = evaluateHandRuleFrame(screwConfig, fistFrame);
+
+  // 严禁普通闭合握拳触发右手螺旋定则，必须引导用户真正竖起大拇指！
+  assert.strictEqual(
+    evalResult.isMatched,
+    false,
+    'Plain closed fist without extending thumb MUST NOT match Right-Hand Screw Rule'
+  );
+  assert.strictEqual(evalResult.status, 'adjusting');
+  assert(
+    evalResult.statusLabel.includes('竖起大拇指') || evalResult.statusLabel.includes('握拳'),
+    `Status label must guide user to extend thumb. Got: ${evalResult.statusLabel}`
+  );
+
+  console.log('✓ Test 17 passed: Plain Closed Fist is strictly rejected and requires extending thumb');
+}
+
 console.log('========================================================');
-console.log('All Electromagnetism Hand Rules Tests Passed (13/13)!');
+console.log('All Electromagnetism Hand Rules Tests Passed (17/17)!');
 console.log('========================================================\n');
