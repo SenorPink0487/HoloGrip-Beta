@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { HandGestureFrame, NormalizedLandmark, SingleHandData } from '../../vision/types.ts';
-import type { HandRuleEvaluation, HandRuleMode } from '../../physics/em/handRulesSolver.ts';
+import { hasFiniteHandLandmarks, type HandRuleEvaluation, type HandRuleMode } from '../../physics/em/handRulesSolver.ts';
 import { disposeObjectTree } from './disposeObject.ts';
 
 /**
@@ -916,15 +916,11 @@ export class ArticulatedHandSkeletonMesh {
     this.pulseClock += delta;
 
     let activeHand: SingleHandData | null = null;
-    if (frame && frame.hasHand && evaluation.status !== 'idle') {
-      if (evaluation.requiredHand === 'left') {
-        activeHand = frame.leftHand ?? frame.rightHand;
-      } else {
-        activeHand = frame.rightHand ?? frame.leftHand;
-      }
+    if (frame && frame.hasHand && evaluation.status !== 'idle' && evaluation.sourceHand) {
+      activeHand = frame[evaluation.sourceHand];
     }
 
-    if (!activeHand || !activeHand.landmarks || activeHand.landmarks.length < 21) {
+    if (!activeHand || !hasFiniteHandLandmarks(activeHand.landmarks)) {
       this.fadeOpacity = Math.max(0, this.fadeOpacity - delta * 5.0);
       if (this.fadeOpacity <= 0.01) {
         this.group.visible = false;
@@ -942,8 +938,9 @@ export class ArticulatedHandSkeletonMesh {
 
     this.computeTargetLandmarks(activeHand, evaluation.mode);
 
-    const switchedHand = this.currentHandedness !== activeHand.handedness;
-    this.currentHandedness = activeHand.handedness;
+    const handedness = evaluation.detectedHand ?? activeHand.handedness;
+    const switchedHand = this.currentHandedness !== handedness;
+    this.currentHandedness = handedness;
 
     const lerpAlpha = !this.hasInitializedPoints || switchedHand
       ? 1.0

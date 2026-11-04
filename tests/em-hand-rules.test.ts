@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import { readFileSync } from 'node:fs';
 
 // Lightweight DOM & Canvas mock for Node.js test environment
 if (typeof globalThis.document === 'undefined') {
@@ -54,7 +55,9 @@ if (typeof globalThis.document === 'undefined') {
 
 import {
   computeRuleVectors,
+  buildSyntheticHandLandmarks as buildMockLandmarks,
   evaluateHandRuleFrame,
+  extractHandKinematics,
   type HandRuleConfig,
 } from '../src/physics/em/handRulesSolver.ts';
 import type { HandGestureFrame, NormalizedLandmark, SingleHandData } from '../src/vision/types.ts';
@@ -62,45 +65,6 @@ import * as THREE from 'three';
 import { ArticulatedHandSkeletonMesh, HAND_BONE_CONNECTIONS } from '../src/scene/em/ArticulatedHandSkeletonMesh.ts';
 import EmHandRulesExperiment from '../src/experiments/catalog/em-hand-rules/index.ts';
 import { PhysicsDisciplineModal } from '../src/ui/vision/PhysicsDisciplineModal.ts';
-
-function buildMockLandmarks(options: {
-  thumbDirWorld: { x: number; y: number; z?: number };
-  fingersDirWorld: { x: number; y: number; z?: number };
-  curled?: boolean;
-}): NormalizedLandmark[] {
-  const lms: NormalizedLandmark[] = [];
-  for (let i = 0; i < 21; i++) {
-    lms.push({ x: 0.5, y: 0.5, z: 0 });
-  }
-
-  lms[0] = { x: 0.5, y: 0.58, z: 0 };
-  lms[5] = { x: 0.46, y: 0.5, z: 0 };
-  lms[9] = { x: 0.5, y: 0.48, z: 0 };
-  lms[13] = { x: 0.54, y: 0.5, z: 0 };
-  lms[17] = { x: 0.58, y: 0.52, z: 0 };
-
-  const tx = options.thumbDirWorld.x;
-  const ty = options.thumbDirWorld.y;
-  const tz = options.thumbDirWorld.z ?? 0;
-  lms[1] = { x: 0.48, y: 0.54, z: 0 };
-  lms[2] = { x: 0.48 - tx * 0.03, y: 0.54 - ty * 0.03, z: -tz * 0.03 };
-  lms[3] = { x: 0.48 - tx * 0.07, y: 0.54 - ty * 0.07, z: -tz * 0.07 };
-  lms[4] = { x: 0.48 - tx * 0.12, y: 0.54 - ty * 0.12, z: -tz * 0.12 };
-
-  const fx = options.fingersDirWorld.x;
-  const fy = options.fingersDirWorld.y;
-  const fz = options.fingersDirWorld.z ?? 0;
-  const reach = options.curled ? 0.035 : 0.11;
-
-  for (const mcp of [5, 9, 13, 17]) {
-    const base = lms[mcp];
-    lms[mcp + 1] = { x: base.x - fx * reach * 0.35, y: base.y - fy * reach * 0.35, z: -fz * reach * 0.35 };
-    lms[mcp + 2] = { x: base.x - fx * reach * 0.7, y: base.y - fy * reach * 0.7, z: -fz * reach * 0.7 };
-    lms[mcp + 3] = { x: base.x - fx * reach, y: base.y - fy * reach, z: -fz * reach };
-  }
-
-  return lms;
-}
 
 function wrapSingleHandFrame(handedness: 'left' | 'right', landmarks: NormalizedLandmark[]): HandGestureFrame {
   const hand: SingleHandData = {
@@ -166,17 +130,18 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
     gestureEnabled: true,
   };
 
-  const wrongHandFrame = wrapSingleHandFrame(
+  const leftUpFrame = wrapSingleHandFrame(
     'left',
     buildMockLandmarks({
+      handedness: 'left',
       thumbDirWorld: { x: 0, y: 1 },
       fingersDirWorld: { x: 1, y: 0 },
       curled: true,
     })
   );
-  const wrongEval = evaluateHandRuleFrame(config, wrongHandFrame);
-  assert.strictEqual(wrongEval.status, 'wrong-hand');
-  assert.strictEqual(wrongEval.isMatched, false);
+  const leftEval = evaluateHandRuleFrame(config, leftUpFrame);
+  assert.strictEqual(leftEval.status, 'wrong-hand');
+  assert.strictEqual(leftEval.isMatched, false, 'An aligned left thumb must not trigger the right-hand screw rule');
 
   const rightUpFrame = wrapSingleHandFrame(
     'right',
@@ -374,26 +339,27 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   const magFieldGroup = bench.floatingConductor.fieldGroup as THREE.Group;
   const magMat = bench.floatingConductor.fieldMaterial as THREE.MeshStandardMaterial;
 
-  // Step 1: Without hand or with wrong hand, magnetic field is hidden (opacity = 0)
+  // Step 1: Without hand or with an opposite thumb, magnetic field is hidden (opacity = 0)
   exp.update(0.016, 0.1, {} as any);
   assert.strictEqual(magFieldGroup.visible, false, 'Magnetic field must be invisible when no hand is present');
   assert(magMat.opacity <= 0.01, `Opacity must be near 0, got ${magMat.opacity}`);
 
-  // Provide wrong hand (left hand)
-  const wrongHandFrame = wrapSingleHandFrame(
+  // Provide a downward thumb while the current points up
+  const wrongDirectionFrame = wrapSingleHandFrame(
     'left',
     buildMockLandmarks({
-      thumbDirWorld: { x: 0, y: 1 },
+      handedness: 'left',
+      thumbDirWorld: { x: 0, y: -1 },
       fingersDirWorld: { x: 1, y: 0 },
       curled: true,
     })
   );
-  exp.onHandGestureFrame(wrongHandFrame);
+  exp.onHandGestureFrame(wrongDirectionFrame);
   for (let i = 0; i < 20; i++) {
     exp.update(0.016, 0.1 + i * 0.016, {} as any);
   }
-  assert.strictEqual(magFieldGroup.visible, false, 'Magnetic field must remain hidden with wrong hand');
-  assert(magMat.opacity <= 0.01, 'Opacity must remain near 0 with wrong hand');
+  assert.strictEqual(magFieldGroup.visible, false, 'Magnetic field must remain hidden with an opposite thumb');
+  assert(magMat.opacity <= 0.01, 'Opacity must remain near 0 with an opposite thumb');
 
   // Step 2: Hand placed correctly (Right hand, thumb pointing UP with current, fingers curled)
   const correctRightHandFrame = wrapSingleHandFrame(
@@ -670,9 +636,9 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   );
   const evalOpenPalm = evaluateHandRuleFrame(configUp, openPalmFrame);
   assert.strictEqual(evalOpenPalm.isMatched, false, 'Open palm with fingers pointing up MUST NOT match right-hand screw rule');
-  assert(evalOpenPalm.statusLabel.includes('避免全张开手掌'));
+  assert(evalOpenPalm.statusLabel.includes('大拇指'));
 
-  // 1c. 侧向平展手掌（四指完全伸平）：严禁误判
+  // 1c. 四指完全伸平不影响触发，只检查拇指是否向上
   const flatHandFrame = wrapSingleHandFrame(
     'right',
     buildMockLandmarks({
@@ -682,7 +648,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
     })
   );
   const evalFlatHand = evaluateHandRuleFrame(configUp, flatHandFrame);
-  assert.strictEqual(evalFlatHand.isMatched, false, 'Flat open hand without curl MUST NOT match');
+  assert.strictEqual(evalFlatHand.isMatched, true, 'Straight fingers must not block an upward thumb');
 
   // 2. 拇指横指 (+X 水平向右 90°)：与电流垂直，严禁触发
   const thumbSideFrame = wrapSingleHandFrame(
@@ -734,7 +700,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   const service = new HandGestureService();
 
   // 用户在屏幕中左侧（未镜像 rawX = 0.60 -> 镜像后 screenX = 0.40 <= 0.45）伸出右手比划定则
-  // 模型预测 categoryName: 'Left' (未镜像相机下真实右手)
+  // Tasks 模型对未镜像相机中的真实右手直接输出 Right
   const lms = buildMockLandmarks({
     thumbDirWorld: { x: 0, y: 1 },
     fingersDirWorld: { x: -1, y: 0 },
@@ -745,7 +711,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
     p.x += 0.10; // 偏移后镜像 screenX = 1 - 0.60 = 0.40
   }
 
-  const frame = service.processMultiHands([lms], [[{ categoryName: 'Left', score: 0.95 }]], 5000);
+  const frame = service.processMultiHands([lms], [[{ categoryName: 'Right', score: 0.95 }]], 5000);
   assert(frame.hasHand, 'Must detect hand');
   assert(frame.rightHand !== null, 'Right hand at screenX <= 0.45 MUST be recognized as rightHand (not forced to leftHand)');
   assert.strictEqual(frame.leftHand, null, 'Must NOT be falsely assigned to leftHand');
@@ -795,6 +761,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   const leftMatchFrame = wrapSingleHandFrame(
     'left',
     buildMockLandmarks({
+      handedness: 'left',
       thumbDirWorld: { x: -1, y: 0 },
       fingersDirWorld: { x: 0, y: 1 },
       curled: false,
@@ -814,6 +781,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   const leftReversedFrame = wrapSingleHandFrame(
     'left',
     buildMockLandmarks({
+      handedness: 'left',
       thumbDirWorld: { x: 1, y: 0 },
       fingersDirWorld: { x: 0, y: -1 },
       curled: false,
@@ -827,7 +795,11 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   // F = (-1) * (+1) = -1 (Ampere force back to -X)
   config.fieldPolarity = -1;
   const fieldReversedEval = evaluateHandRuleFrame(config, leftMatchFrame);
-  assert.strictEqual(fieldReversedEval.isMatched, true, 'Reversing field must flip force back to -X');
+  assert.strictEqual(fieldReversedEval.isMatched, false, 'An unchanged palm and current direction must fail after reversing both field and current');
+  const fieldReversedPose = wrapSingleHandFrame('left', buildMockLandmarks({
+    handedness: 'left', thumbDirWorld: { x: -1, y: 0 }, fingersDirWorld: { x: 0, y: -1 },
+  }));
+  assert.strictEqual(evaluateHandRuleFrame(config, fieldReversedPose).isMatched, true, 'Current and palm must also follow the reversed known quantities');
   assert.strictEqual(fieldReversedEval.targetVectorDir.x, -1);
 
   console.log('✓ Test 12 passed: Left-Hand Rule physics solver & directional evaluation verified');
@@ -868,6 +840,10 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
 
   // Initial config: currentPolarity = 1, fieldPolarity = 1 -> Fx = -1 (-X direction)
   exp.update(0.016, 0.1, {} as any);
+  assert.strictEqual(leftForceArrow.visible, false, 'Ampere force arrow must be hidden initially when no hand gesture is matching');
+  assert.strictEqual(leftForceLabel.visible, false, 'Ampere force label must be hidden initially when no hand gesture is matching');
+  assert((bench as any).leftForceMat.opacity <= 0.01, 'Ampere force opacity must be near 0 initially');
+
   const fTipInitial = new THREE.Vector3(0, 1, 0).applyQuaternion(leftForceArrow.quaternion);
   assert(
     fTipInitial.x < -0.95 && Math.abs(fTipInitial.y) < 0.05,
@@ -877,21 +853,62 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   // Reverse current: currentPolarity = -1 -> Fx = +1 (+X direction)
   exp.reverseCurrent();
   exp.update(0.016, 0.2, {} as any);
+  assert.strictEqual(leftForceArrow.visible, false, 'Ampere force arrow remains hidden after reversing current before hand match');
   const fTipReversed = new THREE.Vector3(0, 1, 0).applyQuaternion(leftForceArrow.quaternion);
   assert(
     fTipReversed.x > 0.95 && Math.abs(fTipReversed.y) < 0.05,
     `Ampere force arrow must point in +X direction! Got (${fTipReversed.x}, ${fTipReversed.y})`
   );
 
-  // Clicking LeftConductorRod triggers simulated hand match
+  // Wrong gesture test: user extends right hand instead of left hand
+  exp.setGestureEnabled(true);
+  const wrongHandFrame = wrapSingleHandFrame(
+    'right',
+    buildMockLandmarks({
+      thumbDirWorld: { x: -1, y: 0 },
+      fingersDirWorld: { x: 0, y: 1 },
+      curled: false,
+    })
+  );
+  exp.onHandGestureFrame(wrongHandFrame);
+  for (let i = 0; i < 15; i++) exp.update(0.016, 0.2 + i * 0.016, {} as any);
+  assert.strictEqual(leftForceArrow.visible, false, 'Ampere force must remain hidden when wrong hand (right) is used');
+
+  // Correct gesture test: proper left hand with I, B alignment
+  // currentPolarity = -1, fieldPolarity = 1 -> targetVectorDir.x = +1
+  const correctLeftHandFrame = wrapSingleHandFrame(
+    'left',
+    buildMockLandmarks({
+      handedness: 'left',
+      thumbDirWorld: { x: 1, y: 0 },
+      fingersDirWorld: { x: 0, y: -1 },
+      curled: false,
+    })
+  );
+  exp.onHandGestureFrame(correctLeftHandFrame);
+  for (let i = 0; i < 30; i++) exp.update(0.016, 0.5 + i * 0.016, {} as any);
+  assert.strictEqual(exp.getTelemetryData().isMatched, true, 'Left hand must match left hand rule');
+  assert.strictEqual(leftForceArrow.visible, true, 'Ampere force arrow must become visible when hand gesture is placed correctly');
+  assert.strictEqual(leftForceLabel.visible, true, 'Ampere force label must become visible when hand gesture is placed correctly');
+  assert((bench as any).leftForceMat.opacity > 0.85, 'Ampere force opacity must become high upon match');
+
+  // Hand removed: Ampere force direction disappears
+  exp.onHandGestureFrame(null);
+  for (let i = 0; i < 40; i++) exp.update(0.016, 1.0 + i * 0.016, {} as any);
+  assert.strictEqual(leftForceArrow.visible, false, 'Ampere force arrow must disappear when hand is removed');
+  assert.strictEqual(leftForceLabel.visible, false, 'Ampere force label must disappear when hand is removed');
+
+  // Clicking LeftConductorRod triggers simulated hand match (desktop tap interaction)
   const tap = { pointerId: 1, clientX: 500, clientY: 300, button: 0 } as PointerEvent;
   const handled = exp.onPointerDown(tap, { object: leftRodMesh, point: new THREE.Vector3() } as any, {} as any);
   assert.strictEqual(handled, true, 'Clicking LeftConductorRod must handle interaction');
 
-  for (let i = 0; i < 20; i++) exp.update(0.016, 0.3 + i * 0.016, {} as any);
+  for (let i = 0; i < 20; i++) exp.update(0.016, 1.8 + i * 0.016, {} as any);
   const telem = exp.getTelemetryData();
   assert.strictEqual(telem.isMatched, true, 'Simulated hand must match left-hand rule');
   assert.strictEqual(telem.requiredHand, 'left', 'Telemetry must report requiredHand = left');
+  assert.strictEqual(leftForceArrow.visible, true, 'Ampere force arrow must appear upon simulated match');
+  assert.strictEqual(leftForceLabel.visible, true, 'Ampere force label must appear upon simulated match');
   assert((bench as any).leftForceMat.emissiveIntensity > 0.9, 'Ampere force arrow must glow brightly upon match');
 
   // Verify smooth gliding displacement along rails
@@ -899,6 +916,30 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
     Math.abs((bench as any).leftRodGroup.position.x) > 0.01,
     'Conductor rod must slide along rails under Ampere force'
   );
+
+  // Verify dynamic flowing 2D magnetic field symbols invariants (no 3D arrows)
+  const symbols = (bench as any).leftFieldSymbols as any[];
+  assert(symbols && symbols.length === 12, 'Must contain 12 standard 2D magnetic field symbols in wings');
+  assert.strictEqual(symbols[0].mat.map, (bench as any).texFieldIn, 'Field map must be inward ⊗ when bz < 0');
+  const initialPhase = (bench as any).leftFieldFlowPhase;
+  for (let i = 0; i < 10; i++) exp.update(0.016, 2.5 + i * 0.016, {} as any);
+  assert((bench as any).leftFieldFlowPhase > initialPhase, 'Magnetic field flow phase must continuously advance');
+
+  // Verify dynamic flowing photon streamline packets (24 packets across 12 channels)
+  const packets = (bench as any).leftFieldPackets as any[];
+  assert(packets && packets.length === 24, 'Must contain 24 dynamic flowing streamline photon packets');
+  const initialPhotonPhase = (bench as any).leftFieldPhotonPhase;
+  for (let i = 0; i < 10; i++) exp.update(0.016, 2.6 + i * 0.016, {} as any);
+  assert((bench as any).leftFieldPhotonPhase > initialPhotonPhase, 'Streamline photon phase must continuously advance');
+
+  // Verify field direction reversal switches 2D symbols to outward ⊙
+  exp.reverseField();
+  exp.update(0.016, 2.7, {} as any);
+  assert.strictEqual(symbols[0].mat.map, (bench as any).texFieldOut, 'Field map must switch to outward ⊙ when reversed');
+
+  // Verify no extra clutter (no rails, no posts, no shoes)
+  assert.strictEqual(bench.group.getObjectByName('LeftConductorRail'), undefined, 'Must not have extra guide rails');
+  assert.strictEqual(bench.group.getObjectByName('ConductorShoe'), undefined, 'Must not have extra contact shoes');
 
   exp.dispose({} as any);
   console.log('✓ Test 13 passed: Left-Hand Rule 3D Apparatus, Direct Manipulation & Dynamics on Chrome Rails verified');
@@ -964,8 +1005,8 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
     'Open palm with four fingers pointing UP and thumb pointing right MUST NOT match Right-Hand Screw Rule'
   );
   assert(
-    screwEval.statusLabel.includes('避免全张开手掌') || screwEval.statusLabel.includes('握住导线'),
-    `Status label must guide user to grip the wire. Got: ${screwEval.statusLabel}`
+    screwEval.statusLabel.includes('大拇指'),
+    `Status label must guide the thumb direction. Got: ${screwEval.statusLabel}`
   );
 
   // Case B: Right-Hand Rule (motion +X, field -Z -> induced current +Y) -> MATCHES!
@@ -986,97 +1027,27 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   console.log('✓ Test 15 passed: User hand pose physical distinction (Screw Rule vs Induction Rule) verified');
 }
 
-// Test 16: Thumb Orientation Primacy for Screw Rule & 3D Anatomical Chirality Invariant Auto-Correction
+// Test 16: The solver must preserve the tracker handedness, regardless of estimated finger depth.
 {
-  const { detectAnatomicalChirality } = await import('../src/physics/em/handRulesSolver.ts');
 
-  // 1. 真实 3D 握拳竖大拇指姿态（指关节在掌面 palmar 侧，大拇指坚决竖直向上）
-  // 即使 MediaPipe 2D 分类头单帧误判为 "Left"，3D 标量三重积严格保证判定为解剖学右手
-  const rightThumbsUp3D: NormalizedLandmark[] = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
-  rightThumbsUp3D[0] = { x: 0.50, y: 0.60, z: 0 };       // Wrist
-  rightThumbsUp3D[9] = { x: 0.50, y: 0.48, z: 0.005 };    // Middle MCP
-  rightThumbsUp3D[5] = { x: 0.46, y: 0.50, z: 0 };       // Index MCP
-  rightThumbsUp3D[17] = { x: 0.54, y: 0.52, z: 0 };      // Pinky MCP
-  // 大拇指竖直向上，指尖延伸至前方掌侧 (-Z in camera, palmar flexion)
-  rightThumbsUp3D[2] = { x: 0.46, y: 0.46, z: -0.010 };
-  rightThumbsUp3D[3] = { x: 0.46, y: 0.40, z: -0.018 };
-  rightThumbsUp3D[4] = { x: 0.46, y: 0.33, z: -0.025 }; // Thumb Tip points UP
-
-  // 四指在掌心侧握拳屈曲
-  for (const mcp of [5, 9, 13, 17]) {
-    rightThumbsUp3D[mcp + 1] = { x: rightThumbsUp3D[mcp].x, y: 0.48, z: -0.015 };
-    rightThumbsUp3D[mcp + 2] = { x: rightThumbsUp3D[mcp].x, y: 0.51, z: -0.020 };
-    rightThumbsUp3D[mcp + 3] = { x: rightThumbsUp3D[mcp].x, y: 0.54, z: -0.015 };
-  }
-
-  // 验证 3D 解剖学手性：必须精准判定为右手
-  const chirality = detectAnatomicalChirality(rightThumbsUp3D);
-  assert.strictEqual(chirality, 'right', '3D thumbs-up pose MUST be anatomically recognized as right hand');
-
-  // 2. 模拟前端单帧手性分类器翻转（误传入 leftHand）：
-  const frameWithMislabeledHand: HandGestureFrame = {
-    hasHand: true,
-    timestamp: 1000,
-    leftHand: {
-      handedness: 'left', // 误标为左手
-      confidence: 0.85,
-      landmarks: rightThumbsUp3D,
-      thumbTip: rightThumbsUp3D[4],
-      indexTip: rightThumbsUp3D[8],
-      midpointNorm: { x: 0.5, y: 0.5, z: 0 },
-      screenX: 600,
-      screenY: 400,
-      rawDistance: 0.08,
-      handScale: 0.12,
-      pinchRatio: 0.66,
-      pinchStrength: 0,
-      isPinching: false,
-      justPinchStarted: false,
-      justPinchEnded: false,
-      pinchDuration: 0,
-      isLongPinch: false,
-    },
-    rightHand: null,
-    leftHandQuickPinch: false,
-    leftHandCameraDelta: null,
-    landmarks: rightThumbsUp3D,
-    thumbTip: rightThumbsUp3D[4],
-    indexTip: rightThumbsUp3D[8],
-    midpointNorm: { x: 0.5, y: 0.5, z: 0 },
-    screenX: 600,
-    screenY: 400,
-    rawDistance: 0.08,
-    handScale: 0.12,
-    pinchRatio: 0.66,
-    pinchStrength: 0,
-    isPinching: false,
-    justPinchStarted: false,
-    justPinchEnded: false,
-  };
-
+  const rightThumbsUp3D = screwGripFixture();
   const screwConfig: HandRuleConfig = {
-    mode: 'right-hand-screw',
-    currentPolarity: 1, // 电流向上 (+Y)
-    fieldPolarity: 1,
-    motionPolarity: 1,
-    gestureEnabled: true,
+    mode: 'right-hand-screw', currentPolarity: 1, fieldPolarity: 1, motionPolarity: 1, gestureEnabled: true,
   };
-
-  // evaluateHandRuleFrame 必须自动纠偏并将右手大拇指朝向电流判定为匹配成功！
-  const evalResult = evaluateHandRuleFrame(screwConfig, frameWithMislabeledHand);
-  assert.strictEqual(
-    evalResult.isMatched,
-    true,
-    'Thumbs-up pointing along current MUST match right-hand screw rule even if 2D classifier mistagged as left'
-  );
-  assert.strictEqual(evalResult.status, 'matched');
-  assert.strictEqual(evalResult.detectedHand, 'right');
-  assert(evalResult.statusLabel.includes('匹配成功'));
-
-  console.log('✓ Test 16 passed: Thumb Orientation Primacy for Screw Rule & 3D Anatomical Chirality Invariant verified');
+  for (const depthSign of [-1, 1]) {
+    const points = rightThumbsUp3D.map(point => ({ ...point, z: point.z * depthSign }));
+    const leftEval = evaluateHandRuleFrame(screwConfig, wrapSingleHandFrame('left', points));
+    assert.strictEqual(leftEval.isMatched, false, 'Finger-depth estimates must never let a tracked left hand trigger');
+    assert.strictEqual(leftEval.status, 'wrong-hand');
+    assert.strictEqual(leftEval.detectedHand, 'left');
+    const rightEval = evaluateHandRuleFrame(screwConfig, wrapSingleHandFrame('right', points));
+    assert.strictEqual(rightEval.isMatched, true, 'Four-finger depth does not participate in thumb-only matching');
+    assert.strictEqual(rightEval.detectedHand, 'right');
+  }
+  console.log('✓ Test 16 passed: Left hands are rejected while right-hand pose checks use only thumb direction');
 }
 
-// Test 17: Plain Closed Fist (without extending thumb) MUST NOT trigger Right-Hand Screw Rule
+// Test 17: A fist with a sideways thumb must still fail on thumb direction alone
 {
   const screwConfig: HandRuleConfig = {
     mode: 'right-hand-screw',
@@ -1108,13 +1079,558 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   );
   assert.strictEqual(evalResult.status, 'adjusting');
   assert(
-    evalResult.statusLabel.includes('竖起大拇指') || evalResult.statusLabel.includes('握拳'),
+    evalResult.statusLabel.includes('大拇指'),
     `Status label must guide user to extend thumb. Got: ${evalResult.statusLabel}`
   );
 
-  console.log('✓ Test 17 passed: Plain Closed Fist is strictly rejected and requires extending thumb');
+  console.log('✓ Test 17 passed: A sideways thumb is rejected without consulting fist shape');
+}
+
+// Independent measured-style open palm: thumb +X, fingers +Y, palm outward +Z.
+// This fixture intentionally does not use the production demonstration generator.
+function openPalmFixture(): NormalizedLandmark[] {
+  const points: NormalizedLandmark[] = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+  points[0] = { x: 0.50, y: 0.65, z: 0 };
+  points[1] = { x: 0.47, y: 0.60, z: 0 };
+  points[2] = { x: 0.44, y: 0.58, z: 0 };
+  points[3] = { x: 0.40, y: 0.58, z: 0 };
+  points[4] = { x: 0.35, y: 0.58, z: 0 };
+  const baseX = [0.46, 0.50, 0.54, 0.58];
+  for (const [index, mcp] of [5, 9, 13, 17].entries()) {
+    for (let joint = 0; joint < 4; joint++) {
+      points[mcp + joint] = { x: baseX[index], y: 0.52 - joint * 0.045, z: 0 };
+    }
+  }
+  return points;
+}
+
+// Independent camera-space right grip, mapped into the mirrored view; thumb points +Y.
+function screwGripFixture(): NormalizedLandmark[] {
+  const world: THREE.Vector3[] = Array.from({ length: 21 }, () => new THREE.Vector3());
+  world[0].set(0, -0.05, 0);
+  world[1].set(0.03, -0.01, 0);
+  world[2].set(0.01, 0.01, 0);
+  world[3].set(0.01, 0.055, 0);
+  world[4].set(0.01, 0.105, 0);
+  for (const [index, mcp] of [5, 9, 13, 17].entries()) {
+    world[mcp].set(-0.08, 0.06 - index * 0.04, 0);
+    world[mcp + 1].copy(world[mcp]).add(new THREE.Vector3(-0.05, 0, 0));
+    world[mcp + 2].copy(world[mcp + 1]).add(new THREE.Vector3(0, 0, -0.035));
+    world[mcp + 3].copy(world[mcp + 2]).add(new THREE.Vector3(0.035, 0, 0));
+  }
+  return world.map(point => ({ x: 0.5 - point.x, y: 0.5 - point.y, z: -point.z }));
+}
+
+const physicalConfig: HandRuleConfig = {
+  mode: 'right-hand-rule', currentPolarity: 1, fieldPolarity: 1, motionPolarity: 1, gestureEnabled: true,
+};
+const signs = [-1, 1] as const;
+
+// Test 18: Exhaust all polarity combinations against analytic force/emf and palm directions.
+{
+  for (const field of signs) {
+    for (const motion of signs) {
+      const config = { ...physicalConfig, fieldPolarity: field, motionPolarity: motion };
+      const points = openPalmFixture().map(p => ({
+        x: 0.5 + (p.x - 0.5) * motion,
+        y: 0.5 + (p.y - 0.5) * motion * field,
+        z: p.z * field,
+      }));
+      const ev = evaluateHandRuleFrame(config, wrapSingleHandFrame('right', points));
+      assert.strictEqual(ev.isMatched, true, `v=${motion}, Bz=${-field}: correct right palm must match`);
+      assert.strictEqual(ev.targetVectorDir.y, motion * field, 'Positive-charge direction must equal v × B');
+      assert.strictEqual(evaluateHandRuleFrame({ ...config, fieldPolarity: -field as 1 | -1 },
+        wrapSingleHandFrame('right', points)).isMatched, false, 'Reversing only B invalidates the unchanged pose');
+    }
+    for (const current of signs) {
+      const config = { ...physicalConfig, mode: 'left-hand-rule' as const, currentPolarity: current, fieldPolarity: field };
+      const points = openPalmFixture().map(p => ({
+        x: 0.5 - (p.x - 0.5) * current * field,
+        y: 0.5 + (p.y - 0.5) * current,
+        z: p.z * field,
+      }));
+      const ev = evaluateHandRuleFrame(config, wrapSingleHandFrame('left', points));
+      assert.strictEqual(ev.isMatched, true, `I=${current}, Bz=${-field}: correct left palm must match`);
+      assert.strictEqual(ev.targetVectorDir.x, -current * field, 'Ampere force must equal Iℓ × B');
+    }
+  }
+  console.log('✓ Test 18 passed: All field, motion and current polarity combinations satisfy the cross products');
+}
+
+// Test 19: No individual alignment can compensate for another incorrect physical constraint.
+{
+  const evaluate = (points: NormalizedLandmark[]) =>
+    evaluateHandRuleFrame(physicalConfig, wrapSingleHandFrame('right', points));
+  for (const direction of [{ x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }, { x: -1, y: 0, z: 0 }]) {
+    const points = openPalmFixture();
+    points[3] = { x: points[2].x - direction.x * 0.04, y: points[2].y - direction.y * 0.04, z: -direction.z * 0.04 };
+    points[4] = { x: points[2].x - direction.x * 0.09, y: points[2].y - direction.y * 0.09, z: -direction.z * 0.09 };
+    assert.strictEqual(evaluate(points).isMatched, false, 'Correct fingers with wrong/parallel thumb must fail');
+  }
+  const backOfHand = openPalmFixture();
+  for (const mcp of [5, 9, 13, 17]) {
+    for (let joint = 0; joint < 4; joint++) backOfHand[mcp + joint].x = 1 - backOfHand[mcp + joint].x;
+  }
+  const backEval = evaluate(backOfHand);
+  assert.strictEqual(backEval.isMatched, false, 'Magnetic field entering the back of the hand must fail');
+  assert(backEval.statusLabel.includes('掌心'));
+
+  for (const mcp of [5, 9, 13, 17]) {
+    const wrongFinger = openPalmFixture();
+    for (let joint = 1; joint < 4; joint++) wrongFinger[mcp + joint].y = wrongFinger[mcp].y + joint * 0.045;
+    assert.strictEqual(evaluate(wrongFinger).isMatched, false, 'Every finger must point along the induced positive-charge direction');
+  }
+  const bentThumb = openPalmFixture();
+  bentThumb[3].y -= 0.07;
+  assert.strictEqual(evaluate(bentThumb).isMatched, false, 'A bent thumb cannot pass on direction alone');
+
+  const spreadFingers = openPalmFixture();
+  for (const [index, mcp] of [5, 9, 13, 17].entries()) {
+    const angle = (index < 2 ? -30 : 30) * Math.PI / 180;
+    for (let joint = 1; joint < 4; joint++) {
+      spreadFingers[mcp + joint].x = spreadFingers[mcp].x + Math.sin(angle) * joint * 0.045;
+      spreadFingers[mcp + joint].y = spreadFingers[mcp].y - Math.cos(angle) * joint * 0.045;
+    }
+  }
+  assert.strictEqual(evaluate(spreadFingers).isMatched, false, 'Widely splayed fingers must fail even when each roughly points upward');
+
+  const wrongLeftFingers = openPalmFixture().map(p => ({ ...p, x: 1 - p.x }));
+  for (const mcp of [5, 9, 13, 17]) {
+    for (let joint = 1; joint < 4; joint++) wrongLeftFingers[mcp + joint].y = wrongLeftFingers[mcp].y + joint * 0.045;
+  }
+  assert.strictEqual(evaluateHandRuleFrame({ ...physicalConfig, mode: 'left-hand-rule' },
+    wrapSingleHandFrame('left', wrongLeftFingers)).isMatched, false, 'Left thumb along F is insufficient when fingers oppose I');
+
+  const screwConfig = { ...physicalConfig, mode: 'right-hand-screw' as const };
+  for (const mcp of [5, 9, 13, 17]) {
+    const partialGrip = buildMockLandmarks({ thumbDirWorld: { x: 0, y: 1 }, fingersDirWorld: { x: -1, y: 0 }, curled: true });
+    for (let joint = 1; joint < 4; joint++) {
+      partialGrip[mcp + joint] = { ...partialGrip[mcp], x: partialGrip[mcp].x + joint * 0.04 };
+    }
+    assert.strictEqual(evaluateHandRuleFrame(screwConfig, wrapSingleHandFrame('right', partialGrip)).isMatched, true,
+      'Other fingers must not block a correctly oriented thumb');
+  }
+  console.log('✓ Test 19 passed: Open-hand rule constraints remain strict while screw matching ignores other fingers');
+}
+
+// Test 20: Malformed, degenerate and low-confidence frames fail closed without NaN scores.
+{
+  const invalidPoses = [
+    openPalmFixture().slice(0, 20),
+    Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 })),
+    Array(21),
+  ];
+  for (const axis of ['x', 'y', 'z'] as const) {
+    for (const value of [NaN, Infinity, -Infinity]) {
+      const points = openPalmFixture(); points[4][axis] = value; invalidPoses.push(points);
+    }
+  }
+  const noThumbBone = openPalmFixture(); noThumbBone[4] = { ...noThumbBone[3] }; invalidPoses.push(noThumbBone);
+  const collapsedPalm = openPalmFixture(); collapsedPalm[17] = { ...collapsedPalm[5] }; invalidPoses.push(collapsedPalm);
+  for (const points of invalidPoses) {
+    const ev = evaluateHandRuleFrame(physicalConfig, wrapSingleHandFrame('right', points));
+    assert.strictEqual(ev.isMatched, false); assert.strictEqual(ev.status, 'idle');
+    assert(Number.isFinite(ev.alignmentScore) && ev.alignmentScore === 0);
+  }
+  for (const confidence of [0.2, 0.79, NaN, Infinity]) {
+    const frame = wrapSingleHandFrame('right', openPalmFixture()); frame.rightHand!.confidence = confidence;
+    assert.strictEqual(evaluateHandRuleFrame(physicalConfig, frame).isMatched, false);
+  }
+  assert.strictEqual(evaluateHandRuleFrame({ ...physicalConfig, gestureEnabled: false },
+    wrapSingleHandFrame('right', openPalmFixture())).status, 'idle');
+  assert.strictEqual(evaluateHandRuleFrame(physicalConfig, null).isMatched, false);
+  console.log('✓ Test 20 passed: Missing joints, collapsed geometry, non-finite coordinates and low confidence fail safely');
+}
+
+// Test 21: Position/scale invariance, small-angle tolerance and shared hand selection for rendering.
+{
+  for (const scale of [0.2, 0.5, 1, 2]) {
+    const moved = openPalmFixture().map(p => ({ x: 0.6 + (p.x - 0.5) * scale, y: 0.6 + (p.y - 0.5) * scale, z: 0.03 + p.z * scale }));
+    assert.strictEqual(evaluateHandRuleFrame(physicalConfig, wrapSingleHandFrame('right', moved)).isMatched, true);
+  }
+  for (const degrees of [15, 55]) {
+    const angle = degrees * Math.PI / 180;
+    const rotated = openPalmFixture().map(p => ({
+      x: 0.5 + (p.x - 0.5) * Math.cos(angle) - (p.y - 0.5) * Math.sin(angle),
+      y: 0.5 + (p.x - 0.5) * Math.sin(angle) + (p.y - 0.5) * Math.cos(angle), z: p.z,
+    }));
+    assert.strictEqual(evaluateHandRuleFrame(physicalConfig, wrapSingleHandFrame('right', rotated)).isMatched, degrees === 15);
+  }
+  const grip = buildMockLandmarks({ thumbDirWorld: { x: 0, y: 1 }, fingersDirWorld: { x: -1, y: 0 }, curled: true });
+  const screwConfig = { ...physicalConfig, mode: 'right-hand-screw' as const };
+  const leftGrip = grip.map(p => ({ ...p, x: 1 - p.x }));
+  assert.strictEqual(evaluateHandRuleFrame(screwConfig, wrapSingleHandFrame('left', leftGrip)).status, 'wrong-hand',
+    'An aligned left thumb is ineligible for the right-hand screw rule');
+  const twoHands = wrapSingleHandFrame('left', leftGrip);
+  twoHands.rightHand = wrapSingleHandFrame('right', grip).rightHand;
+  assert.strictEqual(evaluateHandRuleFrame(screwConfig, twoHands).isMatched, true, 'Select the required hand when both are visible');
+  // A valid hand stored in the other slot must be used for both evaluation and rendering.
+  twoHands.leftHand = { ...twoHands.rightHand!, handedness: 'right' };
+  twoHands.rightHand = { ...twoHands.rightHand!, landmarks: Array(21) };
+  const corrected = evaluateHandRuleFrame(screwConfig, twoHands);
+  assert.strictEqual(corrected.isMatched, true);
+  assert.strictEqual(corrected.sourceHand, 'leftHand');
+  const skeleton = new ArticulatedHandSkeletonMesh(); skeleton.update(0.016, twoHands, corrected);
+  assert.strictEqual(skeleton.group.visible, true);
+  assert.strictEqual((skeleton as any).currentHandedness, 'right');
+  for (const point of (skeleton as any).currentPoints as THREE.Vector3[]) {
+    assert([point.x, point.y, point.z].every(Number.isFinite), 'Rejected landmarks must never reach the rendered skeleton');
+  }
+  skeleton.dispose();
+  const normal = extractHandKinematics(openPalmFixture(), 'right').palmNormal;
+  assert(normal.z > 0.99, 'The outward normal of a right palm facing the operator is +Z');
+  console.log('✓ Test 21 passed: Scale, translation, angular tolerance, handedness and two-hand selection verified');
+}
+
+// Test 22: Desktop demonstrations must satisfy the same full physical constraints after every reversal.
+{
+  const exp = new EmHandRulesExperiment(); exp.init({} as any); exp.setDesktopDemonstration(true);
+  for (const mode of ['right-hand-screw', 'left-hand-rule', 'right-hand-rule'] as const) {
+    exp.setRuleMode(mode);
+    for (let step = 0; step < 4; step++) {
+      exp.reverseCurrent(); exp.reverseField();
+      if (step % 2 === 0) exp.reverseMotion();
+      exp.update(0.016, step * 0.016, {} as any);
+      assert.strictEqual(exp.getTelemetryData().isMatched, true, `${mode}: desktop pose obeys the same solver after reversal`);
+    }
+  }
+  exp.setDesktopDemonstration(false);
+  assert.strictEqual(exp.getTelemetryData().isMatched, false, 'Removing the pose releases the physical reveal');
+  exp.dispose({} as any);
+  console.log('✓ Test 22 passed: All desktop modes remain valid under polarity reversal');
+}
+
+// Test 23: Replay the entire model-result → tracking → solver chain for both hands on both screen sides.
+{
+  const { HandGestureService } = await import('../src/vision/HandGestureService.ts');
+  const config = { ...physicalConfig, mode: 'right-hand-screw' as const };
+  for (const mirrorX of [true, false]) {
+    const service = new HandGestureService({ mirrorX });
+    let timestamp = 5000;
+    for (const offsetX of [-0.2, 0.2]) {
+      for (const handedness of ['left', 'right'] as const) {
+        const pose = buildMockLandmarks({ handedness,
+          thumbDirWorld: { x: 0, y: 1 }, fingersDirWorld: { x: -1, y: 0 }, curled: true,
+        }).map(point => ({ ...point, x: point.x + offsetX }));
+        const frame = service.processMultiHands([pose],
+          [[{ categoryName: handedness === 'right' ? 'Right' : 'Left', score: 0.99 }]], timestamp);
+        const ev = evaluateHandRuleFrame(config, frame);
+        assert.strictEqual(ev.detectedHand, handedness, 'Solver and tracking preview must agree on the same hand');
+        assert.strictEqual(ev.isMatched, handedness === 'right', 'Only a right-hand thumb may activate the screw rule');
+        timestamp += 40;
+      }
+    }
+    const grip = buildMockLandmarks({ thumbDirWorld: { x: 0, y: 1 }, fingersDirWorld: { x: -1, y: 0 }, curled: true });
+    service.processMultiHands([grip], [[{ categoryName: 'Right', score: 0.99 }]], timestamp);
+    const uncertain = service.processMultiHands([grip], [[{ categoryName: 'Left', score: 0.55 }]], timestamp + 40);
+    assert(uncertain.rightHand, 'An uncertain single frame may preserve the cursor track');
+    assert.strictEqual(evaluateHandRuleFrame(config, uncertain).isMatched, true,
+      'Hand-classification confidence must not block a reliable thumb direction');
+  }
+  console.log('✓ Test 23 passed: Thumb direction stays simple while the pipeline rejects Left on either screen side');
+}
+
+// Test 24: Only the MCP-to-tip direction participates in the screw rule, with a 25-degree cone.
+{
+  const config = { ...physicalConfig, mode: 'right-hand-screw' as const };
+  const evaluate = (points: NormalizedLandmark[]) => evaluateHandRuleFrame(config, wrapSingleHandFrame('right', points));
+  const validGrip = screwGripFixture();
+  assert.strictEqual(evaluate(validGrip).isMatched, true);
+  for (const axis of [new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0)]) {
+    for (const degrees of [10, 19, 24, 24.9, 25.1, 26, 35, 45, 90]) {
+      for (const sign of [-1, 1]) {
+        const rotated = validGrip.map(point => {
+          const world = new THREE.Vector3(0.5 - point.x, 0.5 - point.y, -point.z)
+            .applyAxisAngle(axis, sign * degrees * Math.PI / 180);
+          return { x: 0.5 - world.x, y: 0.5 - world.y, z: -world.z };
+        });
+        assert.strictEqual(evaluate(rotated).isMatched, degrees < 25,
+          `A ${sign * degrees}° slanted thumb in either the image or depth plane must obey the 25° direction limit`);
+      }
+    }
+  }
+  for (const degrees of [0, 90, 180, 270]) {
+    const aroundWire = validGrip.map(point => {
+      const world = new THREE.Vector3(0.5 - point.x, 0.5 - point.y, -point.z)
+        .applyAxisAngle(new THREE.Vector3(0, 1, 0), degrees * Math.PI / 180);
+      return { x: 0.5 - world.x, y: 0.5 - world.y, z: -world.z };
+    });
+    assert.strictEqual(evaluate(aroundWire).isMatched, true, 'A correct grip can face any direction around the vertical conductor');
+  }
+  // Palm facing forward, fingers hook downward: the flexion axis is horizontal, even with a vertical thumb.
+  const hooked = openPalmFixture();
+  hooked[3] = { x: hooked[2].x, y: hooked[2].y - 0.04, z: 0 };
+  hooked[4] = { x: hooked[2].x, y: hooked[2].y - 0.09, z: 0 };
+  for (const mcp of [5, 9, 13, 17]) {
+    hooked[mcp + 1] = { ...hooked[mcp], y: hooked[mcp].y - 0.05 };
+    hooked[mcp + 2] = { ...hooked[mcp + 1], z: -0.035 };
+    hooked[mcp + 3] = { ...hooked[mcp + 2], y: hooked[mcp + 2].y + 0.035 };
+  }
+  assert.strictEqual(evaluate(hooked).isMatched, true, 'An upward thumb works even when the other fingers hook about a different axis');
+  for (const mcp of [5, 9, 13, 17]) {
+    const reversedFinger = structuredClone(validGrip);
+    for (let joint = 1; joint < 4; joint++) reversedFinger[mcp + joint].z *= -1;
+    assert.strictEqual(evaluate(reversedFinger).isMatched, true, 'Individual finger curls do not affect the thumb direction');
+  }
+  const misleadingAverage = structuredClone(validGrip);
+  misleadingAverage[3].x += 0.025; // opposite lateral deviations can cancel in a weighted average
+  assert.strictEqual(evaluate(misleadingAverage).isMatched, true, 'Intermediate thumb joint noise must not block an aligned MCP-to-tip direction');
+  const partial = Array(21) as NormalizedLandmark[];
+  partial[2] = { x: 0.5, y: 0.6, z: 0 };
+  partial[4] = { x: 0.5, y: 0.45, z: 0 };
+  const partialFrame = wrapSingleHandFrame('right', partial);
+  partialFrame.rightHand!.confidence = 0.1;
+  const partialEval = evaluateHandRuleFrame(config, partialFrame);
+  assert.strictEqual(partialEval.isMatched, true, 'A visible thumb must work without any other fingers or hand-classification confidence');
+  const skeleton = new ArticulatedHandSkeletonMesh();
+  skeleton.update(0.016, partialFrame, partialEval);
+  assert.strictEqual(skeleton.group.visible, false, 'An incomplete skeleton stays hidden without blocking the thumb result');
+  skeleton.dispose();
+  for (const index of [2, 4]) {
+    for (const value of [undefined, { x: NaN, y: 0.5, z: 0 }, { x: 0.5, y: Infinity, z: 0 }]) {
+      const invalid = [...partial]; invalid[index] = value as NormalizedLandmark;
+      assert.strictEqual(evaluate(invalid).status, 'idle', 'Missing or non-finite thumb endpoints must fail safely');
+    }
+  }
+  const zeroThumb = [...partial]; zeroThumb[4] = { ...zeroThumb[2] };
+  assert.strictEqual(evaluate(zeroThumb).status, 'idle', 'A zero-length thumb must not acquire a default upward direction');
+  const bothHands = wrapSingleHandFrame('left', validGrip);
+  bothHands.rightHand = wrapSingleHandFrame('right', buildMockLandmarks({
+    thumbDirWorld: { x: 1, y: 0 }, fingersDirWorld: { x: 0, y: 1 },
+  })).rightHand;
+  const bothEval = evaluateHandRuleFrame(config, bothHands);
+  assert.strictEqual(bothEval.sourceHand, 'rightHand', 'An aligned left thumb cannot substitute for the right hand');
+  assert.strictEqual(bothEval.isMatched, false, 'A sideways right thumb must fail even when the left thumb is aligned');
+  console.log('✓ Test 24 passed: Right-hand thumb direction, 25° cone, partial landmarks and rendering safety verified');
+}
+
+// Test 25: Real bundled-model output remains usable without four-finger or per-bone constraints.
+{
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/em_right_thumbs_up.json', import.meta.url), 'utf8'));
+  const points: NormalizedLandmark[] = fixture.landmarks;
+  const kin = extractHandKinematics(points, 'right');
+  const rotation = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(kin.thumbDir.x, kin.thumbDir.y, kin.thumbDir.z), new THREE.Vector3(0, 1, 0));
+  const aligned = points.map(point => {
+    const world = new THREE.Vector3(0.5 - point.x, 0.5 - point.y, -point.z).applyQuaternion(rotation);
+    return { x: 0.5 - world.x, y: 0.5 - world.y, z: -world.z };
+  });
+  const { HandGestureService } = await import('../src/vision/HandGestureService.ts');
+  const service = new HandGestureService();
+  const frame = service.processMultiHands([aligned], [[{ categoryName: fixture.handedness, score: fixture.confidence }]], 1000);
+  const config = { ...physicalConfig, mode: 'right-hand-screw' as const };
+  assert.strictEqual(frame.rightHand?.handedness, 'right', 'The real model Right label must survive the preview mirror');
+  assert.strictEqual(evaluateHandRuleFrame(config, frame).isMatched, true, 'A real right grip aligned to the current must match');
+  for (const degrees of [35, 45]) {
+    const tilted = aligned.map(point => {
+      const world = new THREE.Vector3(0.5 - point.x, 0.5 - point.y, -point.z)
+        .applyAxisAngle(new THREE.Vector3(0, 0, 1), degrees * Math.PI / 180);
+      return { x: 0.5 - world.x, y: 0.5 - world.y, z: -world.z };
+    });
+    const badFrame = service.processMultiHands([tilted], [[{ categoryName: 'Right', score: fixture.confidence }]], 1100 + degrees);
+    assert.strictEqual(evaluateHandRuleFrame(config, badFrame).isMatched, false, 'Slanting a real captured grip must not trigger the field');
+  }
+  console.log('✓ Test 25 passed: Real HandLandmarker sample works with thumb direction alone and still rejects sideways tilts');
+}
+
+// Test 26: An upward left thumb never reveals the field, including immediately after a valid right hand.
+{
+  const config = { ...physicalConfig, mode: 'right-hand-screw' as const };
+  const rightPose = buildMockLandmarks({ thumbDirWorld: { x: 0, y: 1 }, fingersDirWorld: { x: -1, y: 0 }, curled: false });
+  const rightFrame = wrapSingleHandFrame('right', rightPose);
+  const leftFrame = wrapSingleHandFrame('left', rightPose);
+  for (const currentPolarity of [1, -1] as const) {
+    const pose = buildMockLandmarks({ thumbDirWorld: { x: 0, y: currentPolarity }, fingersDirWorld: { x: -1, y: 0 } });
+    const ev = evaluateHandRuleFrame({ ...config, currentPolarity }, wrapSingleHandFrame('left', pose));
+    assert.strictEqual(ev.status, 'wrong-hand');
+    assert.strictEqual(ev.isMatched, false);
+    assert.strictEqual(ev.alignmentScore, 0, 'Left-hand alignment must not contribute any match score');
+  }
+  const exp = new EmHandRulesExperiment(); exp.init({} as any); exp.setGestureEnabled(true);
+  const field = (exp as any).bench.floatingConductor;
+  exp.onHandGestureFrame(leftFrame); exp.update(0.016, 0, {} as any);
+  assert.strictEqual(field.fieldGroup.visible, false, 'A left thumb cannot reveal the field from idle');
+  exp.onHandGestureFrame(rightFrame);
+  for (let step = 0; step < 30; step++) exp.update(0.016, step * 0.016, {} as any);
+  assert.strictEqual(exp.getTelemetryData().isMatched, true, 'An open right hand with an aligned thumb must still work');
+  assert.strictEqual(field.fieldGroup.visible, true);
+  exp.onHandGestureFrame(leftFrame); exp.update(0.016, 0.5, {} as any);
+  assert.strictEqual(exp.getTelemetryData().status, 'wrong-hand');
+  assert.strictEqual(field.fieldGroup.visible, false, 'Switching to a left hand must hide the prior right-hand reveal immediately');
+  assert.strictEqual(field.fieldMaterial.opacity, 0);
+  exp.onHandGestureFrame(rightFrame);
+  for (let step = 0; step < 30; step++) exp.update(0.016, 0.6 + step * 0.016, {} as any);
+  assert.strictEqual(exp.getTelemetryData().isMatched, true, 'Returning the right hand restores the same simple thumb match');
+  assert.strictEqual(field.fieldGroup.visible, true);
+  exp.dispose({} as any);
+  console.log('✓ Test 26 passed: Left-thumb rejection in both polarities, immediate visual cancellation and right-hand recovery verified');
+}
+
+// Test 27: Left-hand force direction and rod motion are revealed together only after a correct gesture.
+{
+  for (const current of [-1, 1] as const) {
+    for (const field of [-1, 1] as const) {
+      const exp = new EmHandRulesExperiment(); exp.init({} as any);
+      exp.setRuleMode('left-hand-rule'); exp.setGestureEnabled(true);
+      if (current < 0) exp.reverseCurrent();
+      if (field < 0) exp.reverseField();
+      const bench = (exp as any).bench;
+      const rod = bench.leftRodGroup as THREE.Group;
+      const arrow = bench.leftForceArrow as THREE.Group;
+      const label = bench.leftForceLabel as THREE.Mesh;
+      const forceX = -current * field;
+      const pose = buildMockLandmarks({ handedness: 'left',
+        thumbDirWorld: { x: forceX, y: 0 }, fingersDirWorld: { x: 0, y: current },
+      });
+      const correctFrame = wrapSingleHandFrame('left', pose);
+      const wrongFrame = wrapSingleHandFrame('right', pose);
+      for (let step = 0; step < 60; step++) exp.update(0.016, step * 0.016, {} as any);
+      assert.strictEqual(rod.position.x, 0, 'The rod must stay at rest until a correct gesture is present');
+      assert.strictEqual(arrow.visible, false); assert.strictEqual(label.visible, false);
+      exp.onHandGestureFrame(wrongFrame);
+      for (let step = 0; step < 30; step++) exp.update(0.016, 1 + step * 0.016, {} as any);
+      assert.strictEqual(rod.position.x, 0, 'The wrong hand must not start the rod');
+      assert.strictEqual(arrow.visible, false);
+
+      exp.onHandGestureFrame(correctFrame); exp.update(0.016, 1.5, {} as any);
+      const firstX = rod.position.x;
+      assert(firstX * forceX > 0 && Math.abs(firstX) < 0.001, 'Start smoothly from rest in the Ampere-force direction without teleporting');
+      assert.strictEqual(arrow.visible, true); assert.strictEqual(label.visible, true);
+      const arrowDirection = new THREE.Vector3(0, 1, 0).applyQuaternion(arrow.quaternion);
+      assert(arrowDirection.x * forceX > 0.99, 'The displayed force and initial acceleration must agree');
+      exp.update(0.016, 1.516, {} as any);
+      assert((rod.position.x - firstX) * forceX > Math.abs(firstX), 'Equal time intervals must show increasing displacement as the rod accelerates');
+      for (let step = 0; step < 20; step++) exp.update(0.016, 1.532 + step * 0.016, {} as any);
+
+      const stoppedX = rod.position.x;
+      exp.onHandGestureFrame(null); exp.update(0.016, 2, {} as any);
+      assert.strictEqual(rod.position.x, stoppedX, 'Removing the hand pauses the rod in place');
+      assert.strictEqual(arrow.visible, false); assert.strictEqual(label.visible, false);
+      exp.onHandGestureFrame(wrongFrame);
+      for (let step = 0; step < 30; step++) exp.update(0.016, 2.1 + step * 0.016, {} as any);
+      assert.strictEqual(rod.position.x, stoppedX, 'The paused rod must not move or reset while the gesture is incorrect');
+      assert.strictEqual(arrow.visible, false);
+      exp.onHandGestureFrame(correctFrame); exp.update(0.016, 2.6, {} as any);
+      const resumedX = rod.position.x;
+      assert((resumedX - stoppedX) * forceX > 0 && Math.abs(resumedX - stoppedX) < 0.005, 'Correcting the gesture resumes continuously from the paused position');
+
+      let previousX = resumedX;
+      let previousStep = 1;
+      let reboundCount = 0;
+      for (let step = 0; step < 240; step++) {
+        exp.update(0.016, 2.7 + step * 0.016, {} as any);
+        const displacement = (rod.position.x - previousX) * forceX;
+        if (previousStep > 0 && displacement < -1e-7) reboundCount++;
+        if (Math.abs(displacement) > 1e-7) previousStep = Math.sign(displacement);
+        assert(Math.abs(rod.position.x) <= 0.120001, 'The repeating demonstration must stay within its visible travel');
+        assert(rod.position.x * forceX >= -1e-8, 'The return stroke must decelerate near its starting position');
+        assert.strictEqual(arrow.visible, true, 'A continuously correct gesture keeps the force direction visible during every cycle');
+        previousX = rod.position.x;
+      }
+      assert(reboundCount >= 2, 'Holding the correct pose must repeat motion instead of stopping at the first endpoint');
+
+      // Losing the hand during a return stroke freezes the cycle rather than restarting a new outward stroke.
+      let returning = false;
+      for (let step = 0; step < 200; step++) {
+        const before = rod.position.x;
+        exp.update(0.016, 7 + step * 0.016, {} as any);
+        if ((rod.position.x - before) * forceX < -0.001) { returning = true; break; }
+      }
+      assert(returning, 'A repeated cycle must contain a visible return stroke');
+      const pausedReturnX = rod.position.x;
+      exp.onHandGestureFrame(null);
+      for (let step = 0; step < 30; step++) exp.update(0.016, 10 + step * 0.016, {} as any);
+      assert.strictEqual(rod.position.x, pausedReturnX, 'Removing the hand pauses the return stroke exactly in place');
+      assert.strictEqual(arrow.visible, false);
+      exp.onHandGestureFrame(correctFrame); exp.update(0.016, 10.5, {} as any);
+      assert((rod.position.x - pausedReturnX) * forceX < 0, 'A corrected pose resumes the same return stroke');
+      previousX = rod.position.x;
+      exp.setGestureEnabled(false); exp.update(0.016, 7, {} as any);
+      assert.strictEqual(rod.position.x, previousX, 'Disabling gestures also pauses motion');
+      assert.strictEqual(arrow.visible, false); assert.strictEqual(label.visible, false);
+      exp.resetExperiment(); exp.update(0.016, 7.1, {} as any);
+      assert.strictEqual(rod.position.x, 0, 'Reset returns to rest without automatic movement');
+      assert.strictEqual(arrow.visible, false);
+      exp.dispose({} as any);
+    }
+  }
+  console.log('✓ Test 27 passed: Gesture-gated repeated motion, elastic return, pause/resume, polarity combinations and reset verified');
+}
+
+// Test 28: Real open-hand model samples must work with naturally oblique thumbs and mildly spread fingers.
+{
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/em_left_open_palms.json', import.meta.url), 'utf8'));
+  const config: HandRuleConfig = { ...physicalConfig, mode: 'left-hand-rule' };
+  const { HandGestureService } = await import('../src/vision/HandGestureService.ts');
+  for (const hand of fixture.hands) {
+    const raw: NormalizedLandmark[] = hand.landmarks;
+    const initial = extractHandKinematics(raw, 'left');
+    const fingerRotation = new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(initial.fourFingersDir.x, initial.fourFingersDir.y, initial.fourFingersDir.z), new THREE.Vector3(0, 1, 0));
+    let vectors = raw.map(point => new THREE.Vector3(0.5 - point.x, 0.5 - point.y, -point.z).applyQuaternion(fingerRotation));
+    const toLandmarks = (): NormalizedLandmark[] => vectors.map(v => ({ x: 0.5 - v.x, y: 0.5 - v.y, z: -v.z }));
+    const facing = extractHandKinematics(toLandmarks(), 'left').palmNormal;
+    const faceRotation = -Math.atan2(facing.x, facing.z);
+    vectors = vectors.map(v => v.applyAxisAngle(new THREE.Vector3(0, 1, 0), faceRotation));
+    const canonical = toLandmarks();
+    const kin = extractHandKinematics(canonical, 'left');
+    assert(kin.thumbDir.y > 0.8 && -kin.thumbDir.x < 0.8,
+      'This real natural thumb is oblique enough to fail the previous horizontal-tip test');
+
+    for (const current of signs) {
+      for (const field of signs) {
+        const pose = canonical.map(point => ({
+          x: 0.5 + (point.x - 0.5) * current * field,
+          y: 0.5 + (point.y - 0.5) * current,
+          z: point.z * field,
+        }));
+        const service = new HandGestureService();
+        const frame = service.processMultiHands([pose], [[{ categoryName: 'Left', score: hand.confidence }]], 1000);
+        const localConfig = { ...config, currentPolarity: current, fieldPolarity: field };
+        const ev = evaluateHandRuleFrame(localConfig, frame);
+        assert.strictEqual(ev.isMatched, true, `Real left palm must express I=${current}, Bz=${-field} despite an oblique thumb`);
+        assert.strictEqual(ev.targetVectorDir.x, -current * field);
+        const exp = new EmHandRulesExperiment(); exp.init({} as any); exp.setRuleMode('left-hand-rule');
+        exp.setGestureEnabled(true); if (current < 0) exp.reverseCurrent(); if (field < 0) exp.reverseField();
+        exp.onHandGestureFrame(frame);
+        for (let step = 0; step < 20; step++) exp.update(0.016, step * 0.016, {} as any);
+        const bench = (exp as any).bench;
+        assert(bench.leftRodGroup.position.x * ev.targetVectorDir.x > 0, 'The real recognized palm must actually move the rod');
+        assert.strictEqual(bench.leftForceArrow.visible, true);
+        exp.dispose({} as any);
+        assert.strictEqual(evaluateHandRuleFrame({ ...localConfig, fieldPolarity: -field as 1 | -1 }, frame).isMatched, false,
+          'Flipping B still requires turning the palm');
+        assert.strictEqual(evaluateHandRuleFrame({ ...localConfig, currentPolarity: -current as 1 | -1 }, frame).isMatched, false,
+          'Flipping I still requires reversing the four fingers');
+        assert.strictEqual(evaluateHandRuleFrame(localConfig, wrapSingleHandFrame('right', pose)).status, 'wrong-hand');
+      }
+    }
+    const moderateSpread = structuredClone(canonical);
+    for (const [index, mcp] of [5, 9, 13, 17].entries()) {
+      const direction = new THREE.Vector3(index === 0 ? -0.4 : index === 3 ? 0.4 : 0, 1, 0).normalize();
+      for (let joint = 1; joint < 4; joint++) {
+        moderateSpread[mcp + joint] = { x: moderateSpread[mcp].x - direction.x * joint * 0.05,
+          y: moderateSpread[mcp].y - direction.y * joint * 0.05, z: moderateSpread[mcp].z };
+      }
+    }
+    assert.strictEqual(evaluateHandRuleFrame(config, wrapSingleHandFrame('left', moderateSpread)).isMatched, true,
+      'Natural finger spread must not block a correct current direction');
+    const foldedThumb = structuredClone(canonical);
+    foldedThumb[4] = { ...foldedThumb[9] };
+    assert.strictEqual(evaluateHandRuleFrame(config, wrapSingleHandFrame('left', foldedThumb)).isMatched, false,
+      'A thumb folded into the palm still fails');
+    const fist = buildMockLandmarks({ handedness: 'left', thumbDirWorld: { x: -1, y: 0 },
+      fingersDirWorld: { x: 0, y: 1 }, curled: true });
+    assert.strictEqual(evaluateHandRuleFrame(config, wrapSingleHandFrame('left', fist)).isMatched, false);
+    const uncertain = wrapSingleHandFrame('left', canonical); uncertain.leftHand!.confidence = 0.65;
+    assert.strictEqual(evaluateHandRuleFrame(config, uncertain).isMatched, true,
+      'A tracked natural left palm must not require an extra 0.8 classification threshold');
+    uncertain.leftHand!.confidence = 0.3;
+    assert.strictEqual(evaluateHandRuleFrame(config, uncertain).isMatched, false);
+  }
+  console.log('✓ Test 28 passed: Real left-palm model samples, natural thumb abduction, finger spread, force motion and invalid-pose rejection verified');
 }
 
 console.log('========================================================');
-console.log('All Electromagnetism Hand Rules Tests Passed (17/17)!');
+console.log('All Electromagnetism Hand Rules Tests Passed (28/28)!');
 console.log('========================================================\n');

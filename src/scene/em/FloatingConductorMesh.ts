@@ -457,6 +457,11 @@ export class FloatingConductorMesh {
 
     // 手势匹配成功时优雅渐显同心圆磁感线与 "磁场方向 B" 铭牌
     const reveal = evaluation.isMatched ? 1 : 0;
+    if (evaluation.status === 'wrong-hand') {
+      // 换成左手后立即撤销显示，避免上一帧右手的渐隐残留看起来仍在触发。
+      this.fieldRevealProgress = 0;
+      this.fieldMaterial.opacity = 0;
+    }
     this.fieldRevealProgress += (reveal - this.fieldRevealProgress) * (1 - Math.exp(-dt * 7));
     this.fieldMaterial.opacity += (reveal * 0.95 - this.fieldMaterial.opacity) * ease;
     this.fieldArrowMaterial.opacity = this.fieldMaterial.opacity;

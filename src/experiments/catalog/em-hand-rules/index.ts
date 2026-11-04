@@ -167,6 +167,7 @@ export default class EmHandRulesExperiment extends BaseExperiment {
       const iy = this.config.currentPolarity;
       const fx = iy * bz;
       const lms = buildSyntheticHandLandmarks({
+        handedness: 'left',
         thumbDirWorld: { x: fx > 0 ? 1 : -1, y: 0 },
         fingersDirWorld: { x: 0, y: iy > 0 ? 1 : -1 },
         curled: false,

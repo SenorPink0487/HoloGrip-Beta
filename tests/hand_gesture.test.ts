@@ -215,7 +215,7 @@ const createMockHand = (
 
   const frame = service.processMultiHands(
     [leftHandLms, rightHandLms],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     100
   );
 
@@ -231,7 +231,7 @@ const createMockHand = (
     `Left hand screenX (${frame.leftHand.screenX}) must be smaller than right hand screenX (${frame.rightHand.screenX})`
   );
 
-  // Single-hand regression: Hand on the right side of the screen (screenX >= 0.55) must be recognized as Right Hand
+  // A model-labeled right hand keeps its identity on the right side of the mirrored preview
   const singleRightHandLms = createMockHand([0.25, 0.5, 0], [0.27, 0.5, 0], 0.2, 0.26, 0.7);
   const singleRightFrame = service.processMultiHands([singleRightHandLms], [[{ categoryName: 'Right' }]], 200);
   assert.strictEqual(singleRightFrame.hasHand, true);
@@ -266,18 +266,18 @@ const createMockHand = (
   const pinchedLeftHand = createMockHand([0.75, 0.5, 0], [0.752, 0.5, 0], 0.2, 0.75, 0.7);
 
   // 1. Hand starts open
-  service.processMultiHands([openLeftHand], [[{ categoryName: 'Right' }]], 1000);
+  service.processMultiHands([openLeftHand], [[{ categoryName: 'Left' }]], 1000);
   assert.strictEqual(floatingWindowToggled, false);
 
   // 2. Pinch starts at t = 1050ms
-  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Right' }]], 1050);
+  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Left' }]], 1050);
 
   // 3. Pinch held for 150ms (at t = 1200ms)
-  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Right' }]], 1200);
+  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Left' }]], 1200);
   assert.strictEqual(cameraRotated, false, 'Short hold should not trigger camera rotation');
 
   // 4. Pinch released at t = 1220ms (duration = 170ms < 350ms)
-  const frameReleased = service.processMultiHands([openLeftHand], [[{ categoryName: 'Right' }]], 1220);
+  const frameReleased = service.processMultiHands([openLeftHand], [[{ categoryName: 'Left' }]], 1220);
   assert.strictEqual(frameReleased.leftHandQuickPinch, true, 'Should flag leftHandQuickPinch');
   assert.strictEqual(floatingWindowToggled, true, 'Quick pinch must trigger floating window toggle callback');
 
@@ -286,45 +286,45 @@ const createMockHand = (
   cameraRotated = false;
 
   // 1. Pinch starts at t = 2000ms
-  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Right' }]], 2000);
+  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Left' }]], 2000);
 
   // 2. Held past 350ms: at t = 2400ms (duration 400ms) with hand movement
   const movedPinchedHand = createMockHand([0.72, 0.5, 0], [0.722, 0.5, 0], 0.2, 0.72, 0.7);
-  const frameLongPinch = service.processMultiHands([movedPinchedHand], [[{ categoryName: 'Right' }]], 2400);
+  const frameLongPinch = service.processMultiHands([movedPinchedHand], [[{ categoryName: 'Left' }]], 2400);
 
   assert.strictEqual(frameLongPinch.leftHand?.isLongPinch, true, 'Should enter isLongPinch mode');
   assert(frameLongPinch.leftHandCameraDelta !== null, 'Should emit leftHandCameraDelta');
   assert(cameraRotated, 'Continuous pinch move must trigger onCameraRotate callback');
 
   // 3. Releasing continuous pinch should NOT trigger quick pinch floating window
-  service.processMultiHands([openLeftHand], [[{ categoryName: 'Right' }]], 2500);
+  service.processMultiHands([openLeftHand], [[{ categoryName: 'Left' }]], 2500);
   assert.strictEqual(floatingWindowToggled, false, 'Continuous pinch release must NOT trigger quick pinch floating window toggle');
 
   // Scenario C: Finger separation on release frame (fingers spread wide on release frame)
   floatingWindowToggled = false;
   // 1. Pinch starts at t = 3000ms
-  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Right' }]], 3000);
+  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Left' }]], 3000);
   // 2. Pinch held for 120ms without whole-hand drag
-  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Right' }]], 3120);
+  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Left' }]], 3120);
   // 3. Fingers release and spread wide (thumb at 0.62, index at 0.88, midpoint shifted, duration = 150ms <= 200ms)
   const spreadOpenHand = createMockHand([0.62, 0.45, 0], [0.88, 0.55, 0], 0.2, 0.75, 0.7);
-  const frameSpreadReleased = service.processMultiHands([spreadOpenHand], [[{ categoryName: 'Right' }]], 3150);
+  const frameSpreadReleased = service.processMultiHands([spreadOpenHand], [[{ categoryName: 'Left' }]], 3150);
   assert.strictEqual(frameSpreadReleased.leftHandQuickPinch, true, 'Quick pinch must reliably fire even when fingers spread on release within 200ms');
   assert.strictEqual(floatingWindowToggled, true, 'Toggle callback must be triggered on quick pinch release');
 
   // Scenario D: 200ms strict boundary verification (<= 200ms is quick pinch, > 200ms is long pinch)
   floatingWindowToggled = false;
   // Case D1: duration exactly 200ms (t=4000 to t=4200) -> quick pinch
-  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Right' }]], 4000);
-  const frame200ms = service.processMultiHands([openLeftHand], [[{ categoryName: 'Right' }]], 4200);
+  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Left' }]], 4000);
+  const frame200ms = service.processMultiHands([openLeftHand], [[{ categoryName: 'Left' }]], 4200);
   assert.strictEqual(frame200ms.leftHandQuickPinch, true, 'Pinch of exactly 200ms must be judged as quick pinch');
   assert.strictEqual(floatingWindowToggled, true, 'Pinch of 200ms must toggle window');
 
   // Case D2: duration 250ms (> 200ms) -> long pinch, release does not trigger quick pinch
   floatingWindowToggled = false;
-  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Right' }]], 5000);
-  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Right' }]], 5220); // 220ms (> 200ms)
-  const frame250ms = service.processMultiHands([openLeftHand], [[{ categoryName: 'Right' }]], 5250);
+  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Left' }]], 5000);
+  service.processMultiHands([pinchedLeftHand], [[{ categoryName: 'Left' }]], 5220); // 220ms (> 200ms)
+  const frame250ms = service.processMultiHands([openLeftHand], [[{ categoryName: 'Left' }]], 5250);
   assert.strictEqual(frame250ms.leftHandQuickPinch, false, 'Pinch exceeding 200ms must NOT be judged as quick pinch');
   assert.strictEqual(floatingWindowToggled, false, 'Pinch exceeding 200ms must NOT toggle window');
 
@@ -342,7 +342,7 @@ const createMockHand = (
   // Both hands pinched at the same time: Left rotates camera, Right clicks/drags
   const frameBoth = service.processMultiHands(
     [pinchedLeft, pinchedRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     3000
   );
 
@@ -566,7 +566,7 @@ const createMockHand = (
   // 1. Initial open hands at t = 1000ms
   const f0 = service.processMultiHands(
     [openLeft, openRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     1000
   );
   assert.strictEqual(f0.leftHand?.pinchDuration, 0);
@@ -575,7 +575,7 @@ const createMockHand = (
   // 2. Both hands pinch at t = 1100ms
   const f1 = service.processMultiHands(
     [pinchedLeft, pinchedRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     1100
   );
   assert.strictEqual(f1.leftHand?.isPinching, true);
@@ -586,7 +586,7 @@ const createMockHand = (
   // 3. 240ms later at t = 1340ms: left and right hold pinch
   const f2 = service.processMultiHands(
     [pinchedLeft, pinchedRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     1340
   );
   assert.strictEqual(f2.leftHand?.pinchDuration, 240, `Left pinch duration should be 240ms, got ${f2.leftHand?.pinchDuration}`);
@@ -595,7 +595,7 @@ const createMockHand = (
   // 4. At t = 1420ms: left hand releases (duration = 320ms), right hand continues
   const f3 = service.processMultiHands(
     [openLeft, pinchedRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     1420
   );
   assert.strictEqual(f3.leftHand?.justPinchEnded, true);
@@ -605,7 +605,7 @@ const createMockHand = (
   // 5. At t = 1600ms: right hand releases (duration = 500ms)
   const f4 = service.processMultiHands(
     [openLeft, openRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     1600
   );
   assert.strictEqual(f4.rightHand?.justPinchEnded, true);
@@ -934,7 +934,7 @@ await (async () => {
   // 1. Initial frame with open hands
   const f0 = service.processMultiHands(
     [openLeft, openRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     1000
   );
   assert.strictEqual(f0.isDualPinching, false);
@@ -943,7 +943,7 @@ await (async () => {
   // 2. Both hands pinch at t = 1100ms
   const f1 = service.processMultiHands(
     [pinchedLeft, pinchedRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     1100
   );
   assert.strictEqual(f1.isDualPinching, true, 'isDualPinching must be true when both hands pinch');
@@ -958,7 +958,7 @@ await (async () => {
   const expandedRight = createMockHand([0.15, 0.5, 0], [0.152, 0.5, 0], 0.2, 0.15, 0.7);
   const f2 = service.processMultiHands(
     [expandedLeft, expandedRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     1200
   );
   assert.strictEqual(f2.isDualPinching, true);
@@ -971,7 +971,7 @@ await (async () => {
   // 4. Hands release pinch
   const f3 = service.processMultiHands(
     [openLeft, openRight],
-    [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]],
     1300
   );
   assert.strictEqual(f3.isDualPinching, false);
@@ -999,16 +999,16 @@ await (async () => {
   const pinchedRight = createMockHand([0.25, 0.5, 0], [0.252, 0.5, 0], 0.2, 0.25, 0.7);
 
   // Both hands pinch for 120ms (within quick pinch threshold)
-  service.processMultiHands([pinchedLeft, pinchedRight], [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]], 2000);
-  service.processMultiHands([pinchedLeft, pinchedRight], [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]], 2120);
+  service.processMultiHands([pinchedLeft, pinchedRight], [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]], 2000);
+  service.processMultiHands([pinchedLeft, pinchedRight], [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]], 2120);
 
   // Both release
-  service.processMultiHands([openLeft, openRight], [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]], 2150);
+  service.processMultiHands([openLeft, openRight], [[{ categoryName: 'Left' }], [{ categoryName: 'Right' }]], 2150);
   assert.strictEqual(menuToggled, false, 'Dual-hand pinch release must NOT trigger left hand quick pinch window toggle');
 
   // Single left hand pinch alone for 120ms
-  service.processMultiHands([pinchedLeft], [[{ categoryName: 'Right' }]], 3000);
-  service.processMultiHands([openLeft], [[{ categoryName: 'Right' }]], 3120);
+  service.processMultiHands([pinchedLeft], [[{ categoryName: 'Left' }]], 3000);
+  service.processMultiHands([openLeft], [[{ categoryName: 'Left' }]], 3120);
   assert.strictEqual(menuToggled, true, 'Isolated single left hand quick pinch must still trigger menu toggle');
 
   console.log('✓ Test 24 passed: Dual-hand pinch release isolation verified\n');
@@ -1227,19 +1227,19 @@ await (async () => {
   // Start single right hand on right half of screen: raw x = 0.30 -> mirrored screenX = 0.70 (> 0.55 -> Right Hand)
   const fStart = service.processMultiHands(
     [createMockHand([0.28, 0.5, 0], [0.38, 0.5, 0], 0.2, 0.30, 0.7)],
-    [[{ categoryName: 'Left' }]],
+    [[{ categoryName: 'Right' }]],
     1000
   );
   assert(fStart.rightHand !== null && fStart.leftHand === null, 'Initial hand on right half must be tracked as rightHand');
 
   // Continuously move single hand leftward across x=0.50 into x=0.36 and x=0.26 (where left-side polyhedron vertices D1, C1, C, D sit),
-  // even when MediaPipe handedness flickers to 'Right' (which would naively mirror to Left without trajectory continuity).
+  // A low-confidence classifier flicker to Left must not replace an otherwise continuous right-hand trajectory.
   const rawSteps = [0.46, 0.58, 0.68, 0.74]; // mirrored screenX = 0.54 -> 0.42 -> 0.32 -> 0.26
   let ts = 1040;
   for (const rawX of rawSteps) {
     const frame = service.processMultiHands(
       [createMockHand([rawX - 0.02, 0.5, 0], [rawX + 0.08, 0.5, 0], 0.2, rawX, 0.7)],
-      [[{ categoryName: 'Right' }]],
+      [[{ categoryName: 'Left', score: 0.55 }]],
       ts
     );
     assert(
@@ -1258,8 +1258,36 @@ await (async () => {
   console.log('✓ Test 29 passed: Single right-hand midline trajectory continuity & pre-pinch cursor stabilization verified\n');
 }
 
+// Test 30: Model handedness is independent of preview mirroring, screen side, depth and hand crossing.
+{
+  for (const mirrorX of [true, false]) {
+    const service = new HandGestureService({ mirrorX });
+    let timestamp = 1000;
+    for (const x of [0.2, 0.5, 0.8]) {
+      for (const categoryName of ['Left', 'Right']) {
+        const points = createMockHand([x - 0.02, 0.5, -0.1], [x + 0.02, 0.5, 0.1], 0.2, x, 0.7);
+        const frame = service.processMultiHands([points], [[{ categoryName, score: 0.98 }]], timestamp);
+        assert.strictEqual(frame.leftHand !== null, categoryName === 'Left', 'Screen position and old wrist track must not override a reliable Left label');
+        assert.strictEqual(frame.rightHand !== null, categoryName === 'Right', 'Preview mirroring must not swap a reliable Right label');
+        timestamp += 40;
+      }
+    }
+    const left = createMockHand([0.18, 0.5, 0], [0.22, 0.5, 0], 0.2, 0.2, 0.7);
+    const right = createMockHand([0.78, 0.5, 0], [0.82, 0.5, 0], 0.2, 0.8, 0.7);
+    const crossed = service.processMultiHands([left, right],
+      [[{ categoryName: 'Left', score: 0.98 }], [{ categoryName: 'Right', score: 0.98 }]], timestamp);
+    assert.strictEqual(crossed.leftHand?.landmarks, left, 'Crossed hands keep the model identity');
+    assert.strictEqual(crossed.rightHand?.landmarks, right);
+    const duplicateLabels = service.processMultiHands([left, right],
+      [[{ categoryName: 'Left', score: 0.98 }], [{ categoryName: 'Left', score: 0.9 }]], timestamp + 40);
+    assert.strictEqual(duplicateLabels.rightHand, null, 'A label conflict must not invent a right hand from screen position');
+    assert.strictEqual(duplicateLabels.leftHand?.landmarks, left);
+  }
+  console.log('✓ Test 30 passed: Anatomical labels survive mirror settings, screen crossing, same-position hand swaps and duplicate labels');
+}
+
 console.log('========================================================');
-console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (29/29)!');
+console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (30/30)!');
 console.log('========================================================\n');
 
 

@@ -1,6 +1,5 @@
 import { PointFilter2D } from './OneEuroFilter.ts';
 import { AppleVisionTracker } from './AppleVisionTracker.ts';
-import { detectAnatomicalChirality } from '../physics/em/handRulesSolver.ts';
 import type {
   DualHandPinchEvent,
   HandGestureFrame,
@@ -322,8 +321,8 @@ interface HandDetection {
   landmarks: NormalizedLandmark[];
   wrist: { x: number; y: number };
   label: 'left' | 'right';
+  labelReliable: boolean;
   score: number;
-  screenX: number;
 }
 
 export class HandGestureService {
@@ -1291,35 +1290,25 @@ export class HandGestureService {
     }
 
     const detections: HandDetection[] = detectedLandmarks.slice(0, 2).map((lms, idx) => {
-      const rawCategory = detectedHandedness?.[idx]?.[0]?.categoryName;
-      const score = Number(detectedHandedness?.[idx]?.[0]?.score) || 0.9;
+      const category = detectedHandedness?.[idx]?.[0];
+      const hasHandedness = category?.categoryName === 'Left' || category?.categoryName === 'Right';
+      const score = Number.isFinite(category?.score) ? Math.max(0, Math.min(1, category.score)) : 0.9;
       const midX = (lms[4].x + lms[8].x) * 0.5;
       const screenX = this.config.mirrorX ? 1.0 - midX : midX;
 
-      let label: 'left' | 'right';
-      // 优先通过 3D 骨骼解剖学手性不变量校准（防止握拳比划时 MediaPipe 2D 分类头单帧误判）
-      const anatomical = detectAnatomicalChirality(lms);
-      if (anatomical) {
-        label = anatomical;
-      } else if (rawCategory) {
-        if (this.isAppleVisionMode) {
-          // Apple Vision 模式下，原生 Swift 已精确映射解剖学手性：Right 即真实右手，Left 即真实左手
-          label = rawCategory === 'Right' ? 'right' : 'left';
-        } else {
-          label = this.config.mirrorX
-            ? (rawCategory === 'Right' ? 'left' : 'right')
-            : (rawCategory === 'Left' ? 'left' : 'right');
-        }
-      } else {
-        label = screenX < 0.5 ? 'left' : 'right';
-      }
+      // Tasks HandLandmarker 接收的是未镜像的视频帧，Left/Right 已是使用者的左右手。
+      // mirrorX 只影响光标/预览位置，不能交换手性；Apple Vision 也遵循同一约定。
+      // https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/web_js
+      const label: 'left' | 'right' = hasHandedness
+        ? (category.categoryName === 'Left' ? 'left' : 'right')
+        : (screenX < 0.5 ? 'left' : 'right');
 
       return {
         landmarks: lms,
         wrist: { x: lms[0].x, y: lms[0].y },
         label,
+        labelReliable: hasHandedness && (this.isAppleVisionMode || score >= 0.8),
         score,
-        screenX,
       };
     });
 
@@ -1327,20 +1316,21 @@ export class HandGestureService {
     let rightHandData: SingleHandData | null = null;
 
     if (detections.length >= 2) {
-      // 检测到两只手：用户左手位于用户左侧（对应镜像后较小的 screenX），右手位于用户右侧（较大的 screenX）
-      const [leftDet, rightDet] = detections[0].screenX <= detections[1].screenX
-        ? [detections[0], detections[1]]
-        : [detections[1], detections[0]];
-
-      leftHandData = this.leftTracker.process(leftDet.landmarks, timestamp, leftDet.score, this.config, this.isAppleVisionMode);
-      rightHandData = this.rightTracker.process(rightDet.landmarks, timestamp, rightDet.score, this.config, this.isAppleVisionMode);
+      // 按模型手性分配，不按屏幕左右排序；交叉双手时也不能交换物理身份。
+      // 若模型把两只手都标成同一侧，只保留置信度更高的一只，不凭位置补造另一只手。
+      const leftDet = detections.filter(det => det.label === 'left').sort((a, b) => b.score - a.score)[0];
+      const rightDet = detections.filter(det => det.label === 'right').sort((a, b) => b.score - a.score)[0];
+      if (leftDet) leftHandData = this.leftTracker.process(leftDet.landmarks, timestamp, leftDet.score, this.config, this.isAppleVisionMode);
+      else this.leftTracker.reset();
+      if (rightDet) rightHandData = this.rightTracker.process(rightDet.landmarks, timestamp, rightDet.score, this.config, this.isAppleVisionMode);
+      else this.rightTracker.reset();
     } else {
-      // 仅检测到单手：优先延续连续运动手腕轨迹，防止右手跨入屏幕左半区操作时被翻转为左手
+      // 单手优先使用可靠的模型标签；只有分类不确定时才延续手腕轨迹。
       const det = detections[0];
       let isLeft: boolean;
 
-      if (this.isAppleVisionMode) {
-        // Apple Vision 原生管线具备硬件级解剖学手性识别，支持右手光标自由跨越屏幕左半区操作而绝不反转为左手
+      if (det.labelReliable) {
+        // 可靠的模型标签不受屏幕位置、旧轨迹或握拳深度影响。
         isLeft = det.label === 'left';
       } else {
         const rightRecent =
@@ -1363,35 +1353,10 @@ export class HandGestureService {
           ? Math.hypot(det.wrist.x - this.leftTracker.lastWrist.x, det.wrist.y - this.leftTracker.lastWrist.y)
           : Infinity;
 
+        // 仅在分类置信度不足时延续最近的同一手腕轨迹，抑制单帧标签抖动。
         if (distToRight <= rightMaxStep && distToRight < distToLeft) {
           isLeft = false;
         } else if (distToLeft <= leftMaxStep && distToLeft < distToRight) {
-          // 如果轨迹虽然接近上一帧左手，但当前帧经 3D 解剖学或分类器明确为右手且位于中线及右侧，立即纠偏为右手
-          if (det.label === 'right' && det.screenX >= 0.38) {
-            isLeft = false;
-          } else {
-            isLeft = true;
-          }
-        } else if (rightRecent && det.screenX >= 0.44) {
-          // 连续操作惯性：刚刚一直在使用右手且当前仍处于屏幕中线偏右，延续右手识别（防止握拳比划时单帧手性翻转）
-          isLeft = false;
-        } else if (leftRecent && det.screenX <= 0.48) {
-          // 连续操作惯性：刚刚一直在使用左手且当前仍处于屏幕中线偏左，延续左手识别
-          isLeft = true;
-        } else if (det.label === 'right') {
-          // 新进入视野或无近距手腕轨迹时：若模型手性明确判定为右手，即使位于屏幕中线或左半区也识别为右手
-          isLeft = false;
-        } else if (det.screenX >= 0.48) {
-          // 新进入视野且位于屏幕中线偏右（镜像坐标），作为右手空间兜底
-          isLeft = false;
-        } else if (det.label === 'left') {
-          isLeft = true;
-        } else if (det.screenX <= 0.42) {
-          // 新进入视野且显著位于屏幕左半区
-          isLeft = true;
-        } else if (Number.isFinite(this.rightTracker.lastSeenAt) && timestamp - this.rightTracker.lastSeenAt < 1000) {
-          isLeft = false;
-        } else if (Number.isFinite(this.leftTracker.lastSeenAt) && timestamp - this.leftTracker.lastSeenAt < 1000) {
           isLeft = true;
         } else {
           isLeft = det.label === 'left';
@@ -1550,7 +1515,7 @@ export class HandGestureService {
     landmarks: NormalizedLandmark[],
     timestamp: number
   ): HandGestureFrame {
-    return this.processMultiHands([landmarks], [[{ categoryName: 'Left' }]], timestamp);
+    return this.processMultiHands([landmarks], [[{ categoryName: 'Right' }]], timestamp);
   }
 
   private broadcastFrame(frame: HandGestureFrame): void {
