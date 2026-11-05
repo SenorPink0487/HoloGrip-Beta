@@ -11,7 +11,6 @@ import {
   type PointCharge,
   type TestChargeState,
 } from '../../physics/em/electrostatic.ts';
-import type { EquipotentialSurface, GaussianSurface } from '../../physics/em/fieldSurfaces.ts';
 
 const INITIAL_MAX_SEGMENTS = 65536;
 const DEFAULT_MAX_CONES = 1200;
@@ -21,46 +20,6 @@ export const CHARGE_POS_COLOR = { r: 1.0, g: 0.133, b: 0.267 }; // #ff2244 (发�
 export const CHARGE_NEG_COLOR = { r: 0.0, g: 0.533, b: 1.0 };   // #0088ff (发光科技蓝)
 export const PROBE_COLOR = { r: 0.984, g: 0.749, b: 0.141 };     // #fbbf24 (金黄色试探电荷)
 
-function sealOffPointer(object: THREE.Object3D): void {
-  object.raycast = () => {};
-}
-
-function buildGraticulePositions(): Float32Array {
-  const segments: number[] = [];
-  const meridians = 12;
-  const meridianSteps = 72;
-  for (let meridian = 0; meridian < meridians; meridian++) {
-    const lambda = (meridian / meridians) * Math.PI;
-    const cosL = Math.cos(lambda);
-    const sinL = Math.sin(lambda);
-    for (let step = 0; step < meridianSteps; step++) {
-      const a0 = (step / meridianSteps) * Math.PI * 2;
-      const a1 = ((step + 1) / meridianSteps) * Math.PI * 2;
-      segments.push(
-        Math.cos(a0) * cosL, Math.sin(a0), Math.cos(a0) * sinL,
-        Math.cos(a1) * cosL, Math.sin(a1), Math.cos(a1) * sinL,
-      );
-    }
-  }
-
-  const latitudes = [-62, -38, -16, 16, 38, 62];
-  const latitudeSteps = 80;
-  for (const degrees of latitudes) {
-    const phi = (degrees * Math.PI) / 180;
-    const y = Math.sin(phi);
-    const ring = Math.cos(phi);
-    for (let step = 0; step < latitudeSteps; step++) {
-      const a0 = (step / latitudeSteps) * Math.PI * 2;
-      const a1 = ((step + 1) / latitudeSteps) * Math.PI * 2;
-      segments.push(
-        ring * Math.cos(a0), y, ring * Math.sin(a0),
-        ring * Math.cos(a1), y, ring * Math.sin(a1),
-      );
-    }
-  }
-  return Float32Array.from(segments);
-}
-
 export interface FieldBenchVisualState {
   charges: PointCharge[];
   lines: FieldLine[];
@@ -69,10 +28,6 @@ export interface FieldBenchVisualState {
   showLines: boolean;
   showFlow?: boolean;
   testCharge?: TestChargeState | null;
-  showGaussian?: boolean;
-  showEquipotential?: boolean;
-  gaussianSurfaces?: readonly GaussianSurface[];
-  equipotentials?: readonly EquipotentialSurface[];
 }
 
 export class FieldBenchMesh {
@@ -80,8 +35,6 @@ export class FieldBenchMesh {
   public readonly platform: THREE.Mesh;
   public readonly chargesGroup = new THREE.Group();
   public readonly linesGroup = new THREE.Group();
-  public readonly gaussianGroup = new THREE.Group();
-  public readonly equipotentialGroup = new THREE.Group();
   public readonly selectionRing: THREE.Mesh;
 
   // 活跃电荷映射表（公开以供高速拾取检测）
@@ -112,20 +65,8 @@ export class FieldBenchMesh {
   private readonly linesMesh: LineSegments2;
   private linePosArray = new Float32Array(INITIAL_MAX_SEGMENTS * 6);
   private lineColArray = new Float32Array(INITIAL_MAX_SEGMENTS * 6);
-
-  private readonly gaussianUnits = new Map<string, THREE.Group>();
-  private readonly graticuleGeo: LineSegmentsGeometry;
-  private readonly graticuleMat: LineMaterial;
-  private readonly gaussSphereGeo: THREE.SphereGeometry;
-  private readonly gaussGlowGeo: THREE.SphereGeometry;
-  private readonly equatorGeo: THREE.TorusGeometry;
-  private readonly gaussPosMat: THREE.MeshPhysicalMaterial;
-  private readonly gaussNegMat: THREE.MeshPhysicalMaterial;
-  private readonly gaussGlowPos: THREE.MeshBasicMaterial;
-  private readonly gaussGlowNeg: THREE.MeshBasicMaterial;
-  private readonly equatorMat: THREE.MeshStandardMaterial;
-  private readonly equipotentialMeshes: THREE.Mesh[] = [];
-  private lastEquipotentials: readonly EquipotentialSurface[] | null = null;
+  private linePositionBuffer!: THREE.InstancedInterleavedBuffer;
+  private lineColorBuffer!: THREE.InstancedInterleavedBuffer;
 
   constructor() {
     this.group.name = 'FieldBench';
@@ -257,80 +198,6 @@ export class FieldBenchMesh {
 
     this.testChargeGroup.visible = false;
     this.group.add(this.testChargeGroup);
-
-    // 6. 高斯面：光学玻璃球壳 + 经纬刻线 + 赤道金属大圆
-    const widthPx = typeof window !== 'undefined' ? window.innerWidth : 800;
-    const heightPx = typeof window !== 'undefined' ? window.innerHeight : 800;
-    this.gaussSphereGeo = new THREE.SphereGeometry(1, 72, 48);
-    this.gaussGlowGeo = new THREE.SphereGeometry(1, 40, 28);
-    this.equatorGeo = new THREE.TorusGeometry(1, 0.026, 16, 96);
-    this.gaussPosMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffe4ea,
-      emissive: 0xff2244,
-      emissiveIntensity: 0.16,
-      roughness: 0.05,
-      metalness: 0.04,
-      clearcoat: 1,
-      clearcoatRoughness: 0.04,
-      transparent: true,
-      opacity: 0.28,
-      depthWrite: false,
-      side: THREE.FrontSide,
-    });
-    this.gaussNegMat = new THREE.MeshPhysicalMaterial({
-      color: 0xe0f2fe,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.16,
-      roughness: 0.05,
-      metalness: 0.04,
-      clearcoat: 1,
-      clearcoatRoughness: 0.04,
-      transparent: true,
-      opacity: 0.28,
-      depthWrite: false,
-      side: THREE.FrontSide,
-    });
-    this.gaussGlowPos = new THREE.MeshBasicMaterial({
-      color: 0xff4d6d,
-      transparent: true,
-      opacity: 0.16,
-      side: THREE.BackSide,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    this.gaussGlowNeg = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.16,
-      side: THREE.BackSide,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    this.equatorMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.9,
-      roughness: 0.22,
-      emissive: 0xf8fafc,
-      emissiveIntensity: 0.06,
-    });
-    this.graticuleGeo = new LineSegmentsGeometry();
-    this.graticuleGeo.setPositions(buildGraticulePositions());
-    this.graticuleMat = new LineMaterial({
-      color: 0xf8fafc,
-      linewidth: 1.45,
-      transparent: true,
-      opacity: 0.82,
-      worldUnits: false,
-      resolution: new THREE.Vector2(widthPx, heightPx),
-    });
-    this.gaussianGroup.name = 'GaussianSurfaces';
-    this.gaussianGroup.visible = false;
-    this.group.add(this.gaussianGroup);
-
-    // 7. 等势面容器（网格在同步时按电势重建）
-    this.equipotentialGroup.name = 'EquipotentialSurfaces';
-    this.equipotentialGroup.visible = false;
-    this.group.add(this.equipotentialGroup);
   }
 
   /**
@@ -364,10 +231,6 @@ export class FieldBenchMesh {
 
     // 4. 同步试探电荷探针
     this.syncTestCharge(state.testCharge ?? null);
-
-    // 5. 高斯面与等势面
-    this.syncGaussian(state.gaussianSurfaces ?? [], Boolean(state.showGaussian));
-    this.syncEquipotentials(state.equipotentials ?? [], Boolean(state.showEquipotential));
   }
 
   /**
@@ -410,15 +273,6 @@ export class FieldBenchMesh {
   }
 
   public update(elapsed = 0): void {
-    if (this.graticuleMat && typeof window !== 'undefined') {
-      this.graticuleMat.resolution.set(window.innerWidth, window.innerHeight);
-    }
-    if (this.gaussianGroup.visible) {
-      const pulse = 0.12 + 0.045 * Math.sin(elapsed * 1.6);
-      this.gaussPosMat.emissiveIntensity = pulse;
-      this.gaussNegMat.emissiveIntensity = pulse;
-    }
-
     if (this.chargeMeshes.size > 0 && elapsed > 0) {
       for (const [id, group] of this.chargeMeshes.entries()) {
         const head = group.getObjectByName('Head');
@@ -503,11 +357,23 @@ export class FieldBenchMesh {
 
   private ensureLineCapacity(totalSegments: number): void {
     const requiredFloats = totalSegments * 6;
+    if (this.linePositionBuffer && this.linePosArray.length >= requiredFloats) return;
+
     if (this.linePosArray.length < requiredFloats) {
       const newCapacity = Math.max(requiredFloats, this.linePosArray.length * 2, INITIAL_MAX_SEGMENTS * 6);
       this.linePosArray = new Float32Array(newCapacity);
       this.lineColArray = new Float32Array(newCapacity);
     }
+
+    // Three.js 缓存首次上传的实例容量。按完整容量绑定并复用缓冲区，
+    // 扩容前释放旧 GPU 绑定，让渲染器重新计算容量，避免新增场线被截断。
+    this.lineGeo.dispose();
+    this.linePositionBuffer = new THREE.InstancedInterleavedBuffer(this.linePosArray, 6).setUsage(THREE.DynamicDrawUsage);
+    this.lineColorBuffer = new THREE.InstancedInterleavedBuffer(this.lineColArray, 6).setUsage(THREE.DynamicDrawUsage);
+    this.lineGeo.setAttribute('instanceStart', new THREE.InterleavedBufferAttribute(this.linePositionBuffer, 3, 0));
+    this.lineGeo.setAttribute('instanceEnd', new THREE.InterleavedBufferAttribute(this.linePositionBuffer, 3, 3));
+    this.lineGeo.setAttribute('instanceColorStart', new THREE.InterleavedBufferAttribute(this.lineColorBuffer, 3, 0));
+    this.lineGeo.setAttribute('instanceColorEnd', new THREE.InterleavedBufferAttribute(this.lineColorBuffer, 3, 3));
   }
 
   private ensureConeCapacity(neededCones: number): void {
@@ -543,6 +409,9 @@ export class FieldBenchMesh {
     const pos = this.linePosArray;
     const col = this.lineColArray;
     const renderedLineIndices: number[] = [];
+    const bounds = this.lineGeo.boundingBox ??= new THREE.Box3();
+    bounds.makeEmpty();
+    const boundPoint = new THREE.Vector3();
 
     for (let l = 0; l < lines.length; l++) {
       const line = lines[l];
@@ -567,6 +436,9 @@ export class FieldBenchMesh {
         pos[idx + 4] = p1.y;
         pos[idx + 5] = p1.z;
 
+        bounds.expandByPoint(boundPoint.set(p0.x, p0.y, p0.z));
+        bounds.expandByPoint(boundPoint.set(p1.x, p1.y, p1.z));
+
         // 电场线颜色与源/汇电荷颜色严格对应
         const t0 = i / (len - 1);
         const t1 = (i + 1) / (len - 1);
@@ -579,13 +451,16 @@ export class FieldBenchMesh {
       renderedLineIndices.push(l);
     }
 
-    if (segCount > 0) {
-      this.lineGeo.setPositions(this.linePosArray.subarray(0, segCount * 6));
-      this.lineGeo.setColors(this.lineColArray.subarray(0, segCount * 6));
-      this.linesMesh.visible = true;
-    } else {
-      this.lineGeo.setPositions([]);
-      this.linesMesh.visible = false;
+    this.lineGeo.instanceCount = segCount;
+    this.linesMesh.visible = segCount > 0;
+    // 只计算有效线段的包围体，避免闲置容量和上次场线影响视锥裁剪。
+    bounds.getBoundingSphere(this.lineGeo.boundingSphere ??= new THREE.Sphere());
+    for (const buffer of [this.linePositionBuffer, this.lineColorBuffer]) {
+      buffer.clearUpdateRanges();
+      if (segCount > 0) {
+        buffer.addUpdateRange(0, segCount * 6);
+        buffer.needsUpdate = true;
+      }
     }
 
     // 更新方向箭头圆锥（严格按照展陈级间距排布）
@@ -703,103 +578,6 @@ export class FieldBenchMesh {
     }
   }
 
-  private syncGaussian(surfaces: readonly GaussianSurface[], show: boolean): void {
-    const active = new Set<string>();
-    for (const surface of surfaces) {
-      active.add(surface.chargeId);
-      const positive = surface.enclosedChargeMicroC >= 0;
-      const unit = this.ensureGaussianUnit(surface.chargeId);
-      unit.position.set(surface.center.x, surface.center.y, surface.center.z);
-      unit.scale.setScalar(surface.radius);
-      unit.visible = true;
-      const shell = unit.getObjectByName('Shell') as THREE.Mesh | null;
-      const glow = unit.getObjectByName('Glow') as THREE.Mesh | null;
-      if (shell) shell.material = positive ? this.gaussPosMat : this.gaussNegMat;
-      if (glow) glow.material = positive ? this.gaussGlowPos : this.gaussGlowNeg;
-    }
-
-    for (const [id, unit] of this.gaussianUnits) {
-      if (active.has(id)) continue;
-      this.gaussianGroup.remove(unit);
-      this.gaussianUnits.delete(id);
-    }
-
-    this.gaussianGroup.visible = show && this.gaussianUnits.size > 0;
-  }
-
-  private ensureGaussianUnit(id: string): THREE.Group {
-    const existing = this.gaussianUnits.get(id);
-    if (existing) return existing;
-
-    const unit = new THREE.Group();
-    unit.name = `Gaussian_${id}`;
-    unit.frustumCulled = false;
-
-    const shell = new THREE.Mesh(this.gaussSphereGeo, this.gaussPosMat);
-    shell.name = 'Shell';
-    shell.renderOrder = 3;
-    sealOffPointer(shell);
-    unit.add(shell);
-
-    const glow = new THREE.Mesh(this.gaussGlowGeo, this.gaussGlowPos);
-    glow.name = 'Glow';
-    glow.scale.setScalar(1.02);
-    glow.renderOrder = 2;
-    sealOffPointer(glow);
-    unit.add(glow);
-
-    const graticule = new LineSegments2(this.graticuleGeo, this.graticuleMat);
-    graticule.name = 'Graticule';
-    graticule.scale.setScalar(0.992);
-    graticule.frustumCulled = false;
-    graticule.renderOrder = 4;
-    sealOffPointer(graticule);
-    unit.add(graticule);
-
-    const equator = new THREE.Mesh(this.equatorGeo, this.equatorMat);
-    equator.name = 'Equator';
-    equator.renderOrder = 5;
-    sealOffPointer(equator);
-    unit.add(equator);
-
-    this.gaussianGroup.add(unit);
-    this.gaussianUnits.set(id, unit);
-    return unit;
-  }
-
-  private syncEquipotentials(surfaces: readonly EquipotentialSurface[], show: boolean): void {
-    if (surfaces !== this.lastEquipotentials) {
-      this.lastEquipotentials = surfaces;
-      this.rebuildEquipotentialMeshes(surfaces);
-    }
-    this.equipotentialGroup.visible = show && this.equipotentialMeshes.length > 0;
-  }
-
-  private rebuildEquipotentialMeshes(surfaces: readonly EquipotentialSurface[]): void {
-    for (const mesh of this.equipotentialMeshes) {
-      this.equipotentialGroup.remove(mesh);
-      mesh.geometry.dispose();
-      const material = mesh.material;
-      if (Array.isArray(material)) material.forEach((item) => item.dispose());
-      else material.dispose();
-    }
-    this.equipotentialMeshes.length = 0;
-
-    surfaces.forEach((surface, index) => {
-      if (surface.positions.length < 9) return;
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(surface.positions, 3));
-      geometry.setAttribute('normal', new THREE.BufferAttribute(surface.normals, 3));
-      const mesh = new THREE.Mesh(geometry, equipotentialMaterial(surface.potential, index));
-      mesh.name = `Equipotential_${index}`;
-      mesh.renderOrder = 1;
-      mesh.frustumCulled = false;
-      sealOffPointer(mesh);
-      this.equipotentialGroup.add(mesh);
-      this.equipotentialMeshes.push(mesh);
-    });
-  }
-
   public dispose(): void {
     disposeObjectTree(this.group);
     this.lineGeo.dispose();
@@ -811,45 +589,7 @@ export class FieldBenchMesh {
     this.negHaloMat.dispose();
     this.probeCoreMat.dispose();
     this.probeHaloMat.dispose();
-    this.graticuleGeo.dispose();
-    this.graticuleMat.dispose();
-    this.gaussSphereGeo.dispose();
-    this.gaussGlowGeo.dispose();
-    this.equatorGeo.dispose();
-    this.gaussPosMat.dispose();
-    this.gaussNegMat.dispose();
-    this.gaussGlowPos.dispose();
-    this.gaussGlowNeg.dispose();
-    this.equatorMat.dispose();
-    for (const mesh of this.equipotentialMeshes) {
-      mesh.geometry.dispose();
-      const material = mesh.material;
-      if (Array.isArray(material)) material.forEach((item) => item.dispose());
-      else material.dispose();
-    }
-    this.equipotentialMeshes.length = 0;
     this.chargesGroup.clear();
     this.chargeMeshes.clear();
-    this.gaussianUnits.clear();
   }
-}
-
-function equipotentialMaterial(potential: number, _index: number): THREE.MeshStandardMaterial {
-  const isZero = Math.abs(potential) < 1;
-  const positive = potential > 0;
-  const color = isZero ? 0xf8fafc : positive ? 0xfb7185 : 0x38bdf8;
-  return new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: isZero ? 0.18 : 0.55,
-    roughness: 0.22,
-    metalness: 0.02,
-    transparent: true,
-    opacity: isZero ? 0.14 : 0.32,
-    side: isZero ? THREE.DoubleSide : THREE.FrontSide,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: 1,
-    polygonOffsetUnits: 1,
-  });
 }

@@ -3719,18 +3719,6 @@ textarea:focus::placeholder {
   opacity: 0.8;
 }
 
-.math-ar-album-btn.is-active .math-ar-album-icon-box {
-  background: rgba(255, 255, 255, 0.28);
-  border-color: rgba(255, 255, 255, 0.45);
-  box-shadow: 0 0 16px rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-}
-
-.math-ar-album-btn.is-active .math-ar-slot-label {
-  color: #ffffff;
-  font-weight: 600;
-}
-
 .math-ar-album-icon-box,
 .math-ar-tray-icon-box {
   position: relative;
@@ -3745,101 +3733,6 @@ textarea:focus::placeholder {
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-}
-
-/* Apple 原生 UIMenu 极简浮动菜单 (位于相册图标正上方，绝不遮挡相册图标) */
-.math-ar-album-popover {
-  position: absolute;
-  bottom: calc(100% + 14px);
-  left: 0;
-  z-index: 100;
-  width: 172px;
-  background: rgba(30, 30, 32, 0.78);
-  backdrop-filter: blur(40px) saturate(200%);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
-  border: 0.5px solid rgba(255, 255, 255, 0.16);
-  border-radius: 14px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.08);
-  padding: 4px;
-  box-sizing: border-box;
-  transform-origin: 24px bottom;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.16s ease;
-  pointer-events: auto;
-}
-
-.math-ar-album-popover.hidden {
-  opacity: 0;
-  transform: translateY(8px) scale(0.95);
-  pointer-events: none;
-}
-
-.math-ar-album-popover:not(.hidden) {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  animation: apple-ar-popover-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes apple-ar-popover-in {
-  0% {
-    opacity: 0;
-    transform: translateY(8px) scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.math-ar-popover-menu {
-  display: flex;
-  flex-direction: column;
-}
-
-.math-ar-popover-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 42px;
-  padding: 0 12px;
-  border-radius: 9px;
-  border: none;
-  background: transparent;
-  color: #ffffff;
-  cursor: pointer;
-  width: 100%;
-  outline: none;
-  transition: background-color 0.12s ease;
-  -webkit-tap-highlight-color: transparent;
-  box-sizing: border-box;
-}
-
-.math-ar-popover-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.math-ar-popover-item:active {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.math-ar-popover-label {
-  font-size: 14.5px;
-  font-weight: 400;
-  color: #ffffff;
-  letter-spacing: -0.2px;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.math-ar-popover-glyph {
-  color: rgba(255, 255, 255, 0.85);
-  flex-shrink: 0;
-  transition: opacity 0.12s ease;
-}
-
-.math-ar-popover-divider {
-  height: 0.5px;
-  background: rgba(255, 255, 255, 0.09);
-  margin: 2px 8px;
 }
 
 .math-ar-tray-counter-bubble {

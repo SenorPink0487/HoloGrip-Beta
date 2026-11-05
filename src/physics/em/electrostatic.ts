@@ -70,12 +70,6 @@ export interface ElectrostaticTelemetry {
   selectedChargeId: string | null;
   selectedChargeValue: number;
   testCharge?: TestChargeState | null;
-  /** 选中电荷的高斯通量；未选中时为系统净通量 Φ = Q/ε₀ (N·m²/C) */
-  gaussianFlux?: number;
-  /** 选中电荷高斯面半径 (m)；未选中时为 0 */
-  gaussianRadius?: number;
-  equipotentialCount?: number;
-  equipotentialHasZero?: boolean;
 }
 
 /**

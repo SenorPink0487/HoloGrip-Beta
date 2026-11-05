@@ -142,7 +142,6 @@ export class HandRulesStatusCard {
         box-sizing: border-box;
       }
 
-      .math-branch-tile:hover,
       .math-branch-tile:focus-visible {
         transform: translateY(-6px) scale(1.02);
         background: rgba(255, 255, 255, 0.08);
@@ -179,11 +178,21 @@ export class HandRulesStatusCard {
                     border-color 0.25s ease;
       }
 
-      .math-branch-tile:hover .math-tile-icon-box {
-        transform: scale(1.08);
-        background: rgba(255, 255, 255, 0.14);
-        border-color: rgba(255, 255, 255, 0.26);
-        color: #ffffff;
+      @media (hover: hover) and (pointer: fine) {
+        body:not(.is-touch-device) .math-branch-tile:hover {
+          transform: translateY(-6px) scale(1.02);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.20);
+          border-top-color: rgba(255, 255, 255, 0.40);
+          box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
+        }
+
+        body:not(.is-touch-device) .math-branch-tile:hover .math-tile-icon-box {
+          transform: scale(1.08);
+          background: rgba(255, 255, 255, 0.14);
+          border-color: rgba(255, 255, 255, 0.26);
+          color: #ffffff;
+        }
       }
 
       /* 数学板块激活状态下图标容器的样式：与数学模型卡片一致的纯粹自然提亮 */

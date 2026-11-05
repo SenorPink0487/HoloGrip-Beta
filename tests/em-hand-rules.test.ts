@@ -507,7 +507,7 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   console.log('✓ Test 8 passed: transformed drag, damped return, cancellation and continuous reversal verified');
 }
 
-// Test 9: Right-Hand Rule Apparatus & Directional Vectors Verification (只保留导体棒，删除所有额外器材)
+// Test 9: Right-Hand Rule Apparatus, Known Magnetic Field & Directional Vectors Verification
 {
   const exp = new EmHandRulesExperiment();
   exp.init({} as any);
@@ -522,11 +522,13 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   const rightRodMesh = bench.group.getObjectByName('RightConductorRod');
   assert(rightRodMesh, 'RightConductorRod must exist');
 
-  // Verify all extra apparatus (field lines, rear yoke, front base, B signboards) are deleted
+  // Keep the single conductor apparatus and display the shared uniform field around it.
   assert.strictEqual(rightRuleGroup.getObjectByName('StaticMagneticFieldLines'), undefined, 'Must not have StaticMagneticFieldLines');
   assert.strictEqual(rightRuleGroup.getObjectByName('RearYoke'), undefined, 'Must not have RearYoke');
   assert.strictEqual(rightRuleGroup.getObjectByName('FrontBase'), undefined, 'Must not have FrontBase');
-  assert.strictEqual(rightRuleGroup.getObjectByName('RightBLabel'), undefined, 'Must not have RightBLabel');
+  const fieldIndicators = bench.group.getObjectByName('UniformMagneticFieldIndicators');
+  assert(fieldIndicators?.visible, 'Right-hand rule must display the known magnetic field before a hand matches');
+  assert(fieldIndicators.getObjectByName('UniformMagneticFieldLabel'), 'The known field must have a B label');
   assert.strictEqual(rightRuleGroup.children.length, 1, 'RightHandRuleApparatus must only contain the conductor rod assembly');
   assert.strictEqual(rightRuleGroup.children[0].name, 'RightConductorRodAssembly', 'Sole child must be RightConductorRodAssembly');
 
@@ -918,19 +920,19 @@ console.log('=== Starting Electromagnetism Hand Rules & 3D Skeleton Verification
   );
 
   // Verify dynamic flowing 2D magnetic field symbols invariants (no 3D arrows)
-  const symbols = (bench as any).leftFieldSymbols as any[];
+  const symbols = (bench as any).uniformFieldSymbols as any[];
   assert(symbols && symbols.length === 12, 'Must contain 12 standard 2D magnetic field symbols in wings');
   assert.strictEqual(symbols[0].mat.map, (bench as any).texFieldIn, 'Field map must be inward ⊗ when bz < 0');
-  const initialPhase = (bench as any).leftFieldFlowPhase;
+  const initialPhase = (bench as any).uniformFieldFlowPhase;
   for (let i = 0; i < 10; i++) exp.update(0.016, 2.5 + i * 0.016, {} as any);
-  assert((bench as any).leftFieldFlowPhase > initialPhase, 'Magnetic field flow phase must continuously advance');
+  assert((bench as any).uniformFieldFlowPhase > initialPhase, 'Magnetic field flow phase must continuously advance');
 
   // Verify dynamic flowing photon streamline packets (24 packets across 12 channels)
-  const packets = (bench as any).leftFieldPackets as any[];
+  const packets = (bench as any).uniformFieldPackets as any[];
   assert(packets && packets.length === 24, 'Must contain 24 dynamic flowing streamline photon packets');
-  const initialPhotonPhase = (bench as any).leftFieldPhotonPhase;
+  const initialPhotonPhase = (bench as any).uniformFieldPhotonPhase;
   for (let i = 0; i < 10; i++) exp.update(0.016, 2.6 + i * 0.016, {} as any);
-  assert((bench as any).leftFieldPhotonPhase > initialPhotonPhase, 'Streamline photon phase must continuously advance');
+  assert((bench as any).uniformFieldPhotonPhase > initialPhotonPhase, 'Streamline photon phase must continuously advance');
 
   // Verify field direction reversal switches 2D symbols to outward ⊙
   exp.reverseField();
@@ -1515,35 +1517,33 @@ const signs = [-1, 1] as const;
       assert((resumedX - stoppedX) * forceX > 0 && Math.abs(resumedX - stoppedX) < 0.005, 'Correcting the gesture resumes continuously from the paused position');
 
       let previousX = resumedX;
-      let previousStep = 1;
-      let reboundCount = 0;
-      for (let step = 0; step < 240; step++) {
+      let cycleCount = 0;
+      let farthestX = 0;
+      for (let step = 0; step < 360; step++) {
         exp.update(0.016, 2.7 + step * 0.016, {} as any);
         const displacement = (rod.position.x - previousX) * forceX;
-        if (previousStep > 0 && displacement < -1e-7) reboundCount++;
-        if (Math.abs(displacement) > 1e-7) previousStep = Math.sign(displacement);
-        assert(Math.abs(rod.position.x) <= 0.120001, 'The repeating demonstration must stay within its visible travel');
-        assert(rod.position.x * forceX >= -1e-8, 'The return stroke must decelerate near its starting position');
+        if (displacement < -1e-7) {
+          cycleCount++;
+          assert(previousX * forceX > 0.29 && rod.position.x * forceX < 0.001,
+            'The only reverse displacement is an immediate endpoint-to-start reset');
+        }
+        farthestX = Math.max(farthestX, rod.position.x * forceX);
+        assert(Math.abs(rod.position.x) <= 0.300001, 'The repeating demonstration must stay within its extended travel');
+        assert(rod.position.x * forceX >= -1e-8, 'Every stroke travels in the force direction');
+        assert(bench.leftRodVelocity * forceX >= 0, 'The rod must never acquire a return velocity');
         assert.strictEqual(arrow.visible, true, 'A continuously correct gesture keeps the force direction visible during every cycle');
         previousX = rod.position.x;
       }
-      assert(reboundCount >= 2, 'Holding the correct pose must repeat motion instead of stopping at the first endpoint');
+      assert(cycleCount >= 3, 'Holding the correct pose must repeat full strokes');
+      assert(farthestX > 0.29, 'Travel must extend well past the old 0.12m endpoint');
 
-      // Losing the hand during a return stroke freezes the cycle rather than restarting a new outward stroke.
-      let returning = false;
-      for (let step = 0; step < 200; step++) {
-        const before = rod.position.x;
-        exp.update(0.016, 7 + step * 0.016, {} as any);
-        if ((rod.position.x - before) * forceX < -0.001) { returning = true; break; }
-      }
-      assert(returning, 'A repeated cycle must contain a visible return stroke');
-      const pausedReturnX = rod.position.x;
+      const pausedX = rod.position.x;
       exp.onHandGestureFrame(null);
       for (let step = 0; step < 30; step++) exp.update(0.016, 10 + step * 0.016, {} as any);
-      assert.strictEqual(rod.position.x, pausedReturnX, 'Removing the hand pauses the return stroke exactly in place');
+      assert.strictEqual(rod.position.x, pausedX, 'Removing the hand pauses the cycle exactly in place');
       assert.strictEqual(arrow.visible, false);
       exp.onHandGestureFrame(correctFrame); exp.update(0.016, 10.5, {} as any);
-      assert((rod.position.x - pausedReturnX) * forceX < 0, 'A corrected pose resumes the same return stroke');
+      assert((rod.position.x - pausedX) * forceX > 0, 'A corrected pose resumes motion in the force direction');
       previousX = rod.position.x;
       exp.setGestureEnabled(false); exp.update(0.016, 7, {} as any);
       assert.strictEqual(rod.position.x, previousX, 'Disabling gestures also pauses motion');
@@ -1554,7 +1554,7 @@ const signs = [-1, 1] as const;
       exp.dispose({} as any);
     }
   }
-  console.log('✓ Test 27 passed: Gesture-gated repeated motion, elastic return, pause/resume, polarity combinations and reset verified');
+  console.log('✓ Test 27 passed: Extended one-way strokes, endpoint resets, gesture pause/resume and all force polarities verified');
 }
 
 // Test 28: Real open-hand model samples must work with naturally oblique thumbs and mildly spread fingers.
@@ -1631,6 +1631,159 @@ const signs = [-1, 1] as const;
   console.log('✓ Test 28 passed: Real left-palm model samples, natural thumb abduction, finger spread, force motion and invalid-pose rejection verified');
 }
 
+// Test 29: Cutting motion stays aligned with v throughout repeated extended strokes at different frame rates.
+{
+  for (const direction of [-1, 1] as const) {
+    for (const dt of [1 / 30, 1 / 60, 1 / 120]) {
+      const exp = new EmHandRulesExperiment(); exp.init({} as any); exp.setRuleMode('right-hand-rule');
+      if (direction < 0) exp.reverseMotion();
+      const bench = (exp as any).bench;
+      let previousX = -direction * 0.24;
+      let resets = 0;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      for (let step = 0; step < Math.round(12.1 / dt); step++) {
+        exp.update(dt, step * dt, {} as any);
+        const x = bench.rightRodGroup.position.x;
+        const displacement = (x - previousX) * direction;
+        if (displacement < 0) {
+          resets++;
+          assert(previousX * direction > 0.23 && x * direction < -0.23,
+            'Only an immediate endpoint reset may move against v');
+        } else {
+          assert(Math.abs(displacement - 0.12 * dt) < 1e-10, 'Every visible step moves uniformly along v');
+        }
+        const arrow = new THREE.Vector3(0, 1, 0).applyQuaternion(bench.rightMotionArrow.quaternion);
+        assert(arrow.x * direction > 0.99, 'Velocity arrow agrees with every cutting stroke');
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        previousX = x;
+      }
+      assert(resets >= 3, 'Cutting motion repeats without a reverse stroke');
+      assert(maxX - minX > 0.47, 'Cutting travel doubles the old 0.24m range');
+      exp.resetExperiment();
+      assert.strictEqual(bench.rightCutPhase, 0);
+      assert.strictEqual(bench.rightRodGroup.position.x, -0.24, 'Reset restores the initial stroke position');
+      exp.dispose({} as any);
+    }
+  }
+  console.log('✓ Test 29 passed: One-way cutting, extended travel, arrow direction and frame-rate independence verified');
+}
+
+// Test 30: Induced current appears only after a correct right-hand pose, while cutting motion continues.
+{
+  for (const field of signs) {
+    for (const motion of signs) {
+      const exp = new EmHandRulesExperiment(); exp.init({} as any); exp.setRuleMode('right-hand-rule');
+      exp.setGestureEnabled(true);
+      if (field < 0) exp.reverseField();
+      if (motion < 0) exp.reverseMotion();
+      const bench = (exp as any).bench;
+      const currentObjects = [bench.rightInducedArrow, bench.rightInducedLabel,
+        bench.rightCurrent.carriers, bench.rightCurrent.trails,
+        bench.rightCurrent.group.getObjectByName('InlaidCurrentFlow')];
+      const assertCurrent = (visible: boolean, reason: string) => {
+        for (const object of currentObjects) {
+          assert.strictEqual(object.visible, visible, `${reason}: ${object.name || object.type}`);
+        }
+      };
+      assertCurrent(false, 'Current starts hidden before the first update');
+      const beforeX = bench.rightRodGroup.position.x;
+      exp.update(1 / 60, 0, {} as any);
+      assertCurrent(false, 'No hand must not reveal current');
+      assert.notStrictEqual(bench.rightRodGroup.position.x, beforeX, 'Known cutting motion continues without current being revealed');
+
+      const points = openPalmFixture().map(p => ({
+        x: 0.5 + (p.x - 0.5) * motion,
+        y: 0.5 + (p.y - 0.5) * motion * field,
+        z: p.z * field,
+      }));
+      const correct = wrapSingleHandFrame('right', points);
+      exp.onHandGestureFrame(wrapSingleHandFrame('left', points)); exp.update(1 / 60, 0, {} as any);
+      assertCurrent(false, 'A left hand must not reveal the induced current');
+      exp.onHandGestureFrame(correct); exp.update(1 / 60, 0, {} as any);
+      assert.strictEqual(exp.getTelemetryData().isMatched, true);
+      assertCurrent(true, 'A correct right-hand pose reveals the arrow, label and all flowing charges together');
+      assert.strictEqual(bench.rightCurrent.flowMaterial.uniforms.direction.value, field * motion);
+
+      exp.reverseField();
+      assertCurrent(false, 'Changing field hides the previous answer immediately');
+      exp.update(1 / 60, 0, {} as any);
+      assertCurrent(false, 'A pose inconsistent with the new field must not reveal current');
+      exp.reverseField(); exp.update(1 / 60, 0, {} as any);
+      assertCurrent(true, 'Correcting the field restores the matching current direction');
+      exp.onHandGestureFrame(null); exp.update(1 / 60, 0, {} as any);
+      assertCurrent(false, 'Losing the hand hides current on the next frame');
+      exp.onHandGestureFrame(correct); exp.update(1 / 60, 0, {} as any);
+      assertCurrent(true, 'Restoring the correct pose reveals current again');
+      exp.setRuleMode('left-hand-rule'); exp.setRuleMode('right-hand-rule');
+      assertCurrent(false, 'Switching modes never flashes a stale current before evaluation');
+      exp.update(1 / 60, 0, {} as any); assertCurrent(true, 'The correct pose can reveal current after returning');
+      exp.setGestureEnabled(false); exp.update(1 / 60, 0, {} as any);
+      assertCurrent(false, 'Disabling tracking hides current');
+      exp.setGestureEnabled(true); exp.onHandGestureFrame(correct); exp.update(1 / 60, 0, {} as any);
+      assertCurrent(true, 'Tracking can resume normally');
+      exp.resetExperiment(); assertCurrent(false, 'Reset clears all current visuals immediately');
+      exp.dispose({} as any);
+    }
+  }
+  console.log('✓ Test 30 passed: Gesture-gated induced current, all polarities, hand loss, mode changes, tracking disable and reset verified');
+}
+
+// Test 31: The known magnetic field stays visible during induction, independently of gesture-gated current.
+{
+  const exp = new EmHandRulesExperiment(); exp.init({} as any);
+  const bench = (exp as any).bench;
+  const field = bench.group.getObjectByName('UniformMagneticFieldIndicators') as THREE.Group;
+  assert(field, 'The apparatus must contain the shared uniform magnetic field');
+  assert.strictEqual(field.visible, false, 'The uniform field stays hidden in screw-rule mode');
+  exp.setRuleMode('right-hand-rule');
+  assert.strictEqual(field.visible, true, 'Induction displays its known field immediately');
+  assert.strictEqual(bench.leftRuleGroup.visible, false, 'Displaying the field must not expose left-rule apparatus');
+  assert.strictEqual(field.getObjectByName('UniformMagneticFieldLabel')?.visible, true, 'The field includes its B label');
+  exp.update(0.016, 0, {} as any);
+  assert.strictEqual(bench.rightInducedArrow.visible, false, 'The field does not reveal the unknown current without a matching pose');
+
+  for (const polarity of [1, -1] as const) {
+    if (polarity < 0) exp.reverseField();
+    exp.update(0.016, 0, {} as any);
+    const symbols = bench.uniformFieldSymbols as any[];
+    assert.strictEqual(symbols.length, 12);
+    for (const symbol of symbols) {
+      assert.strictEqual(symbol.mat.map, polarity > 0 ? bench.texFieldIn : bench.texFieldOut,
+        'B into the screen uses ⊗; B out of the screen uses ⊙');
+      assert(symbol.mat.opacity > 0.6, 'Known field symbols remain legible without a tracked hand');
+    }
+    assert(Math.min(...symbols.map(s => s.group.position.x)) <= -0.24 &&
+      Math.max(...symbols.map(s => s.group.position.x)) >= 0.24, 'The field spans the extended cutting stroke');
+    const packets = bench.uniformFieldPackets as any[];
+    const previousZ = packets.map(p => p.orbMesh.position.z);
+    exp.update(0.01, 0, {} as any);
+    let movingPackets = 0;
+    packets.forEach((packet, index) => {
+      const dz = packet.orbMesh.position.z - previousZ[index];
+      if (Math.abs(dz) < 0.02) {
+        assert(dz * polarity < 0, 'Flowing field markers follow the actual B direction after reversal');
+        movingPackets++;
+      }
+    });
+    assert(movingPackets >= 20, 'The known field visibly flows without a correct hand gesture');
+    const beforeMotionFlip = symbols[0].mat.map;
+    exp.reverseMotion(); exp.update(0.016, 0, {} as any);
+    assert.strictEqual(symbols[0].mat.map, beforeMotionFlip, 'Reversing v must not reverse B');
+    assert.strictEqual(field.visible, true);
+    assert.strictEqual(bench.rightInducedArrow.visible, false);
+  }
+  exp.resetExperiment(); exp.update(0.016, 0, {} as any);
+  assert.strictEqual(field.visible, true, 'Reset keeps the known field visible in induction mode');
+  assert.strictEqual(bench.uniformFieldSymbols[0].mat.map, bench.texFieldIn, 'Reset restores inward B');
+  exp.setRuleMode('left-hand-rule'); exp.update(0.016, 0, {} as any);
+  assert.strictEqual(field.visible, true, 'Left-hand rule retains the same field representation');
+  exp.setRuleMode('right-hand-screw');
+  assert.strictEqual(field.visible, false, 'Returning to screw-rule mode hides the uniform field and its label together');
+  exp.dispose({} as any);
+  console.log('✓ Test 31 passed: Known field visibility, inward/outward symbols, flow direction, stroke coverage and mode isolation verified');
+}
+
 console.log('========================================================');
-console.log('All Electromagnetism Hand Rules Tests Passed (28/28)!');
+console.log('All Electromagnetism Hand Rules Tests Passed (31/31)!');
 console.log('========================================================\n');

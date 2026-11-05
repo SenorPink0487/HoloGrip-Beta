@@ -380,51 +380,82 @@ lanScanner.close();
 console.log('✓ Test 9 passed: iPad / LAN HTTP native camera activation fallback verified\n');
 
 // -------------------------------------------------------------
-// Test 10: Apple Minimalist Album Popover (No Icon Overlap & Anti-Native Invariant)
+// Test 10: Album button opens the picker directly without source menus
 // -------------------------------------------------------------
-console.log('Test 10: Apple Minimalist Album Popover & Anti-Overlap Invariants');
+console.log('Test 10: Direct album selection without source menus');
 
-const popoverScanner = new MathARScannerModal();
-const albumSlot = popoverScanner.element.querySelector('#math-ar-album-slot');
-assert.ok(albumSlot, 'Album action slot container must exist');
+const albumScanner = new MathARScannerModal();
+const albumBtn = albumScanner.element.querySelector('#math-ar-album-btn') as any;
+const directAlbumInput = albumScanner.element.querySelector('#math-ar-album-input') as any;
+let filePickerOpens = 0;
+directAlbumInput.click = () => { filePickerOpens++; };
+albumBtn.click();
+assert.equal(filePickerOpens, 1, 'Browser album button must open the file picker in one click');
+assert.ok(!albumScanner.element.innerHTML.includes('math-ar-album-popover'), 'Source popover must not be rendered');
+assert.ok(!albumScanner.element.innerHTML.includes('math-ar-popover-library'), 'Extra library menu item must be removed');
+assert.ok(!albumScanner.element.innerHTML.includes('aria-haspopup'), 'Album button must not advertise a source menu');
 
-const albumBtn = popoverScanner.element.querySelector('#math-ar-album-btn');
-assert.ok(albumBtn, 'Album trigger button must exist');
+// Tauri blocks native plugin commands before Swift runs unless the capability grants them.
+const nativeCapabilities = JSON.parse(readFileSync(new URL('../src-tauri/capabilities/default.json', import.meta.url), 'utf8'));
+assert.ok(nativeCapabilities.permissions.includes('apple-vision:allow-pick-photo'), 'Main window must be allowed to call the native photo picker');
+const photoPermission = readFileSync(new URL('../src-tauri/permissions/apple-vision/allow-pick-photo.toml', import.meta.url), 'utf8');
+assert.match(photoPermission, /commands\.allow\s*=\s*\["pickPhoto"\]/, 'Photo permission must allow the actual Swift command');
+const nativeBuild = readFileSync(new URL('../src-tauri/build.rs', import.meta.url), 'utf8');
+assert.match(nativeBuild, /\.plugin\("apple-vision",\s*tauri_build::InlinedPlugin::new\(\)\)/, 'Build must include the inline plugin permissions');
+const nativePicker = readFileSync(new URL('../src-tauri/native_ios/AppleVisionPlugin.swift', import.meta.url), 'utf8');
+assert.ok(nativePicker.includes('PHPickerViewController(configuration: configuration)'), 'Use the iPad-compatible selected-photo picker');
+assert.ok(!nativePicker.includes('UIImagePickerController()'), 'Do not use the legacy picker that needs iPad popover setup');
+assert.ok(!nativePicker.includes('requestAuthorization'), 'Selecting one photo must not require full-library authorization');
 
-const albumIconBox = albumBtn.querySelector('.math-ar-album-icon-box');
-assert.ok(albumIconBox, 'Album button must use Apple squircle icon box matching Model button');
+// iPadOS app uses the existing native PhotoLibrary command, including desktop-mode iPad user agents.
+const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+const nativeWindow = window as any;
+const originalInternals = nativeWindow.__TAURI_INTERNALS__;
+Object.defineProperty(globalThis, 'navigator', {
+  configurable: true,
+  value: { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)', platform: 'MacIntel', maxTouchPoints: 5 },
+});
+const nativeCommands: string[] = [];
+let nativeResult: any = { cancelled: true };
+let nativeError = false;
+nativeWindow.__TAURI_INTERNALS__ = {
+  invoke: async (command: string) => {
+    nativeCommands.push(command);
+    if (nativeError) throw new Error('Photo library unavailable');
+    return nativeResult;
+  },
+};
+const originalPick = (albumScanner as any).handlePhotoLibraryPick.bind(albumScanner);
+let pendingPick: Promise<void>;
+(albumScanner as any).handlePhotoLibraryPick = () => { pendingPick = originalPick(); return pendingPick; };
+try {
+  albumBtn.click();
+  await pendingPick!;
+  assert.deepEqual(nativeCommands, ['plugin:apple-vision|pickPhoto'], 'One click must directly open the native album');
+  assert.equal(filePickerOpens, 1, 'Cancelling native album must not open a second picker');
 
-const popover = popoverScanner.element.querySelector('#math-ar-album-popover');
-assert.ok(popover, 'Apple album popover must exist');
-assert.ok(popover.classList.contains('hidden'), 'Album popover must be hidden initially');
+  let recognizedImage: string | undefined;
+  let backdropImage: string | undefined;
+  nativeResult = { dataUrl: 'data:image/jpeg;base64,album' };
+  (albumScanner as any).displayPaperBackdrop = (dataUrl: string) => { backdropImage = dataUrl; };
+  (albumScanner as any).processImageData = async (dataUrl: string) => { recognizedImage = dataUrl; };
+  albumBtn.click();
+  await pendingPick!;
+  assert.equal(backdropImage, nativeResult.dataUrl, 'Chosen photo must become the paper backdrop');
+  assert.equal(recognizedImage, nativeResult.dataUrl, 'Chosen photo must enter recognition');
 
-const libraryItem = popover.querySelector('#math-ar-popover-library');
-const cameraItem = popover.querySelector('#math-ar-popover-camera');
-const fileItem = popover.querySelector('#math-ar-popover-file');
-
-assert.ok(libraryItem, 'Library item must exist');
-assert.ok(cameraItem, 'Camera item must exist');
-assert.ok(fileItem, 'File item must exist');
-
-// 验证展开与状态联动
-popoverScanner.toggleAlbumPopover(true);
-assert.ok(!popover.classList.contains('hidden'), 'Popover should be visible when toggled true');
-assert.ok(albumBtn.classList.contains('is-active'), 'Album button must have is-active class when popover is open');
-
-// 验证收起与状态恢复
-popoverScanner.closeAlbumPopover();
-assert.ok(popover.classList.contains('hidden'), 'Popover should be hidden when closed');
-assert.ok(!albumBtn.classList.contains('is-active'), 'Album button must not have is-active class when popover is closed');
-
-// 验证 CSS 中定位规则：严禁遮挡相册图标 (必须位于图标上方并具备毛玻璃效果)
-const cssContent = readFileSync(new URL('../src/whiteboard/whiteboard.css', import.meta.url), 'utf8');
-assert.match(cssContent, /\.math-ar-album-popover/, 'CSS must declare .math-ar-album-popover');
-assert.match(cssContent, /bottom:\s*calc\(100%\s*\+\s*14px\)/, 'Popover must be positioned strictly above album slot (bottom: calc(100% + 14px)) to prevent covering album icon');
-assert.match(cssContent, /backdrop-filter:\s*blur/, 'Popover must use Apple frosted glass blur');
-assert.match(cssContent, /\.math-ar-album-btn\.is-active/, 'Album button must have active highlight state');
-
-popoverScanner.close();
-console.log('✓ Test 10 passed: Apple minimalist album popover & anti-overlap invariants verified\n');
+  nativeError = true;
+  albumBtn.click();
+  await pendingPick!;
+  assert.equal(filePickerOpens, 1, 'Native picker failure must not trigger the WebKit source menu');
+} finally {
+  if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor);
+  else delete (globalThis as any).navigator;
+  if (originalInternals === undefined) delete nativeWindow.__TAURI_INTERNALS__;
+  else nativeWindow.__TAURI_INTERNALS__ = originalInternals;
+  albumScanner.close();
+}
+console.log('✓ Test 10 passed: Direct browser/native album selection, cancellation and failure verified\n');
 
 // -------------------------------------------------------------
 // Test 11: Real Recognized Polyhedron Sync (No Hardcoded Square-Pyramid Substitution)

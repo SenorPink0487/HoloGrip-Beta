@@ -397,6 +397,74 @@ assert.equal(typeof (global as any).window?.document?.querySelector?.('.floating
 assert.equal(typeof (global as any).window?.document?.querySelector?.('.angle-modal'), 'undefined');
 console.log('✓ Test 12 passed: Zero floating popups invariant fully preserved across all angle features\n');
 
+// ---------------------------------------------------------------------------
+// Test 13: Rebuilding annotations preserves every remaining angle's visible badge
+// ---------------------------------------------------------------------------
+console.log('Test 13: Multiple angle annotations remain visible after additions and removals');
+const multiAngleMesh = new StereometryMesh();
+multiAngleMesh.setOptions({ modelType: 'cube', dimensions: { a: 10, h: 10 } });
+const multiAnglePoints = multiAngleMesh.getModelDef().keyPoints;
+function addAngleLine(pointIdA: string, pointIdB: string) {
+  const segment = multiAngleMesh.addSegment(pointIdA, pointIdB)!;
+  const posA = multiAnglePoints.find((point) => point.id === pointIdA)!.position;
+  const posB = multiAnglePoints.find((point) => point.id === pointIdB)!.position;
+  return { ...segment, isDrawnSegment: true, posA, posB, hitPoint3D: posA, screenDistPx: 0 };
+}
+const lineAB = addAngleLine('v_0', 'v_1');
+const lineBC = addAngleLine('v_1', 'v_2');
+const lineAC = addAngleLine('v_0', 'v_2');
+const lineCD = addAngleLine('v_2', 'v_3');
+const multiAngleGroup = multiAngleMesh.getAnglesGroup();
+function assertVisibleAngles(expectedIds: string[]) {
+  assert.deepEqual(multiAngleMesh.getAngles().map((angle) => angle.id), expectedIds);
+  assert.equal(multiAngleGroup.children.filter((child) => child instanceof THREE.Sprite).length, expectedIds.length);
+  for (const id of expectedIds) {
+    assert(multiAngleGroup.getObjectByName(`ang_arc_${id}`), `Angle ${id} must retain its arc`);
+    assert(multiAngleGroup.getObjectByName(`ang_fan_${id}`), `Angle ${id} must retain its fan`);
+    const badge = multiAngleGroup.getObjectByName(`badge_ang_${id}`) as THREE.Sprite;
+    assert(badge, `Angle ${id} must retain its visible degree badge`);
+    assert.equal(badge.parent, multiAngleGroup, 'Degree badge must be attached to the scene');
+    assert.equal(badge.visible, true);
+    assert(badge.material.opacity > 0, 'Degree badge must remain opaque');
+  }
+}
+
+const firstAngle = multiAngleMesh.addAngle(lineAB, lineBC);
+const firstBadge = multiAngleGroup.getObjectByName(`badge_ang_${firstAngle.id}`) as THREE.Sprite;
+let firstBadgeMaterialDisposals = 0;
+let firstBadgeTextureDisposals = 0;
+firstBadge.material.addEventListener('dispose', () => { firstBadgeMaterialDisposals++; });
+firstBadge.material.map!.addEventListener('dispose', () => { firstBadgeTextureDisposals++; });
+assertVisibleAngles([firstAngle.id]);
+
+const secondAngle = multiAngleMesh.addAngle(lineAB, lineAC);
+assertVisibleAngles([firstAngle.id, secondAngle.id]);
+assert.equal(multiAngleGroup.getObjectByName(firstBadge.name), firstBadge, 'Existing badge must be reused');
+
+const thirdAngle = multiAngleMesh.addAngle(lineBC, lineCD);
+assertVisibleAngles([firstAngle.id, secondAngle.id, thirdAngle.id]);
+assert.equal(multiAngleMesh.addAngle(lineAC, lineAB), secondAngle, 'Re-selecting a pair must not duplicate its angle');
+assertVisibleAngles([firstAngle.id, secondAngle.id, thirdAngle.id]);
+
+multiAngleMesh.removeAngle(secondAngle.id);
+assertVisibleAngles([firstAngle.id, thirdAngle.id]);
+assert.equal(multiAngleGroup.getObjectByName(`badge_ang_${secondAngle.id}`), undefined);
+assert.equal(firstBadgeMaterialDisposals, 0, 'Surviving badge material must remain usable');
+assert.equal(firstBadgeTextureDisposals, 0, 'Surviving badge texture must remain usable');
+
+multiAngleMesh.removeSegment(lineAB.id);
+assertVisibleAngles([thirdAngle.id]);
+assert.equal(firstBadgeMaterialDisposals, 1, 'Removed angle material must be released exactly once');
+assert.equal(firstBadgeTextureDisposals, 1, 'Removed angle texture must be released exactly once');
+
+multiAngleMesh.clearAllAngles();
+assertVisibleAngles([]);
+assert.equal(multiAngleGroup.children.length, 0, 'Clearing angles must remove all annotation objects');
+const restoredAngle = multiAngleMesh.addAngle(lineBC, lineCD);
+assertVisibleAngles([restoredAngle.id]);
+multiAngleMesh.dispose();
+console.log('✓ Test 13 passed: Multiple angle badges survive rebuilds and are released only when removed\n');
+
 console.log('========================================================================');
-console.log('All Stereometry Long-Press & Angle Marking Tests Passed (12/12)!');
+console.log('All Stereometry Long-Press & Angle Marking Tests Passed (13/13)!');
 console.log('========================================================================\n');

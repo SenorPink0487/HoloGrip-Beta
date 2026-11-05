@@ -1,5 +1,9 @@
 fn main() {
-    tauri_build::build();
+    tauri_build::try_build(
+        tauri_build::Attributes::new()
+            .plugin("apple-vision", tauri_build::InlinedPlugin::new()),
+    )
+    .expect("failed to build Tauri application permissions");
 
     #[cfg(target_os = "macos")]
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
@@ -21,6 +25,7 @@ fn main() {
         println!("cargo:rerun-if-changed=native_ios/Package.swift");
         println!("cargo:rerun-if-changed=native_ios/AppleVisionPlugin.swift");
         println!("cargo:rerun-if-changed=native_ios/AppleVisionHandManager.swift");
+        println!("cargo:rerun-if-changed=native_ios/AppleSpeechRecognitionManager.swift");
         if std::env::var_os("IPHONEOS_DEPLOYMENT_TARGET").is_none() {
             std::env::set_var("IPHONEOS_DEPLOYMENT_TARGET", "15.0");
         }

@@ -469,7 +469,7 @@ export class StereometryMesh {
       roughness: 0.16,
       metalness: 0.10,
       transparent: true,
-      opacity: 0.46,
+      opacity: 0.50,
       side: THREE.DoubleSide,
       emissive: 0x7c3aed,
       emissiveIntensity: 0.35,
@@ -513,7 +513,7 @@ export class StereometryMesh {
       roughness: 0.18,
       metalness: 0.10,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.50,
       side: THREE.DoubleSide,
       depthWrite: false,
     });
@@ -1922,6 +1922,7 @@ export class StereometryMesh {
 
   // -------------------------------------------------------------
   // 空间直线夹角标出与长按消除体系 (Click-to-Measure & Long-Press Eliminate)
+  // 铁律：高中立体几何交互规范中，能标角度的只能是紫线 (DrawnSegment 辅助线)
   // -------------------------------------------------------------
   public findClosestLine(
     ray: THREE.Ray,
@@ -1929,9 +1930,10 @@ export class StereometryMesh {
     clientY?: number,
     camera?: THREE.Camera,
     viewport?: { left: number; top: number; width: number; height: number },
-    maxScreenDistPx: number = 32
+    maxScreenDistPx: number = 32,
+    onlyDrawnSegments: boolean = true
   ): InteractableLine | null {
-    // 1. 优先检测已绘制的辅助线
+    // 1. 优先且仅检测已绘制的辅助线 (紫线)
     const drawnHit = this.findClosestDrawnSegment(ray, clientX, clientY, camera, viewport, maxScreenDistPx);
     if (drawnHit) {
       const kpA = this.currentModelDef.keyPoints.find((k) => k.id === drawnHit.segment.pointIdA);
@@ -1951,8 +1953,9 @@ export class StereometryMesh {
       }
     }
 
-    // 2. 检测几何体自身的棱 (Edges)
+    // 2. 只有在明确关闭 onlyDrawnSegments 时才允许回退检测几何体原始棱边
     if (
+      !onlyDrawnSegments &&
       this.currentModelDef &&
       this.currentModelDef.edges &&
       camera &&
@@ -2119,7 +2122,7 @@ export class StereometryMesh {
       const core = this.segmentsGroup.getObjectByName(`perm_seg_${lineId}`) as THREE.Mesh;
       if (core) {
         core.scale.set(1.5, 1, 1.5);
-        (core.material as THREE.MeshBasicMaterial).color.setHex(0x38bdf8); // 苹果电光青
+        (core.material as THREE.MeshBasicMaterial).color.setHex(0xc084fc); // 纯正高亮电光紫微光
       } else {
         const parts = lineId.replace('edge_', '').split('_');
         const pAId = parts.slice(0, 2).join('_');
@@ -2132,7 +2135,7 @@ export class StereometryMesh {
           const mid = new THREE.Vector3().addVectors(kpA.position, kpB.position).multiplyScalar(0.5);
           const hGeo = new THREE.CylinderGeometry(0.0032, 0.0032, len, 10);
           const hMat = new THREE.MeshBasicMaterial({
-            color: 0x38bdf8,
+            color: 0xc084fc,
             transparent: true,
             opacity: 0.95,
             depthTest: false,
@@ -2159,11 +2162,11 @@ export class StereometryMesh {
     if (this.hoveredAngleId) {
       const prevBadge = this.angleBadges.get(this.hoveredAngleId);
       if (prevBadge && prevBadge.sprite) {
-        prevBadge.sprite.scale.set(0.180, 0.090, 1);
+        prevBadge.sprite.scale.set(0.220, 0.110, 1);
       }
       const prevArc = this.anglesGroup.getObjectByName(`ang_arc_${this.hoveredAngleId}`) as THREE.Line;
       if (prevArc) {
-        (prevArc.material as THREE.LineBasicMaterial).color.setHex(0x38bdf8);
+        (prevArc.material as THREE.LineBasicMaterial).color.setHex(0xa855f7);
       }
     }
 
@@ -2172,7 +2175,7 @@ export class StereometryMesh {
     if (angleId && !this.eliminatingAngleIds.has(angleId)) {
       const badge = this.angleBadges.get(angleId);
       if (badge && badge.sprite) {
-        badge.sprite.scale.set(0.205, 0.102, 1);
+        badge.sprite.scale.set(0.245, 0.122, 1);
       }
       const arc = this.anglesGroup.getObjectByName(`ang_arc_${angleId}`) as THREE.Line;
       if (arc) {
@@ -2289,7 +2292,7 @@ export class StereometryMesh {
       dir1: d1,
       dir2: d2,
       isRightAngle,
-      color: 0x38bdf8,
+      color: 0x8b5cf6,
     };
 
     this.drawnAngles.push(drawnAngle);
@@ -2317,6 +2320,10 @@ export class StereometryMesh {
   }
 
   private rebuildAngles(): void {
+    // 缓存标牌会复用，先移出图层，避免清理时释放 Sprite 共享的几何体。
+    for (const badge of this.angleBadges.values()) {
+      this.anglesGroup.remove(badge.sprite);
+    }
     this.clearGroup(this.anglesGroup);
     const activeAngleIds = new Set<string>();
 
@@ -2343,25 +2350,55 @@ export class StereometryMesh {
       }
 
       // 1. 构建角标符号 (在两线精确共面内绘制，严禁方向偏差或垂直下垂)
+      // 增强对比度与实体感：提供高对比发光弧线 + 半透明扇面 (ang_fan_)，彻底告别单像素虚淡
       if (ang.isRightAngle) {
         // 直角方框 (Perpendicular Square Corner)
-        const s = 0.034 * this.modelScale;
+        const s = 0.036 * this.modelScale;
         const p1 = V.clone().addScaledVector(e1, s);
         const pCorner = V.clone().addScaledVector(e1, s).addScaledVector(e2, s);
         const p2 = V.clone().addScaledVector(e2, s);
 
+        // 1.1 直角小方块半透明填充面 (清晰高对比度扇形/方块)
+        const fanGeo = new THREE.BufferGeometry();
+        const fanPositions = new Float32Array([
+          V.x, V.y, V.z,
+          p1.x, p1.y, p1.z,
+          pCorner.x, pCorner.y, pCorner.z,
+          p2.x, p2.y, p2.z,
+        ]);
+        const fanIndices = new Uint16Array([
+          0, 1, 2,
+          0, 2, 3,
+        ]);
+        fanGeo.setAttribute('position', new THREE.BufferAttribute(fanPositions, 3));
+        fanGeo.setIndex(new THREE.BufferAttribute(fanIndices, 1));
+        const fanMat = new THREE.MeshBasicMaterial({
+          color: 0x8b5cf6, // 纯正电光紫水晶扇面 (与辅助面体系完全一致)
+          transparent: true,
+          opacity: 0.32,
+          side: THREE.DoubleSide,
+          depthTest: true,
+          depthWrite: false,
+        });
+        const fanMesh = new THREE.Mesh(fanGeo, fanMat);
+        fanMesh.name = `ang_fan_${ang.id}`;
+        fanMesh.renderOrder = 7;
+        fanMesh.raycast = StereometryMesh.NOOP_RAYCAST;
+        this.anglesGroup.add(fanMesh);
+
+        // 1.2 直角高对比轮廓折线 (纯正发光电光紫线)
         const bracketGeo = new THREE.BufferGeometry().setFromPoints([p1, pCorner, p2]);
         const bracketMat = new THREE.LineBasicMaterial({
-          color: 0x38bdf8,
-          linewidth: 2.5,
+          color: 0xa855f7, // 鲜亮发光电光紫
+          linewidth: 3.0,
           transparent: true,
-          opacity: 0.95,
+          opacity: 1.0,
           depthTest: true,
           depthWrite: false,
         });
         const bracketMesh = new THREE.Line(bracketGeo, bracketMat);
         bracketMesh.name = `ang_arc_${ang.id}`;
-        bracketMesh.renderOrder = 8;
+        bracketMesh.renderOrder = 9;
         bracketMesh.raycast = StereometryMesh.NOOP_RAYCAST;
         this.anglesGroup.add(bracketMesh);
       } else {
@@ -2378,18 +2415,58 @@ export class StereometryMesh {
           arcPoints.push(pt);
         }
 
+        // 1.1 半透明空间夹角扇面 (纯正电光紫水晶扇面，一眼可辨)
+        const fanGeo = new THREE.BufferGeometry();
+        const fanPositions = new Float32Array((segments + 2) * 3);
+        const fanIndices = new Uint16Array(segments * 3);
+
+        fanPositions[0] = V.x;
+        fanPositions[1] = V.y;
+        fanPositions[2] = V.z;
+
+        for (let i = 0; i <= segments; i++) {
+          const pt = arcPoints[i];
+          const idx = (i + 1) * 3;
+          fanPositions[idx] = pt.x;
+          fanPositions[idx + 1] = pt.y;
+          fanPositions[idx + 2] = pt.z;
+
+          if (i < segments) {
+            fanIndices[i * 3] = 0;
+            fanIndices[i * 3 + 1] = i + 1;
+            fanIndices[i * 3 + 2] = i + 2;
+          }
+        }
+
+        fanGeo.setAttribute('position', new THREE.BufferAttribute(fanPositions, 3));
+        fanGeo.setIndex(new THREE.BufferAttribute(fanIndices, 1));
+        const fanMat = new THREE.MeshBasicMaterial({
+          color: 0x8b5cf6, // 纯正电光紫水晶扇面
+          transparent: true,
+          opacity: 0.32,
+          side: THREE.DoubleSide,
+          depthTest: true,
+          depthWrite: false,
+        });
+        const fanMesh = new THREE.Mesh(fanGeo, fanMat);
+        fanMesh.name = `ang_fan_${ang.id}`;
+        fanMesh.renderOrder = 7;
+        fanMesh.raycast = StereometryMesh.NOOP_RAYCAST;
+        this.anglesGroup.add(fanMesh);
+
+        // 1.2 高对比饱满圆弧标线 (纯正发光电光紫线)
         const arcGeo = new THREE.BufferGeometry().setFromPoints(arcPoints);
         const arcMat = new THREE.LineBasicMaterial({
-          color: 0x38bdf8,
-          linewidth: 2.5,
+          color: 0xa855f7, // 鲜亮发光电光紫
+          linewidth: 3.0,
           transparent: true,
-          opacity: 0.95,
+          opacity: 1.0,
           depthTest: true,
           depthWrite: false,
         });
         const arcMesh = new THREE.Line(arcGeo, arcMat);
         arcMesh.name = `ang_arc_${ang.id}`;
-        arcMesh.renderOrder = 8;
+        arcMesh.renderOrder = 9;
         arcMesh.raycast = StereometryMesh.NOOP_RAYCAST;
         this.anglesGroup.add(arcMesh);
       }
@@ -2415,11 +2492,10 @@ export class StereometryMesh {
         });
         const sprite = new THREE.Sprite(mat);
         sprite.name = `badge_ang_${ang.id}`;
-        sprite.scale.set(0.180, 0.090, 1);
+        sprite.scale.set(0.220, 0.110, 1);
         sprite.position.copy(ang.badgePos);
         sprite.renderOrder = 12;
         sprite.raycast = StereometryMesh.NOOP_RAYCAST;
-        this.anglesGroup.add(sprite);
 
         badge = {
           sprite,
@@ -2448,6 +2524,8 @@ export class StereometryMesh {
           }
         }
       }
+      // 新建和缓存的标牌都必须重新挂回场景，确保多个夹角同时可见。
+      this.anglesGroup.add(badge.sprite);
     }
 
     for (const [id, badge] of this.angleBadges.entries()) {
@@ -2471,18 +2549,17 @@ export class StereometryMesh {
     const cy = h * 0.5;
 
     // 严禁绘制任何气泡背景、底色或圆角边框！纯数字高对比度排版 (Pure Typography)
-    ctx.font = 'bold 104px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Times New Roman", "PingFang SC", sans-serif';
+    ctx.font = 'bold 112px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Times New Roman", "PingFang SC", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // 柔和空间环境微阴影
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-    ctx.shadowBlur = 10;
+    // 纯正电光紫微光晕与深邃黑曜对比描边边缘 (16.0px)，确保任何背景下极其锐利饱满
+    ctx.shadowColor = 'rgba(168, 85, 247, 0.85)';
+    ctx.shadowBlur = 12;
 
-    // 深色对比描边边缘 (13.0px)
-    ctx.lineWidth = 13.0;
+    ctx.lineWidth = 16.0;
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(10, 16, 32, 0.95)';
+    ctx.strokeStyle = 'rgba(15, 7, 36, 0.98)';
     if (typeof ctx.strokeText === 'function') {
       ctx.strokeText(text, cx, cy);
     }
@@ -2507,7 +2584,7 @@ export class StereometryMesh {
     const badge = this.angleBadges.get(angleId);
     if (badge && badge.sprite) {
       const compress = 1.0 - 0.12 * Math.sin(progress * Math.PI * 0.5);
-      badge.sprite.scale.set(0.180 * compress, 0.090 * compress, 1);
+      badge.sprite.scale.set(0.220 * compress, 0.110 * compress, 1);
     }
   }
 
@@ -2518,7 +2595,7 @@ export class StereometryMesh {
     if (angId) {
       const badge = this.angleBadges.get(angId);
       if (badge && badge.sprite) {
-        badge.sprite.scale.set(0.180, 0.090, 1);
+        badge.sprite.scale.set(0.220, 0.110, 1);
       }
     }
   }
@@ -2935,7 +3012,7 @@ export class StereometryMesh {
         roughness: 0.20,
         metalness: 0.05,
         transparent: true,
-        opacity: isNewlyCreated ? 0.14 : 0.35,
+        opacity: isNewlyCreated ? 0.30 : 0.50,
         side: THREE.DoubleSide,
         depthWrite: false,
       });
@@ -4070,7 +4147,7 @@ export class StereometryMesh {
       fAnim.progress += safeDelta / fAnim.duration;
       const p = Math.min(fAnim.progress, 1.0);
       const ease = 1 - Math.pow(1 - p, 3);
-      fAnim.faceMat.opacity = THREE.MathUtils.lerp(0.14, 0.35, ease);
+      fAnim.faceMat.opacity = THREE.MathUtils.lerp(0.30, 0.50, ease);
       fAnim.contourMat.opacity = THREE.MathUtils.lerp(0.45, 0.95, ease);
       if (p >= 1.0) {
         this.activeAuxFaceAnimations.splice(i, 1);

@@ -8,6 +8,13 @@ services:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env.production}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.production}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?set DEEPSEEK_API_KEY in .env.production}
+      # --env-file supplies interpolation values; explicitly pass SMTP into the container.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURITY: ${SMTP_SECURITY:-tls}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       BIND: 127.0.0.1:8080
       CORS_ORIGINS: https://hologrip.cn
       LOG_FORMAT: json

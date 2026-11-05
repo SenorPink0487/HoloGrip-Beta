@@ -1,3 +1,5 @@
+import { blurActiveInput } from '../../core/focus.ts';
+
 export interface PhysicsDisciplineCallbacks {
   onBackToDisciplines: () => void;
   onSelectExperiment?: (id: string) => Promise<void>;
@@ -545,6 +547,10 @@ export class PhysicsDisciplineModal {
    * 渲染一级界面：物理二级学科分支选择网格
    */
   public showLevel1(): void {
+    blurActiveInput(true);
+    if (typeof document !== 'undefined') {
+      (document.activeElement as HTMLElement)?.blur?.();
+    }
     this.currentLevel = 1;
     this.callbacks.onLevelChange?.(1, '物理学');
 
@@ -619,6 +625,10 @@ export class PhysicsDisciplineModal {
    * 渲染二级界面：实验目录列表（光学、力学、热学或电磁学）
    */
   public showLevel2(discipline: 'optics' | 'em' | 'mechanics' | 'thermo' = 'optics'): void {
+    blurActiveInput(true);
+    if (typeof document !== 'undefined') {
+      (document.activeElement as HTMLElement)?.blur?.();
+    }
     this.currentLevel = 2;
     this.currentDiscipline = discipline;
     this.navTransition = 'push';

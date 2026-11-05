@@ -1,22 +1,7 @@
 import type { ChemistryEngine } from '../../chemistry/ChemistryEngine.ts';
 import { requestMixtureAnalysis } from '../../chemistry/analyzeMixture.ts';
 import type { AnalyzedMixture } from '../../chemistry/mixtureAnalysis.ts';
-
-interface SpeechResult {
-  isFinal: boolean;
-  0: { transcript: string };
-}
-
-interface SpeechRecognitionLike {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  onresult: ((event: { resultIndex: number; results: ArrayLike<SpeechResult> }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-}
+import { createSpeechRecognition, speechErrorMessage, type SpeechRecognitionLike } from '../../voice/speechRecognition.ts';
 
 export interface MixtureQueryBinding {
   destroy: () => void;
@@ -28,6 +13,7 @@ export function bindMixtureQuery(
   options: { getEngine: () => ChemistryEngine; onPoured?: (mixture: AnalyzedMixture) => void },
 ): MixtureQueryBinding {
   let analyzing = false;
+  let destroyed = false;
   let voice: SpeechRecognitionLike | null = null;
 
   const statusEl = () => root.querySelector(selectors.status);
@@ -35,6 +21,7 @@ export function bindMixtureQuery(
   const voiceButton = () => root.querySelector(selectors.voice);
 
   const setStatus = (text: string, isError = false) => {
+    if (destroyed) return;
     const status = statusEl();
     if (!status) return;
     status.textContent = text;
@@ -46,14 +33,15 @@ export function bindMixtureQuery(
     voice = null;
     voiceButton()?.classList.remove('listening');
     try {
-      current?.stop();
+      if (current?.abort) current.abort();
+      else current?.stop();
     } catch {
       // 识别器可能已处于停止状态。
     }
   };
 
   const submit = async () => {
-    if (analyzing) return;
+    if (analyzing || destroyed) return;
     const query = inputEl()?.value.trim() ?? '';
     if (!query) {
       setStatus('先输入或说出一种东西', true);
@@ -67,6 +55,7 @@ export function bindMixtureQuery(
     setStatus('正在拆分成分…');
     try {
       const mixture = await requestMixtureAnalysis(query);
+      if (destroyed) return;
       const reaction = options.getEngine().pourAnalyzedMixture(mixture);
       if (!reaction) {
         setStatus('这只烧杯已经满了', true);
@@ -87,49 +76,68 @@ export function bindMixtureQuery(
   };
 
   const toggleVoice = () => {
+    if (analyzing || destroyed) return;
     if (voice) {
       stopVoice();
+      setStatus('语音输入已停止');
       return;
     }
-    const host = window as unknown as {
-      SpeechRecognition?: new () => SpeechRecognitionLike;
-      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-    };
-    const Ctor = host.SpeechRecognition || host.webkitSpeechRecognition;
-    if (!Ctor) {
-      setStatus('这台设备不能语音输入，请直接打字', true);
+    if (window.isSecureContext === false && !('__TAURI_INTERNALS__' in window || '__TAURI__' in window)) {
+      setStatus('语音输入需要 HTTPS，请通过安全连接打开实验室', true);
       return;
     }
-    const recognition = new Ctor();
+    let recognition: SpeechRecognitionLike | null;
+    try {
+      recognition = createSpeechRecognition();
+    } catch {
+      setStatus(speechErrorMessage('speech-unavailable'), true);
+      return;
+    }
+    if (!recognition) {
+      inputEl()?.focus?.();
+      setStatus('请使用键盘上的麦克风听写，或直接打字', true);
+      return;
+    }
     recognition.lang = 'zh-CN';
     recognition.interimResults = true;
     recognition.continuous = false;
+    let transcript = '';
     recognition.onresult = (event) => {
+      if (voice !== recognition || destroyed) return;
       let text = '';
-      let isFinal = false;
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      let isFinal = event.results.length > 0;
+      // Results are cumulative; resultIndex only identifies the changed segment.
+      for (let i = 0; i < event.results.length; i++) {
         text += event.results[i][0].transcript;
-        if (event.results[i].isFinal) isFinal = true;
+        if (!event.results[i].isFinal) isFinal = false;
       }
+      transcript = text.trim().slice(0, 40);
       const input = inputEl();
-      if (input) input.value = text.trim().slice(0, 40);
-      if (isFinal) void submit();
+      if (input && transcript) input.value = transcript;
+      if (isFinal && transcript) void submit();
     };
-    recognition.onerror = () => {
-      setStatus('没有听清，请再说一次或直接打字', true);
+    recognition.onerror = (event) => {
+      if (voice !== recognition || destroyed) return;
+      setStatus(speechErrorMessage(event.error), true);
       stopVoice();
     };
     recognition.onend = () => {
+      if (voice !== recognition || destroyed) return;
       voiceButton()?.classList.remove('listening');
       voice = null;
+      // Some WebKit versions end after delivering only an interim result.
+      if (transcript) void submit();
+      else setStatus('没有听到语音，请再试一次', true);
     };
     voice = recognition;
     voiceButton()?.classList.add('listening');
     try {
+      // Keep browser start() in the tap handler: Safari requires user activation.
       recognition.start();
       setStatus('正在听…');
-    } catch {
-      setStatus('麦克风没有打开', true);
+    } catch (error) {
+      const denied = error instanceof Error && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
+      setStatus(speechErrorMessage(denied ? 'not-allowed' : 'audio-capture'), true);
       stopVoice();
     }
   };
@@ -152,6 +160,7 @@ export function bindMixtureQuery(
 
   return {
     destroy() {
+      destroyed = true;
       stopVoice();
       root.querySelector(selectors.input)?.removeEventListener('keydown', onKeyDown);
       root.querySelector(selectors.analyze)?.removeEventListener('click', onAnalyze);

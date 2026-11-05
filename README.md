@@ -150,6 +150,14 @@ npm run server                          # http://127.0.0.1:8080，自动执行�
 
 账户页支持通过绑定邮箱的验证码修改密码。启用发件需在 `server/.env` 填写 `SMTP_HOST`、`SMTP_PORT`、`SMTP_SECURITY`（`tls` 或 `starttls`）、`SMTP_USERNAME`、`SMTP_PASSWORD` 和 `SMTP_FROM`，然后重启后端。腾讯企业邮箱使用 `smtp.exmail.qq.com:465`、`SMTP_SECURITY=tls`，密码填写客户端专用密码。凭据仅保存在服务端；请勿写入前端环境变量或提交到 Git。验证码 10 分钟有效、发送间隔 60 秒，连续输错 5 次后失效；改密成功会撤销所有设备的旧登录。
 
+生产环境使用 `server/docker-compose.production.yml` 时，应在服务器现有的 `server/.env.production` 中填写上述 SMTP 配置，并同步更新 Compose 文件。`--env-file` 仅提供变量替换值，Compose 的 `environment` 必须显式传入这些变量。修改后从项目根目录执行以下命令重新创建后端容器，使新环境变量生效（仅执行 `docker restart` 不会加载新配置）：
+
+```sh
+docker compose --env-file server/.env.production -f server/docker-compose.production.yml up -d --force-recreate api
+```
+
+iPad 生产版连接 `https://hologrip.cn/account-service`；本地 `server/.env` 的修改不会同步到线上。若提示“邮箱验证服务尚未配置”，请先检查线上容器是否已获得非空的 `SMTP_HOST` 和 `SMTP_PASSWORD`，并核对其余 SMTP 配置。该提示说明后端已包含邮箱验证接口，通常只需修正服务器发件配置，无需重新安装 iPad App。
+
 ### 测试与构建
 
 ```sh
@@ -171,6 +179,8 @@ npm run tauri -- ios build --debug --target aarch64-sim --no-sign
 ```
 
 Apple Vision 桥接源码位于 `src-tauri/native_ios/`，由 Cargo 编译为 Swift 静态库并链接。不要将这些 Swift 文件另行复制到生成的 Xcode 应用目标中。如果旧工程的 `src-tauri/gen/apple/Sources/virtuallab/` 下已有 `AppleVisionHandManager.swift` 和 `AppleVisionPlugin.swift` 副本，请移除这两个副本及其 Compile Sources 引用，保留 `native_ios/` 中的源码。
+
+iPad / iOS 客户端的化学语音输入使用 Apple Speech 原生识别。首次使用时需允许麦克风与语音识别权限；拒绝后可在系统设置中重新开启。权限说明保存在 `src-tauri/Info.ios.plist`，修改后需重新构建并安装客户端。Safari 网页端使用浏览器语音识别，需要通过 HTTPS 访问。
 
 ## 目录结构
 

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-pick-photo"
+description = "Allows the main window to open the native photo picker for a user-selected exercise image."
+commands.allow = ["pickPhoto"]

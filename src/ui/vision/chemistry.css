@@ -1,0 +1,46 @@
+/* Share the discipline page's dark spatial glass with chemistry subpages.
+   CSS3D surfaces remain free of backdrop blur to preserve compositor performance. */
+.vision-spatial-window {
+  --vision-surface: rgba(18, 22, 33, 0.95);
+  --vision-surface-border: rgba(255, 255, 255, 0.16);
+  --vision-surface-highlight: rgba(255, 255, 255, 0.4);
+  --vision-surface-inset: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --vision-tile-surface: rgba(255, 255, 255, 0.05);
+  --vision-tile-border: rgba(255, 255, 255, 0.1);
+  --vision-tile-highlight: rgba(255, 255, 255, 0.22);
+  --vision-tile-hover: rgba(255, 255, 255, 0.09);
+}
+
+.vision-window-frame,
+.vision-periodic-container .element-popover-card {
+  background: var(--vision-surface);
+  border-color: var(--vision-surface-border);
+  border-top-color: var(--vision-surface-highlight);
+}
+
+.vision-window-frame {
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.65), var(--vision-surface-inset);
+}
+
+.vision-periodic-container .element-popover-card {
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), var(--vision-surface-inset);
+}
+
+.discipline-card,
+.vision-periodic-container .element-cell,
+.vision-periodic-container .popover-reagent-row,
+.vision-status-card.apple-redesign .apple-solute-card {
+  background: var(--vision-tile-surface);
+  border-color: var(--vision-tile-border);
+  border-top-color: var(--vision-tile-highlight);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body:not(.is-touch-device) .discipline-card:hover,
+  body:not(.is-touch-device) .vision-periodic-container :is(.element-cell, .popover-reagent-row):hover,
+  body:not(.is-touch-device) .vision-status-card.apple-redesign .apple-solute-card:hover {
+    background: var(--vision-tile-hover);
+    border-color: rgba(255, 255, 255, 0.25);
+    border-top-color: rgba(255, 255, 255, 0.45);
+  }
+}

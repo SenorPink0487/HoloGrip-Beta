@@ -5,7 +5,7 @@ class MockDOMElement {
   public tagName: string;
   public className: string = '';
   public id: string = '';
-  public innerHTML: string = '';
+  private html: string = '';
   public attributes: Record<string, string> = {};
   public eventListeners: Record<string, ((e?: any) => void)[]> = {};
   public children: MockDOMElement[] = [];
@@ -19,6 +19,17 @@ class MockDOMElement {
 
   constructor(tagName = 'div') {
     this.tagName = tagName.toUpperCase();
+  }
+
+  get innerHTML(): string {
+    return this.html;
+  }
+
+  set innerHTML(value: string) {
+    this.html = value;
+    for (const child of this.children) child.parentElement = null;
+    this.children = [];
+    this.elementCache.clear();
   }
 
   setAttribute(name: string, value: string): void {
@@ -54,7 +65,7 @@ class MockDOMElement {
 
   dispatch(event: string, e?: any): void {
     if (this.eventListeners[event]) {
-      for (const h of this.eventListeners[event]) {
+      for (const h of [...this.eventListeners[event]]) {
         h(e);
       }
     }
@@ -184,6 +195,7 @@ const mockDoc = {
 };
 
 import { VisionModal } from '../src/ui/vision/VisionModal.ts';
+import { PeriodicTableModal } from '../src/ui/vision/PeriodicTableModal.ts';
 import { ChemistryEngine } from '../src/chemistry/ChemistryEngine.ts';
 
 console.log('=== Starting Modal Page Retention Verification ===\n');
@@ -566,6 +578,53 @@ const visionModal = new VisionModal(engine, {
   console.log('✓ Test 12 passed: Outside-menu gesture back, shared hierarchy, single-step navigation, drag, UI hits, cancellation and mode gating');
 }
 
+// Reagent navigation must retain the selected beaker and add to its engine.
+{
+  const left = new ChemistryEngine();
+  const right = new ChemistryEngine();
+  const modal = new VisionModal(left, { onOpen: () => {}, onClose: () => {} });
+  modal.setEngines(left, right);
+  assert.strictEqual(modal.activeBeakerId, 'left', 'The initial target remains the left beaker');
+  const status = modal.experimentStatusCard;
+  const periodic = modal.periodicTable;
+  periodic.showToast = () => {};
+
+  for (const beakerId of ['right', 'left'] as const) {
+    const target = beakerId === 'right' ? right : left;
+    const other = beakerId === 'right' ? left : right;
+    modal.open('beaker');
+    (status.element.querySelector(`#btn-select-beaker-${beakerId}`) as any).dispatch('click');
+
+    for (const entry of ['#btn-empty-select-reagent', '#btn-to-periodic']) {
+      const root = entry === '#btn-empty-select-reagent'
+        ? status.element.querySelector('#solutes-cards-container')!
+        : status.element;
+      (root.querySelector(entry) as any).dispatch('click');
+      assert.strictEqual(modal.currentTab, 'chemistry');
+      assert.strictEqual(modal.activeBeakerId, beakerId, `${entry} must preserve the selected beaker`);
+      assert.strictEqual(periodic.activeBeakerId, beakerId);
+      assert.strictEqual(periodic.getActiveEngine(), target);
+      assert.strictEqual(periodic.element.querySelector(`#btn-periodic-beaker-${beakerId}`)!.classList.contains('active'), true);
+
+      modal.close();
+      modal.open();
+      assert.strictEqual(periodic.getActiveEngine(), target, 'Reopening must retain the reagent target');
+      const volumeBefore = target.state.volume;
+      const otherVolumeBefore = other.state.volume;
+      periodic.openElementPopover(PeriodicTableModal.ELEMENTS[0]);
+      const card = periodic.element.querySelector('#element-popover-card')!;
+      (card.querySelector('.popover-reagent-row[data-reagent-id="HCl"]') as any).dispatch('click', { stopPropagation: () => {} });
+      assert.strictEqual(target.state.volume, volumeBefore + ChemistryEngine.REAGENTS.HCl.defaultAmount);
+      assert.strictEqual(other.state.volume, otherVolumeBefore, 'Reagent must leave the other beaker unchanged');
+      (periodic.element.querySelector('#btn-periodic-view-analysis') as any).dispatch('click');
+      assert.strictEqual(modal.currentTab, 'beaker');
+      assert.strictEqual(status.currentActiveBeakerId, beakerId);
+    }
+  }
+  modal.close();
+  console.log('✓ Test 13 passed: Both reagent entry points, reopen, injection and analysis preserve the selected beaker');
+}
+
 console.log('========================================================');
-console.log('All Modal Page Retention Tests Passed (12/12)!');
+console.log('All Modal Page Retention Tests Passed (13/13)!');
 console.log('========================================================\n');

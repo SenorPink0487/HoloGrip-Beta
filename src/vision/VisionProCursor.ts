@@ -1,6 +1,5 @@
 import type { HandGestureFrame, SingleHandData } from './types.ts';
 import { blurActiveInput, isElementVisibleAndActive, isTextInputElement } from '../core/focus.ts';
-import { KalmanAimFilter2D } from './KalmanAimFilter2D.ts';
 
 export class VisionProCursor {
   // 右手光标（模拟鼠标交互）
@@ -21,7 +20,6 @@ export class VisionProCursor {
   private isHovered = false;
   private isDomHovered = false;
   private isSpatialSnapped = false;
-  private currentRightPinchStrength = 0;
   private isRightPinching = false;
   private isDualPinching = false;
   private currentRightX = 0;
@@ -29,22 +27,8 @@ export class VisionProCursor {
   private currentLeftX = 0;
   private currentLeftY = 0;
 
-  // 高刷新率平滑插值目标与实际渲染位置
-  private targetRightX = -100;
-  private targetRightY = -100;
-  private targetLeftX = -100;
-  private targetLeftY = -100;
-  private renderRightX = -100;
-  private renderRightY = -100;
-  private renderLeftX = -100;
-  private renderLeftY = -100;
   private animFrameId: number | null = null;
   private isDestroyed = false;
-
-  // 卡尔曼物理前向预测滤波器（实现零延迟跟手、微抖死区和丢帧平滑巡航外推）
-  private rightKalman = new KalmanAimFilter2D();
-  private leftKalman = new KalmanAimFilter2D();
-  private lastRenderAt = typeof performance !== 'undefined' ? performance.now() : 0;
 
   // 鼠标模拟状态机（专属由右手驱动）
   private lastHoverTarget: Element | null = null;
@@ -299,8 +283,6 @@ export class VisionProCursor {
     } else {
       this.rightContainer.classList.add('hidden');
       this.rightContainer.classList.remove('visible');
-      this.rightKalman.reset();
-      this.currentRightPinchStrength = 0;
       this.isSpatialSnapped = false;
       this.isDomHovered = false;
       this.setHovered(false);
@@ -311,10 +293,6 @@ export class VisionProCursor {
       this.lastHitY = -9999;
       this.lastDispatchedX = -9999;
       this.lastDispatchedY = -9999;
-      this.targetRightX = -100;
-      this.targetRightY = -100;
-      this.renderRightX = -100;
-      this.renderRightY = -100;
       if (!this.isLeftVisible) {
         this.stopRenderLoop();
       }
@@ -331,11 +309,6 @@ export class VisionProCursor {
     } else {
       this.leftContainer.classList.add('hidden');
       this.leftContainer.classList.remove('visible');
-      this.leftKalman.reset();
-      this.targetLeftX = -100;
-      this.targetLeftY = -100;
-      this.renderLeftX = -100;
-      this.renderLeftY = -100;
       if (!this.isRightVisible) {
         this.stopRenderLoop();
       }
@@ -367,82 +340,36 @@ export class VisionProCursor {
   }
 
   private renderTick(): void {
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const elapsedSec = Math.max(0, Math.min(0.05, (now - this.lastRenderAt) / 1000));
-    this.lastRenderAt = now;
-    const viewWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-    const viewHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-
     if (this.isRightVisible) {
-      // 捏合闭合前稳态阻尼：当拇指与食指正在靠拢准备捏合时，平滑抑制指根微颤以稳住瞄准点
-      const pinchSettle =
-        !this.isRightPinching && this.currentRightPinchStrength > 0.22
-          ? 1.0 - 0.65 * Math.min(1.0, (this.currentRightPinchStrength - 0.22) / 0.78)
-          : 1.0;
-
-      if (this.rightKalman.initialized) {
-        // 卡尔曼物理前向预测（根据速度与加速度预测此时此刻位置，抵消硬件延迟与丢帧顿挫）
-        const predictedNorm = this.rightKalman.predict(now);
-        const targetX = predictedNorm.x * viewWidth;
-        const targetY = predictedNorm.y * viewHeight;
-        // 恒定时间步长响应阻尼平滑（借鉴自 HoloPhysics RENDER_RESPONSE_PER_SECOND = 80）
-        const alpha = (1 - Math.exp(-80 * elapsedSec)) * pinchSettle;
-        this.renderRightX += (targetX - this.renderRightX) * alpha;
-        this.renderRightY += (targetY - this.renderRightY) * alpha;
-      } else {
-        const factor = 0.22 * pinchSettle;
-        this.renderRightX += (this.targetRightX - this.renderRightX) * factor;
-        this.renderRightY += (this.targetRightY - this.renderRightY) * factor;
-      }
-      this.currentRightX = this.renderRightX;
-      this.currentRightY = this.renderRightY;
-      this.rightContainer.style.transform = `translate3d(${this.renderRightX.toFixed(2)}px, ${this.renderRightY.toFixed(2)}px, 0)`;
-
       // 手势追踪窗口内严禁显示光标
-      const isRightOverModal = this.isOverPreviewModal(this.renderRightX, this.renderRightY);
+      const isRightOverModal = this.isOverPreviewModal(this.currentRightX, this.currentRightY);
       if (isRightOverModal) {
         this.rightContainer.classList.add('in-preview-modal');
       } else {
         this.rightContainer.classList.remove('in-preview-modal');
       }
 
-      // 在处于长按拖拽（调节滑块、拖拽烧杯）或悬停瞄准状态时，在 60 FPS 渲染帧中持续派发平滑指针事件
+      // 在处于长按拖拽（调节滑块、拖拽烧杯）或悬停瞄准状态时，在渲染帧中同步派发指针事件
       if (this.isRightPinching && this.dragTarget) {
-        if (Math.hypot(this.renderRightX - this.lastDispatchedX, this.renderRightY - this.lastDispatchedY) >= 0.5) {
-          this.dispatchPointerEvent('pointermove', this.dragTarget, this.renderRightX, this.renderRightY, 0, 1);
-          this.dispatchMouseEvent('mousemove', this.dragTarget, this.renderRightX, this.renderRightY, 0, 1);
-          this.lastDispatchedX = this.renderRightX;
-          this.lastDispatchedY = this.renderRightY;
+        if (Math.hypot(this.currentRightX - this.lastDispatchedX, this.currentRightY - this.lastDispatchedY) >= 0.5) {
+          this.dispatchPointerEvent('pointermove', this.dragTarget, this.currentRightX, this.currentRightY, 0, 1);
+          this.dispatchMouseEvent('mousemove', this.dragTarget, this.currentRightX, this.currentRightY, 0, 1);
+          this.lastDispatchedX = this.currentRightX;
+          this.lastDispatchedY = this.currentRightY;
         }
       } else if (!this.isRightPinching && !this.isDualPinching && this.lastHoverTarget) {
-        if (Math.hypot(this.renderRightX - this.lastDispatchedX, this.renderRightY - this.lastDispatchedY) >= 0.5) {
-          this.dispatchPointerEvent('pointermove', this.lastHoverTarget, this.renderRightX, this.renderRightY, 0, 0);
-          this.dispatchMouseEvent('mousemove', this.lastHoverTarget, this.renderRightX, this.renderRightY, 0, 0);
-          this.lastDispatchedX = this.renderRightX;
-          this.lastDispatchedY = this.renderRightY;
+        if (Math.hypot(this.currentRightX - this.lastDispatchedX, this.currentRightY - this.lastDispatchedY) >= 0.5) {
+          this.dispatchPointerEvent('pointermove', this.lastHoverTarget, this.currentRightX, this.currentRightY, 0, 0);
+          this.dispatchMouseEvent('mousemove', this.lastHoverTarget, this.currentRightX, this.currentRightY, 0, 0);
+          this.lastDispatchedX = this.currentRightX;
+          this.lastDispatchedY = this.currentRightY;
         }
       }
     }
 
     if (this.isLeftVisible) {
-      if (this.leftKalman.initialized) {
-        const predictedNorm = this.leftKalman.predict(now);
-        const targetX = predictedNorm.x * viewWidth;
-        const targetY = predictedNorm.y * viewHeight;
-        const alpha = 1 - Math.exp(-80 * elapsedSec);
-        this.renderLeftX += (targetX - this.renderLeftX) * alpha;
-        this.renderLeftY += (targetY - this.renderLeftY) * alpha;
-      } else {
-        const factor = 0.22;
-        this.renderLeftX += (this.targetLeftX - this.renderLeftX) * factor;
-        this.renderLeftY += (this.targetLeftY - this.renderLeftY) * factor;
-      }
-      this.currentLeftX = this.renderLeftX;
-      this.currentLeftY = this.renderLeftY;
-      this.leftContainer.style.transform = `translate3d(${this.renderLeftX.toFixed(2)}px, ${this.renderLeftY.toFixed(2)}px, 0)`;
-
       // 手势追踪窗口内严禁显示光标
-      const isLeftOverModal = this.isOverPreviewModal(this.renderLeftX, this.renderLeftY);
+      const isLeftOverModal = this.isOverPreviewModal(this.currentLeftX, this.currentLeftY);
       if (isLeftOverModal) {
         this.leftContainer.classList.add('in-preview-modal');
       } else {
@@ -473,6 +400,32 @@ export class VisionProCursor {
     return { x: this.currentRightX, y: this.currentRightY };
   }
 
+  public getLeftPosition(): { x: number; y: number } {
+    return { x: this.currentLeftX, y: this.currentLeftY };
+  }
+
+  private hasValidPosition(hand: Pick<SingleHandData, 'screenX' | 'screenY'>): boolean {
+    return Number.isFinite(hand.screenX) && Number.isFinite(hand.screenY) &&
+      hand.screenX >= 0 && hand.screenY >= 0;
+  }
+
+  private placeCursor(side: 'left' | 'right', hand: Pick<SingleHandData, 'screenX' | 'screenY'>): void {
+    // HandGestureService owns mirroring, margins, the thumb anchor and One Euro smoothing.
+    // Both cursors and every interaction consume its position directly; a second prediction
+    // filter here would move the visible cursor away from the experiment's hit-test coordinates.
+    if (side === 'right') {
+      this.setRightVisible(true);
+      this.currentRightX = hand.screenX;
+      this.currentRightY = hand.screenY;
+    } else {
+      this.setLeftVisible(true);
+      this.currentLeftX = hand.screenX;
+      this.currentLeftY = hand.screenY;
+    }
+    const container = side === 'right' ? this.rightContainer : this.leftContainer;
+    container.style.transform = `translate3d(${hand.screenX}px, ${hand.screenY}px, 0)`;
+  }
+
   /**
    * 每帧手部追踪计算回调的主更新函数。
    */
@@ -492,7 +445,7 @@ export class VisionProCursor {
 
     // 1. 处理右手手势（或用于模拟鼠标的主交互手）
     const rightHand = frame.rightHand || (frame.hasHand && !frame.leftHand ? frame : null);
-    if (rightHand && rightHand.screenX > 0 && rightHand.screenY > 0) {
+    if (rightHand && this.hasValidPosition(rightHand)) {
       this.updateRightHand(rightHand);
     } else {
       if (this.isRightVisible) {
@@ -501,7 +454,7 @@ export class VisionProCursor {
     }
 
     // 2. 处理左手手势（控制浮窗开合与相机视角转动）
-    if (frame.leftHand) {
+    if (frame.leftHand && this.hasValidPosition(frame.leftHand)) {
       this.updateLeftHand(frame.leftHand, frame.leftHandQuickPinch);
     } else {
       if (this.isLeftVisible) {
@@ -511,38 +464,14 @@ export class VisionProCursor {
   }
 
   private updateRightHand(hand: SingleHandData | HandGestureFrame): void {
-    if (!this.isRightVisible) {
-      this.setRightVisible(true);
-      this.renderRightX = hand.screenX;
-      this.renderRightY = hand.screenY;
-      this.currentRightX = hand.screenX;
-      this.currentRightY = hand.screenY;
-      this.rightContainer.style.transform = `translate3d(${hand.screenX}px, ${hand.screenY}px, 0)`;
-    }
-
-    this.targetRightX = hand.screenX;
-    this.targetRightY = hand.screenY;
-
-    const viewWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-    const viewHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-    this.rightKalman.filter(
-      { x: hand.screenX / viewWidth, y: hand.screenY / viewHeight },
-      typeof performance !== 'undefined' ? performance.now() : Date.now(),
-      1.0
-    );
-
-    if (typeof requestAnimationFrame !== 'function') {
-      this.currentRightX = hand.screenX;
-      this.currentRightY = hand.screenY;
-      this.rightContainer.style.transform = `translate3d(${hand.screenX}px, ${hand.screenY}px, 0)`;
-    }
+    this.placeCursor('right', hand);
 
     // 节流命中测试：避免同步高频调用 document.elementFromPoint 导致页面重排
     let element: Element | null = this.dragTarget;
     if (!element) {
       const now = performance.now();
       if (
-        !this.lastHitElement ||
+        !this.lastHitElement || hand.justPinchStarted || hand.justPinchEnded ||
         Math.hypot(hand.screenX - this.lastHitX, hand.screenY - this.lastHitY) >= 3 ||
         now - this.lastHitTime >= 32
       ) {
@@ -556,7 +485,6 @@ export class VisionProCursor {
       }
     }
 
-    this.currentRightPinchStrength = hand.isPinching ? 1.0 : (hand.pinchStrength || 0);
     const isInteractive = this.checkInteractive(element);
     this.isDomHovered = isInteractive;
     this.setHovered(this.isDomHovered || this.isSpatialSnapped);
@@ -579,38 +507,7 @@ export class VisionProCursor {
   }
 
   private updateLeftHand(leftHand: SingleHandData, quickPinchTriggered: boolean): void {
-    if (!this.isLeftVisible) {
-      this.setLeftVisible(true);
-      this.renderLeftX = leftHand.screenX;
-      this.renderLeftY = leftHand.screenY;
-      this.currentLeftX = leftHand.screenX;
-      this.currentLeftY = leftHand.screenY;
-      this.leftContainer.style.transform = `translate3d(${leftHand.screenX}px, ${leftHand.screenY}px, 0)`;
-    }
-
-    this.targetLeftX = leftHand.screenX;
-    this.targetLeftY = leftHand.screenY;
-
-    const viewWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-    const viewHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-    this.leftKalman.filter(
-      { x: leftHand.screenX / viewWidth, y: leftHand.screenY / viewHeight },
-      typeof performance !== 'undefined' ? performance.now() : Date.now(),
-      1.0
-    );
-
-    if (typeof requestAnimationFrame !== 'function') {
-      this.currentLeftX = leftHand.screenX;
-      this.currentLeftY = leftHand.screenY;
-      this.leftContainer.style.transform = `translate3d(${leftHand.screenX}px, ${leftHand.screenY}px, 0)`;
-    }
-
-    const isLeftOverModal = this.isOverPreviewModal(leftHand.screenX, leftHand.screenY);
-    if (isLeftOverModal) {
-      this.leftContainer.classList.add('in-preview-modal');
-    } else {
-      this.leftContainer.classList.remove('in-preview-modal');
-    }
+    this.placeCursor('left', leftHand);
 
     if (!leftHand.isPinching && leftHand.pinchStrength > 0.1) {
       const coreScale = 1.0 + leftHand.pinchStrength * 0.6;
@@ -642,6 +539,7 @@ export class VisionProCursor {
       this.lastLeftBadgeText = desiredBadge;
       this.leftBadge.textContent = desiredBadge;
     }
+    this.leftContainer.classList.toggle('in-preview-modal', this.isOverPreviewModal(leftHand.screenX, leftHand.screenY));
 
     if (quickPinchTriggered || (leftHand.justPinchStarted && !leftHand.isLongPinch)) {
       this.triggerLeftPulse();
@@ -742,8 +640,8 @@ export class VisionProCursor {
       this.triggerRightPinchRipple();
 
       this.dragTarget = currentElement;
-      const startX = this.renderRightX > 0 ? this.renderRightX : x;
-      const startY = this.renderRightY > 0 ? this.renderRightY : y;
+      const startX = this.currentRightX;
+      const startY = this.currentRightY;
       this.dragStartX = startX;
       this.dragStartY = startY;
       this.dragStartTime = performance.now();
@@ -763,20 +661,18 @@ export class VisionProCursor {
       }
     }
 
-    // 捏合拖拽移动：若 60 FPS 渲染循环正在运行，由 renderTick 派发卡尔曼平滑坐标，消除双通道坐标竞争导致的 3D 旋转抖动
+    // 捏合拖拽与显示共用手势服务已经平滑的坐标。
     if (hand.isPinching && !hand.justPinchStarted) {
-      if (this.animFrameId === null) {
-        const target = this.dragTarget || currentElement;
-        this.dispatchPointerEvent('pointermove', target, x, y, 0, 1);
-        this.dispatchMouseEvent('mousemove', target, x, y, 0, 1);
-        this.lastDispatchedX = x;
-        this.lastDispatchedY = y;
-      }
+      const target = this.dragTarget || currentElement;
+      this.dispatchPointerEvent('pointermove', target, x, y, 0, 1);
+      this.dispatchMouseEvent('mousemove', target, x, y, 0, 1);
+      this.lastDispatchedX = x;
+      this.lastDispatchedY = y;
     } else if (!hand.isPinching) {
-      // 悬停时过滤低于 0.5px 的微小抖动，并优先使用 60 FPS 卡尔曼平滑坐标消除 20Hz 阶跃
+      // 悬停时过滤低于 0.5px 的微小抖动。
       if (Math.hypot(x - this.lastDispatchedX, y - this.lastDispatchedY) >= 0.5) {
-        const hoverX = this.animFrameId !== null && this.renderRightX > 0 ? this.renderRightX : x;
-        const hoverY = this.animFrameId !== null && this.renderRightY > 0 ? this.renderRightY : y;
+        const hoverX = this.currentRightX;
+        const hoverY = this.currentRightY;
         this.dispatchPointerEvent('pointermove', currentElement, hoverX, hoverY, 0, 0);
         this.dispatchMouseEvent('mousemove', currentElement, hoverX, hoverY, 0, 0);
         this.lastDispatchedX = hoverX;
@@ -784,10 +680,10 @@ export class VisionProCursor {
       }
     }
 
-    // 捏合松开（对应鼠标左键抬起与点击，统一使用平滑渲染坐标防止释放瞬间跳变）
+    // 捏合松开与按下、拖拽使用同一坐标。
     if (hand.justPinchEnded) {
-      const releaseX = this.renderRightX > 0 ? this.renderRightX : x;
-      const releaseY = this.renderRightY > 0 ? this.renderRightY : y;
+      const releaseX = this.currentRightX;
+      const releaseY = this.currentRightY;
       this.releasePinch(releaseX, releaseY, currentElement);
     }
   }

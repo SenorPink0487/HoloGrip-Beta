@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import PhotosUI
 import WebKit
 import ObjectiveC.runtime
 
@@ -10,6 +11,7 @@ public class AppleVisionPlugin: Plugin {
     public static var shared: AppleVisionPlugin?
     private weak var attachedWebView: WKWebView?
     private static var didConfigureStatusBar = false
+    private let speechRecognition = AppleSpeechRecognitionManager()
 
     public override init() {
         super.init()
@@ -154,42 +156,77 @@ public class AppleVisionPlugin: Plugin {
 
     private var photoPickerDelegate: Any?
 
-    /// 专属原生 Apple 纯净相册直选通道：
-    /// 直接调起系统 Photo Library 界面，彻底杜绝 WebKit 粗糙原生弹窗与遮挡问题。
+    private struct SpeechStartArgs: Decodable {
+        let sessionId: String
+        let lang: String
+    }
+
+    private struct SpeechStopArgs: Decodable {
+        let sessionId: String
+    }
+
+    @objc public func startSpeech(_ invoke: Invoke) throws {
+        let args = try invoke.parseArgs(SpeechStartArgs.self)
+        DispatchQueue.main.async {
+            self.speechRecognition.start(id: args.sessionId, language: args.lang, invoke: invoke)
+        }
+    }
+
+    @objc public func stopSpeech(_ invoke: Invoke) throws {
+        let args = try invoke.parseArgs(SpeechStopArgs.self)
+        DispatchQueue.main.async {
+            self.speechRecognition.stop(id: args.sessionId)
+            invoke.resolve()
+        }
+    }
+
+    /// 仅访问用户选中的照片，无需请求整个照片图库的读取权限。
     @objc public func pickPhoto(_ invoke: Invoke) {
         DispatchQueue.main.async {
-            guard let webview = self.attachedWebView,
-                  let rootVC = webview.window?.rootViewController ?? UIApplication.shared.connectedScenes
+            guard self.photoPickerDelegate == nil else {
+                invoke.reject("Photo picker is already open")
+                return
+            }
+            guard let rootVC = self.attachedWebView?.window?.rootViewController ?? UIApplication.shared.connectedScenes
+                    .filter({ $0.activationState == .foregroundActive })
                     .compactMap({ ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow })?.rootViewController })
                     .first else {
                 invoke.reject("No root view controller found")
                 return
             }
 
-            let picker = UIImagePickerController()
-            picker.sourceType = .photoLibrary
-            picker.mediaTypes = ["public.image"]
-            picker.modalPresentationStyle = .formSheet
+            var presenter = rootVC
+            while let presented = presenter.presentedViewController {
+                presenter = presented
+            }
+            guard presenter.viewIfLoaded?.window != nil, !presenter.isBeingDismissed else {
+                invoke.reject("Photo picker presenter is not ready")
+                return
+            }
 
-            let delegate = HoloGripPhotoPickerDelegate(invoke: invoke, picker: picker) { [weak self] in
+            var configuration = PHPickerConfiguration()
+            configuration.filter = .images
+            configuration.selectionLimit = 1
+            let picker = PHPickerViewController(configuration: configuration)
+            picker.modalPresentationStyle = .fullScreen
+
+            let delegate = HoloGripPhotoPickerDelegate(invoke: invoke) { [weak self] in
                 self?.photoPickerDelegate = nil
             }
             self.photoPickerDelegate = delegate
             picker.delegate = delegate
 
-            rootVC.present(picker, animated: true, completion: nil)
+            presenter.present(picker, animated: true, completion: nil)
         }
     }
 }
 
-private class HoloGripPhotoPickerDelegate: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+private class HoloGripPhotoPickerDelegate: NSObject, PHPickerViewControllerDelegate {
     private let invoke: Invoke
-    private weak var picker: UIImagePickerController?
     private let onComplete: () -> Void
 
-    init(invoke: Invoke, picker: UIImagePickerController, onComplete: @escaping () -> Void) {
+    init(invoke: Invoke, onComplete: @escaping () -> Void) {
         self.invoke = invoke
-        self.picker = picker
         self.onComplete = onComplete
         super.init()
     }
@@ -210,25 +247,34 @@ private class HoloGripPhotoPickerDelegate: NSObject, UIImagePickerControllerDele
         }
     }
 
-    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        picker.dismiss(animated: true, completion: nil)
-        self.onComplete()
-        if let rawImage = (info[.editedImage] ?? info[.originalImage]) as? UIImage {
-            let normalized = Self.normalizedPickerImage(rawImage, maxEdge: 1500)
-            if let data = normalized.jpegData(compressionQuality: 0.84) {
-                let base64 = data.base64EncodedString()
-                let dataUrl = "data:image/jpeg;base64,\(base64)"
-                self.invoke.resolve(["dataUrl": dataUrl])
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true) {
+            guard let provider = results.first?.itemProvider else {
+                self.onComplete()
+                self.invoke.resolve(["cancelled": true])
                 return
             }
+            guard provider.canLoadObject(ofClass: UIImage.self) else {
+                self.onComplete()
+                self.invoke.reject("Selected photo cannot be loaded as an image")
+                return
+            }
+            provider.loadObject(ofClass: UIImage.self) { object, error in
+                DispatchQueue.main.async {
+                    defer { self.onComplete() }
+                    guard let image = object as? UIImage else {
+                        self.invoke.reject(error?.localizedDescription ?? "Failed to load selected photo")
+                        return
+                    }
+                    let normalized = Self.normalizedPickerImage(image, maxEdge: 1500)
+                    guard let data = normalized.jpegData(compressionQuality: 0.84) else {
+                        self.invoke.reject("Failed to encode chosen image")
+                        return
+                    }
+                    self.invoke.resolve(["dataUrl": "data:image/jpeg;base64,\(data.base64EncodedString())"])
+                }
+            }
         }
-        self.invoke.reject("Failed to encode chosen image")
-    }
-
-    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-        picker.dismiss(animated: true, completion: nil)
-        self.onComplete()
-        self.invoke.resolve(["cancelled": true])
     }
 }
 

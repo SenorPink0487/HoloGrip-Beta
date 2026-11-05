@@ -1249,13 +1249,13 @@ await (async () => {
     ts += 40;
   }
 
-  // Verify VisionProCursor pre-pinch velocity settling, unified release coordinates, and spatial snap feedback
+  // Verify the cursor consumes the service's stabilized anchor without a second prediction stage.
   const cursorCode = fs.readFileSync(path.join(rootDir, 'src/vision/VisionProCursor.ts'), 'utf-8');
   assert(cursorCode.includes('setSpatialSnapActive'), 'VisionProCursor must expose setSpatialSnapActive for 3D keypoint magnetic focus');
-  assert(cursorCode.includes('pinchSettle'), 'VisionProCursor must apply pre-pinch velocity settling to prevent finger-closure cursor drift');
+  assert(!cursorCode.includes('KalmanAimFilter2D'), 'Cursor rendering must share the service position used by experiment hit tests');
   assert(cursorCode.includes('this.releasePinch(releaseX, releaseY'), 'VisionProCursor must release pinch at unified smoothed coordinates');
 
-  console.log('✓ Test 29 passed: Single right-hand midline trajectory continuity & pre-pinch cursor stabilization verified\n');
+  console.log('✓ Test 29 passed: Single right-hand midline trajectory continuity and shared cursor coordinates verified\n');
 }
 
 // Test 30: Model handedness is independent of preview mirroring, screen side, depth and hand crossing.
@@ -1286,8 +1286,127 @@ await (async () => {
   console.log('✓ Test 30 passed: Anatomical labels survive mirror settings, screen crossing, same-position hand swaps and duplicate labels');
 }
 
+// Test 31: Both global cursors, hit tests and pointer events consume the same service coordinates.
+{
+  const { VisionProCursor } = await import('../src/vision/VisionProCursor.ts');
+  const saved = new Map<string, PropertyDescriptor | undefined>();
+  const install = (name: string, value: unknown) => {
+    saved.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
+    Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+  };
+  const events: Array<{ target: CursorElement; type: string; clientX: number; clientY: number }> = [];
+  class CursorElement {
+    id = ''; tagName = 'DIV'; innerHTML = ''; textContent = ''; offsetWidth = 32;
+    style: Record<string, string> = {};
+    parentNode: CursorElement | null = null;
+    children: CursorElement[] = [];
+    tokens = new Set<string>();
+    parts = new Map<string, CursorElement>();
+    classList = {
+      add: (...names: string[]) => names.forEach(n => this.tokens.add(n)),
+      remove: (...names: string[]) => names.forEach(n => this.tokens.delete(n)),
+      contains: (name: string) => this.tokens.has(name),
+      toggle: (name: string, force: boolean) => force ? this.tokens.add(name) : this.tokens.delete(name),
+    };
+    get className() { return [...this.tokens].join(' '); }
+    set className(value: string) { this.tokens = new Set(value.split(/\s+/).filter(Boolean)); }
+    appendChild(child: CursorElement) { this.children.push(child); child.parentNode = this; return child; }
+    removeChild(child: CursorElement) { this.children = this.children.filter(c => c !== child); child.parentNode = null; }
+    querySelector(selector: string) {
+      if (!this.parts.has(selector)) this.parts.set(selector, new CursorElement());
+      return this.parts.get(selector)!;
+    }
+    closest(selector: string) { return this.tagName === 'BUTTON' && selector.includes('button') ? this : null; }
+    contains(element: CursorElement) { return element === this; }
+    dispatchEvent(event: { type: string; clientX: number; clientY: number }) { events.push({ target: this, ...event }); return true; }
+  }
+  class CursorEvent {
+    type: string;
+    constructor(type: string, options: object) { this.type = type; Object.assign(this, options); }
+  }
+  let time = 1000;
+  let showPreview = false;
+  const body = new CursorElement(); body.tagName = 'BODY';
+  const buttonA = new CursorElement(); buttonA.tagName = 'BUTTON';
+  const buttonB = new CursorElement(); buttonB.tagName = 'BUTTON';
+  const hits: Array<[number, number]> = [];
+  let raf: (() => void) | null = null;
+  install('document', {
+    body, head: new CursorElement(), activeElement: body,
+    createElement: () => new CursorElement(), getElementById: () => null,
+    querySelector: () => showPreview ? { getBoundingClientRect: () => ({ left: 700, right: 900, top: 400, bottom: 600 }) } : null,
+    elementFromPoint: (x: number, y: number) => { hits.push([x, y]); return x < 100 ? buttonA : buttonB; },
+  });
+  install('window', { innerWidth: 1920, innerHeight: 1080 });
+  install('performance', { now: () => time });
+  install('HTMLElement', CursorElement);
+  install('HTMLCanvasElement', class {});
+  install('PointerEvent', CursorEvent);
+  install('MouseEvent', CursorEvent);
+  install('requestAnimationFrame', (callback: () => void) => { raf = callback; return 1; });
+  install('cancelAnimationFrame', () => { raf = null; });
+  let cursor: InstanceType<typeof VisionProCursor> | undefined;
+  try {
+    cursor = new VisionProCursor(body as any);
+    const rightEl = body.children.find(c => c.id === 'vision-pro-hand-cursor')!;
+    const leftEl = body.children.find(c => c.id === 'vision-pro-left-reticle')!;
+    const service = new HandGestureService();
+    const makeFrame = (x: number) => service.processMultiHands([
+      createMockHand([x, 0.45, 0], [x + 0.15, 0.45, 0], 0.2, x, 0.7),
+      createMockHand([1 - x, 0.45, 0], [1 - x + 0.15, 0.45, 0], 0.2, 1 - x, 0.7),
+    ], [[{ categoryName: 'Right', score: 0.99 }], [{ categoryName: 'Left', score: 0.99 }]], time);
+    let frame = makeFrame(0.25);
+    for (const x of [0.25, 0.65, 0.4, 0.75]) {
+      time += 40; frame = makeFrame(x); cursor.update(frame);
+      assert.deepStrictEqual(cursor.getRightPosition(), { x: frame.rightHand!.screenX, y: frame.rightHand!.screenY });
+      assert.deepStrictEqual(cursor.getLeftPosition(), { x: frame.leftHand!.screenX, y: frame.leftHand!.screenY });
+      assert.strictEqual(rightEl.style.transform, `translate3d(${frame.rightHand!.screenX}px, ${frame.rightHand!.screenY}px, 0)`);
+      assert.strictEqual(leftEl.style.transform, `translate3d(${frame.leftHand!.screenX}px, ${frame.leftHand!.screenY}px, 0)`);
+      assert.deepStrictEqual(hits.at(-1), [frame.rightHand!.screenX, frame.rightHand!.screenY]);
+      time += 16; (raf as (() => void) | null)?.();
+      assert.deepStrictEqual(cursor.getRightPosition(), { x: frame.rightHand!.screenX, y: frame.rightHand!.screenY },
+        'Rendering must not predict a position different from the experiment input');
+    }
+    const rightFrame = (x: number, extra: object = {}) => ({ ...frame, leftHand: null,
+      rightHand: { ...frame.rightHand!, screenX: x, screenY: 80, ...extra } });
+    time += 40; cursor.update(rightFrame(99.5));
+    time += 1; cursor.update(rightFrame(100.5, { isPinching: true, justPinchStarted: true }));
+    const down = events.findLast(e => e.type === 'pointerdown')!;
+    assert.strictEqual(down.target, buttonB, 'Pinch start refreshes a cached hit across even a 1px boundary');
+    assert.deepStrictEqual([down.clientX, down.clientY], [100.5, 80], 'Press and visible cursor use identical coordinates');
+    time += 40; cursor.update(rightFrame(120.5, { isPinching: true }));
+    const move = events.findLast(e => e.type === 'pointermove')!;
+    assert.strictEqual(move.target, buttonB, 'Dragging retains its captured target');
+    assert.strictEqual(move.clientX, cursor.getRightPosition().x);
+    time += 40; cursor.update(rightFrame(125.5, { justPinchEnded: true }));
+    assert.strictEqual(events.findLast(e => e.type === 'pointerup')!.clientX, cursor.getRightPosition().x);
+    assert.strictEqual(events.findLast(e => e.type === 'click')!.clientX, cursor.getRightPosition().x);
+    cursor.update(rightFrame(0));
+    assert(!rightEl.classList.contains('hidden'), 'Zero is a valid coordinate at the screen edge');
+    assert.strictEqual(rightEl.style.transform, 'translate3d(0px, 80px, 0)');
+
+    showPreview = true;
+    cursor.update({ ...frame, rightHand: { ...frame.rightHand!, screenX: 800, screenY: 500 },
+      leftHand: { ...frame.leftHand!, screenX: 800, screenY: 500, isPinching: true, justPinchStarted: true } });
+    assert(rightEl.classList.contains('in-preview-modal'));
+    assert(leftEl.classList.contains('in-preview-modal'), 'Changing left-hand state must preserve preview suppression');
+    showPreview = false; time += 16; (raf as (() => void) | null)?.();
+    assert(!leftEl.classList.contains('in-preview-modal'));
+    cursor.setRightVisible(false); cursor.setLeftVisible(false);
+    assert(rightEl.classList.contains('hidden') && leftEl.classList.contains('hidden'),
+      'Rule experiments can hide cursors while rendering their 3D arm');
+  } finally {
+    cursor?.destroy();
+    for (const [name, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else delete (globalThis as any)[name];
+    }
+  }
+  console.log('✓ Test 31 passed: Both cursor positions, hit targets, press/drag/release, screen edges and hidden cursor behavior verified');
+}
+
 console.log('========================================================');
-console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (30/30)!');
+console.log('All MediaPipe Two-Hand Gesture & Vision Pro Tests Passed (31/31)!');
 console.log('========================================================\n');
 
 

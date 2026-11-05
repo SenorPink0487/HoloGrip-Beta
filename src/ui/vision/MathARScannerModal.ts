@@ -41,8 +41,6 @@ export class MathARScannerModal {
   private torchToggleBtn: HTMLButtonElement | null = null;
   private albumInputEl: HTMLInputElement | null = null;
   private cameraInputEl: HTMLInputElement | null = null;
-  private fileInputEl: HTMLInputElement | null = null;
-  private albumPopoverEl: HTMLElement | null = null;
   private albumBtn: HTMLButtonElement | null = null;
   private finderHintEl: HTMLElement | null = null;
   private isLiveCameraActive = false;
@@ -142,44 +140,8 @@ export class MathARScannerModal {
       <footer class="math-ar-bottom-bar">
         <!-- 左侧：相册与题目导入插槽 -->
         <div class="math-ar-action-slot left" id="math-ar-album-slot">
-          <!-- Apple 原生 UIMenu 极简浮动菜单 (位于相册图标正上方，绝不遮挡相册图标) -->
-          <div class="math-ar-album-popover hidden" id="math-ar-album-popover" role="menu" aria-label="选取题目来源">
-            <div class="math-ar-popover-menu">
-              <!-- 选项 1: 照片图库 -->
-              <button type="button" class="math-ar-popover-item" id="math-ar-popover-library" role="menuitem">
-                <span class="math-ar-popover-label">照片图库</span>
-                <svg class="math-ar-popover-glyph" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="3" ry="3"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <polyline points="21 15 16 10 5 21"/>
-                </svg>
-              </button>
-
-              <div class="math-ar-popover-divider"></div>
-
-              <!-- 选项 2: 拍照 -->
-              <button type="button" class="math-ar-popover-item" id="math-ar-popover-camera" role="menuitem">
-                <span class="math-ar-popover-label">拍照</span>
-                <svg class="math-ar-popover-glyph" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                  <circle cx="12" cy="13" r="4"/>
-                </svg>
-              </button>
-
-              <div class="math-ar-popover-divider"></div>
-
-              <!-- 选项 3: 文件 -->
-              <button type="button" class="math-ar-popover-item" id="math-ar-popover-file" role="menuitem">
-                <span class="math-ar-popover-label">文件</span>
-                <svg class="math-ar-popover-glyph" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
           <!-- 相册主触发按钮 -->
-          <button type="button" class="math-ar-album-btn" id="math-ar-album-btn" title="从相册或文件导入题目" aria-haspopup="true" aria-expanded="false">
+          <button type="button" class="math-ar-album-btn" id="math-ar-album-btn" title="打开相册选取题目" aria-label="打开相册选取题目">
             <div class="math-ar-album-icon-box">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -191,7 +153,6 @@ export class MathARScannerModal {
           </button>
           <input type="file" id="math-ar-album-input" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" style="display:none;" />
           <input type="file" id="math-ar-camera-input" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" capture="environment" style="display:none;" />
-          <input type="file" id="math-ar-file-input" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp,application/pdf" style="display:none;" />
         </div>
 
         <!-- 中间：Apple 经典同心圆快门按钮 -->
@@ -233,11 +194,6 @@ export class MathARScannerModal {
     this.torchToggleBtn = this.element.querySelector('#math-ar-torch-btn');
     this.albumInputEl = this.element.querySelector('#math-ar-album-input');
     this.cameraInputEl = this.element.querySelector('#math-ar-camera-input');
-    this.fileInputEl = this.element.querySelector('#math-ar-file-input');
-    this.albumPopoverEl = this.element.querySelector('#math-ar-album-popover');
-    if (this.albumPopoverEl) {
-      this.albumPopoverEl.classList.add('hidden');
-    }
     this.albumBtn = this.element.querySelector('#math-ar-album-btn');
     this.finderHintEl = this.element.querySelector('.math-ar-finder-hint');
     if (this.albumInputEl) {
@@ -247,9 +203,7 @@ export class MathARScannerModal {
       this.cameraInputEl.setAttribute('accept', 'image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp');
       this.cameraInputEl.setAttribute('capture', 'environment');
     }
-    if (this.fileInputEl) {
-      this.fileInputEl.setAttribute('accept', 'image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp,application/pdf');
-    }
+
   }
 
   /** 初始化全景透明 AR 空间渲染引擎。 */
@@ -298,39 +252,10 @@ export class MathARScannerModal {
       void this.toggleTorch();
     });
 
-    // 5. Apple 极简相册气泡菜单交互 (悬浮于相册图标正上方，绝不遮挡相册图标与标签)
+    // 点击相册直接选图，不再展示来源菜单。
     this.albumBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.toggleAlbumPopover();
-    });
-
-    // 点击弹窗背景任意非插槽区域自动收起气泡
-    this.element.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement | null;
-      if (!target?.closest('#math-ar-album-slot')) {
-        this.closeAlbumPopover();
-      }
-    });
-
-    // 选项 1: 照片图库 (秒开系统相册)
-    this.element.querySelector('#math-ar-popover-library')?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      this.closeAlbumPopover();
-      await this.handlePhotoLibraryPick();
-    });
-
-    // 选项 2: 拍摄试卷 (调用系统相机)
-    this.element.querySelector('#math-ar-popover-camera')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.closeAlbumPopover();
-      this.cameraInputEl?.click();
-    });
-
-    // 选项 3: 浏览文件 (从 iCloud 或本地文件夹)
-    this.element.querySelector('#math-ar-popover-file')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.closeAlbumPopover();
-      this.fileInputEl?.click();
+      void this.handlePhotoLibraryPick();
     });
 
     const onFileSelected = async (file: File | undefined, label: string) => {
@@ -357,16 +282,6 @@ export class MathARScannerModal {
     this.albumInputEl?.addEventListener('change', async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       await onFileSelected(file, '相册试卷题目');
-      (e.target as HTMLInputElement).value = '';
-    });
-
-    this.fileInputEl?.addEventListener('cancel', () => {
-      this.setStatus('已取消文件选择');
-    });
-
-    this.fileInputEl?.addEventListener('change', async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      await onFileSelected(file, '导入试卷文件');
       (e.target as HTMLInputElement).value = '';
     });
 
@@ -399,10 +314,6 @@ export class MathARScannerModal {
     // 7. ESC 快捷键退出
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && document.body?.contains(this.element)) {
-        if (this.albumPopoverEl && !this.albumPopoverEl.classList.contains('hidden')) {
-          this.closeAlbumPopover();
-          return;
-        }
         this.close();
       }
     };
@@ -1082,33 +993,16 @@ export class MathARScannerModal {
   }
 
   /**
-   * 切换 Apple 极简相册气泡菜单展开/收起状态。
-   * 该气泡位于相册按钮正上方，绝不遮挡相册图标与文字。
-   */
-  public toggleAlbumPopover(force?: boolean): void {
-    if (!this.albumPopoverEl) return;
-    const isCurrentlyOpen = !this.albumPopoverEl.classList.contains('hidden');
-    const shouldOpen = force !== undefined ? force : !isCurrentlyOpen;
-
-    this.albumPopoverEl.classList.toggle('hidden', !shouldOpen);
-    this.albumBtn?.classList.toggle('is-active', shouldOpen);
-    this.albumBtn?.setAttribute('aria-expanded', String(shouldOpen));
-  }
-
-  /**
-   * 安全收起 Apple 极简相册气泡菜单。
-   */
-  public closeAlbumPopover(): void {
-    this.toggleAlbumPopover(false);
-  }
-
-  /**
    * 从系统相册选取试卷图片：
-   * 优先调用 iPadOS/iOS Tauri 专属无原生弹窗的直连 PhotoLibrary 通道，
-   * 彻底避免 WebKit 粗糙原生弹窗遮挡；在标准 Web 环境下平滑兜底触发文件输入。
+   * iPadOS/iOS 应用直接调用 PhotoLibrary，不经过 WebKit 来源菜单；
+   * 浏览器和桌面环境使用文件选择器。
    */
   private async handlePhotoLibraryPick(): Promise<void> {
-    if (typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)) {
+    const isAppleMobile = typeof navigator !== 'undefined' && (
+      /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    );
+    if (isAppleMobile && typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         const res: any = await invoke('plugin:apple-vision|pickPhoto');
@@ -1127,8 +1021,11 @@ export class MathARScannerModal {
           return;
         }
       } catch (_nativeErr) {
-        // 原生插件调用未命中时平滑降级使用标准 input
+        this.setStatus('无法打开相册，请重试');
+        return;
       }
+      this.setStatus('无法读取相册图片，请重试');
+      return;
     }
 
     this.setStatus('正在打开相册…', 1500);
@@ -1139,7 +1036,6 @@ export class MathARScannerModal {
    * 退出并关闭工作台，同步最终模型并安全清理硬件资源。
    */
   public close(): void {
-    this.closeAlbumPopover();
     this.isLiveCameraActive = false;
     if (this.selectedModelId) {
       const active = this.models.find((m) => m.id === this.selectedModelId);

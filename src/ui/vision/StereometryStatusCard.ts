@@ -22,6 +22,8 @@ export interface StereometryStatusCardCallbacks {
   onToggleFaceCenters?: (show: boolean) => void;
   onToggleLabels?: (show: boolean) => void;
   onApplyPreset?: (preset: 'cube-hexagon' | 'cube-skew-60' | 'tetra-orthogonal' | 'corner-box' | 'cone-conic') => void;
+  onUndo?: () => void;
+  onReset?: () => void;
   onRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string; modelDef?: PolyhedronModelDef }>;
   onSyncRecognizedModel?: (def: PolyhedronModelDef) => void;
 }
@@ -118,6 +120,8 @@ export class StereometryStatusCard {
   private scanStatusEl: HTMLElement | null = null;
   private uploadBtn: HTMLButtonElement | null = null;
   private cameraBtn: HTMLButtonElement | null = null;
+  private undoBtn: HTMLButtonElement | null = null;
+  private resetBtn: HTMLButtonElement | null = null;
   private dropzoneEl: HTMLElement | null = null;
   private recognizing = false;
 
@@ -135,26 +139,47 @@ export class StereometryStatusCard {
       <div class="math-card-container apple-style">
         <!-- 1. 模型选择视图 (主视图) -->
         <div class="math-subview math-selection-view" id="math-selection-view">
-          <!-- Hero Action Buttons: Upload & Camera -->
-          <div class="math-hero-actions" id="math-scan-bar">
-            <button type="button" class="apple-hero-btn" id="btn-math-upload" title="上传立体几何题目图片">
-              <svg class="apple-hero-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              <span class="apple-btn-label">上传题目</span>
-            </button>
-            <button type="button" class="apple-hero-btn" id="btn-math-camera" title="调用摄像头拍摄题目">
-              <svg class="apple-hero-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-              <span class="apple-btn-label">拍摄</span>
-            </button>
+          <!-- Top Control Section: Upload, Camera, Undo & Reset -->
+          <div class="math-actions-group">
+            <!-- Hero Action Buttons: Upload & Camera -->
+            <div class="math-hero-actions" id="math-scan-bar">
+              <button type="button" class="apple-hero-btn" id="btn-math-upload" title="上传立体几何题目图片">
+                <svg class="apple-hero-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span class="apple-btn-label">上传题目</span>
+              </button>
+              <button type="button" class="apple-hero-btn" id="btn-math-camera" title="调用摄像头拍摄题目">
+                <svg class="apple-hero-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+                <span class="apple-btn-label">拍摄</span>
+              </button>
 
-            <input id="math-scan-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" style="display:none;" />
-            <input id="math-scan-camera" type="file" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" capture="environment" style="display:none;" />
+              <input id="math-scan-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" style="display:none;" />
+              <input id="math-scan-camera" type="file" accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp" capture="environment" style="display:none;" />
+            </div>
+
+            <!-- Secondary Actions: Undo & Reset (撤销与重置) -->
+            <div class="math-sub-actions" id="math-undo-reset-bar">
+              <button type="button" class="apple-sub-btn" id="btn-math-undo" title="撤销上一步辅助线">
+                <svg class="apple-sub-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 14 4 9l5-5"/>
+                  <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>
+                </svg>
+                <span class="apple-sub-btn-label">撤销</span>
+              </button>
+              <button type="button" class="apple-sub-btn" id="btn-math-reset" title="重置模型视角与辅助线">
+                <svg class="apple-sub-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                </svg>
+                <span class="apple-sub-btn-label">重置</span>
+              </button>
+            </div>
           </div>
 
           <!-- 4 Built-in Models Grid (点击进入更改长度页面) -->
@@ -271,6 +296,8 @@ export class StereometryStatusCard {
     this.scanStatusEl = this.element.querySelector('#math-scan-status');
     this.uploadBtn = this.element.querySelector('#btn-math-upload') as HTMLButtonElement | null;
     this.cameraBtn = this.element.querySelector('#btn-math-camera') as HTMLButtonElement | null;
+    this.undoBtn = this.element.querySelector('#btn-math-undo') as HTMLButtonElement | null;
+    this.resetBtn = this.element.querySelector('#btn-math-reset') as HTMLButtonElement | null;
     this.dropzoneEl = this.uploadBtn;
   }
 
@@ -316,6 +343,26 @@ export class StereometryStatusCard {
     this.paramBackBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.closeParamPage();
+    });
+
+    // 3. 撤销上一步辅助线
+    this.undoBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.callbacks.onUndo?.();
+    });
+
+    // 4. 重置模型状态、视角与辅助线
+    this.resetBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.modelDimensions[this.currentModel] = { a: 10, h: 10 };
+      this.syncPreservationDimensions(this.modelDimensions[this.currentModel]);
+      this.callbacks.onDimensionChange?.(this.modelDimensions[this.currentModel]);
+      if (this.callbacks.onReset) {
+        this.callbacks.onReset();
+      } else {
+        this.callbacks.onClearSegments?.();
+        this.callbacks.onResetView?.('iso');
+      }
     });
 
     const fileInput = this.element.querySelector('#math-scan-file') as HTMLInputElement | null;
@@ -405,6 +452,14 @@ export class StereometryStatusCard {
 
   public getDimensions(model: HighSchoolModelType = this.currentModel): { a: number; h: number } {
     return { ...(this.modelDimensions[model] || { a: 10, h: 10 }) };
+  }
+
+  public get undoButton(): HTMLButtonElement | null {
+    return this.undoBtn;
+  }
+
+  public get resetButton(): HTMLButtonElement | null {
+    return this.resetBtn;
   }
 
   private renderParamControls(model: HighSchoolModelType): void {

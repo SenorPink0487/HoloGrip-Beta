@@ -6,6 +6,8 @@
 	<string>HoloGrip 使用相机进行隔空手势追踪，并拍摄题目照片用于实验辅助。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>HoloGrip 使用麦克风进行实验问题的语音输入。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>HoloGrip 使用 Apple 语音识别将说出的物质名称转换为文字，用于实验成分分析。</string>
 	<key>UIStatusBarHidden</key>
 	<true/>
 	<key>UIStatusBarHidden~ipad</key>

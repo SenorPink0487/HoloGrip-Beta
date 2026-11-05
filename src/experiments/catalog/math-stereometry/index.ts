@@ -356,6 +356,19 @@ export default class MathStereometryExperiment extends BaseExperiment {
     this.mesh.clearAllSegments();
   }
 
+  public resetExperiment(): void {
+    this.interactionManager?.clearAll();
+    this.interactionManager?.resetToIsometricView();
+    this.resetScale();
+    this.dimA = 10;
+    this.dimH = 10;
+    this.mesh.setOptions({
+      dimensions: { a: 10, h: 10 },
+      crossSectionPlane: undefined,
+      clippingEnabled: false,
+    });
+  }
+
   public setCustomCrossSectionPlane(plane: THREE.Plane | null): void {
     this.mesh.setOptions({ crossSectionPlane: plane ?? undefined });
   }

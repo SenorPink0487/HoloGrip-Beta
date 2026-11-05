@@ -109,9 +109,13 @@ class MockElement {
   dispatch(event: string, e?: any): void {
     if (this.eventListeners[event]) {
       for (const h of this.eventListeners[event]) {
-        h(e);
+        h(e || { stopPropagation: () => {}, preventDefault: () => {} });
       }
     }
+  }
+
+  click(): void {
+    this.dispatch('click', { stopPropagation: () => {}, preventDefault: () => {} });
   }
 
   get classList() {
@@ -356,6 +360,8 @@ console.log('✓ Test 6 passed: MathStereometryExperiment telemetry and presets 
 console.log('Test 7: StereometryStatusCard UI Verification');
 let selectedModel: string = '';
 let resetViewCalled: string = '';
+let undoCalled = false;
+let resetCalled = false;
 
 const statusCard = new StereometryStatusCard({
   onModelChange: (type) => {
@@ -364,6 +370,12 @@ const statusCard = new StereometryStatusCard({
   onResetView: (view) => {
     resetViewCalled = view;
   },
+  onUndo: () => {
+    undoCalled = true;
+  },
+  onReset: () => {
+    resetCalled = true;
+  },
 });
 
 statusCard.setVisible(true);
@@ -371,6 +383,23 @@ statusCard.updateTelemetry(telemetrySkew);
 
 assert.strictEqual(statusCard.element.className.includes('vision-math-status-card'), true);
 assert.strictEqual(statusCard.element.style.display, 'flex');
+
+// 验证：上传和拍摄下方存在撤销与重置按钮
+const undoBtn = statusCard.element.querySelector('#btn-math-undo') as HTMLButtonElement | null;
+const resetBtn = statusCard.element.querySelector('#btn-math-reset') as HTMLButtonElement | null;
+assert(undoBtn !== null, '#btn-math-undo must exist in statusCard');
+assert(resetBtn !== null, '#btn-math-reset must exist in statusCard');
+assert.strictEqual(statusCard.element.innerHTML.includes('id="btn-math-undo"'), true, 'Undo button must exist in HTML');
+assert.strictEqual(statusCard.element.innerHTML.includes('id="btn-math-reset"'), true, 'Reset button must exist in HTML');
+assert.strictEqual(statusCard.element.innerHTML.includes('撤销'), true, 'StatusCard HTML must include 撤销');
+assert.strictEqual(statusCard.element.innerHTML.includes('重置'), true, 'StatusCard HTML must include 重置');
+
+// 验证：点击撤销与重置触发对应回调
+undoBtn?.click();
+assert.strictEqual(undoCalled, true, 'Clicking undo button must trigger onUndo callback');
+
+resetBtn?.click();
+assert.strictEqual(resetCalled, true, 'Clicking reset button must trigger onReset callback');
 
 // Verify close and reopen cycle
 statusCard.setVisible(false);
@@ -394,7 +423,7 @@ statusCard.closeParamPage();
 assert.strictEqual((statusCard as any).paramViewEl.style.display, 'none');
 assert.strictEqual((statusCard as any).selectionViewEl.style.display, 'flex');
 
-console.log('✓ Test 7 passed: StereometryStatusCard instantiated, Apple length subpage verified, and close-reopen display cycle verified\n');
+console.log('✓ Test 7 passed: StereometryStatusCard instantiated, Undo & Reset buttons verified, Apple length subpage verified, and close-reopen display cycle verified\n');
 
 // -------------------------------------------------------------
 // Test 8: Special Points Generation (1/2 Midpoints and 1/3, 2/3 Trisection Points)
@@ -2813,9 +2842,9 @@ console.log('Test 38: 隔空手势交互重构：单状态机零冲突、外侧�
   assert.strictEqual(mesh38.getAuxiliaryFaces().length, 1, 'Closed cycle A₁-C₁-B₁ must generate planar auxiliary face');
   const faceMesh38 = (mesh38 as any).auxFacesGroup.children[0] as THREE.Mesh;
   const faceMat38 = faceMesh38.material as THREE.MeshBasicMaterial;
-  assert(Math.abs(faceMat38.opacity - 0.14) < 1e-3, 'Auxiliary face starts at gentle bloom opacity 0.14');
+  assert(Math.abs(faceMat38.opacity - 0.30) < 1e-3, 'Auxiliary face starts at visible bloom opacity 0.30');
   mesh38.update(0.25, undefined, cam38);
-  assert(Math.abs(faceMat38.opacity - 0.35) < 1e-3, 'Auxiliary face smoothly settles at crystal opacity 0.35 after 240ms');
+  assert(Math.abs(faceMat38.opacity - 0.50) < 1e-3, 'Auxiliary face smoothly settles at opacity 0.50 after 240ms');
 
   // 4. 左右手职责分工验证：左手长捏合转动相机视角 (PlayerController.rotateSmooth)，右手在模型外捏合才旋转 3D 模型
   const engineSrc = fs.readFileSync(path.join(process.cwd(), 'src/core/Engine.ts'), 'utf-8');
@@ -2836,8 +2865,75 @@ console.log('Test 38: 隔空手势交互重构：单状态机零冲突、外侧�
 }
 console.log('✓ Test 38 passed: 隔空手势交互重构、单状态机零冲突、模型外丝滑旋转与优雅动效验证通过\n');
 
+// -------------------------------------------------------------
+// Test 39: 撤销与重置按钮全链路集成测试 (Undo & Reset E2E Verification)
+// -------------------------------------------------------------
+console.log('Test 39: 撤销与重置按钮全链路集成测试');
+{
+  const exp39 = new MathStereometryExperiment();
+  exp39.init(mockContext);
+  exp39.mount(mockContext);
+
+  let latestGuidance = '';
+  (exp39 as any).interactionManager.callbacks.onGuidanceChange = (hint: string) => {
+    latestGuidance = hint;
+  };
+
+  const card39 = new StereometryStatusCard({
+    onUndo: () => exp39.undoLastSegment(),
+    onReset: () => exp39.resetExperiment(),
+    onDimensionChange: (dims) => exp39.setDimensions(dims),
+  });
+
+  // 1. 验证 DOM 结构：撤销与重置按钮位于上传和拍摄下方，属于 .math-sub-actions
+  const undoBtn = card39.undoButton;
+  const resetBtn = card39.resetButton;
+  assert(undoBtn !== null, 'undoButton must be accessible via getter');
+  assert(resetBtn !== null, 'resetButton must be accessible via getter');
+  assert(card39.element.innerHTML.includes('math-sub-actions'), 'math-sub-actions must be in innerHTML');
+  assert(card39.element.innerHTML.includes('id="btn-math-undo"'), 'btn-math-undo must be in innerHTML');
+  assert(card39.element.innerHTML.includes('id="btn-math-reset"'), 'btn-math-reset must be in innerHTML');
+
+  // 2. 模拟连线：连接 A 与 B
+  const keypoints = (exp39 as any).mesh.getModelDef().keyPoints;
+  const kpA = keypoints.find((kp: any) => kp.label === 'A')!;
+  const kpB = keypoints.find((kp: any) => kp.label === 'B')!;
+  (exp39 as any).interactionManager.handleClickOnPoint(kpA);
+  (exp39 as any).interactionManager.handleClickOnPoint(kpB);
+  assert.strictEqual((exp39 as any).mesh.getSegments().length, 1, '1 segment must be drawn');
+
+  // 3. 点击撤销按钮：辅助线应被撤销
+  undoBtn!.click();
+  assert.strictEqual((exp39 as any).mesh.getSegments().length, 0, 'Clicking undo button must undo the segment');
+  assert(latestGuidance.includes('已撤销辅助线'), 'Guidance must indicate segment was undone');
+
+  // 4. 当没有可撤销的辅助线时点击撤销
+  undoBtn!.click();
+  assert.strictEqual(latestGuidance, '没有可撤销的辅助线', 'Undo when empty must provide guidance feedback');
+
+  // 5. 模拟调整状态与连线，测试重置按钮
+  (exp39 as any).interactionManager.handleClickOnPoint(kpA);
+  (exp39 as any).interactionManager.handleClickOnPoint(kpB);
+  assert.strictEqual((exp39 as any).mesh.getSegments().length, 1);
+  exp39.zoom(1);
+  assert((exp39 as any).mesh.getScale() > 1.0, 'Model scale should be greater than 1 after zoom');
+  exp39.setDimensions({ a: 15, h: 20 });
+  assert.strictEqual((exp39 as any).dimA, 15);
+
+  // 点击重置按钮：辅助线清空、尺寸恢复为10、缩放恢复为1.0
+  resetBtn!.click();
+  assert.strictEqual((exp39 as any).mesh.getSegments().length, 0, 'Reset must clear all segments');
+  assert.strictEqual((exp39 as any).dimA, 10, 'Reset must restore dimA to 10');
+  assert.strictEqual((exp39 as any).dimH, 10, 'Reset must restore dimH to 10');
+  assert.strictEqual((exp39 as any).mesh.getScale(), 1.0, 'Reset must restore scale to 1.0');
+
+  card39.dispose();
+  exp39.dispose({} as any);
+}
+console.log('✓ Test 39 passed: 撤销与重置按钮全链路集成测试验证通过\n');
+
 console.log('========================================================');
-console.log('All High School Stereometry Tests Passed Successfully (38/38)!');
+console.log('All High School Stereometry Tests Passed Successfully (39/39)!');
 console.log('========================================================');
 
 

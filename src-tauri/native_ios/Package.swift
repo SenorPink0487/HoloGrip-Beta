@@ -19,13 +19,15 @@ let package = Package(
             name: "HoloGripAppleVision",
             dependencies: [.byName(name: "Tauri")],
             path: ".",
-            sources: ["AppleVisionHandManager.swift", "AppleVisionPlugin.swift"],
+            sources: ["AppleVisionHandManager.swift", "AppleVisionPlugin.swift", "AppleSpeechRecognitionManager.swift"],
             linkerSettings: [
                 .linkedFramework("AVFoundation"),
+                .linkedFramework("Speech"),
                 .linkedFramework("Vision"),
                 .linkedFramework("CoreMedia"),
                 .linkedFramework("CoreVideo"),
-                .linkedFramework("WebKit")
+                .linkedFramework("WebKit"),
+                .linkedFramework("PhotosUI")
             ]
         )
     ]

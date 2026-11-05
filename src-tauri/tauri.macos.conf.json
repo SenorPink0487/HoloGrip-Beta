@@ -1,0 +1,21 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "HoloGrip",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "center": true,
+        "maximized": true,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true,
+        "backgroundColor": "#f9f9fb"
+      }
+    ]
+  },
+  "bundle": {
+    "icon": ["icons/hologrip-mac.icns"]
+  }
+}

@@ -1,10 +1,13 @@
 import './ui/demonstration.css';
 import './ui/vision/tutorial.css';
+import './ui/vision/chemistry.css';
 import { Engine } from './core/Engine';
 import { WhiteboardApp } from './whiteboard/WhiteboardApp';
 import { preloadAccountAssets } from './whiteboard/AccountModal';
+import { initTouchModeTracking } from './controls/touchMode';
 
 function init() {
+  initTouchModeTracking();
   preloadAccountAssets();
   const engine = new Engine('webgl-container');
   (window as any).__ENGINE__ = engine;

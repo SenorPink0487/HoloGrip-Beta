@@ -1146,8 +1146,6 @@ export class Engine {
         else if (cmd.type === 'setPreset') exp.loadPreset?.(cmd.presetKey);
         else if (cmd.type === 'toggleLines') exp.setToggles?.(cmd.show, exp.showFlow);
         else if (cmd.type === 'toggleFlow') exp.setToggles?.(exp.showLines, cmd.show);
-        else if (cmd.type === 'toggleGaussian') exp.setShowGaussian?.(cmd.show);
-        else if (cmd.type === 'toggleEquipotential') exp.setShowEquipotential?.(cmd.show);
         else if (cmd.type === 'setDensity') exp.setDensity?.(cmd.density);
         else if (cmd.type === 'reset') exp.resetGolden?.();
       },
@@ -1381,6 +1379,25 @@ export class Engine {
           exp?.applyClassicPreset?.(preset);
         }
       },
+      onMathUndo: () => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          exp?.undoLastSegment?.();
+        }
+      },
+      onMathReset: () => {
+        if (this.currentExperimentId === 'math-stereometry') {
+          const exp = this.holoStage?.activeExperiment as any;
+          if (typeof exp?.resetExperiment === 'function') {
+            exp.resetExperiment();
+          } else {
+            exp?.clearAllSegments?.();
+            exp?.resetView?.('iso');
+            exp?.resetScale?.();
+            exp?.setDimensions?.({ a: 10, h: 10 });
+          }
+        }
+      },
       onMathZoom: (dir) => {
         if (this.currentExperimentId === 'math-stereometry') {
           const exp = this.holoStage?.activeExperiment as any;
@@ -1608,9 +1625,6 @@ export class Engine {
       }
       if (!this.isLiteLaboratory && experiment.initialCameraPose && !this.isWhiteboardMode && !this.labEntryActive) {
         this.applyLabEntryPose({ ...experiment.initialCameraPose, fov: this.camera.fov });
-      }
-      if (id === 'em-field') {
-        this.visionModal.fieldCard.resetSurfaceToggles();
       }
       if (id === 'em-hand-rules') {
         const isHandRunning = this.handGestureService?.getStatus() === 'running';

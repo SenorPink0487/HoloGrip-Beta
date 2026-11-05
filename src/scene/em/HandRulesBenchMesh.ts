@@ -412,7 +412,7 @@ function createFieldRippleTexture(): THREE.CanvasTexture {
 const _UP = new THREE.Vector3(0, 1, 0);
 const _QUAT = new THREE.Quaternion();
 
-interface LeftFieldSymbol {
+interface UniformFieldSymbol {
   group: THREE.Group;
   mesh: THREE.Mesh;
   ripple: THREE.Mesh;
@@ -467,20 +467,10 @@ export class HandRulesBenchMesh {
   private leftForceMat!: THREE.MeshStandardMaterial;
   private leftForceLabelMat!: THREE.MeshBasicMaterial;
   private leftForceRevealProgress = 0;
-  private leftFieldGroup!: THREE.Group;
-  private leftFieldSymbols: LeftFieldSymbol[] = [];
-  private leftFieldPackets: FlowingStreamlinePacket[] = [];
-  private leftFieldFlowPhase = 0;
-  private leftFieldPhotonPhase = 0;
-  private leftFieldGuideMat!: THREE.MeshStandardMaterial;
-  private leftFieldLabel!: THREE.Mesh;
   private leftCurrent!: AxialChargeFlow;
   private leftRodVelocity = 0;
-  private readonly texFieldIn = createFieldInwardTexture();
-  private readonly texFieldOut = createFieldOutwardTexture();
-  private readonly texFieldRipple = createFieldRippleTexture();
 
-  // 3. 右手定则组件：严格遵循极简纯净物理台面规范，只保留运动导体棒与矢量指示
+  // 3. 右手定则组件：运动导体棒、已知磁场与待求电流方向
   private rightRodGroup = new THREE.Group();
   private rightMotionArrow!: THREE.Group;
   private rightMotionLabel!: THREE.Mesh;
@@ -490,6 +480,17 @@ export class HandRulesBenchMesh {
   private rightInducedLabel!: THREE.Mesh;
   private rightCurrent!: AxialChargeFlow;
   private rightCutPhase = 0;
+
+  // 左右手定则共用的已知匀强磁场，覆盖导体棒的完整运动范围。
+  private uniformFieldGroup!: THREE.Group;
+  private uniformFieldSymbols: UniformFieldSymbol[] = [];
+  private uniformFieldPackets: FlowingStreamlinePacket[] = [];
+  private uniformFieldFlowPhase = 0;
+  private uniformFieldPhotonPhase = 0;
+  private uniformFieldLabel!: THREE.Mesh;
+  private readonly texFieldIn = createFieldInwardTexture();
+  private readonly texFieldOut = createFieldOutwardTexture();
+  private readonly texFieldRipple = createFieldRippleTexture();
 
   // 共用高规格实验室材质
   private readonly satinSilverMat = anodizedAluminum(0xf1f5f9, 0.22);
@@ -522,6 +523,7 @@ export class HandRulesBenchMesh {
     this.buildRightHandScrewApparatus();
     this.buildLeftHandRuleApparatus();
     this.buildRightHandRuleApparatus();
+    this.buildDynamicMagneticField();
 
     this.handSkeleton = new ArticulatedHandSkeletonMesh();
     this.group.add(this.handSkeleton.group);
@@ -765,20 +767,17 @@ export class HandRulesBenchMesh {
     this.leftRodGroup.position.set(0, 0.22, 0);
     this.leftRuleGroup.add(this.leftRodGroup);
 
-    // 3) 匀强磁场 B 规范 2D 符号阵列（拒绝 3D 锥体箭头，严格使用教科书 2D 符号与动态能量流）
-    this.buildDynamicMagneticField();
-
     this.group.add(this.leftRuleGroup);
   }
 
   /**
-   * 构建左手定则规范 2D 磁场符号阵列与动态空间光量子流光束（彻底消除 3D 锥体/飞镖箭头）
+   * 构建左右手定则共用的磁场符号阵列与动态空间光量子流光束（彻底消除 3D 锥体/飞镖箭头）
    * 12 组正对操作者视线的标准磁场符号（穿入 ⊗ / 穿出 ⊙），伴随微光起伏能量波、双相位收缩/扩散波纹，
    * 以及沿着 Z 轴在磁感线通道中顺滑穿梭的高能光子彗星流光，呈现灵动绚丽的高级实验室微观物理流动
    */
   private buildDynamicMagneticField(): void {
-    this.leftFieldGroup = new THREE.Group();
-    this.leftFieldGroup.name = 'LeftFieldIndicators';
+    this.uniformFieldGroup = new THREE.Group();
+    this.uniformFieldGroup.name = 'UniformMagneticFieldIndicators';
 
     // 独立 3D "磁场 B" 标识看板
     const bTex = createFieldBLabelTexture();
@@ -789,15 +788,16 @@ export class HandRulesBenchMesh {
       side: THREE.DoubleSide,
       opacity: 1.0,
     });
-    this.leftFieldLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.029), bLabelMat);
-    this.leftFieldLabel.position.set(0, 0.35, 0.02);
-    this.leftRuleGroup.add(this.leftFieldLabel);
+    this.uniformFieldLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.029), bLabelMat);
+    this.uniformFieldLabel.position.set(0, 0.35, 0.02);
+    this.uniformFieldLabel.name = 'UniformMagneticFieldLabel';
+    this.uniformFieldGroup.add(this.uniformFieldLabel);
 
     // 12 个对称排布在两翼的磁场符号网格点位 (bx, by)
     const symbolCoords: Array<[number, number]> = [
-      [-0.18, 0.11], [-0.10, 0.11], [0.10, 0.11], [0.18, 0.11],
-      [-0.18, 0.22], [-0.10, 0.22], [0.10, 0.22], [0.18, 0.22],
-      [-0.18, 0.33], [-0.10, 0.33], [0.10, 0.33], [0.18, 0.33],
+      [-0.30, 0.11], [-0.15, 0.11], [0.15, 0.11], [0.30, 0.11],
+      [-0.30, 0.22], [-0.15, 0.22], [0.15, 0.22], [0.30, 0.22],
+      [-0.30, 0.33], [-0.15, 0.33], [0.15, 0.33], [0.30, 0.33],
     ];
 
     const planeGeo = new THREE.PlaneGeometry(0.048, 0.048);
@@ -806,8 +806,8 @@ export class HandRulesBenchMesh {
     const orbGeo = new THREE.SphereGeometry(0.0028, 14, 10);
     const trailGeo = new THREE.CylinderGeometry(0.0004, 0.0024, 0.042, 8);
 
-    this.leftFieldSymbols = [];
-    this.leftFieldPackets = [];
+    this.uniformFieldSymbols = [];
+    this.uniformFieldPackets = [];
 
     for (let i = 0; i < symbolCoords.length; i++) {
       const [bx, by] = symbolCoords[i];
@@ -822,7 +822,7 @@ export class HandRulesBenchMesh {
       const guideMesh = new THREE.Mesh(guideGeo, guideMat);
       guideMesh.rotation.x = Math.PI / 2;
       guideMesh.position.set(bx, by, 0);
-      this.leftFieldGroup.add(guideMesh);
+      this.uniformFieldGroup.add(guideMesh);
 
       // 2) 2D 规范磁场符号看板（正对操作者，包含多重动态向内/向外收缩扩散环）
       const symbolGroup = new THREE.Group();
@@ -860,8 +860,8 @@ export class HandRulesBenchMesh {
       const mesh = new THREE.Mesh(planeGeo, mat);
       symbolGroup.add(mesh);
 
-      this.leftFieldGroup.add(symbolGroup);
-      this.leftFieldSymbols.push({
+      this.uniformFieldGroup.add(symbolGroup);
+      this.uniformFieldSymbols.push({
         group: symbolGroup,
         mesh,
         ripple: rippleMesh,
@@ -897,9 +897,9 @@ export class HandRulesBenchMesh {
         trailMesh.rotation.x = Math.PI / 2;
 
         packetGroup.add(orbMesh, trailMesh);
-        this.leftFieldGroup.add(packetGroup);
+        this.uniformFieldGroup.add(packetGroup);
 
-        this.leftFieldPackets.push({
+        this.uniformFieldPackets.push({
           group: packetGroup,
           orbMesh,
           trailMesh,
@@ -912,12 +912,12 @@ export class HandRulesBenchMesh {
       }
     }
 
-    this.leftRuleGroup.add(this.leftFieldGroup);
+    this.group.add(this.uniformFieldGroup);
   }
 
   /**
    * 2. 构建「右手定则（电磁感应切割磁感线）」独立导体棒总成
-   * 严格遵循极简纯净物理台面规范：只保留导体棒，删除所有磁极板、底座、看板与额外器材
+   * 运动导体棒置于共用匀强磁场中，电流方向由正确手势揭示
    */
   private buildRightHandRuleApparatus(): void {
     this.rightRuleGroup.name = 'RightHandRuleApparatus';
@@ -1019,7 +1019,7 @@ export class HandRulesBenchMesh {
     this.rightRodGroup.add(this.rightInducedLabel);
 
     this.rightRodGroup.name = 'RightConductorRodAssembly';
-    this.rightRodGroup.position.set(-0.12, 0.22, 0);
+    this.rightRodGroup.position.set(-0.24, 0.22, 0);
     this.rightRuleGroup.add(this.rightRodGroup);
 
     this.group.add(this.rightRuleGroup);
@@ -1029,10 +1029,12 @@ export class HandRulesBenchMesh {
     this.screwGroup.visible = mode === 'right-hand-screw';
     this.leftRuleGroup.visible = mode === 'left-hand-rule';
     this.rightRuleGroup.visible = mode === 'right-hand-rule';
+    this.uniformFieldGroup.visible = mode !== 'right-hand-screw';
 
     this.isolationBase.visible = false;
     this.targetZoneGroup.visible = false;
     this.floatingConductor.reset();
+    this.setRightCurrentVisible(false);
 
     if (mode === 'right-hand-screw') {
       this.targetZoneGroup.position.set(0, 0.30, 0);
@@ -1041,8 +1043,8 @@ export class HandRulesBenchMesh {
       this.targetZoneGroup.rotation.set(0, 0, 0);
       this.leftRodVelocity = 0;
       this.leftForceRevealProgress = 0;
-      this.leftFieldFlowPhase = 0;
-      this.leftFieldPhotonPhase = 0;
+      this.uniformFieldFlowPhase = 0;
+      this.uniformFieldPhotonPhase = 0;
       if (this.leftForceMat) this.leftForceMat.opacity = 0;
       if (this.leftForceLabelMat) this.leftForceLabelMat.opacity = 0;
       if (this.leftForceArrow) {
@@ -1058,14 +1060,15 @@ export class HandRulesBenchMesh {
       this.targetZoneGroup.position.set(0, 0.22, 0);
       this.targetZoneGroup.rotation.set(0, 0, 0);
       this.rightCutPhase = 0;
+      this.rightRodGroup.position.x = -0.24;
     }
   }
 
   public resetMotion(): void {
     this.leftRodVelocity = 0;
     this.leftForceRevealProgress = 0;
-    this.leftFieldFlowPhase = 0;
-    this.leftFieldPhotonPhase = 0;
+    this.uniformFieldFlowPhase = 0;
+    this.uniformFieldPhotonPhase = 0;
     if (this.leftForceMat) this.leftForceMat.opacity = 0;
     if (this.leftForceLabelMat) this.leftForceLabelMat.opacity = 0;
     if (this.leftForceArrow) {
@@ -1078,7 +1081,9 @@ export class HandRulesBenchMesh {
     }
     this.leftRodGroup.position.x = 0;
     this.rightCutPhase = 0;
+    this.rightRodGroup.position.x = -0.24;
     this.floatingConductor.reset();
+    this.setRightCurrentVisible(false);
   }
 
   /**
@@ -1143,39 +1148,31 @@ export class HandRulesBenchMesh {
     this.floatingConductor.update(dt, currentPolarity, evaluation);
   }
 
-  private updateLeftHandRule(
-    dt: number,
-    config: HandRuleConfig,
-    evaluation: HandRuleEvaluation
-  ): void {
-    const iy = config.currentPolarity;
-    const bz = -config.fieldPolarity;
-    const fx = (iy * bz) as Polarity;
-
+  private updateUniformMagneticField(dt: number, fieldPolarity: Polarity): void {
     // 1) 匀强磁场 B (沿 Z 轴穿入 -Z 对应 ⊗，穿出 +Z 对应 ⊙)，采用规范 2D 符号与动态能量流动
-    const isEntering = bz < 0; // -Z 穿入屏幕 (⊗)，+Z 穿出屏幕 (⊙)
+    const isEntering = fieldPolarity > 0; // -Z 穿入屏幕 (⊗)，+Z 穿出屏幕 (⊙)
     const targetMap = isEntering ? this.texFieldIn : this.texFieldOut;
 
-    if (this.leftFieldLabel) {
-      this.leftFieldLabel.position.set(0, 0.35, 0.02);
+    if (this.uniformFieldLabel) {
+      this.uniformFieldLabel.position.set(0, 0.35, 0.02);
     }
 
     // 动态波纹与能量流光推进
     const flowSpeed = 2.4;
-    this.leftFieldFlowPhase = (this.leftFieldFlowPhase + dt * flowSpeed) % (Math.PI * 2);
+    this.uniformFieldFlowPhase = (this.uniformFieldFlowPhase + dt * flowSpeed) % (Math.PI * 2);
 
-    for (const sym of this.leftFieldSymbols) {
+    for (const sym of this.uniformFieldSymbols) {
       if (sym.mat.map !== targetMap) {
         sym.mat.map = targetMap;
         sym.mat.needsUpdate = true;
       }
 
       // 空间能量流光扫掠波：各节点起伏呼吸流动
-      const wave = 0.5 + 0.5 * Math.sin(this.leftFieldFlowPhase + sym.bx * 14 + sym.by * 10);
+      const wave = 0.5 + 0.5 * Math.sin(this.uniformFieldFlowPhase + sym.bx * 14 + sym.by * 10);
       sym.mat.opacity = 0.65 + 0.35 * wave;
 
       // 磁通汇入/涌出动态波纹：穿入时向内收缩流动（汇入漩涡），穿出时向外扩散流动（向外涌现）
-      const p1 = (this.leftFieldFlowPhase / (Math.PI * 2) + sym.basePhase) % 1.0;
+      const p1 = (this.uniformFieldFlowPhase / (Math.PI * 2) + sym.basePhase) % 1.0;
       const p2 = (p1 + 0.5) % 1.0;
 
       const scale1 = isEntering ? (1.35 - p1 * 0.90) : (0.42 + p1 * 0.90);
@@ -1193,10 +1190,10 @@ export class HandRulesBenchMesh {
     const zSpan = 0.30;
     const halfSpan = zSpan * 0.5;
     const photonSpeed = 0.42;
-    this.leftFieldPhotonPhase = (this.leftFieldPhotonPhase + dt * (photonSpeed / zSpan)) % 1.0;
+    this.uniformFieldPhotonPhase = (this.uniformFieldPhotonPhase + dt * (photonSpeed / zSpan)) % 1.0;
 
-    for (const pkt of this.leftFieldPackets) {
-      const u = (this.leftFieldPhotonPhase + pkt.offsetPhase + (pkt.bx + 0.2) * 1.5 + (pkt.by - 0.1) * 2.0) % 1.0;
+    for (const pkt of this.uniformFieldPackets) {
+      const u = (this.uniformFieldPhotonPhase + pkt.offsetPhase + (pkt.bx + 0.2) * 1.5 + (pkt.by - 0.1) * 2.0) % 1.0;
       const normalizedU = (u + 1.0) % 1.0;
 
       // 沿 Z 轴平滑连续位移：穿入为 +Z 到 -Z，穿出为 -Z 到 +Z
@@ -1213,11 +1210,23 @@ export class HandRulesBenchMesh {
 
       // 两端进出平滑渐隐渐现，杜绝突兀闪烁 (sin(normalizedU * PI) 形成完美的平滑钟形渐变曲线)
       const fade = Math.sin(normalizedU * Math.PI);
-      const wave = 0.5 + 0.5 * Math.sin(this.leftFieldFlowPhase + pkt.bx * 14 + pkt.by * 10);
+      const wave = 0.5 + 0.5 * Math.sin(this.uniformFieldFlowPhase + pkt.bx * 14 + pkt.by * 10);
 
       pkt.orbMat.opacity = Math.max(0, fade * 0.95 * (0.75 + 0.25 * wave));
       pkt.trailMat.opacity = Math.max(0, fade * 0.58 * (0.75 + 0.25 * wave));
     }
+  }
+
+  private updateLeftHandRule(
+    dt: number,
+    config: HandRuleConfig,
+    evaluation: HandRuleEvaluation
+  ): void {
+    const iy = config.currentPolarity;
+    const bz = -config.fieldPolarity;
+    const fx = (iy * bz) as Polarity;
+
+    this.updateUniformMagneticField(dt, config.fieldPolarity);
 
     // 2) 电流方向 I (沿导线棒 +Y 向上 或 -Y 向下)
     _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(0, iy, 0));
@@ -1268,7 +1277,7 @@ export class HandRulesBenchMesh {
 
     // 4) 正确手势持续时循环演示；失配时冻结运动状态，恢复后从同一位置和运动阶段继续。
     if (!isCorrect) return;
-    const strokeLimit = 0.12;
+    const strokeLimit = 0.30;
     const acceleration = 0.22;
     // 沿 F 建立有向坐标，保证电流或磁场反转后运动镜像一致。
     const position = this.leftRodGroup.position.x * fx;
@@ -1276,17 +1285,23 @@ export class HandRulesBenchMesh {
     let nextPosition = position + velocity * dt + 0.5 * acceleration * dt * dt;
     let nextVelocity = velocity + acceleration * dt;
     if (nextPosition > strokeLimit) {
-      // 展示边界作理想弹性回弹；按实际碰撞时刻积分余下时间，避免帧率导致能量漂移。
-      // 回程速度与 F 相反，仍受同向 F 减速，随后再次沿 F 加速，形成连续循环。
+      // 到终点直接开始下一次同向演示，不显示与 F 相反的回程。
+      // 按到达终点的时刻积分余下时间，使循环不受帧率影响。
       const distance = Math.max(0, strokeLimit - position);
       const impactVelocity = Math.sqrt(velocity * velocity + 2 * acceleration * distance);
       const impactTime = (impactVelocity - velocity) / acceleration;
       const remainingTime = THREE.MathUtils.clamp(dt - impactTime, 0, dt);
-      nextPosition = strokeLimit - impactVelocity * remainingTime + 0.5 * acceleration * remainingTime * remainingTime;
-      nextVelocity = -impactVelocity + acceleration * remainingTime;
+      nextPosition = 0.5 * acceleration * remainingTime * remainingTime;
+      nextVelocity = acceleration * remainingTime;
     }
     this.leftRodGroup.position.x = nextPosition * fx;
     this.leftRodVelocity = nextVelocity * fx;
+  }
+
+  private setRightCurrentVisible(visible: boolean): void {
+    this.rightInducedArrow.visible = visible;
+    this.rightInducedLabel.visible = visible;
+    this.rightCurrent.setFlowVisible(visible);
   }
 
   private updateRightHandRule(
@@ -1294,7 +1309,10 @@ export class HandRulesBenchMesh {
     config: HandRuleConfig,
     evaluation: HandRuleEvaluation
   ): void {
-    // 1) 导体棒在台面中心平稳重复运动 (切割行程在 -0.12m 与 +0.12m 之间)
+    // 磁场是已知条件，始终显示；电流仍由正确手势单独揭示。
+    this.updateUniformMagneticField(dt, config.fieldPolarity);
+
+    // 1) 导体棒沿 v 固定方向重复切割，行程加长到 -0.24m 与 +0.24m。
     const vx = config.motionPolarity;
     // 速度矢量指示箭头：精密指向切割运动方向 (+X 或 -X)
     _QUAT.setFromUnitVectors(_UP, new THREE.Vector3(vx, 0, 0));
@@ -1306,20 +1324,13 @@ export class HandRulesBenchMesh {
       this.rightMotionLabel.position.set(vx * 0.052, 0.028, 0.0092 + 0.0035);
     }
 
-    const strokeStart = vx > 0 ? -0.12 : 0.12;
-    const strokeEnd = vx > 0 ? 0.12 : -0.12;
+    const strokeStart = vx > 0 ? -0.24 : 0.24;
+    const strokeEnd = -strokeStart;
     const strokeLen = strokeEnd - strokeStart;
 
-    // 周期 2.4 秒：前 82% 时间稳定匀速切割，后 18% 平滑余弦快速回位，循环重复
-    this.rightCutPhase = (this.rightCutPhase + dt / 2.4) % 1;
-    let u: number;
-    if (this.rightCutPhase < 0.82) {
-      u = this.rightCutPhase / 0.82;
-    } else {
-      const r = (this.rightCutPhase - 0.82) / 0.18;
-      u = 0.5 + 0.5 * Math.cos(r * Math.PI);
-    }
-    this.rightRodGroup.position.x = strokeStart + u * strokeLen;
+    // 保持清晰的匀速运动，到终点直接回到起点，不插入反向运动。
+    this.rightCutPhase = (this.rightCutPhase + dt / 4) % 1;
+    this.rightRodGroup.position.x = strokeStart + this.rightCutPhase * strokeLen;
 
     // 2) 电流方向矢量箭头 I (+Y 向上 或 -Y 向下)
     const indY = (config.motionPolarity * config.fieldPolarity) as Polarity;
@@ -1333,13 +1344,12 @@ export class HandRulesBenchMesh {
     }
 
     const isCorrect = evaluation.isMatched;
+    // 感应电流是待求方向：仅在右手姿势正确时揭示，失配或丢手立即隐藏。
+    this.setRightCurrentVisible(isCorrect);
     const targetEmissive = isCorrect ? 1.35 : 0.85;
     this.rightInducedMat.emissiveIntensity +=
       (targetEmissive - this.rightInducedMat.emissiveIntensity) * Math.min(1, dt * 8);
-    this.rightInducedMat.opacity = 1.0;
-    this.rightInducedLabelMat.opacity = 1.0;
-    this.rightCurrent.setFlowVisible(true);
-    this.rightCurrent.update(dt, indY);
+    if (isCorrect) this.rightCurrent.update(dt, indY);
   }
 
   public dispose(): void {

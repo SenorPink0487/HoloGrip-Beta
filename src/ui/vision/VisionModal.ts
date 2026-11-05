@@ -17,6 +17,7 @@ import type { ChemistryEngine, SoluteComponent } from '../../chemistry/Chemistry
 import type { HighSchoolModelType } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 import { blurActiveInput, isTextInputActive } from '../../core/focus.ts';
+import { initTouchModeTracking } from '../../controls/touchMode.ts';
 import { TutorialPanel, TUTORIAL_ICON } from './TutorialPanel.ts';
 import { animateTutorialText, animateTextSwap, TUTORIAL_TEXT_SELECTOR } from './tutorialMotion.ts';
 
@@ -79,6 +80,8 @@ export interface VisionModalCallbacks {
   onMathToggleFaceCenters?: (show: boolean) => void;
   onMathToggleLabels?: (show: boolean) => void;
   onMathApplyPreset?: (preset: any) => void;
+  onMathUndo?: () => void;
+  onMathReset?: () => void;
   onMathZoom?: (direction: 1 | -1) => void;
   onMathResetScale?: () => void;
   onMathRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string; modelDef?: any }>;
@@ -149,6 +152,7 @@ export class VisionModal {
     callbacks: VisionModalCallbacks,
     parent: HTMLElement = document.body
   ) {
+    initTouchModeTracking();
     this.engine = engine;
     this.callbacks = callbacks;
     this.createUI();
@@ -412,6 +416,8 @@ export class VisionModal {
       onInteractionModeChange: (mode) => this.callbacks.onMathInteractionModeChange?.(mode),
       onResetView: (view) => this.callbacks.onMathResetView?.(view),
       onClearSegments: () => this.callbacks.onMathClearSegments?.(),
+      onUndo: () => this.callbacks.onMathUndo?.(),
+      onReset: () => this.callbacks.onMathReset?.(),
       onToggleDashedLines: (show) => this.callbacks.onMathToggleDashedLines?.(show),
       onToggleCoordinateSystem: (show) => this.callbacks.onMathToggleCoordinateSystem?.(show),
       onToggleEmbeddingBox: (show) => this.callbacks.onMathToggleEmbeddingBox?.(show),
@@ -856,6 +862,9 @@ export class VisionModal {
     }
 
     blurActiveInput(true);
+    if (typeof document !== 'undefined') {
+      (document.activeElement as HTMLElement)?.blur?.();
+    }
     this.bodyContainer.innerHTML = '';
     this.statusCardSlot.innerHTML = '';
     this.statusCardSlot.style.display = 'none';
@@ -865,7 +874,6 @@ export class VisionModal {
     if (tab === 'disciplines') {
       this.bodyContainer.appendChild(this.disciplineSelector.element);
     } else if (tab === 'chemistry') {
-      this.setActiveBeaker('left');
       this.bodyContainer.appendChild(this.periodicTableModal.element);
       this.callbacks.onSelectChemistry?.();
     } else if (tab === 'physics') {
