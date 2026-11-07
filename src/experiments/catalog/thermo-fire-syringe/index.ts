@@ -18,6 +18,7 @@ import {
   type FireSyringeTelemetry,
 } from '../../../physics/thermo/fireSyringeSolver.ts';
 import { FireSyringeBenchMesh } from '../../../scene/thermo/FireSyringeBenchMesh.ts';
+import { FireSyringeAudio } from '../../../scene/thermo/FireSyringeAudio.ts';
 import { metadata } from './meta.ts';
 
 export default class ThermoFireSyringeExperiment extends BaseExperiment {
@@ -32,6 +33,7 @@ export default class ThermoFireSyringeExperiment extends BaseExperiment {
 
   private isDisposed = false;
   private cachedTelemetry: FireSyringeTelemetry | null = null;
+  private readonly audio = new FireSyringeAudio();
 
   // 3D T 形手柄拖拽交互状态
   private isDraggingHandle = false;
@@ -58,8 +60,7 @@ export default class ThermoFireSyringeExperiment extends BaseExperiment {
     this.addDisposable(() => this.bench.dispose());
 
     const telem = this.solver.getTelemetry();
-    this.cachedTelemetry = telem;
-    this.bench.update(0, telem);
+    this.updateEffects(0, telem);
   }
 
   public update(delta: number, _elapsed: number, _context: ExperimentContext): void {
@@ -78,11 +79,16 @@ export default class ThermoFireSyringeExperiment extends BaseExperiment {
 
     // 2. 获取实时遥测并驱动 3D 动效
     const telem = this.solver.getTelemetry();
-    this.cachedTelemetry = telem;
+    this.updateEffects(delta, telem);
+  }
 
-    if (this.bench) {
-      this.bench.update(delta, telem);
+  private updateEffects(delta: number, telem: FireSyringeTelemetry): void {
+    // Match the 3D flash's visibility threshold and play only on its rising edge.
+    if (telem.flashIntensity > 0.01 && (this.cachedTelemetry?.flashIntensity ?? 0) <= 0.01) {
+      this.audio.playIgnition();
     }
+    this.cachedTelemetry = telem;
+    this.bench?.update(delta, telem);
   }
 
   /**
@@ -97,6 +103,8 @@ export default class ThermoFireSyringeExperiment extends BaseExperiment {
 
     const targetType = this.resolveHitTarget(hit.object);
     if (!targetType) return false;
+
+    this.audio.unlock();
 
     // 点击底部燃烧室观察窗/火绒：若火绒已燃尽或活塞在下方，触发上提排烟并换上洁白新火绒
     if (targetType === 'tinder') {
@@ -170,8 +178,7 @@ export default class ThermoFireSyringeExperiment extends BaseExperiment {
 
     this.solver.dragToStroke(targetStroke, dt);
     const telem = this.solver.getTelemetry();
-    this.cachedTelemetry = telem;
-    this.bench.update(dt, telem);
+    this.updateEffects(dt, telem);
   }
 
   /**
@@ -300,11 +307,13 @@ export default class ThermoFireSyringeExperiment extends BaseExperiment {
 
   // ================= 外部与参数抽屉控制接口 =================
   public triggerQuickSlam(): void {
+    this.audio.unlock();
     this.solver.triggerQuickSlam();
     this.cachedTelemetry = this.solver.getTelemetry();
   }
 
   public triggerSlowPress(): void {
+    this.audio.unlock();
     this.solver.triggerSlowPress();
     this.cachedTelemetry = this.solver.getTelemetry();
   }
@@ -312,8 +321,7 @@ export default class ThermoFireSyringeExperiment extends BaseExperiment {
   public resetExperiment(): void {
     this.solver.reset();
     const telem = this.solver.getTelemetry();
-    this.cachedTelemetry = telem;
-    this.bench?.update(0, telem);
+    this.updateEffects(0, telem);
   }
 
   public getTelemetryData(): FireSyringeTelemetry {
@@ -342,6 +350,7 @@ export default class ThermoFireSyringeExperiment extends BaseExperiment {
   public override dispose(context: ExperimentContext): void {
     this.isDisposed = true;
     this.isDraggingHandle = false;
+    this.audio.dispose();
     super.dispose(context);
   }
 }

@@ -43,8 +43,8 @@ export class MoleculeHologramStage {
   private isShown = false;
   private targetScale = 0;
   private currentScale = 0;
-  private baseRadius = 0.135;
-  private fitScale = 0.080;
+  // 所有分子共用空间单位比例，同一种元素的原子不会随分子整体大小改变半径。
+  private readonly modelScale = 0.12;
 
   // 空间卡片对焦与平滑迁移
   private currentLocalPos = new THREE.Vector3(0, -0.20, 0);
@@ -394,8 +394,8 @@ export class MoleculeHologramStage {
     const floatY = Math.sin(elapsed * 2.2) * 0.004 * windowScale;
     this.moleculeGroup.position.y = floatY;
 
-    // 应用综合缩放（归一化标准基准 * 进出场动画 * 视窗基础倍率 * 用户自定义缩放 * 量子凝聚脉冲）
-    const effectiveScale = this.fitScale * this.currentScale * windowScale * this.userZoom * this.scalePulse;
+    // 应用统一的原子/键长比例，以及进出场动画、视窗倍率和用户缩放。
+    const effectiveScale = this.modelScale * this.currentScale * windowScale * this.userZoom * this.scalePulse;
     this.moleculeGroup.scale.set(effectiveScale, effectiveScale, effectiveScale);
 
     // 水合离子量子轨道旋转
@@ -490,8 +490,9 @@ export class MoleculeHologramStage {
       this.createOrbitalShells(def.orbitalRings);
     }
 
-    // 5. 归一化居中与尺寸限制
-    this.normalizeModelSize();
+    // 5. 只居中，不按分子外接尺寸缩放，保留相同元素的统一原子半径。
+    this.centerModel();
+    this.moleculeGroup.scale.setScalar(this.modelScale);
   }
 
   /**
@@ -682,25 +683,31 @@ export class MoleculeHologramStage {
   }
 
   /**
-   * 自动居中与统一标准展台尺寸控制 (彻底消除分子间极端尺寸反差，确保每个分子清晰可见、大小匀称舒适)
+   * 在模型自身坐标中居中，分子整体大小由原子数量与结构决定。
    */
-  private normalizeModelSize(): void {
-    const box = new THREE.Box3().setFromObject(this.moleculeGroup);
+  private centerModel(): void {
+    // 只在模型局部坐标中测量，排除上次显示的缩放、动画和展台世界变换。
+    const box = new THREE.Box3();
+    const expandBounds = (object: THREE.Object3D, parentMatrix: THREE.Matrix4): void => {
+      object.updateMatrix();
+      const modelMatrix = new THREE.Matrix4().multiplyMatrices(parentMatrix, object.matrix);
+      if (object instanceof THREE.Mesh || object instanceof THREE.Line) {
+        const geometry = object.geometry;
+        if (!geometry.boundingBox) geometry.computeBoundingBox();
+        if (geometry.boundingBox) {
+          box.union(geometry.boundingBox.clone().applyMatrix4(modelMatrix));
+        }
+      }
+      object.children.forEach((child) => expandBounds(child, modelMatrix));
+    };
+    const identity = new THREE.Matrix4();
+    this.moleculeGroup.children.forEach((child) => expandBounds(child, identity));
     if (box.isEmpty()) return;
 
     const center = new THREE.Vector3();
     box.getCenter(center);
-    this.moleculeGroup.position.sub(center);
-
-    const sphere = new THREE.Sphere();
-    box.getBoundingSphere(sphere);
-
-    // 统一百分比展示尺寸：所有分子在留白展台中均保持清晰可见的标准尺寸 (~0.27 米展台直径)
-    // 告别小分子过度微缩或大分子霸屏，使每一个选中的化学物质都拥有舒适大方的观赏视界 (无极端大小区分)
-    const targetShowcaseRadius = 0.135;
-    const maxR = Math.max(0.70, sphere.radius);
-    this.fitScale = targetShowcaseRadius / maxR;
-    this.moleculeGroup.scale.set(this.fitScale, this.fitScale, this.fitScale);
+    // 将居中偏移写入几何子节点，避免被逐帧的悬浮位置动画覆盖。
+    this.moleculeGroup.children.forEach((child) => child.position.sub(center));
   }
 
   /**
@@ -722,6 +729,7 @@ export class MoleculeHologramStage {
     this.moleculeGroup.position.set(0, 0, 0);
     this.moleculeGroup.rotation.set(0, 0, 0);
     this.moleculeGroup.quaternion.identity();
+    this.moleculeGroup.scale.setScalar(1);
 
     // 释放资源
     this.geometriesToDispose.forEach((g) => g.dispose());

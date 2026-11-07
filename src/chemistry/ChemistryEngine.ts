@@ -57,7 +57,7 @@ export interface ChemistryState {
   precipitates: Map<string, { formula: string; name: string; color: number; moles: number }>;
   solids: Map<string, { formula: string; name: string; moles: number }>;
   gases: Map<string, GasProduct>;
-  indicators: { phenolphthalein: number; litmus: number };
+  indicators: { phenolphthalein: number; litmus: number }; // 滴数；混合转移后可为小数
   liquidColor: THREE.Color;
   recentReactions: ChemicalReaction[];
   activeGasRate: number; // 0 to 1
@@ -103,6 +103,8 @@ export interface ChemistryComposition {
 }
 
 export class ChemistryEngine {
+  public static readonly DROP_VOLUME_ML = 0.05;
+
   public static readonly REAGENTS: Record<string, ChemicalReagent> = {
     H2O: {
       id: 'H2O',
@@ -353,6 +355,7 @@ export class ChemistryEngine {
       formula: 'C₂₀H₁₄O₄',
       category: 'indicator',
       state: 'liquid',
+      concentration: 0.01, // 模拟指示剂储备液浓度，mol/L
       color: 0xffffff,
       description: '酸碱指示剂：pH < 8.2 无色透明；pH ≥ 8.2 呈现明艳紫红色。',
       defaultAmount: 5,
@@ -599,7 +602,7 @@ export class ChemistryEngine {
     const occurredReactions: ChemicalReaction[] = [];
 
     if (reagent.state === 'liquid') {
-      const addedVol = qty; // in mL
+      const addedVol = reagent.unit === '滴' ? qty * ChemistryEngine.DROP_VOLUME_ML : qty;
       this.state.volume = Math.min(this.state.maxVolume, this.state.volume + addedVol);
       const volLiters = addedVol / 1000;
 
@@ -670,7 +673,7 @@ export class ChemistryEngine {
         this.addIon('K+', moles);
         this.addIon('MnO4-', moles);
       } else if (reagent.id === 'phenolphthalein') {
-        this.state.indicators.phenolphthalein += 1;
+        this.state.indicators.phenolphthalein += qty;
         occurredReactions.push({
           id: 'add_indicator',
           title: '加入酚酞指示剂',
@@ -682,7 +685,7 @@ export class ChemistryEngine {
           heatDelta: 0,
         });
       } else if (reagent.id === 'litmus') {
-        this.state.indicators.litmus += 1;
+        this.state.indicators.litmus += qty;
         const colorDesc = this.state.pH < 5.0 ? '红色' : this.state.pH > 8.0 ? '蓝色' : '紫色';
         occurredReactions.push({
           id: 'add_litmus',
@@ -2221,6 +2224,29 @@ export class ChemistryEngine {
   public computeCompositionSync(mode: 'substance' | 'ion' = 'substance'): ChemistryComposition {
     const components: SoluteComponent[] = [];
     const volLiters = Math.max(0.001, this.state.volume / 1000);
+
+    // 无色指示剂也属于溶质，不能因为没有显色就把体系显示为纯水。
+    // 分子态酚酞只在物质视图中列出，不作为游离离子。
+    if (mode === 'substance' && this.state.indicators.phenolphthalein > 0) {
+      const reagent = ChemistryEngine.REAGENTS.phenolphthalein;
+      const moles = this.state.indicators.phenolphthalein
+        * ChemistryEngine.DROP_VOLUME_ML / 1000 * reagent.concentration!;
+      const molarMass = 318.32;
+      components.push({
+        id: 'indicator_phenolphthalein',
+        formula: reagent.formula,
+        name: reagent.name,
+        category: 'compound',
+        categoryLabel: '酸碱指示剂',
+        moles,
+        millimoles: moles * 1000,
+        molarMass,
+        massGrams: moles * molarMass,
+        concentration: moles / volLiters,
+        color: '#ff1493',
+        percentage: 0,
+      });
+    }
 
     const ION_META: Record<string, { formula: string; name: string; molarMass: number; color: string }> = {
       'H+': { formula: 'H⁺', name: '氢离子', molarMass: 1.008, color: '#ff453a' },

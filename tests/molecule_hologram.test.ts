@@ -595,7 +595,7 @@ assert.ok(stageWorldPos.z > mockWindowObj.position.z, '3D molecule must float st
 assert.ok(stageWorldPos.z < mockCamera.position.z, '3D molecule must float behind the camera (not clipped)');
 assert.ok(stageWorldPos.y < mockWindowObj.position.y, '3D molecule must be centered in the lower showcase area');
 
-// 验证分子尺寸尺度：有效缩放后分子必须紧凑适中（半径不超过 0.15 米，严禁数米霸屏）
+// 验证模型使用适合展台的空间单位比例，分子整体尺寸由原子数量与结构决定。
 const molScale = (stage as any).moleculeGroup.scale.x;
 assert.ok(molScale > 0.005 && molScale < 0.20, `Molecule effective scale (${molScale}) must be compact and non-obstructive`);
 
@@ -688,6 +688,119 @@ mockFrame.remove();
 testContainer.remove();
 
 console.log('✓ Test 8 passed: Molecular structure model always fixedly appears centered in front of the window\n');
+
+// -------------------------------------------------------------
+// Test 9: Stable Size Across First Open, Reopen and Compound Switches
+// -------------------------------------------------------------
+console.log('Test 9: Stable Size Across First Open, Reopen and Compound Switches');
+
+for (const compound of [
+  { id: 'H2O', formula: 'H2O', name: '水' },
+  { id: 'NaCl', formula: 'NaCl', name: '氯化钠' },
+  { id: 'C6H12O6', formula: 'C6H12O6', name: '葡萄糖' },
+  { id: 'Na+', formula: 'Na+', name: '钠离子' },
+]) {
+  const container = mockDoc.createElement('div');
+  mockDocBody.appendChild(container);
+  const sizeStage = new MoleculeHologramStage(container as any);
+  const model = (sizeStage as any).moleculeGroup as THREE.Group;
+  const root = (sizeStage as any).rootGroup as THREE.Group;
+  const windowObject = new THREE.Object3D();
+  windowObject.position.set(0.4, 1.6, -0.3);
+  windowObject.rotation.set(0.2, -0.35, 0.1);
+  const settle = (visible: boolean) => {
+    for (let frame = 0; frame < 120; frame++) {
+      sizeStage.update(1 / 60, 0, mockCamera, windowObject, 1, visible);
+    }
+  };
+  const readSize = () => new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+
+  sizeStage.showCompound(compound);
+  settle(true);
+  const firstSize = readSize();
+  const firstCenterOffset = new THREE.Box3().setFromObject(model)
+    .getCenter(new THREE.Vector3()).sub(root.position);
+  const assertStableSize = (context: string) => {
+    settle(true);
+    assert.ok(
+      readSize().distanceTo(firstSize) < 1e-8,
+      `${compound.formula} must keep its first-open size after ${context}`
+    );
+    const centerOffset = new THREE.Box3().setFromObject(model)
+      .getCenter(new THREE.Vector3()).sub(root.position);
+    assert.ok(centerOffset.distanceTo(firstCenterOffset) < 1e-8, `${compound.formula} must not drift on reopening`);
+  };
+
+  sizeStage.hide();
+  settle(false);
+  sizeStage.showCompound(compound);
+  assertStableSize('closing and reopening');
+
+  sizeStage.showCompound({ id: 'CO2', formula: 'CO2', name: '二氧化碳' });
+  settle(true);
+  sizeStage.showCompound(compound);
+  assertStableSize('switching to another compound and back');
+
+  (sizeStage as any).targetUserZoom = 2.4;
+  settle(true);
+  sizeStage.hide();
+  sizeStage.update(1 / 60, 0, mockCamera, windowObject, 1, false);
+  sizeStage.showCompound(compound);
+  assertStableSize('zooming and reopening during the exit animation');
+
+  sizeStage.dispose();
+  container.remove();
+}
+
+console.log('✓ Test 9 passed: First-open size, centering and subsequent display sizes remain consistent\n');
+
+// -------------------------------------------------------------
+// Test 10: Identical Elements Keep Their Atomic Radii Across Molecules
+// -------------------------------------------------------------
+console.log('Test 10: Consistent atomic radii across small molecules, large molecules and ions');
+
+const atomSizeContainer = mockDoc.createElement('div');
+mockDocBody.appendChild(atomSizeContainer);
+const atomSizeStage = new MoleculeHologramStage(atomSizeContainer as any);
+const atomicRadii = new Map<string, number>();
+const compoundSizes = new Map<string, number>();
+
+for (const formula of ['H2O', 'CO2', 'CH4', 'C6H12O6', 'NaCl', 'Na+', 'Cl-', 'H2O']) {
+  atomSizeStage.showCompound({ id: formula, formula, name: formula });
+  for (let frame = 0; frame < 180; frame++) {
+    atomSizeStage.update(1 / 60, 0, mockCamera, mockWindowObj, 1, true);
+  }
+  const model = (atomSizeStage as any).moleculeGroup as THREE.Group;
+  model.updateWorldMatrix(true, true);
+  model.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || !object.userData.isAtom) return;
+    object.geometry.computeBoundingSphere();
+    const sphere = object.geometry.boundingSphere!.clone().applyMatrix4(object.matrixWorld);
+    const element = object.userData.element as string;
+    if (atomicRadii.has(element)) {
+      assert.ok(
+        Math.abs(sphere.radius - atomicRadii.get(element)!) < 1e-10,
+        `${element} must have the same radius in ${formula}, independent of the molecule's total size`
+      );
+    } else {
+      atomicRadii.set(element, sphere.radius);
+    }
+  });
+  const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+  compoundSizes.set(formula, size.length());
+}
+
+assert.ok(
+  compoundSizes.get('C6H12O6')! > compoundSizes.get('H2O')! * 2,
+  'Larger molecules must occupy more space instead of shrinking their atoms to the same overall size'
+);
+assert.ok(
+  Math.abs(atomicRadii.get('H')! / atomicRadii.get('O')! - getElementSpec('H').radius / getElementSpec('O').radius) < 1e-6,
+  'The existing relative radii of different elements must be preserved'
+);
+atomSizeStage.dispose();
+atomSizeContainer.remove();
+console.log('✓ Test 10 passed: Atomic radii stay consistent while overall size follows molecular structure\n');
 
 console.log('========================================================');
 console.log('All Molecule Hologram 3D Feature Tests Passed Successfully!');

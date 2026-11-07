@@ -315,6 +315,22 @@ export class VisionProCursor {
     }
   }
 
+  /** Tracking can stop without another frame, so cancel input and visuals explicitly. */
+  public reset(): void {
+    this.releasePinch(this.currentRightX, this.currentRightY, undefined, true);
+    this.setRightVisible(false);
+    this.setLeftVisible(false);
+    this.isDualPinching = false;
+    this.rightContainer.className = 'hidden';
+    this.leftContainer.className = 'hidden';
+    this.rightCore.style.transform = 'scale(1)';
+    this.leftCore.style.transform = 'scale(1)';
+    this.rightPulseRing.classList.remove('pulsing');
+    this.leftPulseRing.classList.remove('pulsing');
+    this.lastLeftClass = '';
+    this.lastLeftBadgeText = '';
+  }
+
   private startRenderLoop(): void {
     if (this.animFrameId !== null) return;
     const loop = () => {
@@ -691,7 +707,8 @@ export class VisionProCursor {
   private releasePinch(
     x = this.currentRightX,
     y = this.currentRightY,
-    currentElement?: Element
+    currentElement?: Element,
+    cancelled = false
   ): void {
     if (!this.isRightPinching && !this.dragTarget) return;
 
@@ -699,12 +716,13 @@ export class VisionProCursor {
     this.rightContainer.classList.remove('pinching');
 
     const target = this.dragTarget || currentElement || document.body;
+    this.dragTarget = null;
 
-    this.dispatchPointerEvent('pointerup', target, x, y, 0, 0);
+    this.dispatchPointerEvent(cancelled ? 'pointercancel' : 'pointerup', target, x, y, 0, 0);
     this.dispatchMouseEvent('mouseup', target, x, y, 0, 0);
 
     const dist = Math.hypot(x - this.dragStartX, y - this.dragStartY);
-    if (dist < 42) {
+    if (!cancelled && dist < 42) {
       const upTarget = currentElement || document.elementFromPoint(x, y) || target;
       const clickTarget =
         upTarget && target.contains(upTarget) ? upTarget : target;
@@ -719,8 +737,6 @@ export class VisionProCursor {
         clickTarget.click();
       }
     }
-
-    this.dragTarget = null;
   }
 
   private clearHover(): void {

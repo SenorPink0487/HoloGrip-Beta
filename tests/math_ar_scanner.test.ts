@@ -155,6 +155,7 @@ const { GeometrySolver } = await import('../src/scene/math/GeometrySolver.ts');
 const { MiniModelPreview } = await import('../src/ui/vision/MiniModelPreview.ts');
 const { MathARSpatialScene } = await import('../src/ui/vision/MathARSpatialScene.ts');
 const { MathARScannerModal } = await import('../src/ui/vision/MathARScannerModal.ts');
+const { StereometryStatusCard } = await import('../src/ui/vision/StereometryStatusCard.ts');
 
 console.log('=== Starting Math AR Camera Scanner Tests ===\n');
 
@@ -519,6 +520,194 @@ assert.strictEqual(lastSyncedToTable.auxEdges?.length, 2, 'Recognized auxiliary 
 liveScanner.close();
 console.log('✓ Test 11 passed: Real recognized PolyhedronModelDef preserved across AR scanner & HoloTable\n');
 
+// -------------------------------------------------------------
+// Test 12: Main Math Upload Opens Photos Without Entering the Camera
+// -------------------------------------------------------------
+console.log('Test 12: Main math upload opens photos directly');
+
+const uploadCard = new StereometryStatusCard();
+const uploadButton = uploadCard.element.querySelector('#btn-math-upload')!;
+const cameraButton = uploadCard.element.querySelector('#btn-math-camera')!;
+const uploadInput = uploadCard.element.querySelector('#math-scan-file')!;
+let uploadPickerOpens = 0;
+let cameraPageOpens = 0;
+(uploadInput as any).click = () => { uploadPickerOpens++; };
+uploadCard.openARScanner = () => { cameraPageOpens++; };
+
+(uploadButton as any).click();
+assert.equal(uploadPickerOpens, 1, 'Upload must open the image picker within the original click');
+assert.equal(cameraPageOpens, 0, 'Upload must not open the camera workbench');
+(cameraButton as any).click();
+assert.equal(cameraPageOpens, 1, 'The separate camera button must still open the camera workbench');
+
+const uploadNavigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+const previousInternals = nativeWindow.__TAURI_INTERNALS__;
+Object.defineProperty(globalThis, 'navigator', {
+  configurable: true,
+  value: { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)', platform: 'MacIntel', maxTouchPoints: 5 },
+});
+const uploadNativeCommands: string[] = [];
+let uploadNativeResult: any = { cancelled: true };
+let uploadNativeError = false;
+nativeWindow.__TAURI_INTERNALS__ = {
+  invoke: async (command: string) => {
+    uploadNativeCommands.push(command);
+    if (uploadNativeError) throw new Error('Photo library unavailable');
+    return uploadNativeResult;
+  },
+};
+const originalUploadPick = (uploadCard as any).openPhotoLibrary.bind(uploadCard);
+let pendingUpload: Promise<void>;
+(uploadCard as any).openPhotoLibrary = (...args: any[]) => {
+  pendingUpload = originalUploadPick(...args);
+  return pendingUpload;
+};
+let uploadedImage: string | undefined;
+(uploadCard as any).handleImage = async (dataUrl: string) => { uploadedImage = dataUrl; };
+try {
+  (uploadButton as any).click();
+  await pendingUpload!;
+  assert.deepEqual(uploadNativeCommands, ['plugin:apple-vision|pickPhoto'], 'iPad upload must directly invoke the native album');
+  assert.equal(uploadedImage, undefined, 'Cancelling the album must not start recognition');
+
+  uploadNativeResult = { dataUrl: 'data:image/jpeg;base64,uploaded-problem' };
+  (uploadButton as any).click();
+  await pendingUpload!;
+  assert.equal(uploadedImage, uploadNativeResult.dataUrl, 'The selected photo must enter the existing recognition flow');
+
+  uploadNativeError = true;
+  (uploadButton as any).click();
+  await pendingUpload!;
+  assert.equal(uploadPickerOpens, 1, 'Native picker failure must not open another source picker');
+  assert.equal(cameraPageOpens, 1, 'Neither selecting, cancelling nor failing an upload may open the camera');
+} finally {
+  if (uploadNavigatorDescriptor) Object.defineProperty(globalThis, 'navigator', uploadNavigatorDescriptor);
+  else delete (globalThis as any).navigator;
+  if (previousInternals === undefined) delete nativeWindow.__TAURI_INTERNALS__;
+  else nativeWindow.__TAURI_INTERNALS__ = previousInternals;
+  uploadCard.dispose();
+}
+console.log('✓ Test 12 passed: Main upload directly selects photos in browser and iPad app\n');
+
+// -------------------------------------------------------------
+// Test 13: Uploaded Paper Uses the Camera Recognition Animation and AR Overlay
+// -------------------------------------------------------------
+console.log('Test 13: Uploaded paper keeps the original image under animated AR recognition');
+
+const imageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'Image');
+const bitmapDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
+const pendingPaperImages: any[] = [];
+class PendingPaperImage {
+  width = 1200;
+  height = 800;
+  src = '';
+  onload?: () => void;
+  onerror?: () => void;
+  constructor() { pendingPaperImages.push(this); }
+}
+Object.defineProperty(globalThis, 'Image', { configurable: true, value: PendingPaperImage });
+let optimizedFile: File | undefined;
+Object.defineProperty(globalThis, 'createImageBitmap', {
+  configurable: true,
+  value: async (file: File) => {
+    optimizedFile = file;
+    return { width: 1200, height: 800, close: () => {} };
+  },
+});
+const scannerPrototype = MathARScannerModal.prototype as any;
+const originalStartCamera = scannerPrototype.startCamera;
+let uploadCameraStarts = 0;
+scannerPrototype.startCamera = async () => { uploadCameraStarts++; };
+const paperRecognitions: string[] = [];
+const drawnPaperImages: string[] = [];
+let finishPaperRecognition: () => void;
+let syncedPaperModel: any;
+const paperCard = new StereometryStatusCard({
+  onRecognizeImage: async (dataUrl) => {
+    paperRecognitions.push(dataUrl);
+    assert.equal(drawnPaperImages.at(-1), dataUrl, 'The original paper must be drawn before recognition begins');
+    return await new Promise((resolve) => {
+      finishPaperRecognition = () => resolve({
+        name: recognizedCustomDef.name,
+        subtitle: recognizedCustomDef.subtitle,
+        modelDef: recognizedCustomDef,
+      });
+    });
+  },
+  onSyncRecognizedModel: (def) => { syncedPaperModel = def; },
+});
+const paperScanners: MathARScannerModal[] = [];
+const originalCreateScanner = (paperCard as any).createARScanner.bind(paperCard);
+(paperCard as any).createARScanner = (autoStartCamera: boolean) => {
+  const workbench = originalCreateScanner(autoStartCamera) as MathARScannerModal;
+  const paperCanvas = workbench.element.querySelector('#math-ar-sim-canvas') as any;
+  const context = paperCanvas.getContext('2d');
+  context.drawImage = (image: PendingPaperImage) => { drawnPaperImages.push(image.src); };
+  paperCanvas.getContext = () => context;
+  paperScanners.push(workbench);
+  return workbench;
+};
+let pendingPaperUpload: Promise<void>;
+const originalHandlePaper = (paperCard as any).handleImage.bind(paperCard);
+(paperCard as any).handleImage = (image: File | string) => {
+  pendingPaperUpload = originalHandlePaper(image);
+  return pendingPaperUpload;
+};
+
+try {
+  const originalPaper = 'data:image/jpeg;base64,original-uploaded-paper';
+  const nativeUpload = (paperCard as any).handleImage(originalPaper) as Promise<void>;
+  assert.equal(paperRecognitions.length, 0, 'Recognition must wait for the source photo to load');
+  assert.equal(uploadCameraStarts, 0, 'Opening an uploaded paper must not start the camera');
+  pendingPaperImages.at(-1).onload();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  const nativeWorkbench = paperScanners.at(-1)!;
+  const nativeLaser = nativeWorkbench.element.querySelector('#math-ar-laser')!;
+  assert.equal(nativeWorkbench.element.querySelector('#math-ar-sim-canvas')!.style.display, 'block', 'Original paper must remain visible');
+  assert.equal(nativeWorkbench.element.querySelector('#math-ar-video')!.style.display, 'none', 'Camera preview must remain hidden');
+  assert.ok(nativeLaser.classList.contains('active'), 'Upload must play the same scan animation while recognition is pending');
+  assert.equal((nativeWorkbench as any).models.length, 0, 'No replacement model may appear before recognition finishes');
+  finishPaperRecognition!();
+  await nativeUpload;
+  assert.equal((nativeWorkbench as any).models[0].dataUrl, originalPaper, 'The AR item must retain the uploaded paper');
+  assert.equal((nativeWorkbench as any).models[0].modelDef, recognizedCustomDef, 'AR must use the actual recognized geometry');
+  assert.equal(syncedPaperModel, recognizedCustomDef, 'The same geometry must sync back to the math scene');
+  assert.ok(!nativeLaser.classList.contains('active'), 'Scan animation must finish when AR is ready');
+  nativeWorkbench.close();
+
+  const paperFile = new File(['paper'], 'problem.jpg', { type: 'image/jpeg' });
+  const paperInput = paperCard.element.querySelector('#math-scan-file') as any;
+  paperInput.files = [paperFile];
+  paperInput.eventListeners.change[0]();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(optimizedFile, paperFile, 'Browser uploads must use the shared image optimization pipeline');
+  pendingPaperImages.at(-1).onload();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const browserWorkbench = paperScanners.at(-1)!;
+  assert.ok(browserWorkbench.element.querySelector('#math-ar-laser')!.classList.contains('active'), 'Browser upload must also animate on the paper');
+  finishPaperRecognition!();
+  await pendingPaperUpload!;
+  assert.equal((browserWorkbench as any).models[0].modelDef, recognizedCustomDef, 'Browser uploads must generate the same AR geometry');
+  assert.equal(uploadCameraStarts, 0, 'Neither native nor browser uploads may start the camera');
+  browserWorkbench.close();
+
+  const closedUpload = (paperCard as any).handleImage(originalPaper) as Promise<void>;
+  paperScanners.at(-1)!.close();
+  pendingPaperImages.at(-1).onload();
+  await closedUpload;
+  assert.equal(paperRecognitions.length, 2, 'Closing while the paper loads must not start recognition afterward');
+} finally {
+  paperScanners.forEach((workbench) => workbench.close());
+  paperCard.dispose();
+  scannerPrototype.startCamera = originalStartCamera;
+  if (imageDescriptor) Object.defineProperty(globalThis, 'Image', imageDescriptor);
+  else delete (globalThis as any).Image;
+  if (bitmapDescriptor) Object.defineProperty(globalThis, 'createImageBitmap', bitmapDescriptor);
+  else delete (globalThis as any).createImageBitmap;
+}
+console.log('✓ Test 13 passed: Native/browser uploads animate over the original paper and generate AR without starting a camera\n');
+
 console.log('========================================================');
-console.log('All Math AR Camera Scanner Tests Passed Successfully (11/11)!');
+console.log('All Math AR Camera Scanner Tests Passed Successfully (13/13)!');
 console.log('========================================================');

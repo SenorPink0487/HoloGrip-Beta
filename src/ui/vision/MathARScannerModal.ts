@@ -3,6 +3,7 @@ import { GeometrySolver, type PolyhedronModelDef } from '../../scene/math/Geomet
 import { buildRecognizedModel, type RecognizedFigure } from '../../scene/math/figureModel.ts';
 import { recognizeStereometryImage } from '../../scene/math/recognizeFigure.ts';
 import { MathARSpatialScene, type ARSpatialItem } from './MathARSpatialScene.ts';
+import { pickProblemPhoto } from './pickProblemPhoto.ts';
 
 export interface ARModelItem {
   id: string;
@@ -15,6 +16,7 @@ export interface ARModelItem {
 }
 
 export interface MathARScannerModalOptions {
+  autoStartCamera?: boolean;
   onSyncModel?: (def: PolyhedronModelDef) => void;
   onRecognizeImage?: (dataUrl: string) => Promise<{ name: string; subtitle: string; modelDef?: PolyhedronModelDef }>;
   onClose?: () => void;
@@ -49,6 +51,8 @@ export class MathARScannerModal {
   private models: ARModelItem[] = [];
   private selectedModelId: string | null = null;
   private isAnalyzing = false;
+  private isLoadingImage = false;
+  private isClosed = false;
   private isGridVisible = true;
   private isTorchOn = false;
 
@@ -67,7 +71,11 @@ export class MathARScannerModal {
     this.buildUI();
     this.initSpatialScene();
     this.bindEvents();
-    this.startCamera();
+    if (options.autoStartCamera !== false) {
+      void this.startCamera();
+    } else {
+      this.setStatus('正在载入题目…');
+    }
   }
 
   private buildUI(): void {
@@ -258,30 +266,13 @@ export class MathARScannerModal {
       void this.handlePhotoLibraryPick();
     });
 
-    const onFileSelected = async (file: File | undefined, label: string) => {
-      if (!file) return;
-
-      this.setStatus(`正在优化并载入${label}…`);
-      this.shutterBtn?.classList.add('is-busy');
-
-      try {
-        const { displayDataUrl, thumbDataUrl } = await this.optimizeImageFile(file);
-        this.displayPaperBackdrop(displayDataUrl);
-        await this.processImageData(displayDataUrl, label, thumbDataUrl);
-      } catch (err) {
-        this.setStatus(err instanceof Error ? err.message : '图片载入失败');
-      } finally {
-        this.shutterBtn?.classList.remove('is-busy');
-      }
-    };
-
     this.albumInputEl?.addEventListener('cancel', () => {
       this.setStatus('已取消相册选择');
     });
 
     this.albumInputEl?.addEventListener('change', async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      await onFileSelected(file, '相册试卷题目');
+      if (file) await this.loadProblemImage(file, '相册试卷题目');
       (e.target as HTMLInputElement).value = '';
     });
 
@@ -291,7 +282,7 @@ export class MathARScannerModal {
 
     this.cameraInputEl?.addEventListener('change', async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      await onFileSelected(file, `拍摄试卷题目`);
+      if (file) await this.loadProblemImage(file, '拍摄试卷题目');
       (e.target as HTMLInputElement).value = '';
     });
 
@@ -494,37 +485,58 @@ export class MathARScannerModal {
   /**
    * 将相册导入的试卷照片投射到背景画布上，使 3D 几何真正直接立在相册试卷之上。
    */
-  private displayPaperBackdrop(imageDataUrl: string): void {
-    if (!this.canvasLayerEl) return;
-    this.canvasLayerEl.style.display = 'block';
+  private async displayPaperBackdrop(imageDataUrl: string): Promise<void> {
+    if (!this.canvasLayerEl || typeof Image === 'undefined') return;
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('题目图片载入失败，请重新选择'));
+      img.src = imageDataUrl;
+    });
+    if (this.isClosed) return;
+
+    const canvas = this.canvasLayerEl;
+    canvas.width = window.innerWidth || 1024;
+    canvas.height = window.innerHeight || 768;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    const dx = (canvas.width - dw) / 2;
+    const dy = (canvas.height - dh) / 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+
+    canvas.style.display = 'block';
     if (this.videoEl) {
       this.videoEl.style.display = 'none';
-      try {
-        this.videoEl.pause();
-      } catch {}
+      try { this.videoEl.pause(); } catch {}
     }
+  }
 
-    const img = new Image();
-    img.onload = () => {
-      const canvas = this.canvasLayerEl;
-      if (!canvas) return;
-      canvas.width = window.innerWidth || 1024;
-      canvas.height = window.innerHeight || 768;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      ctx.fillStyle = '#0f0f12';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
-      const dw = img.width * scale;
-      const dh = img.height * scale;
-      const dx = (canvas.width - dw) / 2;
-      const dy = (canvas.height - dh) / 2;
-
-      ctx.drawImage(img, dx, dy, dw, dh);
-    };
-    img.src = imageDataUrl;
+  /** 先呈现原题，再复用拍照解析的扫描动画与纸面 AR 模型生成流程。 */
+  public async loadProblemImage(image: File | string, label = '相册试卷题目'): Promise<void> {
+    if (this.isClosed || this.isLoadingImage || this.isAnalyzing) return;
+    this.isLoadingImage = true;
+    this.setStatus(`正在优化并载入${label}…`);
+    this.shutterBtn?.classList.add('is-busy');
+    try {
+      const { displayDataUrl, thumbDataUrl } = typeof image === 'string'
+        ? { displayDataUrl: image, thumbDataUrl: image }
+        : await this.optimizeImageFile(image);
+      await this.displayPaperBackdrop(displayDataUrl);
+      if (this.isClosed) return;
+      await this.processImageData(displayDataUrl, label, thumbDataUrl);
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : '图片载入失败');
+    } finally {
+      this.isLoadingImage = false;
+      this.shutterBtn?.classList.remove('is-busy');
+    }
   }
 
   /**
@@ -641,7 +653,7 @@ export class MathARScannerModal {
    * 快门拍照与截帧。
    */
   private async captureAndRecognize(): Promise<void> {
-    if (this.isAnalyzing) return;
+    if (this.isClosed || this.isAnalyzing || this.isLoadingImage) return;
 
     // 当实时视频流未开启 (如 iPad 在局域网 HTTP 预览受限、权限被拒或无 WebRTC 硬件流) 时，
     // 点击快门直接唤起 iPad 原生系统相机直接拍照！
@@ -733,6 +745,7 @@ export class MathARScannerModal {
    * 识别图像并在试卷上直接安放真实 3D 多面体。
    */
   private async processImageData(dataUrl: string, defaultName: string, thumbUrl?: string): Promise<void> {
+    if (this.isClosed) return;
     this.isAnalyzing = true;
     this.shutterBtn?.classList.add('is-busy');
     this.scanLaserEl?.classList.add('active');
@@ -777,6 +790,7 @@ export class MathARScannerModal {
       if (!modelDef) {
         modelDef = GeometrySolver.createModel('square-pyramid');
       }
+      if (this.isClosed) return;
 
       // 获取取景框中心或试卷对应屏幕位置
       const finderEl = this.element.querySelector('#math-ar-finder');
@@ -998,44 +1012,30 @@ export class MathARScannerModal {
    * 浏览器和桌面环境使用文件选择器。
    */
   private async handlePhotoLibraryPick(): Promise<void> {
-    const isAppleMobile = typeof navigator !== 'undefined' && (
-      /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-    );
-    if (isAppleMobile && typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const res: any = await invoke('plugin:apple-vision|pickPhoto');
-        if (res && res.dataUrl) {
-          this.setStatus('正在优化并载入相册试卷…');
-          this.shutterBtn?.classList.add('is-busy');
-          try {
-            this.displayPaperBackdrop(res.dataUrl);
-            await this.processImageData(res.dataUrl, '相册试卷题目');
-          } finally {
-            this.shutterBtn?.classList.remove('is-busy');
-          }
-          return;
-        } else if (res && res.cancelled) {
-          this.setStatus('已取消相册选择');
-          return;
-        }
-      } catch (_nativeErr) {
-        this.setStatus('无法打开相册，请重试');
+    this.setStatus('正在打开相册…', 1500);
+    try {
+      const selection = await pickProblemPhoto(this.albumInputEl);
+      if (!selection) return;
+      if (selection.dataUrl) {
+        await this.loadProblemImage(selection.dataUrl);
+        return;
+      }
+      if (selection.cancelled) {
+        this.setStatus('已取消相册选择');
         return;
       }
       this.setStatus('无法读取相册图片，请重试');
-      return;
+    } catch {
+      this.setStatus('无法打开相册，请重试');
     }
-
-    this.setStatus('正在打开相册…', 1500);
-    this.albumInputEl?.click();
   }
 
   /**
    * 退出并关闭工作台，同步最终模型并安全清理硬件资源。
    */
   public close(): void {
+    if (this.isClosed) return;
+    this.isClosed = true;
     this.isLiveCameraActive = false;
     if (this.selectedModelId) {
       const active = this.models.find((m) => m.id === this.selectedModelId);

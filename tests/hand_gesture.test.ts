@@ -1297,6 +1297,7 @@ await (async () => {
   const events: Array<{ target: CursorElement; type: string; clientX: number; clientY: number }> = [];
   class CursorElement {
     id = ''; tagName = 'DIV'; innerHTML = ''; textContent = ''; offsetWidth = 32;
+    nativeClicks = 0;
     style: Record<string, string> = {};
     parentNode: CursorElement | null = null;
     children: CursorElement[] = [];
@@ -1312,6 +1313,10 @@ await (async () => {
     set className(value: string) { this.tokens = new Set(value.split(/\s+/).filter(Boolean)); }
     appendChild(child: CursorElement) { this.children.push(child); child.parentNode = this; return child; }
     removeChild(child: CursorElement) { this.children = this.children.filter(c => c !== child); child.parentNode = null; }
+    addEventListener() {}
+    removeEventListener() {}
+    getContext() { return {}; }
+    click() { this.nativeClicks++; }
     querySelector(selector: string) {
       if (!this.parts.has(selector)) this.parts.set(selector, new CursorElement());
       return this.parts.get(selector)!;
@@ -1337,7 +1342,7 @@ await (async () => {
     querySelector: () => showPreview ? { getBoundingClientRect: () => ({ left: 700, right: 900, top: 400, bottom: 600 }) } : null,
     elementFromPoint: (x: number, y: number) => { hits.push([x, y]); return x < 100 ? buttonA : buttonB; },
   });
-  install('window', { innerWidth: 1920, innerHeight: 1080 });
+  install('window', { innerWidth: 1920, innerHeight: 1080, addEventListener() {}, removeEventListener() {} });
   install('performance', { now: () => time });
   install('HTMLElement', CursorElement);
   install('HTMLCanvasElement', class {});
@@ -1346,6 +1351,7 @@ await (async () => {
   install('requestAnimationFrame', (callback: () => void) => { raf = callback; return 1; });
   install('cancelAnimationFrame', () => { raf = null; });
   let cursor: InstanceType<typeof VisionProCursor> | undefined;
+  let engine: any;
   try {
     cursor = new VisionProCursor(body as any);
     const rightEl = body.children.find(c => c.id === 'vision-pro-hand-cursor')!;
@@ -1395,14 +1401,90 @@ await (async () => {
     cursor.setRightVisible(false); cursor.setLeftVisible(false);
     assert(rightEl.classList.contains('hidden') && leftEl.classList.contains('hidden'),
       'Rule experiments can hide cursors while rendering their 3D arm');
+
+    // Exercise the real Engine status subscription and HUD shutdown, without a
+    // camera or WebGL renderer. Stopping tracking emits no final hand frame.
+    cursor.destroy();
+    cursor = undefined;
+    const { Engine } = await import('../src/core/Engine.ts');
+    engine = Object.create(Engine.prototype);
+    Object.assign(engine, {
+      currentExperimentId: null,
+      inputManager: { player: { exitLock() {}, isLocked: false } },
+      visionModal: { setGestureNavigationEnabled() {}, cancelOutsideBackPress() {} },
+    });
+    engine.initHandTracking();
+    const tracking = engine.handGestureService as any;
+    const activeCursor = engine.visionProCursor as InstanceType<typeof VisionProCursor>;
+    const rightCursor = body.children.find(c => c.id === 'vision-pro-hand-cursor')!;
+    const leftCursor = body.children.find(c => c.id === 'vision-pro-left-reticle')!;
+    const beginPinch = () => {
+      tracking.status = 'running';
+      tracking.notifyStatus();
+      tracking.broadcastFrame(rightFrame(150, { isPinching: true, justPinchStarted: true }));
+      assert(rightCursor.classList.contains('visible') && rightCursor.classList.contains('pinching'));
+    };
+    for (const shutdown of ['disable', 'pause', 'error', 'native-stop']) {
+      beginPinch();
+      const start = events.length;
+      const nativeClicks = buttonB.nativeClicks;
+      if (shutdown === 'disable') engine.handTrackingHUD.disable();
+      else if (shutdown === 'pause') tracking.pause();
+      else if (shutdown === 'error') { tracking.status = 'error'; tracking.notifyStatus(); }
+      else {
+        tracking.isAppleVisionMode = true;
+        tracking.appleVisionTracker = { stop() {} };
+        tracking.stop();
+        tracking.isAppleVisionMode = false;
+      }
+      assert(rightCursor.classList.contains('hidden'), `${shutdown}: cursor must hide without another frame`);
+      assert(!rightCursor.classList.contains('pinching'), `${shutdown}: pinch styling must reset`);
+      assert.strictEqual(raf, null, `${shutdown}: cursor animation must stop`);
+      const cancelled = events.slice(start);
+      assert.strictEqual(cancelled.filter(e => e.type === 'pointercancel').length, 1,
+        `${shutdown}: active pointer must be cancelled once`);
+      assert(cancelled.some(e => e.type === 'mouseup'), `${shutdown}: mouse consumers must also release`);
+      assert(!cancelled.some(e => e.type === 'click' || e.type === 'pointerup'),
+        `${shutdown}: interruption must not complete a click`);
+      assert.strictEqual(buttonB.nativeClicks, nativeClicks, `${shutdown}: no native click on cancellation`);
+      tracking.notifyStatus();
+      assert.strictEqual(events.length, start + cancelled.length, 'Repeated inactive status must be idempotent');
+    }
+
+    // A dual pinch must hide both cursors, and restarting in the same left-hand
+    // state must restore its classes despite the cached visual state.
+    tracking.status = 'running'; tracking.notifyStatus();
+    const dualFrame = { ...frame, isDualPinching: true,
+      rightHand: { ...frame.rightHand!, screenX: 150, screenY: 80, isPinching: true },
+      leftHand: { ...frame.leftHand!, isPinching: true, justPinchStarted: true } };
+    tracking.broadcastFrame(dualFrame);
+    assert(rightCursor.classList.contains('dual-pinching') && leftCursor.classList.contains('dual-pinching'));
+    engine.handTrackingHUD.disable();
+    assert.strictEqual(rightCursor.className, 'hidden');
+    assert.strictEqual(leftCursor.className, 'hidden');
+    assert.strictEqual(raf, null);
+    tracking.status = 'running'; tracking.notifyStatus();
+    tracking.broadcastFrame(dualFrame);
+    assert(leftCursor.classList.contains('visible') && !leftCursor.classList.contains('hidden'),
+      'Re-enabling in the same cached left-hand state must restore visibility');
+    engine.handTrackingHUD.disable();
+    beginPinch();
+    const resumed = events.length;
+    time += 40;
+    activeCursor.update(rightFrame(150, { justPinchEnded: true }));
+    assert(events.slice(resumed).some(e => e.type === 'pointerup'), 'Pinch release must work after re-enabling');
+    assert(events.slice(resumed).some(e => e.type === 'click'), 'Normal clicks must work after re-enabling');
   } finally {
+    engine?.handGestureService?.destroy();
+    engine?.handTrackingHUD?.destroy();
+    engine?.visionProCursor?.destroy();
     cursor?.destroy();
     for (const [name, descriptor] of saved) {
       if (descriptor) Object.defineProperty(globalThis, name, descriptor);
       else delete (globalThis as any)[name];
     }
   }
-  console.log('✓ Test 31 passed: Both cursor positions, hit targets, press/drag/release, screen edges and hidden cursor behavior verified');
+  console.log('✓ Test 31 passed: Shared cursor coordinates, tracking shutdown cancellation, dual-pinch cleanup and re-enable behavior verified');
 }
 
 console.log('========================================================');

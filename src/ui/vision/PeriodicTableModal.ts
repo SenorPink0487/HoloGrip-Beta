@@ -1,4 +1,5 @@
 import { ChemistryEngine, type ChemicalReagent } from '../../chemistry/ChemistryEngine.ts';
+import { addReagentWithAudio, prepareReagentAudio } from '../../scene/chemistry/ReagentAdditionAudio.ts';
 import { bindMixtureQuery, type MixtureQueryBinding } from './mixtureQuery.ts';
 
 export interface PeriodicElement {
@@ -334,6 +335,7 @@ export class PeriodicTableModal {
     const overlay = this.element.querySelector('#element-popover-overlay') as HTMLElement;
     const card = this.element.querySelector('#element-popover-card') as HTMLElement;
     if (!overlay || !card) return;
+    prepareReagentAudio();
 
     // 高亮当前选中的元素单元格
     this.element.querySelectorAll('.element-cell').forEach((c) => {
@@ -396,7 +398,7 @@ export class PeriodicTableModal {
       const btn = card.querySelector(`.popover-reagent-row[data-reagent-id="${r.id}"]`);
       btn?.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.getActiveEngine().addReagent(r.id, r.defaultAmount);
+        addReagentWithAudio(this.getActiveEngine(), r.id, r.defaultAmount);
 
         btn.classList.add('row-added');
         const actionSpan = btn.querySelector('.reagent-row-action');

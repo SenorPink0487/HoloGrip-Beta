@@ -24,6 +24,7 @@ import { Crosshair } from '../ui/Crosshair.ts';
 import { ChemistryEngine } from '../chemistry/ChemistryEngine.ts';
 import { BeakerMesh } from '../scene/BeakerMesh.ts';
 import { ReactionEffects } from '../scene/ReactionEffects.ts';
+import { WaterPourAudio } from '../scene/chemistry/WaterPourAudio.ts';
 import {
   POUR_EXIT_SPEED,
   POUR_GRAVITY,
@@ -144,6 +145,7 @@ export class Engine {
   private pourStreamMesh: THREE.Mesh | null = null;
   private pourStreamMat: THREE.MeshPhysicalMaterial | null = null;
   private pourVolumeBadgeEl: HTMLElement | null = null;
+  private pourAudio: WaterPourAudio | null = null;
 
   public beakerDragState: {
     isDragging: boolean;
@@ -721,16 +723,20 @@ export class Engine {
     if (transferAmt > 0.02 && room > 0.4) {
       state.targetEngine.mixFrom(state.sourceEngine, transferAmt);
       state.lastPouredVolume += transferAmt;
+      this.pourAudio?.setFlow(transferAmt / delta);
       const effects = state.targetId === 'left' ? this.reactionEffectsLeft : this.reactionEffectsRight;
       if (effects) {
         const localHit = target.group.worldToLocal(new THREE.Vector3(hit.x, hit.y, hit.z));
         effects.setPourImpact(localHit.x, localHit.z);
         effects.triggerPour(source.liquidColor.getHex());
       }
+    } else {
+      this.pourAudio?.stop();
     }
   }
 
   private hidePourStream(): void {
+    this.pourAudio?.stop();
     if (this.pourStreamMesh && this.pourStreamMesh.visible) {
       this.pourStreamMesh.visible = false;
     }
@@ -2071,6 +2077,9 @@ export class Engine {
 
     this.handGestureService.onStatusChange((telemetry) => {
       const isRunning = telemetry.status === 'running';
+      if (!isRunning) {
+        this.visionProCursor?.reset();
+      }
       this.visionModal?.setGestureNavigationEnabled(isRunning);
       if (typeof document !== 'undefined' && document.body) {
         document.body.classList.toggle('hand-tracking-active', isRunning);
@@ -2133,6 +2142,7 @@ export class Engine {
   }
 
   private cancelLabInteraction(): void {
+    this.pourAudio?.stop();
     if (!this.labPointers?.active && !this.beakerDragState) return;
     const hadPointers = this.labPointers.active;
     this.labPointers.cancel(this.renderer.domElement, event => {
@@ -2168,6 +2178,11 @@ export class Engine {
     canvas.style.userSelect = 'none';
     canvas.style.setProperty('-webkit-touch-callout', 'none');
     window.addEventListener('blur', () => { this.cancelLabInteraction(); this.demonstration?.pause(); });
+    window.addEventListener('pagehide', () => {
+      this.cancelLabInteraction();
+      this.pourAudio?.dispose();
+      this.pourAudio = null;
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) { this.cancelLabInteraction(); this.demonstration?.pause(); }
     });
@@ -2245,6 +2260,8 @@ export class Engine {
 
       const beakerHit = this.getInteractiveBeakerAt(mouseNDC, e.clientX, e.clientY, isTouch);
       if (beakerHit) {
+        this.pourAudio ??= new WaterPourAudio();
+        this.pourAudio.unlock();
         this.claimLabPointer(e);
 
         const sourceId = beakerHit;

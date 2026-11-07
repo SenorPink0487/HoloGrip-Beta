@@ -401,6 +401,19 @@ let cola: AnalyzedMixture;
   viewBtn.dispatch('click');
   assert.strictEqual(viewBeakerCalled, true, 'Clicking 烧杯成分分析 button must invoke onViewBeaker');
 
+  // Reproduce the exact Common Reagents → Carbon → phenolphthalein button path.
+  const right = new ChemistryEngine();
+  modal.setEngines(engine, right, 'right');
+  modal.openElementPopover(PeriodicTableModal.ELEMENTS.find((element) => element.symbol === 'C')!);
+  const reagentCard = modal.element.querySelector('#element-popover-card') as TestMockDOMElement;
+  const indicatorButton = reagentCard.querySelector('.popover-reagent-row[data-reagent-id="phenolphthalein"]') as TestMockDOMElement;
+  indicatorButton.dispatch('click', { stopPropagation() {} });
+  assert.ok(right.state.indicators.phenolphthalein > 0, 'The button must add indicator to the selected beaker');
+  assert.strictEqual(engine.state.indicators.phenolphthalein, 0, 'The unselected beaker must remain unchanged');
+  assert.ok(right.getCompositionAnalysis().components.some((component) => component.formula === 'C₂₀H₁₄O₄'),
+    'Added colorless phenolphthalein must appear in the composition view instead of showing pure water');
+  assert.strictEqual(right.state.volume, 60.25, 'Five drops must add 0.25mL instead of 5mL');
+
   modal.destroy();
   (globalThis as any).document = prevDoc;
   console.log('✓ Test 10 passed\n');

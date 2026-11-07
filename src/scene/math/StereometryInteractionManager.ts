@@ -676,10 +676,12 @@ export class StereometryInteractionManager {
     this.rotationVelocity.set(0, 0);
 
     const bounds = this.getViewportBounds(context);
+    // 接线期间只解析目标点，辅助线及夹角不得抢占事件或清空起点。
+    const isConnecting = this.pendingStartPoint !== null || this.session.kind === 'point-gesture';
 
     // 优先检测 1：是否点中或按住了已绘制的夹角（圆弧或度数标牌） -> 触发苹果原生动效长按消除
     const maxAngleHitPx = isVision ? 44 : isTouch ? 40 : 24;
-    const hitAngle = typeof this.mesh.findClosestAngle === 'function'
+    const hitAngle = !isConnecting && typeof this.mesh.findClosestAngle === 'function'
       ? this.mesh.findClosestAngle(
           this.internalRaycaster.ray,
           event.clientX,
@@ -691,9 +693,6 @@ export class StereometryInteractionManager {
       : null;
 
     if (hitAngle && (!resolved.keyPoint || resolved.zone !== 'keypoint')) {
-      if (this.pendingStartPoint) {
-        this.resetSelection(true);
-      }
       this.clearAngleSelection();
       this.currentHoveredKp = null;
       this.currentSnapLabel = '';
@@ -728,7 +727,7 @@ export class StereometryInteractionManager {
 
     // 优先检测 2：检测已绘制的辅助线 (紫线) - 触控屏下大幅提升容差至 54px，轻松精准命中
     const maxSegmentHitPx = isVision ? 48 : isTouch ? 54 : 28;
-    const hitSeg = typeof this.mesh.findClosestDrawnSegment === 'function'
+    const hitSeg = !isConnecting && typeof this.mesh.findClosestDrawnSegment === 'function'
       ? this.mesh.findClosestDrawnSegment(
           this.internalRaycaster.ray,
           event.clientX,
@@ -739,7 +738,7 @@ export class StereometryInteractionManager {
         )
       : null;
 
-    // 判定规则（解决“选线经常点不到，注意能标角度的只能是紫线”）：
+    // 非接线状态下的选线规则（能标角度的只能是紫线）：
     // 1) 若当前已选中第 1 根紫线 (selectedLineForAngle 存在)，用户的意图 100% 是选择第 2 根紫线标角，
     //    只要命中紫线，绝不被端点关键点抢占，绝不清空已有选线！
     // 2) 若当前尚未选线，但点击在紫线上 (且比关键点更靠近线身或在数值标牌附近)，优先选定紫线！
@@ -754,9 +753,6 @@ export class StereometryInteractionManager {
     }
 
     if (shouldPickSegment && hitSeg) {
-      if (this.pendingStartPoint) {
-        this.resetSelection(true);
-      }
       this.currentHoveredKp = null;
       this.currentSnapLabel = '';
       this.recentSnapLock = null;
@@ -816,6 +812,8 @@ export class StereometryInteractionManager {
     // 分支 A：锁定关键点 -> 进入选点/拖拽连线会话（严禁触发任何旋转）
     if (resolved.zone === 'keypoint' && resolved.keyPoint) {
       this.clearAngleSelection();
+      this.mesh.setHoveredSegment?.(null);
+      this.mesh.setHoveredAngle?.(null);
       const snapKp = resolved.keyPoint;
       const snapLabel = resolved.snapLabel || snapKp.label;
       this.session = {

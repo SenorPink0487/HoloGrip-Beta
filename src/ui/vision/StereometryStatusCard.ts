@@ -2,6 +2,7 @@ import type { StereometryTelemetryData } from '../../experiments/catalog/math-st
 import type { HighSchoolModelType, PolyhedronModelDef } from '../../scene/math/GeometrySolver.ts';
 import type { InteractionMode } from '../../scene/math/StereometryInteractionManager.ts';
 import { MathARScannerModal } from './MathARScannerModal.ts';
+import { pickProblemPhoto } from './pickProblemPhoto.ts';
 
 export interface StereometryStatusCardCallbacks {
   onModelChange?: (type: HighSchoolModelType) => void;
@@ -375,19 +376,14 @@ export class StereometryStatusCard {
         this.setScanStatus('请上传图片');
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') void this.handleImage(reader.result);
-        else this.setScanStatus('解析失败');
-      };
-      reader.onerror = () => this.setScanStatus('解析失败');
-      reader.readAsDataURL(file);
+      void this.handleImage(file);
     };
 
     fileInput?.addEventListener('change', () => takeFile(fileInput));
     cameraInput?.addEventListener('change', () => takeFile(cameraInput));
-    this.uploadBtn?.addEventListener('click', () => {
-      this.openARScanner();
+    this.uploadBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void this.openPhotoLibrary(fileInput);
     });
     this.cameraBtn?.addEventListener('click', () => {
       this.openARScanner();
@@ -412,13 +408,7 @@ export class StereometryStatusCard {
         this.setScanStatus('请上传图片');
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') void this.handleImage(reader.result);
-        else this.setScanStatus('解析失败');
-      };
-      reader.onerror = () => this.setScanStatus('解析失败');
-      reader.readAsDataURL(file);
+      void this.handleImage(file);
     });
   }
 
@@ -566,10 +556,30 @@ export class StereometryStatusCard {
     this.element.querySelectorAll('.math-model-card').forEach((card) => card.classList.remove('active'));
   }
 
+  private async openPhotoLibrary(fileInput: HTMLInputElement | null): Promise<void> {
+    if (this.recognizing) return;
+    try {
+      const selection = await pickProblemPhoto(fileInput);
+      if (!selection || selection.cancelled) return;
+      if (!selection.dataUrl) {
+        this.setScanStatus('相册图片读取失败，请重试');
+        return;
+      }
+      await this.handleImage(selection.dataUrl);
+    } catch {
+      this.setScanStatus('打开相册失败，请重试');
+    }
+  }
+
   /** 打开全屏沉浸式 Apple 风格数学 AR 题目扫描工作台。 */
   public openARScanner(): void {
     if (this.recognizing) return;
+    this.createARScanner(true);
+  }
+
+  private createARScanner(autoStartCamera: boolean): MathARScannerModal {
     const scanner = new MathARScannerModal({
+      autoStartCamera,
       onRecognizeImage: this.callbacks.onRecognizeImage
         ? async (dataUrl) => {
             const res = await this.callbacks.onRecognizeImage!(dataUrl);
@@ -585,22 +595,15 @@ export class StereometryStatusCard {
       },
     });
     document.body.appendChild(scanner.element);
+    return scanner;
   }
 
-  private async handleImage(dataUrl: string): Promise<void> {
+  private async handleImage(image: File | string): Promise<void> {
     if (this.recognizing) return;
-    if (!this.callbacks.onRecognizeImage) {
-      this.setScanStatus('识图服务未连接');
-      return;
-    }
     this.setScanBusy(true);
-    this.setScanStatus('正在识别…');
-    const started = performance.now();
     try {
-      const result = await this.callbacks.onRecognizeImage(dataUrl);
-      const seconds = ((performance.now() - started) / 1000).toFixed(1);
-      this.clearPresetSelection();
-      this.setScanStatus(`已构建「${result.name}」· ${seconds} 秒`);
+      const scanner = this.createARScanner(false);
+      await scanner.loadProblemImage(image);
     } catch (error) {
       this.setScanStatus(error instanceof Error ? error.message : '识图失败');
     } finally {

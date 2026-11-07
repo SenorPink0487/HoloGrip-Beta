@@ -325,6 +325,43 @@ console.log('=== Starting Chemistry Engine Comprehensive Verification ===\n');
   console.log('✓ Test 11 passed: Concrete chemical substances (CO2, NaCl, MgCl2, etc.) verified\n');
 }
 
+{
+  console.log('Test 12: Colorless phenolphthalein remains visible through dilution and transfer');
+  const source = new ChemistryEngine();
+  source.addReagent('phenolphthalein', 1);
+  const indicator = (engine: ChemistryEngine) => engine.getCompositionAnalysis().components
+    .find((component) => component.id === 'indicator_phenolphthalein');
+  const singleDrop = indicator(source)!;
+  assert.ok(singleDrop, 'Even one colorless drop must be listed as a solute');
+  assert.strictEqual(source.state.volume, 60.05);
+  assert.strictEqual(singleDrop.categoryLabel, '酸碱指示剂');
+  assert.ok(singleDrop.moles > 0 && singleDrop.massGrams > 0);
+  assert.ok(!source.getCompositionAnalysis('ion').components.some((component) => component.id === singleDrop.id),
+    'The indicator molecule must not be listed as a free ion');
+
+  source.addReagent('phenolphthalein', 4);
+  const fiveDrops = indicator(source)!;
+  assert.strictEqual(source.state.indicators.phenolphthalein, 5);
+  assert.strictEqual(source.state.volume, 60.25);
+  assert.ok(Math.abs(fiveDrops.moles - 5 * singleDrop.moles) < 1e-12);
+  source.addReagent('H2O', 25);
+  assert.strictEqual(indicator(source)!.moles, fiveDrops.moles);
+  assert.ok(indicator(source)!.concentration! < fiveDrops.concentration!);
+
+  const target = new ChemistryEngine();
+  target.addReagent('NaOH', 25);
+  target.mixFrom(source, source.state.volume / 2);
+  assert.ok(Math.abs(indicator(source)!.moles + indicator(target)!.moles - fiveDrops.moles) < 1e-12,
+    'Pouring between beakers must conserve the indicator amount shown in the composition');
+  assert.ok(target.state.liquidColor.r > 0.7 && target.state.liquidColor.g < 0.2);
+  target.addReagent('HCl', 25);
+  assert.ok(target.state.liquidColor.g > 0.7, 'Neutralization must restore the colorless liquid');
+  assert.ok(indicator(target), 'Decolorization must not remove the indicator from the composition');
+  target.reset();
+  assert.strictEqual(indicator(target), undefined, 'Cleaning must clear the indicator composition');
+  console.log('✓ Test 12 passed\n');
+}
+
 console.log('========================================================');
-console.log('All Comprehensive Chemistry Engine Tests Passed (11/11)!');
+console.log('All Comprehensive Chemistry Engine Tests Passed (12/12)!');
 console.log('========================================================');
